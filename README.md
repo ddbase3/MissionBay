@@ -137,7 +137,7 @@ class UpperCaseNode extends AbstractAgentNode {
 
 ## 📜 License
 
-MIT License
+LGPL License
 
 ## 🤝 Contributing
 
