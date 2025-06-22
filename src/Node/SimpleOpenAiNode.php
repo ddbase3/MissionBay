@@ -61,5 +61,9 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 
 		return ['response' => $content];
 	}
+
+	public function getDescription(): string {
+		return 'Sends a user prompt to the OpenAI Chat API with an optional system message and returns a single assistant response. A lightweight alternative to full agent-based communication.';
+	}
 }
 

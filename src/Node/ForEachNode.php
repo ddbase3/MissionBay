@@ -77,5 +77,9 @@ class ForEachNode extends AbstractAgentNode {
 
 		return ['results' => $results];
 	}
+
+	public function getDescription(): string {
+		return 'Executes a given node once for each item in an input array. Supports dynamic input mapping using placeholders like $item, $key, $index, and $context_* variables. Returns a list of results.';
+	}
 }
 

@@ -28,5 +28,7 @@ abstract class AbstractAgentNode implements IAgentNode {
 	abstract public function getOutputDefinitions(): array;
 
 	abstract public function execute(array $inputs, AgentContext $context): array;
+
+	abstract public function getDescription(): string;
 }
 

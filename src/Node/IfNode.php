@@ -32,5 +32,9 @@ class IfNode extends AbstractAgentNode {
 
 		return $cond ? ['true' => 1] : ['false' => 1];
 	}
+
+	public function getDescription(): string {
+		return 'Evaluates a boolean condition and routes the flow to either the "true" or "false" output. Useful for simple conditional branching within flows.';
+	}
 }
 

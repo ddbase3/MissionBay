@@ -64,5 +64,9 @@ class HttpRequestNode extends AbstractAgentNode {
 			'body' => $response
 		];
 	}
+
+	public function getDescription(): string {
+		return 'Performs a flexible HTTP request with customizable method, headers, and body. Returns the response body and HTTP status code. Supports GET, POST, PUT, DELETE, and more.';
+	}
 }
 

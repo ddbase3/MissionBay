@@ -23,5 +23,9 @@ class TestInputNode extends AbstractAgentNode {
 		$value = $inputs['value'] ?? null;
 		return ['value' => $value];
 	}
+
+	public function getDescription(): string {
+		return 'Passes through the input value unchanged. Useful for testing, debugging, or injecting controlled data into a flow.';
+	}
 }
 

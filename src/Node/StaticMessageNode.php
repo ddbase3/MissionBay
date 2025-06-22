@@ -23,5 +23,9 @@ class StaticMessageNode extends AbstractAgentNode {
 
 		return ['message' => (string)$text];
 	}
+
+	public function getDescription(): string {
+		return 'Outputs a static text message as provided in the input. Useful for sending fixed content into a flow, such as default values, templates, or predefined prompts.';
+	}
 }
 

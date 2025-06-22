@@ -26,5 +26,9 @@ class StringReverserNode extends AbstractAgentNode {
 
 		return ['reversed' => $reversed];
 	}
+
+	public function getDescription(): string {
+		return 'Reverses the given input string and returns the result. Useful for string manipulation, testing, or flow demonstrations.';
+	}
 }
 

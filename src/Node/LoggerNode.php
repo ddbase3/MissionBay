@@ -37,5 +37,9 @@ class LoggerNode extends AbstractAgentNode {
 			return ['error' => $e->getMessage()];
 		}
 	}
+
+	public function getDescription(): string {
+		return 'Writes a log entry using the provided scope and message. Useful for debugging, tracing flow execution, or recording structured events.';
+	}
 }
 

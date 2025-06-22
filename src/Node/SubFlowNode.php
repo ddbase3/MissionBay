@@ -45,5 +45,9 @@ class SubFlowNode extends AbstractAgentNode {
 
 		return [];
 	}
+
+	public function getDescription(): string {
+		return 'Executes a nested AgentFlow within the current flow using the given inputs. Returns the first non-null result from the subflow. Useful for modularization, reuse, or encapsulation of complex logic.';
+	}
 }
 

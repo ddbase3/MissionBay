@@ -62,5 +62,9 @@ class LoopNode extends AbstractAgentNode {
 
 		return ['results' => $results];
 	}
+
+	public function getDescription(): string {
+		return 'Executes a given node a fixed number of times. Supports dynamic input mapping with $index and $context_* placeholders. Useful for generating repeated structures, testing, or iterative processing.';
+	}
 }
 

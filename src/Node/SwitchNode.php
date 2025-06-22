@@ -37,5 +37,9 @@ class SwitchNode extends AbstractAgentNode {
 
 		return ['default' => 1];
 	}
+
+	public function getDescription(): string {
+		return 'Routes the flow based on a string value. If the value matches one of the defined cases, the corresponding output is activated; otherwise, the "default" output is used. Useful for multi-branch control logic.';
+	}
 }
 

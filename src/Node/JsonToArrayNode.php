@@ -30,5 +30,9 @@ class JsonToArrayNode extends AbstractAgentNode {
 
 		return ['array' => $data];
 	}
+
+	public function getDescription(): string {
+		return 'Parses a JSON string and converts it into an associative PHP array. Useful for processing API responses or any structured JSON data.';
+	}
 }
 

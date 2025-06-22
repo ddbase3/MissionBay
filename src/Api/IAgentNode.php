@@ -43,5 +43,13 @@ interface IAgentNode extends IBase {
 	 * @return array Named outputs
 	 */
 	public function execute(array $inputs, AgentContext $context): array;
+
+	/**
+	 * Returns a human-readable description of what the node does.
+	 * Useful for documentation, UI display, and GPT interpretation.
+	 *
+	 * @return string
+	 */
+	public function getDescription(): string;
 }
 

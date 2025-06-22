@@ -34,5 +34,9 @@ class GetContextVarNode extends AbstractAgentNode {
 
 		return ['value' => $value];
 	}
+
+	public function getDescription(): string {
+		return 'Retrieves a variable from the AgentContext by key. Useful for accessing shared values across multiple nodes during flow execution.';
+	}
 }
 

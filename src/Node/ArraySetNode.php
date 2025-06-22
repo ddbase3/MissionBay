@@ -49,5 +49,9 @@ class ArraySetNode extends AbstractAgentNode {
 
 		return ['array' => $array];
 	}
+
+	public function getDescription(): string {
+		return 'Inserts or updates a value in a nested array using dot-notation path syntax (e.g., "user.profile.name"). Returns the modified array structure.';	
+	}
 }
 

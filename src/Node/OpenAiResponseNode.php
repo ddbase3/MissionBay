@@ -98,5 +98,9 @@ class OpenAiResponseNode extends AbstractAgentNode {
 		$data = json_decode($response, true);
 		return $data['choices'][0]['message']['content'] ?? '(no response)';
 	}
+
+	public function getDescription(): string {
+		return 'Sends a list of user messages to the OpenAI Chat API and returns assistant responses. Maintains conversational history using AgentMemory. Useful for AI-based replies, summarization, or creative text generation.';
+	}
 }
 

@@ -30,5 +30,9 @@ class SetContextVarNode extends AbstractAgentNode {
 		$context->setVar($key, $value);
 		return ['success' => true];
 	}
+
+	public function getDescription(): string {
+		return 'Stores a value in the AgentContext under a given key. Useful for sharing data between nodes, caching intermediate results, or persisting values across flow steps.';
+	}
 }
 

@@ -47,5 +47,9 @@ class GetConfigurationNode extends AbstractAgentNode {
 
 		return ['value' => $sectionData[$key]];
 	}
+
+	public function getDescription(): string {
+		return 'Retrieves a specific configuration value from a named section using Base3\'s IConfiguration interface. Useful for injecting secrets, environment settings, or other global parameters into a flow.';
+	}
 }
 

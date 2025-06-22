@@ -34,5 +34,9 @@ class HttpGetNode extends AbstractAgentNode {
 
 		return ['body' => $response];
 	}
+
+	public function getDescription(): string {
+		return 'Performs a simple HTTP GET request to the specified URL and returns the response body. Useful for retrieving external JSON, HTML, or text content in a flow.';
+	}
 }
 

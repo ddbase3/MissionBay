@@ -43,5 +43,9 @@ class ArrayGetNode extends AbstractAgentNode {
 
 		return ['value' => $current];
 	}
+
+	public function getDescription(): string {
+		return 'Retrieves a value from a nested array using dot-notation path syntax (e.g., "user.profile.name"). Returns the value or an error if the path is invalid.';
+	}
 }
 

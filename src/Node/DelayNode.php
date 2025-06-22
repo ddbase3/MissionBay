@@ -30,5 +30,9 @@ class DelayNode extends AbstractAgentNode {
 
 		return ['done' => true];
 	}
+
+	public function getDescription(): string {
+		return 'Pauses flow execution for a specified number of seconds (between 0 and 60). Useful for throttling, timing control, or simulating wait conditions.';
+	}
 }
 
