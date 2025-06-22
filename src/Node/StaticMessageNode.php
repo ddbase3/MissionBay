@@ -2,29 +2,26 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentMemory;
 use MissionBay\Agent\AgentContext;
 
-class StringReverserNode extends AbstractAgentNode {
+class StaticMessageNode extends AbstractAgentNode {
 
 	public static function getName(): string {
-		return 'stringreversernode';
+		return 'staticmessagenode';
 	}
 
 	public function getInputDefinitions(): array {
-		return ['text'];
+		return ['text']; 
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['reversed'];
+		return ['message'];
 	}
 
 	public function execute(array $inputs, AgentContext $context): array {
 		$text = $inputs['text'] ?? '';
-		$reversed = strrev($text);
 
-		return ['reversed' => $reversed];
+		return ['message' => (string)$text];
 	}
 }
 

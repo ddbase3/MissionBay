@@ -3,28 +3,32 @@
 namespace MissionBay\Node;
 
 use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentMemory;
 use MissionBay\Agent\AgentContext;
 
-class StringReverserNode extends AbstractAgentNode {
+class JsonToArrayNode extends AbstractAgentNode {
 
 	public static function getName(): string {
-		return 'stringreversernode';
+		return 'jsontoarraynode';
 	}
 
 	public function getInputDefinitions(): array {
-		return ['text'];
+		return ['json'];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['reversed'];
+		return ['array', 'error'];
 	}
 
 	public function execute(array $inputs, AgentContext $context): array {
-		$text = $inputs['text'] ?? '';
-		$reversed = strrev($text);
+		$json = $inputs['json'] ?? '';
 
-		return ['reversed' => $reversed];
+		$data = json_decode($json, true);
+
+		if (json_last_error() !== JSON_ERROR_NONE) {
+			return ['error' => 'Invalid JSON: ' . json_last_error_msg()];
+		}
+
+		return ['array' => $data];
 	}
 }
 

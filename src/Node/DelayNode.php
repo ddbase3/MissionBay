@@ -3,28 +3,32 @@
 namespace MissionBay\Node;
 
 use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentMemory;
 use MissionBay\Agent\AgentContext;
 
-class StringReverserNode extends AbstractAgentNode {
+class DelayNode extends AbstractAgentNode {
 
 	public static function getName(): string {
-		return 'stringreversernode';
+		return 'delaynode';
 	}
 
 	public function getInputDefinitions(): array {
-		return ['text'];
+		return ['seconds'];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['reversed'];
+		return ['done', 'error'];
 	}
 
 	public function execute(array $inputs, AgentContext $context): array {
-		$text = $inputs['text'] ?? '';
-		$reversed = strrev($text);
+		$seconds = $inputs['seconds'] ?? 1;
 
-		return ['reversed' => $reversed];
+		if (!is_numeric($seconds) || $seconds < 0 || $seconds > 60) {
+			return ['error' => 'Invalid delay time'];
+		}
+
+		sleep((int)$seconds);
+
+		return ['done' => true];
 	}
 }
 

@@ -2,44 +2,39 @@
 
 namespace MissionBay\Agent;
 
+use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentMemory;
 
-class AgentContext {
+class AgentContext implements IAgentContext {
 
 	private IAgentMemory $memory;
+	private array $vars = [];
 
-	public function __construct(IAgentMemory $memory) {
+	public function __construct(IAgentMemory $memory, array $vars = []) {
 		$this->memory = $memory;
+		$this->vars = $vars;
 	}
 
-	/**
-	 * Load the full message history for a given user ID.
-	 *
-	 * @param string $userId
-	 * @return array
-	 */
+	/*
 	public function loadHistory(string $userId): array {
 		return $this->memory->load($userId);
 	}
 
-	/**
-	 * Add a message with a specific role to the user’s memory.
-	 *
-	 * @param string $userId
-	 * @param string $role e.g. "user" or "bot"
-	 * @param string $msg
-	 */
 	public function remember(string $userId, string $role, string $msg): void {
 		$this->memory->remember($userId, $role, $msg);
 	}
-
-	/**
-	 * Access to the underlying memory implementation.
-	 *
-	 * @return IAgentMemory
 	 */
+
 	public function getMemory(): IAgentMemory {
 		return $this->memory;
+	}
+
+	public function setVar(string $key, mixed $value): void {
+		$this->vars[$key] = $value;
+	}
+
+	public function getVar(string $key): mixed {
+		return $this->vars[$key] ?? null;
 	}
 }
 

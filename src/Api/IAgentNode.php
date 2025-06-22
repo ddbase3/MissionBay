@@ -15,7 +15,14 @@ interface IAgentNode extends IBase {
 	public function getId(): string;
 
 	/**
-	 * Returns the list of named input ports (e.g., ["text", "config"]).
+	 * Sets the ID of this node within the flow.
+	 *
+	 * @param string $id
+	 */
+	public function setId(string $id): void;
+
+	/**
+	 * Returns the list of named input ports (e.g., ["text", "url"]).
 	 *
 	 * @return string[]
 	 */
