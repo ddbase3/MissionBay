@@ -4,6 +4,9 @@ namespace MissionBay\Api;
 
 use Base3\Api\IBase;
 
+/**
+ * Interface for storing and managing memory entries per user in agent flows.
+ */
 interface IAgentMemory extends IBase {
 
 	/**
@@ -22,5 +25,12 @@ interface IAgentMemory extends IBase {
 	 * @param string $text The actual message content
 	 */
 	public function remember(string $userId, string $role, string $text): void;
+
+	/**
+	 * Resets (clears) all memory entries for the given user.
+	 *
+	 * @param string $userId
+	 */
+	public function reset(string $userId): void;
 }
 

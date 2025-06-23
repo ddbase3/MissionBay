@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class ArraySetNode extends AbstractAgentNode {
 
@@ -12,14 +12,46 @@ class ArraySetNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['array', 'path', 'value'];
+		return [
+			new AgentNodePort(
+				name: 'array',
+				description: 'The base array to modify.',
+				type: 'array',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'path',
+				description: 'Dot-notation path to the key to insert or update (e.g., "user.profile.name").',
+				type: 'string',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'value',
+				description: 'The value to set at the specified path.',
+				type: 'mixed',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['array', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'array',
+				description: 'The modified array after insertion or update.',
+				type: 'array',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if the input was invalid.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$array = $inputs['array'] ?? [];
 		$path = $inputs['path'] ?? '';
 		$value = $inputs['value'] ?? null;
@@ -51,7 +83,7 @@ class ArraySetNode extends AbstractAgentNode {
 	}
 
 	public function getDescription(): string {
-		return 'Inserts or updates a value in a nested array using dot-notation path syntax (e.g., "user.profile.name"). Returns the modified array structure.';	
+		return 'Inserts or updates a value in a nested array using dot-notation path syntax (e.g., "user.profile.name"). Returns the modified array structure.';
 	}
 }
 

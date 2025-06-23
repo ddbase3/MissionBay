@@ -3,7 +3,7 @@
 namespace MissionBay\Api;
 
 use Base3\Api\IBase;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 interface IAgentNode extends IBase {
 
@@ -22,27 +22,44 @@ interface IAgentNode extends IBase {
 	public function setId(string $id): void;
 
 	/**
-	 * Returns the list of named input ports (e.g., ["text", "url"]).
+	 * Returns the list of input ports.
 	 *
-	 * @return string[]
+	 * This can return either:
+	 * - A list of strings (legacy format), e.g. ["text", "url"]
+	 * - A list of AgentNodePort objects (recommended format)
+	 *
+	 * The AgentNodePort format allows specifying:
+	 * - name
+	 * - type (incl. union and array types)
+	 * - default value
+	 * - required flag
+	 * - description (for UI / documentation)
+	 *
+	 * @return array<string|AgentNodePort>
 	 */
 	public function getInputDefinitions(): array;
 
 	/**
-	 * Returns the list of named output ports (e.g., ["result", "error"]).
+	 * Returns the list of output ports.
 	 *
-	 * @return string[]
+	 * This can return either:
+	 * - A list of strings (legacy format), e.g. ["result", "error"]
+	 * - A list of AgentNodePort objects (recommended format)
+	 *
+	 * Output ports may optionally specify default values for missing outputs.
+	 *
+	 * @return array<string|AgentNodePort>
 	 */
 	public function getOutputDefinitions(): array;
 
 	/**
 	 * Executes the node's logic using provided inputs and context.
 	 *
-	 * @param array $inputs Named input values
-	 * @param AgentContext $context Flow-wide context object
-	 * @return array Named outputs
+	 * @param array<string, mixed> $inputs Named input values
+	 * @param IAgentContext $context Flow-wide context object
+	 * @return array<string, mixed> Named outputs
 	 */
-	public function execute(array $inputs, AgentContext $context): array;
+	public function execute(array $inputs, IAgentContext $context): array;
 
 	/**
 	 * Returns a human-readable description of what the node does.

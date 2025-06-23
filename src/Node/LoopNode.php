@@ -2,8 +2,9 @@
 
 namespace MissionBay\Node;
 
+use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class LoopNode extends AbstractAgentNode {
 
@@ -12,14 +13,47 @@ class LoopNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['count', 'node', 'inputMap'];
+		return [
+			new AgentNodePort(
+				name: 'count',
+				description: 'Number of times to execute the inner node (0–1000).',
+				type: 'int',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'node',
+				description: 'The node to execute in each iteration.',
+				type: IAgentNode::class,
+				required: true
+			),
+			new AgentNodePort(
+				name: 'inputMap',
+				description: 'Associative array mapping input names to placeholders like $index or $context_*.',
+				type: 'array<string>',
+				default: [],
+				required: false
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['results', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'results',
+				description: 'Array of outputs returned by each iteration.',
+				type: 'array',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if input is invalid or loop execution fails.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$count = $inputs['count'] ?? null;
 		$node = $inputs['node'] ?? null;
 		$inputMap = $inputs['inputMap'] ?? [];
@@ -49,7 +83,6 @@ class LoopNode extends AbstractAgentNode {
 					}
 				}
 
-				// Standard-Input `index`
 				if (!isset($mappedInputs['index'])) {
 					$mappedInputs['index'] = $i;
 				}

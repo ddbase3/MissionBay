@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class DelayNode extends AbstractAgentNode {
 
@@ -12,14 +12,35 @@ class DelayNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['seconds'];
+		return [
+			new AgentNodePort(
+				name: 'seconds',
+				description: 'Number of seconds to wait (between 0 and 60).',
+				type: 'int',
+				default: 1,
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['done', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'done',
+				description: 'Indicates successful completion of the delay.',
+				type: 'bool',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if delay input was invalid.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$seconds = $inputs['seconds'] ?? 1;
 
 		if (!is_numeric($seconds) || $seconds < 0 || $seconds > 60) {

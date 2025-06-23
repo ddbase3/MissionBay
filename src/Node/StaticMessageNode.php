@@ -2,7 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class StaticMessageNode extends AbstractAgentNode {
 
@@ -11,14 +12,29 @@ class StaticMessageNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['text']; 
+		return [
+			new AgentNodePort(
+				name: 'text',
+				description: 'The static text message to output.',
+				type: 'string',
+				default: '',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['message'];
+		return [
+			new AgentNodePort(
+				name: 'message',
+				description: 'The resulting static message.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$text = $inputs['text'] ?? '';
 
 		return ['message' => (string)$text];

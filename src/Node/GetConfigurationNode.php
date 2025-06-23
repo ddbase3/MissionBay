@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Agent\AgentContext;
-use MissionBay\Api\IAgentNode;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 use Base3\Configuration\Api\IConfiguration;
 
 class GetConfigurationNode extends AbstractAgentNode {
@@ -20,14 +20,40 @@ class GetConfigurationNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['section', 'key'];
+		return [
+			new AgentNodePort(
+				name: 'section',
+				description: 'Name of the configuration section (e.g., "openai", "smtp").',
+				type: 'string',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'key',
+				description: 'Key within the selected section to retrieve.',
+				type: 'string',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['value', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'value',
+				description: 'The retrieved configuration value.',
+				type: 'mixed',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if section or key was missing or not found.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$section = $inputs['section'] ?? null;
 		$key = $inputs['key'] ?? null;
 

@@ -15,9 +15,6 @@ class VolatileMemory implements IAgentMemory {
 
 	/**
 	 * Loads the message history for a given user ID.
-	 *
-	 * @param string $userId
-	 * @return array Array of [role, text]
 	 */
 	public function load(string $userId): array {
 		return $this->memory[$userId] ?? [];
@@ -25,10 +22,6 @@ class VolatileMemory implements IAgentMemory {
 
 	/**
 	 * Appends a new message entry to the memory.
-	 *
-	 * @param string $userId
-	 * @param string $role
-	 * @param string $text
 	 */
 	public function remember(string $userId, string $role, string $text): void {
 		$this->memory[$userId][] = [$role, $text];
@@ -36,6 +29,13 @@ class VolatileMemory implements IAgentMemory {
 		if (count($this->memory[$userId]) > $this->max) {
 			array_shift($this->memory[$userId]);
 		}
+	}
+
+	/**
+	 * Clears the message history for the given user ID.
+	 */
+	public function reset(string $userId): void {
+		unset($this->memory[$userId]);
 	}
 }
 

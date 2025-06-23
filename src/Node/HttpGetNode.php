@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class HttpGetNode extends AbstractAgentNode {
 
@@ -12,14 +12,34 @@ class HttpGetNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['url'];
+		return [
+			new AgentNodePort(
+				name: 'url',
+				description: 'The full URL to fetch using HTTP GET.',
+				type: 'string',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['body', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'body',
+				description: 'The raw response body from the HTTP request.',
+				type: 'string',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if the request failed or the URL was invalid.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$url = $inputs['url'] ?? null;
 
 		if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {

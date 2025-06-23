@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class SetContextVarNode extends AbstractAgentNode {
 
@@ -12,14 +12,40 @@ class SetContextVarNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['key', 'value'];
+		return [
+			new AgentNodePort(
+				name: 'key',
+				description: 'The name under which the value should be stored in the AgentContext.',
+				type: 'string',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'value',
+				description: 'The value to store in context (any type).',
+				type: 'mixed',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['success', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'success',
+				description: 'True if the value was successfully stored.',
+				type: 'bool',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if key input is invalid.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$key = $inputs['key'] ?? null;
 		$value = $inputs['value'] ?? null;
 

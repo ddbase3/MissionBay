@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class ArrayGetNode extends AbstractAgentNode {
 
@@ -12,14 +12,40 @@ class ArrayGetNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['array', 'path'];
+		return [
+			new AgentNodePort(
+				name: 'array',
+				description: 'The nested array to search in.',
+				type: 'array',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'path',
+				description: 'Dot-notation path to the desired value (e.g., "user.profile.name").',
+				type: 'string',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['value', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'value',
+				description: 'The resolved value at the specified path.',
+				type: 'mixed',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if the path is invalid or array is malformed.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$array = $inputs['array'] ?? [];
 		$path = $inputs['path'] ?? '';
 

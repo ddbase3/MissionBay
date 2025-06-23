@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class JsonToArrayNode extends AbstractAgentNode {
 
@@ -12,14 +12,34 @@ class JsonToArrayNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['json'];
+		return [
+			new AgentNodePort(
+				name: 'json',
+				description: 'A valid JSON string to be parsed.',
+				type: 'string',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['array', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'array',
+				description: 'The resulting associative array parsed from the JSON input.',
+				type: 'array',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if the JSON is invalid or cannot be parsed.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$json = $inputs['json'] ?? '';
 
 		$data = json_decode($json, true);

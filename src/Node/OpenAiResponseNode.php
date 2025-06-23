@@ -2,7 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class OpenAiResponseNode extends AbstractAgentNode {
 
@@ -11,14 +12,47 @@ class OpenAiResponseNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['messages', 'model', 'apikey'];
+		return [
+			new AgentNodePort(
+				name: 'messages',
+				description: 'An array of message objects, each with "from", "body", and optional "subject".',
+				type: 'array',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'model',
+				description: 'The OpenAI model to use (e.g., gpt-3.5-turbo, gpt-4).',
+				type: 'string',
+				default: 'gpt-3.5-turbo',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'apikey',
+				description: 'The OpenAI API key used for authentication.',
+				type: 'string',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['responses', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'responses',
+				description: 'An array of generated responses (to, subject, body) for each input message.',
+				type: 'array',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if input or API call failed.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$messages = $inputs['messages'] ?? null;
 		$model = $inputs['model'] ?? 'gpt-3.5-turbo';
 		$apiKey = $inputs['apikey'] ?? null;

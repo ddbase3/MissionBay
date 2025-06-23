@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class IfNode extends AbstractAgentNode {
 
@@ -12,14 +12,40 @@ class IfNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['condition'];
+		return [
+			new AgentNodePort(
+				name: 'condition',
+				description: 'The boolean value to evaluate.',
+				type: 'bool',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['true', 'false', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'true',
+				description: 'Activated if the condition is true.',
+				type: 'int',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'false',
+				description: 'Activated if the condition is false.',
+				type: 'int',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if the input is missing or not boolean.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		if (!array_key_exists('condition', $inputs)) {
 			return ['error' => 'Missing "condition" input'];
 		}

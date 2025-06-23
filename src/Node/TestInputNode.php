@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class TestInputNode extends AbstractAgentNode {
 
@@ -12,14 +12,28 @@ class TestInputNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['value'];
+		return [
+			new AgentNodePort(
+				name: 'value',
+				description: 'The value to pass through unchanged.',
+				type: 'mixed',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['value'];
+		return [
+			new AgentNodePort(
+				name: 'value',
+				description: 'The same value that was received as input.',
+				type: 'mixed',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$value = $inputs['value'] ?? null;
 		return ['value' => $value];
 	}

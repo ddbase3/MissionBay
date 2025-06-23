@@ -2,8 +2,9 @@
 
 namespace MissionBay\Node;
 
+use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class ForEachNode extends AbstractAgentNode {
 
@@ -12,14 +13,47 @@ class ForEachNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['items', 'node', 'inputMap'];
+		return [
+			new AgentNodePort(
+				name: 'items',
+				description: 'The input array to iterate over.',
+				type: 'array',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'node',
+				description: 'The node instance to be executed for each item.',
+				type: IAgentNode::class,
+				required: true
+			),
+			new AgentNodePort(
+				name: 'inputMap',
+				description: 'Associative array mapping node inputs to expressions like $item, $key, $index, or $context_foo.',
+				type: 'array<string>',
+				default: [],
+				required: false
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['results', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'results',
+				description: 'Array of results from each node execution.',
+				type: 'array',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Optional error message if input or execution failed.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$items = $inputs['items'] ?? null;
 		$node = $inputs['node'] ?? null;
 		$inputMap = $inputs['inputMap'] ?? [];
@@ -47,17 +81,17 @@ class ForEachNode extends AbstractAgentNode {
 					} elseif ($expr === '$index') {
 						$mappedInputs[$target] = $index;
 					} elseif (str_starts_with($expr, '$context_')) {
-						$varName = substr($expr, 1); // '$context_flow' → 'context_flow'
+						$varName = substr($expr, 1); // "$context_foo" → "context_foo"
 						$mappedInputs[$target] = $context->getVar($varName);
 					} else {
 						$mappedInputs[$target] = null;
 					}
 				}
 
-				// Default values, wenn nicht explizit gesetzt
+				// Fallback-Zuweisung, wenn nicht durch inputMap gesetzt
 				if (!isset($mappedInputs['item'])) {
 					$mappedInputs['item'] = is_array($item)
-						? array_diff_key($item, ['flow' => true]) // 🛡️ Schutz vor rekursivem flow
+						? array_diff_key($item, ['flow' => true]) // 🛡️ Flow-Objekt aus item entfernen
 						: $item;
 				}
 				if (!isset($mappedInputs['key'])) {

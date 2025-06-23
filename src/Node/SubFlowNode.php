@@ -2,9 +2,9 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
-use MissionBay\Agent\AgentFlow;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
+use MissionBay\Agent\AgentNodePort;
 
 class SubFlowNode extends AbstractAgentNode {
 
@@ -13,24 +13,39 @@ class SubFlowNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['flow'];
+		return [
+			new AgentNodePort(
+				name: 'flow',
+				description: 'An instance of IAgentFlow to be executed as subflow.',
+				type: IAgentFlow::class,
+				required: true
+			)
+			// weitere Inputs werden dynamisch übergeben (z. B. "item", "context_...")
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['*'];
+		return [
+			new AgentNodePort(
+				name: '*',
+				description: 'Dynamic outputs, forwarded from the subflow result.',
+				type: 'mixed',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$flow = $inputs['flow'] ?? null;
 
-		if (!$flow instanceof AgentFlow) {
+		if (!$flow instanceof IAgentFlow) {
 			return ['error' => 'Missing or invalid flow input'];
 		}
 
-		// Entferne flow aus dem Input
+		// Entferne 'flow' aus dem Inputs-Array
 		unset($inputs['flow']);
 
-		// 🛡️ Zusätzlicher Schutz, falls 'item' selbst ein Array mit 'flow' ist
+		// Falls 'item' ein Array ist und 'flow' darin enthalten ist – auch entfernen
 		if (isset($inputs['item']) && is_array($inputs['item']) && array_key_exists('flow', $inputs['item'])) {
 			unset($inputs['item']['flow']);
 		}

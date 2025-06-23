@@ -2,7 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 use Base3\Logger\Api\ILogger;
 
 class LoggerNode extends AbstractAgentNode {
@@ -19,14 +20,42 @@ class LoggerNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['scope', 'message'];
+		return [
+			new AgentNodePort(
+				name: 'scope',
+				description: 'The log scope or channel name (e.g. "debug", "flow", "alert").',
+				type: 'string',
+				default: 'default',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'message',
+				description: 'The message to be logged.',
+				type: 'string',
+				default: '',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['logged', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'logged',
+				description: 'True if logging succeeded.',
+				type: 'bool',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if logging failed.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$scope = $inputs['scope'] ?? 'default';
 		$message = (string)($inputs['message'] ?? '');
 

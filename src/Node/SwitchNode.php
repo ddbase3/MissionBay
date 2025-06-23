@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class SwitchNode extends AbstractAgentNode {
 
@@ -12,14 +12,36 @@ class SwitchNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['value', 'cases'];
+		return [
+			new AgentNodePort(
+				name: 'value',
+				description: 'The string value to evaluate for branching.',
+				type: 'string',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'cases',
+				description: 'An array of allowed case values. If "value" matches one of them, the corresponding output is triggered.',
+				type: 'array<string>',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['*']; // alle möglichen Fälle + default
+		// Dynamische Outputs: ein Output pro Wert in "cases", plus "default"
+		// Zur Anzeige verwenden wir "*" als Platzhalter
+		return [
+			new AgentNodePort(
+				name: '*',
+				description: 'Dynamic outputs: one output per case value, plus a "default" output.',
+				type: 'int',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$value = $inputs['value'] ?? null;
 		$cases = $inputs['cases'] ?? [];
 

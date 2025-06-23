@@ -3,7 +3,7 @@
 namespace MissionBay\Node;
 
 use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
 
 abstract class AbstractAgentNode implements IAgentNode {
 
@@ -27,7 +27,7 @@ abstract class AbstractAgentNode implements IAgentNode {
 
 	abstract public function getOutputDefinitions(): array;
 
-	abstract public function execute(array $inputs, AgentContext $context): array;
+	abstract public function execute(array $inputs, IAgentContext $context): array;
 
 	abstract public function getDescription(): string;
 }

@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class TelegramSendMessage extends AbstractAgentNode {
 
@@ -16,14 +16,46 @@ class TelegramSendMessage extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ["bot_token", "chat_id", "message"];
+		return [
+			new AgentNodePort(
+				name: 'bot_token',
+				description: 'The Telegram bot API token.',
+				type: 'string',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'chat_id',
+				description: 'The recipient chat ID (user or group).',
+				type: 'string',
+				required: true
+			),
+			new AgentNodePort(
+				name: 'message',
+				description: 'The message text to be sent.',
+				type: 'string',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ["message_id", "error"];
+		return [
+			new AgentNodePort(
+				name: 'message_id',
+				description: 'The ID of the sent Telegram message.',
+				type: 'int',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if the Telegram API request failed.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $input, AgentContext $context): array {
+	public function execute(array $input, IAgentContext $context): array {
 		if (empty($input['bot_token']) || empty($input['chat_id']) || empty($input['message'])) {
 			return ["error" => "Missing required input: bot_token, chat_id, and message are all required."];
 		}
@@ -33,7 +65,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 		$message = $input["message"];
 
 		$url = "https://api.telegram.org/bot{$botToken}/sendMessage";
-		
+
 		$params = [
 			'chat_id' => $chatId,
 			'text' => $message,
@@ -47,7 +79,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 				"content" => http_build_query($params),
 			],
 		];
-		
+
 		$contextStream = stream_context_create($options);
 		$result = @file_get_contents($url, false, $contextStream);
 

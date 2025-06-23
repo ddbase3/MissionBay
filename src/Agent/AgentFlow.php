@@ -2,14 +2,18 @@
 
 namespace MissionBay\Agent;
 
+use MissionBay\Api\IAgentFlow;
+use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
-use Base3\Api\IClassMap;
+use MissionBay\Api\IAgentNodeFactory;
 
-class AgentFlow {
+class AgentFlow implements IAgentFlow {
 
 	private array $nodes = [];
 	private array $connections = [];
 	private array $initialInputs = [];
+
+	public function __construct(private readonly IAgentNodeFactory $agentnodefactory) {}
 
 	/**
 	 * Add a node to the flow.
@@ -20,11 +24,6 @@ class AgentFlow {
 
 	/**
 	 * Define a connection between two nodes.
-	 *
-	 * @param string $fromNode
-	 * @param string $fromOutput
-	 * @param string $toNode
-	 * @param string $toInput
 	 */
 	public function addConnection(string $fromNode, string $fromOutput, string $toNode, string $toInput): void {
 		$this->connections[] = [
@@ -38,28 +37,26 @@ class AgentFlow {
 	/**
 	 * Load a flow from array.
 	 */
-	public static function fromArray(array $data, IClassMap $classMap): self {
-		$flow = new self();
-
+	public function fromArray(array $data): self {
 		foreach ($data['nodes'] ?? [] as $nodeData) {
 			$type = $nodeData['type'] ?? null;
 			$id = $nodeData['id'] ?? null;
 
 			if (!$type || !$id) continue;
 
-			$node = $classMap->getInstanceByInterfaceName(IAgentNode::class, $type);
+			$node = $this->agentnodefactory->createNode($type);
 			if (!$node instanceof IAgentNode) continue;
 
 			$node->setId($id);
-			$flow->addNode($node);
+			$this->addNode($node);
 
 			if (!empty($nodeData['inputs'])) {
-				$flow->initialInputs[$id] = $nodeData['inputs'];
+				$this->initialInputs[$id] = $nodeData['inputs'];
 			}
 		}
 
 		foreach ($data['connections'] ?? [] as $conn) {
-			$flow->addConnection(
+			$this->addConnection(
 				$conn['from'] ?? '',
 				$conn['output'] ?? '',
 				$conn['to'] ?? '',
@@ -67,13 +64,13 @@ class AgentFlow {
 			);
 		}
 
-		return $flow;
+		return $this;
 	}
 
 	/**
 	 * Execute the flow.
 	 */
-	public function run(array $inputs, AgentContext $context): array {
+	public function run(array $inputs, IAgentContext $context): array {
 		$nodeInputs = [];
 		$nodeOutputs = [];
 
@@ -81,14 +78,12 @@ class AgentFlow {
 			$nodeInputs[$nodeId] = [];
 		}
 
-		// Inputs aus initialInputs (aus fromArray)
 		foreach ($this->initialInputs as $nodeId => $preset) {
 			foreach ($preset as $key => $value) {
 				$nodeInputs[$nodeId][$key] = $value;
 			}
 		}
 
-		// Inputs aus run() Parameter (z.B. für __input__)
 		foreach ($inputs as $inputName => $value) {
 			foreach ($this->connections as $conn) {
 				if ($conn['fromNode'] === '__input__' && $conn['fromOutput'] === $inputName) {
@@ -112,10 +107,32 @@ class AgentFlow {
 				if (in_array($nodeId, $executed)) continue;
 				if (!isset($nodeInputs[$nodeId])) continue;
 
+				$inputDefs = $this->normalizePortDefs($node->getInputDefinitions());
+				foreach ($inputDefs as $port) {
+					if (!array_key_exists($port->name, $nodeInputs[$nodeId])) {
+						if ($port->required && $port->default === null) {
+							$nodeOutputs[$nodeId] = ['error' => "Missing required input '{$port->name}' for node '$nodeId'"];
+							$executed[] = $nodeId;
+							$progress = true;
+							continue 2;  // next round outer foreach
+						}
+						$nodeInputs[$nodeId][$port->name] = $port->default;
+					}
+				}
+
 				try {
 					$output = $node->execute($nodeInputs[$nodeId], $context);
 				} catch (\Throwable $e) {
 					$output = ['error' => $e->getMessage()];
+				}
+
+				$outputDefs = $this->normalizePortDefs($node->getOutputDefinitions());
+				foreach ($outputDefs as $port) {
+					if (!array_key_exists($port->name, $output)) {
+						if ($port->default !== null) {
+							$output[$port->name] = $port->default;
+						}
+					}
 				}
 
 				$nodeOutputs[$nodeId] = $output;
@@ -154,6 +171,26 @@ class AgentFlow {
 		}
 
 		return $outputs;
+	}
+
+	/**
+	 * Normalizes input/output definitions to AgentNodePort[].
+	 *
+	 * @param array<string|AgentNodePort> $defs
+	 * @return AgentNodePort[]
+	 */
+	private function normalizePortDefs(array $defs): array {
+		$ports = [];
+
+		foreach ($defs as $def) {
+			if ($def instanceof AgentNodePort) {
+				$ports[] = $def;
+			} elseif (is_string($def)) {
+				$ports[] = new AgentNodePort(name: $def);
+			}
+		}
+
+		return $ports;
 	}
 }
 

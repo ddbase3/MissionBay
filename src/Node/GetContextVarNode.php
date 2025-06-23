@@ -2,8 +2,8 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Agent\AgentNodePort;
 
 class GetContextVarNode extends AbstractAgentNode {
 
@@ -12,14 +12,34 @@ class GetContextVarNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['key'];
+		return [
+			new AgentNodePort(
+				name: 'key',
+				description: 'The name of the context variable to retrieve.',
+				type: 'string',
+				required: true
+			)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['value', 'error'];
+		return [
+			new AgentNodePort(
+				name: 'value',
+				description: 'The value retrieved from context, if found.',
+				type: 'mixed',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message if key is invalid or value not found.',
+				type: 'string',
+				required: false
+			)
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$key = $inputs['key'] ?? null;
 
 		if (!is_string($key)) {
