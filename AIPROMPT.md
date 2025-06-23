@@ -20,6 +20,7 @@ Guidelines:
 - Output complete, minimal working examples.
 - Use the class naming convention: getName() must return the lowercase class name.
 - Each node must implement getInputDefinitions(), getOutputDefinitions(), getDescription(), and execute().
+- Inputs and outputs are defined using AgentNodePort objects (name, type, description, required, default).
 - Flows are defined in JSON using nodes and connections.
 - Always ask for the current node list from https://.../agentnodes.json as context input.
 ```
@@ -43,15 +44,13 @@ This file describes all available node types with names, classes, inputs, output
 
 **Purpose:** Provides a minimal and valid Node implementation for GPT to use as a pattern when generating new ones.
 
-```text
-Here is an example of a complete node implementation:
-
+```php
 <?php declare(strict_types=1);
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use MissionBay\Agent\AgentContext;
+use MissionBay\Agent\AgentNodePort;
+use MissionBay\Api\IAgentContext;
 
 class StringReverserNode extends AbstractAgentNode {
 
@@ -60,17 +59,20 @@ class StringReverserNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return ['text'];
+		return [
+			new AgentNodePort(name: 'text', type: 'string', description: 'The string to reverse.', required: true)
+		];
 	}
 
 	public function getOutputDefinitions(): array {
-		return ['reversed'];
+		return [
+			new AgentNodePort(name: 'reversed', type: 'string', description: 'The reversed string.')
+		];
 	}
 
-	public function execute(array $inputs, AgentContext $context): array {
+	public function execute(array $inputs, IAgentContext $context): array {
 		$text = $inputs['text'] ?? '';
-		$reversed = strrev($text);
-		return ['reversed' => $reversed];
+		return ['reversed' => strrev($text)];
 	}
 
 	public function getDescription(): string {
@@ -123,7 +125,8 @@ class StringReverserNode extends AbstractAgentNode {
       "type": "simpleopenainode",
       "inputs": {
         "system": "You are a sarcastic Chuck Norris fan.",
-        "model": "gpt-3.5-turbo"
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.7
       }
     }
   ],
@@ -143,9 +146,7 @@ class StringReverserNode extends AbstractAgentNode {
 
 **Purpose:** Show how a flow defined in JSON can be parsed and executed at runtime in MissionBay.
 
-```
-Usage of a JSON flow:
-
+```php
 $context = new AgentContext(new NoMemory());
 $json = file_get_contents('path/to/flow.json');
 $data = json_decode($json, true);
@@ -181,9 +182,10 @@ Choose the appropriate interface depending on how and where the flow will be run
 
 With the above prompts, a Custom GPT can:
 
-- Understand the available nodes
-- Help generate new Node classes in PHP
-- Create and analyze JSON-based agent flows
+* Understand the available nodes
+* Help generate new Node classes in PHP
+* Create and analyze JSON-based agent flows
+* Use structured AgentNodePort metadata for precise input/output modeling
 
 These prompts provide a fallback mechanism if direct access to the node list URL is not possible.
 

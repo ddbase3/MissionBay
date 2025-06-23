@@ -30,6 +30,7 @@ Flows can be fully described in JSON:
 Then execute with:
 
 ```php
+$context = new AgentContext(new NoMemory());
 $flow = AgentFlow::fromArray($json, $classMap);
 $results = $flow->run([], $context);
 ```
@@ -47,7 +48,8 @@ $results = $flow->run([], $context);
       "id": "ai", "type": "simpleopenainode",
       "inputs": {
         "prompt": "Tell me a Chuck Norris fact",
-        "model": "gpt-3.5-turbo"
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.7
       }
     }
   ],
@@ -68,28 +70,32 @@ The `AgentContext` provides:
 The `GetConfigurationNode` accesses BASE3 config (e.g. to supply OpenAI keys).
 `AgentFlow` uses `IClassMap` to dynamically resolve node types.
 
-## 🧩 Project Structure
+## 🪩 Project Structure
 
 ```
 MissionBay/
-├── Agent/           # AgentContext, AgentFlow
-├── Api/             # Interfaces (IAgentNode, IAgentMemory)
+├── Agent/           # AgentContext, AgentFlow, AgentNodePort
+├── Api/             # Interfaces (IAgentNode, IAgentMemory, ...)
 ├── Memory/          # Memory backends (NoMemory, ...)
 └── Node/            # Node implementations (HttpGetNode, ...)
 ```
 
 ## ➕ Extending
 
-New nodes can be created easily using `IAgentNode` or `AbstractAgentNode`:
+New nodes can be created easily using `IAgentNode` or `AbstractAgentNode` with full input/output metadata:
 
 ```php
 class UpperCaseNode extends AbstractAgentNode {
-    public static function getName(): string { return 'uppercasenode'; }
-    public function getInputDefinitions(): array { return ['text']; }
-    public function getOutputDefinitions(): array { return ['result']; }
-    public function execute(array $inputs, AgentContext $ctx): array {
-        return ['result' => strtoupper($inputs['text'] ?? '')];
-    }
+	public static function getName(): string { return 'uppercasenode'; }
+	public function getInputDefinitions(): array {
+		return [new AgentNodePort(name: 'text', type: 'string')];
+	}
+	public function getOutputDefinitions(): array {
+		return [new AgentNodePort(name: 'result', type: 'string')];
+	}
+	public function execute(array $inputs, AgentContext $ctx): array {
+		return ['result' => strtoupper($inputs['text'] ?? '')];
+	}
 }
 ```
 
@@ -121,6 +127,7 @@ class UpperCaseNode extends AbstractAgentNode {
 | TestInputNode        | Return static or test value     |
 | LoggerNode           | Write to the BASE3 logger       |
 | GetConfigurationNode | Load BASE3 config values        |
+| SubFlowNode          | Execute a nested sub-flow       |
 
 ## 📌 Requirements
 
@@ -133,7 +140,7 @@ class UpperCaseNode extends AbstractAgentNode {
 * ✔️ Stable architecture
 * ✔️ JSON-based agent flows fully supported
 * ✔️ Configuration, context, logging, memory integrated
-* 🚧 More nodes and subflow features in progress
+* ⚧️ Subflows, validation and visual tools in progress
 
 ## 📜 License
 
