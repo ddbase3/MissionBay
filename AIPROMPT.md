@@ -143,7 +143,9 @@ class StringReverserNode extends AbstractAgentNode {
 
 **Purpose:** Show how a flow defined in JSON can be parsed and executed at runtime in MissionBay.
 
-```php
+```
+Usage of a JSON flow:
+
 $context = new AgentContext(new NoMemory());
 $json = file_get_contents('path/to/flow.json');
 $data = json_decode($json, true);
