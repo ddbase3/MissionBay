@@ -4,33 +4,41 @@ namespace MissionBay\Api;
 
 use Base3\Api\IBase;
 
-/**
- * Interface for storing and managing memory entries per user in agent flows.
- */
-interface IAgentMemory extends IBase {
+interface IAgentMemory extends IBase
+{
+	/**
+	 * Gibt den Chat-Verlauf für einen bestimmten Node zurück.
+	 */
+	public function loadNodeHistory(string $nodeId): array;
 
 	/**
-	 * Loads the memory history for a given user.
-	 *
-	 * @param string $userId
-	 * @return array Array of [role, message] entries
+	 * Fügt dem Verlauf eines bestimmten Nodes einen Eintrag hinzu.
 	 */
-	public function load(string $userId): array;
+	public function appendNodeHistory(string $nodeId, string $role, string $text): void;
 
 	/**
-	 * Appends a message with role to the user's memory.
-	 *
-	 * @param string $userId
-	 * @param string $role For example "user" or "bot"
-	 * @param string $text The actual message content
+	 * Setzt den Verlauf eines bestimmten Nodes zurück.
 	 */
-	public function remember(string $userId, string $role, string $text): void;
+	public function resetNodeHistory(string $nodeId): void;
 
 	/**
-	 * Resets (clears) all memory entries for the given user.
-	 *
-	 * @param string $userId
+	 * Speichert einen beliebigen Key-Wert-Eintrag (globaler Datenbereich).
 	 */
-	public function reset(string $userId): void;
+	public function put(string $key, mixed $value): void;
+
+	/**
+	 * Gibt einen gespeicherten Wert zurück.
+	 */
+	public function get(string $key): mixed;
+
+	/**
+	 * Entfernt einen gespeicherten Eintrag.
+	 */
+	public function forget(string $key): void;
+
+	/**
+	 * Gibt alle gespeicherten Schlüssel zurück.
+	 */
+	public function keys(): array;
 }
 

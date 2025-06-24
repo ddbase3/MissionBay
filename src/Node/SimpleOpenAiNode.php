@@ -77,12 +77,19 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 			return ['error' => 'Missing OpenAI API key or prompt input'];
 		}
 
+		$memory = $context->getMemory();
+		$nodeId = $this->getId();
+		$history = $memory->loadNodeHistory($nodeId);
+
+		$messages = [['role' => 'system', 'content' => $system]];
+		foreach ($history as [$role, $text]) {
+			$messages[] = ['role' => $role, 'content' => $text];
+		}
+		$messages[] = ['role' => 'user', 'content' => $prompt];
+
 		$body = json_encode([
 			'model' => $model,
-			'messages' => [
-				['role' => 'system', 'content' => $system],
-				['role' => 'user', 'content' => $prompt],
-			],
+			'messages' => $messages,
 			'temperature' => $temperature
 		]);
 
@@ -108,6 +115,10 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 		if (!$content) {
 			return ['error' => 'Invalid OpenAI response'];
 		}
+
+		// Gesprächsverlauf speichern
+		$memory->appendNodeHistory($nodeId, 'user', $prompt);
+		$memory->appendNodeHistory($nodeId, 'assistant', $content);
 
 		return ['response' => $content];
 	}

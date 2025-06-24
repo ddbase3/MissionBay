@@ -66,31 +66,33 @@ class OpenAiResponseNode extends AbstractAgentNode {
 		}
 
 		$memory = $context->getMemory();
+		$nodeId = $this->getId();
 		$responses = [];
 
+		// ein globaler Verlauf für alle Nachrichten in diesem Node
+		$history = $memory->loadNodeHistory($nodeId);
+
 		foreach ($messages as $msg) {
-			$userId = $msg['from'] ?? 'unknown';
 			$body = $msg['body'] ?? '';
 			$subject = $msg['subject'] ?? '';
+			$to = $msg['from'] ?? '';
 
-			$history = $memory->load($userId);
-			$prompt = $this->buildPrompt($history, $body);
-
-			$chatMessages = [
-				['role' => 'system', 'content' => 'You are a helpful assistant.'],
-				['role' => 'user', 'content' => $prompt]
-			];
+			$chatMessages = [['role' => 'system', 'content' => 'You are a helpful assistant.']];
+			foreach ($history as [$role, $text]) {
+				$chatMessages[] = ['role' => $role, 'content' => $text];
+			}
+			$chatMessages[] = ['role' => 'user', 'content' => $body];
 
 			$reply = $this->callOpenAi($apiKey, $model, $chatMessages);
 
 			$responses[] = [
-				'to' => $userId,
+				'to' => $to,
 				'subject' => 'Re: ' . $subject,
 				'body' => $reply
 			];
 
-			$memory->remember($userId, 'user', $body);
-			$memory->remember($userId, 'bot', $reply);
+			$memory->appendNodeHistory($nodeId, 'user', $body);
+			$memory->appendNodeHistory($nodeId, 'assistant', $reply);
 		}
 
 		return ['responses' => $responses];
