@@ -11,11 +11,10 @@ interface IAgentContextFactory {
 	 * Creates a context instance by type name.
 	 *
 	 * @param string $type Context class name registered in IClassMap (default = "agentcontext")
-	 * @param IAgentRouter|null $router Optional router instance to inject
 	 * @param IAgentMemory|null $memory Optional memory instance to inject
 	 * @param array $vars Initial flow-scoped variables
 	 * @return IAgentContext
 	 */
-	public function createContext(string $type = 'agentcontext', ?IAgentRouter $router = null, ?IAgentMemory $memory = null, array $vars = []): IAgentContext;
+	public function createContext(string $type = 'agentcontext', ?IAgentMemory $memory = null, array $vars = []): IAgentContext;
 }
 

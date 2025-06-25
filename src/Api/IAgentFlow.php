@@ -2,41 +2,30 @@
 
 namespace MissionBay\Api;
 
-/**
- * Interface representing a chainable, executable agent flow.
- */
-interface IAgentFlow {
+use Base3\Api\IBase;
 
-	/**
-	 * Sets the agent context.
-	 *
-	 * @param IAgentContext $context Shared context (router, memory, variables)
-	 */
+interface IAgentFlow extends IBase {
+
+	// Kontext setzen
 	public function setContext(IAgentContext $context): void;
 
-	/**
-	 * Executes the flow with given input and context.
-	 *
-	 * @param array $inputs Initial flow inputs (key => value)
-	 * @return array[] List of output maps from terminal nodes
-	 */
+	// Flow ausführen
 	public function run(array $inputs): array;
 
-	/**
-	 * Adds a node to the flow.
-	 *
-	 * @param IAgentNode $node
-	 */
+	// Nodes und Verbindungen
 	public function addNode(IAgentNode $node): void;
-
-	/**
-	 * Adds a connection between two nodes.
-	 *
-	 * @param string $fromNode
-	 * @param string $fromOutput
-	 * @param string $toNode
-	 * @param string $toInput
-	 */
 	public function addConnection(string $fromNode, string $fromOutput, string $toNode, string $toInput): void;
+
+	// Optional: Initialwerte setzen
+	public function addInitialInput(string $nodeId, string $key, mixed $value): void;
+
+	// Routing-Logik
+	public function getNextNode(string $currentNodeId, array $output): ?string;
+	public function mapInputs(string $fromNodeId, string $toNodeId, array $output): array;
+	public function isReady(string $nodeId, array $currentInputs): bool;
+
+	// Zugriff auf Status
+	public function getInitialInputs(): array;
+	public function getConnections(): array;
 }
 

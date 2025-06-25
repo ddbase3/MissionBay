@@ -36,6 +36,6 @@ class MissionBayPlugin implements IPlugin {
 			->set(IAgentRouterFactory::class, fn($c) => new AgentRouterFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentMemoryFactory::class, fn($c) => new AgentMemoryFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentNodeFactory::class, fn($c) => new AgentNodeFactory($c->get(IClassMap::class)), IContainer::SHARED)
-			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IAgentNodeFactory::class)), IContainer::SHARED);
+			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED);
 	}
 }
