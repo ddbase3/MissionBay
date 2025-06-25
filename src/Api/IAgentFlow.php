@@ -8,13 +8,19 @@ namespace MissionBay\Api;
 interface IAgentFlow {
 
 	/**
+	 * Sets the agent context.
+	 *
+	 * @param IAgentContext $context Shared context (router, memory, variables)
+	 */
+	public function setContext(IAgentContext $context): void;
+
+	/**
 	 * Executes the flow with given input and context.
 	 *
 	 * @param array $inputs Initial flow inputs (key => value)
-	 * @param IAgentContext $context Shared context (memory, variables)
 	 * @return array[] List of output maps from terminal nodes
 	 */
-	public function run(array $inputs, IAgentContext $context): array;
+	public function run(array $inputs): array;
 
 	/**
 	 * Adds a node to the flow.

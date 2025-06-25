@@ -3,17 +3,18 @@
 namespace MissionBay\Api;
 
 use MissionBay\Agent\AgentFlow;
+use MissionBay\Api\IAgentContext;
 
 interface IAgentFlowFactory {
 
 	/**
 	 * Erzeugt einen neuen AgentFlow aus einer Array-Definition.
 	 */
-	public function createFromArray(array $data): AgentFlow;
+	public function createFromArray(array $data, IAgentContext $context): AgentFlow;
 
 	/**
 	 * Erzeugt einen leeren AgentFlow.
 	 */
-	public function createEmpty(): AgentFlow;
+	public function createEmpty(?IAgentContext $context = null): AgentFlow;
 }
 

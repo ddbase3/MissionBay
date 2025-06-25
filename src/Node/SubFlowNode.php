@@ -20,7 +20,7 @@ class SubFlowNode extends AbstractAgentNode {
 				type: IAgentFlow::class,
 				required: true
 			)
-			// weitere Inputs werden dynamisch übergeben (z. B. "item", "context_...")
+			// weitere Inputs werden dynamisch übergeben (z. B. "item", "context_...")
 		];
 	}
 
@@ -36,13 +36,15 @@ class SubFlowNode extends AbstractAgentNode {
 	}
 
 	public function execute(array $inputs, IAgentContext $context): array {
-		$flow = $inputs['flow'] ?? null;
+		$flow = isset($inputs['flow']) && $inputs['flow'] instanceof IAgentFlow
+			? clone $inputs['flow']
+			: null;
 
 		if (!$flow instanceof IAgentFlow) {
 			return ['error' => 'Missing or invalid flow input'];
 		}
 
-		// Entferne 'flow' aus dem Inputs-Array
+		$flow->setContext($context);
 		unset($inputs['flow']);
 
 		// Falls 'item' ein Array ist und 'flow' darin enthalten ist – auch entfernen
@@ -50,7 +52,7 @@ class SubFlowNode extends AbstractAgentNode {
 			unset($inputs['item']['flow']);
 		}
 
-		$allOutputs = $flow->run($inputs, $context);
+		$allOutputs = $flow->run($inputs);
 
 		foreach ($allOutputs as $partial) {
 			if (is_array($partial)) {

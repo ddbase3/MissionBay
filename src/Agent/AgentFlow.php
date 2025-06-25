@@ -10,34 +10,32 @@ use MissionBay\Api\IAgentNodeFactory;
 class AgentFlow implements IAgentFlow {
 
 	private array $nodes = [];
-	private array $connections = [];
-	private array $initialInputs = [];
+	private ?IAgentContext $context = null;
 
 	public function __construct(private readonly IAgentNodeFactory $agentnodefactory) {}
 
-	/**
-	 * Add a node to the flow.
-	 */
+	public function setContext(IAgentContext $context): void {
+		$this->context = $context;
+	}
+
 	public function addNode(IAgentNode $node): void {
 		$this->nodes[$node->getId()] = $node;
 	}
 
-	/**
-	 * Define a connection between two nodes.
-	 */
 	public function addConnection(string $fromNode, string $fromOutput, string $toNode, string $toInput): void {
-		$this->connections[] = [
-			'fromNode' => $fromNode,
-			'fromOutput' => $fromOutput,
-			'toNode' => $toNode,
-			'toInput' => $toInput
-		];
+		if (!$this->context) {
+			throw new \RuntimeException("AgentContext must be set before adding connections.");
+		}
+		$this->context->getRouter()->addConnection($fromNode, $fromOutput, $toNode, $toInput);
 	}
 
-	/**
-	 * Load a flow from array.
-	 */
 	public function fromArray(array $data): self {
+		if (!$this->context) {
+			throw new \RuntimeException("AgentContext must be set before loading flow from array.");
+		}
+
+		$router = $this->context->getRouter();
+
 		foreach ($data['nodes'] ?? [] as $nodeData) {
 			$type = $nodeData['type'] ?? null;
 			$id = $nodeData['id'] ?? null;
@@ -51,26 +49,31 @@ class AgentFlow implements IAgentFlow {
 			$this->addNode($node);
 
 			if (!empty($nodeData['inputs'])) {
-				$this->initialInputs[$id] = $nodeData['inputs'];
+				foreach ($nodeData['inputs'] as $key => $value) {
+					$router->addInitialInput($id, $key, $value);
+				}
 			}
 		}
 
 		foreach ($data['connections'] ?? [] as $conn) {
-			$this->addConnection(
+			$router->addConnection(
 				$conn['from'] ?? '',
 				$conn['output'] ?? '',
 				$conn['to'] ?? '',
-				$conn['input'] ?? ''
+				$conn['input'] ?? '',
+				$conn['mandatory'] ?? false
 			);
 		}
 
 		return $this;
 	}
 
-	/**
-	 * Execute the flow.
-	 */
-	public function run(array $inputs, IAgentContext $context): array {
+	public function run(array $inputs): array {
+		if (!$this->context) {
+			throw new \RuntimeException("AgentContext must be set before running the flow.");
+		}
+
+		$router = $this->context->getRouter();
 		$nodeInputs = [];
 		$nodeOutputs = [];
 
@@ -78,14 +81,14 @@ class AgentFlow implements IAgentFlow {
 			$nodeInputs[$nodeId] = [];
 		}
 
-		foreach ($this->initialInputs as $nodeId => $preset) {
+		foreach ($router->getInitialInputs() as $nodeId => $preset) {
 			foreach ($preset as $key => $value) {
 				$nodeInputs[$nodeId][$key] = $value;
 			}
 		}
 
 		foreach ($inputs as $inputName => $value) {
-			foreach ($this->connections as $conn) {
+			foreach ($router->getConnections() as $conn) {
 				if ($conn['fromNode'] === '__input__' && $conn['fromOutput'] === $inputName) {
 					$nodeInputs[$conn['toNode']][$conn['toInput']] = $value;
 				}
@@ -107,6 +110,8 @@ class AgentFlow implements IAgentFlow {
 				if (in_array($nodeId, $executed)) continue;
 				if (!isset($nodeInputs[$nodeId])) continue;
 
+				if (!$router->isReady($nodeId, $nodeInputs[$nodeId], $this->context)) continue;
+
 				$inputDefs = $this->normalizePortDefs($node->getInputDefinitions());
 				foreach ($inputDefs as $port) {
 					if (!array_key_exists($port->name, $nodeInputs[$nodeId])) {
@@ -114,14 +119,14 @@ class AgentFlow implements IAgentFlow {
 							$nodeOutputs[$nodeId] = ['error' => "Missing required input '{$port->name}' for node '$nodeId'"];
 							$executed[] = $nodeId;
 							$progress = true;
-							continue 2;  // next round outer foreach
+							continue 2;
 						}
 						$nodeInputs[$nodeId][$port->name] = $port->default;
 					}
 				}
 
 				try {
-					$output = $node->execute($nodeInputs[$nodeId], $context);
+					$output = $node->execute($nodeInputs[$nodeId], $this->context);
 				} catch (\Throwable $e) {
 					$output = ['error' => $e->getMessage()];
 				}
@@ -139,22 +144,34 @@ class AgentFlow implements IAgentFlow {
 				$executed[] = $nodeId;
 				$progress = true;
 
-				foreach ($this->connections as $conn) {
-					if ($conn['fromNode'] === $nodeId && isset($output[$conn['fromOutput']])) {
-						$nodeInputs[$conn['toNode']][$conn['toInput']] = $output[$conn['fromOutput']];
+				foreach ($router->getConnections() as $conn) {
+					if ($conn['fromNode'] === $nodeId) {
+						$toNode = $conn['toNode'];
+						if (!isset($this->nodes[$toNode])) continue;
+						$mapped = $router->mapInputs($nodeId, $toNode, $output, $this->context);
+						foreach ($mapped as $k => $v) {
+							$nodeInputs[$toNode][$k] = $v;
+						}
 					}
 				}
 			}
 
 			if (!$progress) {
-				return [['error' => 'Flow execution stalled due to incomplete input graph']];
+				// may happen with dynamic flows
+				// return [['error' => 'Flow execution stalled due to incomplete input graph']];
+
+				$remaining = array_diff(array_keys($this->nodes), $executed);
+				if (!empty($remaining)) {
+					// optional: Logging der ungenutzten Nodes
+					break;
+				}
 			}
 		}
 
 		$terminalNodes = [];
 		foreach ($this->nodes as $nodeId => $_) {
 			$hasOutgoing = false;
-			foreach ($this->connections as $conn) {
+			foreach ($router->getConnections() as $conn) {
 				if ($conn['fromNode'] === $nodeId) {
 					$hasOutgoing = true;
 					break;
@@ -173,23 +190,15 @@ class AgentFlow implements IAgentFlow {
 		return $outputs;
 	}
 
-	/**
-	 * Normalizes input/output definitions to AgentNodePort[].
-	 *
-	 * @param array<string|AgentNodePort> $defs
-	 * @return AgentNodePort[]
-	 */
 	private function normalizePortDefs(array $defs): array {
 		$ports = [];
-
 		foreach ($defs as $def) {
-			if ($def instanceof AgentNodePort) {
+			if ($def instanceof \MissionBay\Agent\AgentNodePort) {
 				$ports[] = $def;
 			} elseif (is_string($def)) {
-				$ports[] = new AgentNodePort(name: $def);
+				$ports[] = new \MissionBay\Agent\AgentNodePort(name: $def);
 			}
 		}
-
 		return $ports;
 	}
 }
