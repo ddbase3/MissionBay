@@ -1,0 +1,780 @@
+[
+    {
+        "name": "noactionnode",
+        "class": "MissionBay\\Node\\NoActionNode",
+        "description": "Terminates the flow along this path and avoids unneccesary outputs.",
+        "inputs": [
+            {
+                "name": "text",
+                "description": "Any input.",
+                "type": "mixed",
+                "default": "",
+                "required": true
+            }
+        ],
+        "outputs": []
+    },
+    {
+        "name": "openairesponsenode",
+        "class": "MissionBay\\Node\\OpenAiResponseNode",
+        "description": "Sends a list of user messages to the OpenAI Chat API and returns assistant responses. Maintains conversational history using AgentMemory. Useful for AI-based replies, summarization, or creative text generation.",
+        "inputs": [
+            {
+                "name": "messages",
+                "description": "An array of message objects, each with \"from\", \"body\", and optional \"subject\".",
+                "type": "array",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "model",
+                "description": "The OpenAI model to use (e.g., gpt-3.5-turbo, gpt-4).",
+                "type": "string",
+                "default": "gpt-3.5-turbo",
+                "required": false
+            },
+            {
+                "name": "apikey",
+                "description": "The OpenAI API key used for authentication.",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "responses",
+                "description": "An array of generated responses (to, subject, body) for each input message.",
+                "type": "array",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if input or API call failed.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "staticmessagenode",
+        "class": "MissionBay\\Node\\StaticMessageNode",
+        "description": "Outputs a static text message as provided in the input. Useful for sending fixed content into a flow, such as default values, templates, or predefined prompts.",
+        "inputs": [
+            {
+                "name": "text",
+                "description": "The static text message to output.",
+                "type": "string",
+                "default": "",
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "message",
+                "description": "The resulting static message.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "subflownode",
+        "class": "MissionBay\\Node\\SubFlowNode",
+        "description": "Executes a nested AgentFlow within the current flow using the given inputs. Returns the first non-null result from the subflow. Useful for modularization, reuse, or encapsulation of complex logic.",
+        "inputs": [
+            {
+                "name": "flow",
+                "description": "An instance of IAgentFlow to be executed as subflow.",
+                "type": "MissionBay\\Api\\IAgentFlow",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "*",
+                "description": "Dynamic outputs, forwarded from the subflow result.",
+                "type": "mixed",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "testinputnode",
+        "class": "MissionBay\\Node\\TestInputNode",
+        "description": "Passes through the input value unchanged. Useful for testing, debugging, or injecting controlled data into a flow.",
+        "inputs": [
+            {
+                "name": "value",
+                "description": "The value to pass through unchanged.",
+                "type": "mixed",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "value",
+                "description": "The same value that was received as input.",
+                "type": "mixed",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "simpleopenainode",
+        "class": "MissionBay\\Node\\SimpleOpenAiNode",
+        "description": "Sends a user prompt to the OpenAI Chat API with an optional system message and returns a single assistant response. Supports temperature to control randomness. A lightweight alternative to full agent-based communication.",
+        "inputs": [
+            {
+                "name": "prompt",
+                "description": "The user message or question to send to the assistant.",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "system",
+                "description": "The system prompt that defines assistant behavior.",
+                "type": "string",
+                "default": "You are a helpful assistant.",
+                "required": false
+            },
+            {
+                "name": "model",
+                "description": "OpenAI model to use (e.g., gpt-3.5-turbo, gpt-4).",
+                "type": "string",
+                "default": "gpt-3.5-turbo",
+                "required": false
+            },
+            {
+                "name": "temperature",
+                "description": "Controls randomness. Higher values = more creative, lower = more deterministic.",
+                "type": "float",
+                "default": 0.7,
+                "required": false
+            },
+            {
+                "name": "apikey",
+                "description": "OpenAI API key for authentication.",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "response",
+                "description": "The assistant's reply to the prompt.",
+                "type": "string",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the API call fails or input is invalid.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "telegramsendmessage",
+        "class": "MissionBay\\Node\\TelegramSendMessage",
+        "description": "Sends a message via Telegram bot using bot token and chat ID.",
+        "inputs": [
+            {
+                "name": "bot_token",
+                "description": "The Telegram bot API token.",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "chat_id",
+                "description": "The recipient chat ID (user or group).",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "message",
+                "description": "The message text to be sent.",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "message_id",
+                "description": "The ID of the sent Telegram message.",
+                "type": "int",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the Telegram API request failed.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "httpgetnode",
+        "class": "MissionBay\\Node\\HttpGetNode",
+        "description": "Performs a simple HTTP GET request to the specified URL and returns the response body. Useful for retrieving external JSON, HTML, or text content in a flow.",
+        "inputs": [
+            {
+                "name": "url",
+                "description": "The full URL to fetch using HTTP GET.",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "body",
+                "description": "The raw response body from the HTTP request.",
+                "type": "string",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the request failed or the URL was invalid.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "getconfigurationnode",
+        "class": "MissionBay\\Node\\GetConfigurationNode",
+        "description": "Retrieves a specific configuration value from a named section using Base3's IConfiguration interface. Useful for injecting secrets, environment settings, or other global parameters into a flow.",
+        "inputs": [
+            {
+                "name": "section",
+                "description": "Name of the configuration section (e.g., \"openai\", \"smtp\").",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "key",
+                "description": "Key within the selected section to retrieve.",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "value",
+                "description": "The retrieved configuration value.",
+                "type": "mixed",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if section or key was missing or not found.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "arraysetnode",
+        "class": "MissionBay\\Node\\ArraySetNode",
+        "description": "Inserts or updates a value in a nested array using dot-notation path syntax (e.g., \"user.profile.name\"). Returns the modified array structure.",
+        "inputs": [
+            {
+                "name": "array",
+                "description": "The base array to modify.",
+                "type": "array",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "path",
+                "description": "Dot-notation path to the key to insert or update (e.g., \"user.profile.name\").",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "value",
+                "description": "The value to set at the specified path.",
+                "type": "mixed",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "array",
+                "description": "The modified array after insertion or update.",
+                "type": "array",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the input was invalid.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "arraygetnode",
+        "class": "MissionBay\\Node\\ArrayGetNode",
+        "description": "Retrieves a value from a nested array using dot-notation path syntax (e.g., \"user.profile.name\"). Returns the value or an error if the path is invalid.",
+        "inputs": [
+            {
+                "name": "array",
+                "description": "The nested array to search in.",
+                "type": "array",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "path",
+                "description": "Dot-notation path to the desired value (e.g., \"user.profile.name\").",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "value",
+                "description": "The resolved value at the specified path.",
+                "type": "mixed",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the path is invalid or array is malformed.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "getcontextvarnode",
+        "class": "MissionBay\\Node\\GetContextVarNode",
+        "description": "Retrieves a variable from the AgentContext by key. Useful for accessing shared values across multiple nodes during flow execution.",
+        "inputs": [
+            {
+                "name": "key",
+                "description": "The name of the context variable to retrieve.",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "value",
+                "description": "The value retrieved from context, if found.",
+                "type": "mixed",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if key is invalid or value not found.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "setcontextvarnode",
+        "class": "MissionBay\\Node\\SetContextVarNode",
+        "description": "Stores a value in the AgentContext under a given key. Useful for sharing data between nodes, caching intermediate results, or persisting values across flow steps.",
+        "inputs": [
+            {
+                "name": "key",
+                "description": "The name under which the value should be stored in the AgentContext.",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "value",
+                "description": "The value to store in context (any type).",
+                "type": "mixed",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "success",
+                "description": "True if the value was successfully stored.",
+                "type": "bool",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if key input is invalid.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "loggernode",
+        "class": "MissionBay\\Node\\LoggerNode",
+        "description": "Writes a log entry using the provided scope and message. Useful for debugging, tracing flow execution, or recording structured events.",
+        "inputs": [
+            {
+                "name": "scope",
+                "description": "The log scope or channel name (e.g. \"debug\", \"flow\", \"alert\").",
+                "type": "string",
+                "default": "default",
+                "required": false
+            },
+            {
+                "name": "message",
+                "description": "The message to be logged.",
+                "type": "string",
+                "default": "",
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "logged",
+                "description": "True if logging succeeded.",
+                "type": "bool",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if logging failed.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "delaynode",
+        "class": "MissionBay\\Node\\DelayNode",
+        "description": "Pauses flow execution for a specified number of seconds (between 0 and 60). Useful for throttling, timing control, or simulating wait conditions.",
+        "inputs": [
+            {
+                "name": "seconds",
+                "description": "Number of seconds to wait (between 0 and 60).",
+                "type": "int",
+                "default": 1,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "done",
+                "description": "Indicates successful completion of the delay.",
+                "type": "bool",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if delay input was invalid.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "httprequestnode",
+        "class": "MissionBay\\Node\\HttpRequestNode",
+        "description": "Performs a flexible HTTP request with customizable method, headers, and body. Returns the response body and HTTP status code. Supports GET, POST, PUT, DELETE, and more.",
+        "inputs": [
+            {
+                "name": "url",
+                "description": "The target URL for the HTTP request.",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "method",
+                "description": "The HTTP method to use (GET, POST, PUT, DELETE, etc).",
+                "type": "string",
+                "default": "GET",
+                "required": false
+            },
+            {
+                "name": "headers",
+                "description": "Optional associative array of HTTP headers.",
+                "type": "array<string>",
+                "default": [],
+                "required": false
+            },
+            {
+                "name": "body",
+                "description": "Optional request body to send (for POST\/PUT).",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ],
+        "outputs": [
+            {
+                "name": "status",
+                "description": "The HTTP status code from the response.",
+                "type": "int",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "body",
+                "description": "The response body returned by the request.",
+                "type": "string",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the request failed.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "jsontoarraynode",
+        "class": "MissionBay\\Node\\JsonToArrayNode",
+        "description": "Parses a JSON string and converts it into an associative PHP array. Useful for processing API responses or any structured JSON data.",
+        "inputs": [
+            {
+                "name": "json",
+                "description": "A valid JSON string to be parsed.",
+                "type": "string",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "array",
+                "description": "The resulting associative array parsed from the JSON input.",
+                "type": "array",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the JSON is invalid or cannot be parsed.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "loopnode",
+        "class": "MissionBay\\Node\\LoopNode",
+        "description": "Executes a given node a fixed number of times. Supports dynamic input mapping with $index and $context_* placeholders. Useful for generating repeated structures, testing, or iterative processing.",
+        "inputs": [
+            {
+                "name": "count",
+                "description": "Number of times to execute the inner node (0\u20131000).",
+                "type": "int",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "node",
+                "description": "The node to execute in each iteration.",
+                "type": "MissionBay\\Api\\IAgentNode",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "inputMap",
+                "description": "Associative array mapping input names to placeholders like $index or $context_*.",
+                "type": "array<string>",
+                "default": [],
+                "required": false
+            }
+        ],
+        "outputs": [
+            {
+                "name": "results",
+                "description": "Array of outputs returned by each iteration.",
+                "type": "array",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if input is invalid or loop execution fails.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "foreachnode",
+        "class": "MissionBay\\Node\\ForEachNode",
+        "description": "Executes a given node once for each item in an input array. Supports dynamic input mapping using placeholders like $item, $key, $index, and $context_* variables. Returns a list of results.",
+        "inputs": [
+            {
+                "name": "items",
+                "description": "The input array to iterate over.",
+                "type": "array",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "node",
+                "description": "The node instance to be executed for each item.",
+                "type": "MissionBay\\Api\\IAgentNode",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "inputMap",
+                "description": "Associative array mapping node inputs to expressions like $item, $key, $index, or $context_foo.",
+                "type": "array<string>",
+                "default": [],
+                "required": false
+            }
+        ],
+        "outputs": [
+            {
+                "name": "results",
+                "description": "Array of results from each node execution.",
+                "type": "array",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Optional error message if input or execution failed.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "switchnode",
+        "class": "MissionBay\\Node\\SwitchNode",
+        "description": "Routes the flow based on a string value. If the value matches one of the defined cases, the corresponding output is activated; otherwise, the \"default\" output is used. Useful for multi-branch control logic.",
+        "inputs": [
+            {
+                "name": "value",
+                "description": "The string value to evaluate for branching.",
+                "type": "string",
+                "default": null,
+                "required": true
+            },
+            {
+                "name": "cases",
+                "description": "Optional: An array of allowed case values. If \"value\" matches one of them, the corresponding output is triggered.",
+                "type": "array<string>",
+                "default": [],
+                "required": false
+            }
+        ],
+        "outputs": [
+            {
+                "name": "*",
+                "description": "Dynamic outputs: one output per case value, plus a \"default\" output.",
+                "type": "int",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "ifnode",
+        "class": "MissionBay\\Node\\IfNode",
+        "description": "Evaluates a boolean condition and routes the flow to either the \"true\" or \"false\" output. Useful for simple conditional branching within flows.",
+        "inputs": [
+            {
+                "name": "condition",
+                "description": "The boolean value to evaluate.",
+                "type": "bool",
+                "default": null,
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "true",
+                "description": "Activated if the condition is true.",
+                "type": "int",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "false",
+                "description": "Activated if the condition is false.",
+                "type": "int",
+                "default": null,
+                "required": false
+            },
+            {
+                "name": "error",
+                "description": "Error message if the input is missing or not boolean.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    },
+    {
+        "name": "stringreversernode",
+        "class": "MissionBay\\Node\\StringReverserNode",
+        "description": "Reverses the given input string and returns the result. Useful for string manipulation, testing, or flow demonstrations.",
+        "inputs": [
+            {
+                "name": "text",
+                "description": "The input string to be reversed.",
+                "type": "string",
+                "default": "",
+                "required": true
+            }
+        ],
+        "outputs": [
+            {
+                "name": "reversed",
+                "description": "The reversed result of the input string.",
+                "type": "string",
+                "default": null,
+                "required": false
+            }
+        ]
+    }
+]
