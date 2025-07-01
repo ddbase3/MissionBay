@@ -41,7 +41,7 @@ class SubFlowNode extends AbstractAgentNode {
 			: null;
 
 		if (!$flow instanceof IAgentFlow) {
-			return ['error' => 'Missing or invalid flow input'];
+			return ['error' => $this->error('Missing or invalid flow input')];  // TODO: check if output node necessary
 		}
 
 		$flow->setContext($context);

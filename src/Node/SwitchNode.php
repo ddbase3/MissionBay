@@ -45,7 +45,7 @@ class SwitchNode extends AbstractAgentNode {
                 $cases = $inputs['cases'] ?? [];
 
                 if (!is_string($value)) {
-                        return ['error' => 'SwitchNode: "value" must be string'];
+                        return ['error' => $this->error('SwitchNode: "value" must be string')];
                 }
 
                 if (!is_array($cases)) {

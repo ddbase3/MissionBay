@@ -45,7 +45,7 @@ class JsonToArrayNode extends AbstractAgentNode {
 		$data = json_decode($json, true);
 
 		if (json_last_error() !== JSON_ERROR_NONE) {
-			return ['error' => 'Invalid JSON: ' . json_last_error_msg()];
+			return ['error' => $this->error('Invalid JSON: ' . json_last_error_msg())];
 		}
 
 		return ['array' => $data];

@@ -43,13 +43,13 @@ class GetContextVarNode extends AbstractAgentNode {
 		$key = $inputs['key'] ?? null;
 
 		if (!is_string($key)) {
-			return ['error' => 'GetContextVarNode: "key" must be a string'];
+			return ['error' => $this->error('GetContextVarNode: "key" must be a string')];
 		}
 
 		$value = $context->getVar($key);
 
 		if ($value === null) {
-			return ['error' => 'Context variable not found: ' . $key];
+			return ['error' => $this->error('Context variable not found: ' . $key)];
 		}
 
 		return ['value' => $value];

@@ -57,11 +57,11 @@ class ArraySetNode extends AbstractAgentNode {
 		$value = $inputs['value'] ?? null;
 
 		if (!is_array($array)) {
-			return ['error' => 'Input "array" must be an array'];
+			return ['error' => $this->error('Input "array" must be an array')];
 		}
 
 		if (!is_string($path) || $path === '') {
-			return ['error' => 'Input "path" must be a non-empty string'];
+			return ['error' => $this->error('Input "path" must be a non-empty string')];
 		}
 
 		$keys = explode('.', $path);

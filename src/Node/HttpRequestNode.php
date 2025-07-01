@@ -77,7 +77,7 @@ class HttpRequestNode extends AbstractAgentNode {
 		$body = $inputs['body'] ?? null;
 
 		if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
-			return ['error' => 'Invalid or missing URL'];
+			return ['error' => $this->error('Invalid or missing URL')];
 		}
 
 		$httpHeaders = [];
@@ -106,7 +106,7 @@ class HttpRequestNode extends AbstractAgentNode {
 		}
 
 		if ($response === false) {
-			return ['error' => 'Request failed', 'status' => $statusCode ?? 0];
+			return ['error' => $this->error('Request failed'), 'status' => $statusCode ?? 0];
 		}
 
 		return [

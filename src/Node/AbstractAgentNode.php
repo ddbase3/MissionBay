@@ -30,5 +30,9 @@ abstract class AbstractAgentNode implements IAgentNode {
 	abstract public function execute(array $inputs, IAgentContext $context): array;
 
 	abstract public function getDescription(): string;
+
+	protected function error($message): string {
+		return '[ ' . static::getName() . ' | ' . $this->id . ' ] ' . $message;
+	}
 }
 

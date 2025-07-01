@@ -74,7 +74,7 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 		$apiKey = $inputs['apikey'] ?? null;
 
 		if (!$apiKey || !$prompt) {
-			return ['error' => 'Missing OpenAI API key or prompt input'];
+			return ['error' => $this->error('Missing OpenAI API key or prompt input')];
 		}
 
 		$memory = $context->getMemory();
@@ -106,14 +106,14 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 		curl_close($ch);
 
 		if ($error || !$response) {
-			return ['error' => 'OpenAI request failed: ' . $error];
+			return ['error' => $this->error('OpenAI request failed: ' . $error)];
 		}
 
 		$data = json_decode($response, true);
 		$content = $data['choices'][0]['message']['content'] ?? null;
 
 		if (!$content) {
-			return ['error' => 'Invalid OpenAI response'];
+			return ['error' => $this->error('Invalid OpenAI response')];
 		}
 
 		// Gesprächsverlauf speichern

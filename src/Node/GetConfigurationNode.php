@@ -58,17 +58,17 @@ class GetConfigurationNode extends AbstractAgentNode {
 		$key = $inputs['key'] ?? null;
 
 		if (!$section || !$key) {
-			return ['error' => 'Missing section or key input'];
+			return ['error' => $this->error('Missing section or key input')];
 		}
 
 		$sectionData = $this->configuration->get($section);
 
 		if (!is_array($sectionData)) {
-			return ['error' => "Config section '$section' not found or invalid"];
+			return ['error' => $this->error("Config section '$section' not found or invalid")];
 		}
 
 		if (!array_key_exists($key, $sectionData)) {
-			return ['error' => "Config key '$key' not found in section '$section'"];
+			return ['error' => $this->error("Config key '$key' not found in section '$section'")];
 		}
 
 		return ['value' => $sectionData[$key]];

@@ -59,11 +59,11 @@ class ForEachNode extends AbstractAgentNode {
 		$inputMap = $inputs['inputMap'] ?? [];
 
 		if (!is_array($items)) {
-			return ['error' => 'Input "items" must be an array'];
+			return ['error' => $this->error('Input "items" must be an array')];
 		}
 
 		if (!$node instanceof IAgentNode) {
-			return ['error' => 'Input "node" must be an instance of IAgentNode'];
+			return ['error' => $this->error('Input "node" must be an instance of IAgentNode')];
 		}
 
 		$results = [];
@@ -103,7 +103,7 @@ class ForEachNode extends AbstractAgentNode {
 
 				$results[] = $node->execute($mappedInputs, $context);
 			} catch (\Throwable $e) {
-				$results[] = ['error' => $e->getMessage()];
+				$results[] = ['error' => $this->error($e->getMessage())];
 			}
 
 			$index++;

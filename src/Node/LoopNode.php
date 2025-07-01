@@ -59,11 +59,11 @@ class LoopNode extends AbstractAgentNode {
 		$inputMap = $inputs['inputMap'] ?? [];
 
 		if (!is_int($count) || $count < 0 || $count > 1000) {
-			return ['error' => 'LoopNode: "count" must be an integer between 0 and 1000'];
+			return ['error' => $this->error('LoopNode: "count" must be an integer between 0 and 1000')];
 		}
 
 		if (!$node instanceof IAgentNode) {
-			return ['error' => 'LoopNode: "node" must be a valid node'];
+			return ['error' => $this->error('LoopNode: "node" must be a valid node')];
 		}
 
 		$results = [];
@@ -89,7 +89,7 @@ class LoopNode extends AbstractAgentNode {
 
 				$results[] = $node->execute($mappedInputs, $context);
 			} catch (\Throwable $e) {
-				$results[] = ['error' => $e->getMessage()];
+				$results[] = ['error' => $this->error($e->getMessage())];
 			}
 		}
 

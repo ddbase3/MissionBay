@@ -44,7 +44,7 @@ class DelayNode extends AbstractAgentNode {
 		$seconds = $inputs['seconds'] ?? 1;
 
 		if (!is_numeric($seconds) || $seconds < 0 || $seconds > 60) {
-			return ['error' => 'Invalid delay time'];
+			return ['error' => $this->error('Invalid delay time')];
 		}
 
 		sleep((int)$seconds);

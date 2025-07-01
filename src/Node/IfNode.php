@@ -47,13 +47,13 @@ class IfNode extends AbstractAgentNode {
 
 	public function execute(array $inputs, IAgentContext $context): array {
 		if (!array_key_exists('condition', $inputs)) {
-			return ['error' => 'Missing "condition" input'];
+			return ['error' => $this->error('Missing "condition" input')];
 		}
 
 		$cond = $inputs['condition'];
 
 		if (!is_bool($cond)) {
-			return ['error' => 'IfNode: "condition" must be boolean'];
+			return ['error' => $this->error('IfNode: "condition" must be boolean')];
 		}
 
 		return $cond ? ['true' => 1] : ['false' => 1];

@@ -63,7 +63,7 @@ class LoggerNode extends AbstractAgentNode {
 			$ok = $this->logger->log($scope, $message);
 			return ['logged' => $ok];
 		} catch (\Throwable $e) {
-			return ['error' => $e->getMessage()];
+			return ['error' => $this->error($e->getMessage())];
 		}
 	}
 

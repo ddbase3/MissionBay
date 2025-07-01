@@ -58,11 +58,11 @@ class OpenAiResponseNode extends AbstractAgentNode {
 		$apiKey = $inputs['apikey'] ?? null;
 
 		if (!is_array($messages)) {
-			return ['error' => 'Input "messages" must be an array'];
+			return ['error' => $this->error('Input "messages" must be an array')];
 		}
 
 		if (!$apiKey) {
-			return ['error' => 'Missing OpenAI API key input'];
+			return ['error' => $this->error('Missing OpenAI API key input')];
 		}
 
 		$memory = $context->getMemory();

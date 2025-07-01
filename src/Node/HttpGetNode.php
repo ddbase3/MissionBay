@@ -43,13 +43,13 @@ class HttpGetNode extends AbstractAgentNode {
 		$url = $inputs['url'] ?? null;
 
 		if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
-			return ['error' => 'Invalid or missing URL'];
+			return ['error' => $this->error('Invalid or missing URL')];
 		}
 
 		$response = @file_get_contents($url);
 
 		if ($response === false) {
-			return ['error' => "Failed to fetch URL: $url"];
+			return ['error' => $this->error("Failed to fetch URL: $url")];
 		}
 
 		return ['body' => $response];

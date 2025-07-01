@@ -50,11 +50,11 @@ class ArrayGetNode extends AbstractAgentNode {
 		$path = $inputs['path'] ?? '';
 
 		if (!is_array($array)) {
-			return ['error' => 'Input is not an array'];
+			return ['error' => $this->error('Input is not an array')];
 		}
 
 		if (!is_string($path) || $path === '') {
-			return ['error' => 'Invalid or missing path'];
+			return ['error' => $this->error('Invalid or missing path')];
 		}
 
 		$keys = explode('.', $path);
@@ -62,7 +62,7 @@ class ArrayGetNode extends AbstractAgentNode {
 
 		foreach ($keys as $key) {
 			if (!is_array($current) || !array_key_exists($key, $current)) {
-				return ['error' => "Path not found: $path"];
+				return ['error' => $this->error("Path not found: $path")];
 			}
 			$current = $current[$key];
 		}

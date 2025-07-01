@@ -50,7 +50,7 @@ class SetContextVarNode extends AbstractAgentNode {
 		$value = $inputs['value'] ?? null;
 
 		if (!is_string($key)) {
-			return ['error' => 'SetContextVarNode: "key" must be a string'];
+			return ['error' => $this->error('SetContextVarNode: "key" must be a string')];
 		}
 
 		$context->setVar($key, $value);

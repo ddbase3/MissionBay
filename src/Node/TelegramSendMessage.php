@@ -57,7 +57,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 
 	public function execute(array $input, IAgentContext $context): array {
 		if (empty($input['bot_token']) || empty($input['chat_id']) || empty($input['message'])) {
-			return ["error" => "Missing required input: bot_token, chat_id, and message are all required."];
+			return ["error" => $this->error("Missing required input: bot_token, chat_id, and message are all required.")];
 		}
 
 		$botToken = $input["bot_token"];
@@ -84,7 +84,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 		$result = @file_get_contents($url, false, $contextStream);
 
 		if ($result === false) {
-			return ["error" => "Failed to send message. HTTP request error."];
+			return ["error" => $this->error("Failed to send message. HTTP request error.")];
 		}
 
 		$response = json_decode($result, true);
@@ -92,7 +92,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 		if (isset($response['ok']) && $response['ok']) {
 			return ["message_id" => $response['result']['message_id'] ?? null];
 		} else {
-			return ["error" => $response['description'] ?? "Unknown error from Telegram API."];
+			return ["error" => $this->error($response['description'] ?? "Unknown error from Telegram API.")];
 		}
 	}
 }
