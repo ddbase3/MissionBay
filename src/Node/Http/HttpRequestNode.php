@@ -44,6 +44,13 @@ class HttpRequestNode extends AbstractAgentNode {
 				type: 'string',
 				default: null,
 				required: false
+			),
+			new AgentNodePort(
+				name: 'active',
+				description: 'Whether to run this node',
+				type: 'bool',
+				default: true,
+				required: false
 			)
 		];
 	}

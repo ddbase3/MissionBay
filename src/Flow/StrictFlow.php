@@ -127,7 +127,23 @@ class StrictFlow extends AbstractFlow {
                 if (!$this->isReady($nodeId, $nodeInputs[$nodeId] ?? [])) continue;
 
                 $inputDefs = $this->normalizePortDefs($node->getInputDefinitions());
+
+                $hasActive = false;
                 foreach ($inputDefs as $port) {
+                    if ($port->name === 'active') {
+                        $hasActive = true;
+                        break;
+                    }
+                }
+                if ($hasActive) {
+                    $isActive = $nodeInputs[$nodeId]['active'] ?? true;
+                    if (!$this->isTruthy($isActive)) {
+                         $executed[] = $nodeId;
+                         continue;
+                    }
+                }
+
+		foreach ($inputDefs as $port) {
                     if (!array_key_exists($port->name, $nodeInputs[$nodeId])) {
                         if ($port->required && $port->default === null) {
                             $nodeOutputs[$nodeId] = ['error' => "Missing required input '{$port->name}' for node '$nodeId'"];
@@ -195,6 +211,13 @@ class StrictFlow extends AbstractFlow {
             }
         }
         return true;
+    }
+
+    // Private methods
+
+    private function isTruthy(mixed $value): bool {
+        if (is_array($value)) return !empty($value);
+        return (bool)$value;
     }
 }
 

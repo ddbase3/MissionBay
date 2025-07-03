@@ -19,6 +19,13 @@ class HttpGetNode extends AbstractAgentNode {
 				description: 'The full URL to fetch using HTTP GET.',
 				type: 'string',
 				required: true
+			),
+			new AgentNodePort(
+				name: 'active',
+				description: 'Whether to run this node',
+				type: 'bool',
+				default: true,
+				required: false
 			)
 		];
 	}
