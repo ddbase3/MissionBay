@@ -1,21 +1,22 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Node;
+namespace MissionBay\Node\Message;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
+use MissionBay\Node\AbstractAgentNode;
 
-class StaticMessageNode extends AbstractAgentNode {
+class StringReverserNode extends AbstractAgentNode {
 
 	public static function getName(): string {
-		return 'staticmessagenode';
+		return 'stringreversernode';
 	}
 
 	public function getInputDefinitions(): array {
 		return [
 			new AgentNodePort(
 				name: 'text',
-				description: 'The static text message to output.',
+				description: 'The input string to be reversed.',
 				type: 'string',
 				default: '',
 				required: true
@@ -26,9 +27,10 @@ class StaticMessageNode extends AbstractAgentNode {
 	public function getOutputDefinitions(): array {
 		return [
 			new AgentNodePort(
-				name: 'message',
-				description: 'The resulting static message.',
+				name: 'reversed',
+				description: 'The reversed result of the input string.',
 				type: 'string',
+				default: null,
 				required: false
 			)
 		];
@@ -36,12 +38,13 @@ class StaticMessageNode extends AbstractAgentNode {
 
 	public function execute(array $inputs, IAgentContext $context): array {
 		$text = $inputs['text'] ?? '';
+		$reversed = strrev($text);
 
-		return ['message' => (string)$text];
+		return ['reversed' => $reversed];
 	}
 
 	public function getDescription(): string {
-		return 'Outputs a static text message as provided in the input. Useful for sending fixed content into a flow, such as default values, templates, or predefined prompts.';
+		return 'Reverses the given input string and returns the result. Useful for string manipulation, testing, or flow demonstrations.';
 	}
 }
 

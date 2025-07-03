@@ -1,10 +1,11 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Node;
+namespace MissionBay\Node\Core;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
 use Base3\Configuration\Api\IConfiguration;
+use MissionBay\Node\AbstractAgentNode;
 
 class GetConfigurationNode extends AbstractAgentNode {
 

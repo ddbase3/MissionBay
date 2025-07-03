@@ -1,9 +1,10 @@
 <?php
 
-namespace MissionBay\Node;
+namespace MissionBay\Node\Message;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
+use MissionBay\Node\AbstractAgentNode;
 
 class TelegramSendMessage extends AbstractAgentNode {
 

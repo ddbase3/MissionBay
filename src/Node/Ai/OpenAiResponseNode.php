@@ -1,9 +1,10 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Node;
+namespace MissionBay\Node\Ai;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
+use MissionBay\Node\AbstractAgentNode;
 
 class OpenAiResponseNode extends AbstractAgentNode {
 

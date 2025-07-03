@@ -1,10 +1,11 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Node;
+namespace MissionBay\Node\Control;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Agent\AgentNodePort;
+use MissionBay\Node\AbstractAgentNode;
 
 class LoopNode extends AbstractAgentNode {
 

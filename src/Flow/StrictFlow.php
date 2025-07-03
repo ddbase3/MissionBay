@@ -161,7 +161,7 @@ class StrictFlow extends AbstractFlow {
                         $toNode = $conn['toNode'];
                         $fromOutput = $conn['fromOutput'];
                         $toInput = $conn['toInput'];
-                        if (isset($this->nodes[$toNode])) {
+                        if (isset($this->nodes[$toNode]) && array_key_exists($fromOutput, $output)) {
                             $nodeInputs[$toNode][$toInput] = $output[$fromOutput] ?? null;
                         }
                     }
@@ -181,7 +181,7 @@ class StrictFlow extends AbstractFlow {
         $outputs = [];
         foreach ($terminalNodes as $nodeId) {
             if (isset($nodeOutputs[$nodeId])) {
-                $outputs[] = $nodeOutputs[$nodeId];
+                $outputs[$nodeId] = $nodeOutputs[$nodeId];
             }
         }
 

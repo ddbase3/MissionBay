@@ -1,10 +1,11 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Node;
+namespace MissionBay\Node\Message;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Node\AbstractAgentNode;
 
 class LoggerNode extends AbstractAgentNode {
 
