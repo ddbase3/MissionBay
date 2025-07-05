@@ -39,6 +39,18 @@ class DataHawkReportNode extends AbstractAgentNode {
 				required: false
 			),
 			new AgentNodePort(
+				name: 'columns',
+				description: 'The column schema of the generated report.',
+				type: 'array',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'sql',
+				description: 'The generated SQL statement.',
+				type: 'string',
+				required: false
+			),
+			new AgentNodePort(
 				name: 'error',
 				description: 'Error if report generation failed.',
 				type: 'string',
@@ -71,10 +83,16 @@ class DataHawkReportNode extends AbstractAgentNode {
 				default => 'htmltablereportexporter'
 			};
 
+			// TODO maybe better use reportqueryservice 
 			$exporter = $this->reportexporterfactory->createExporter($exporterType);
 			$report = $exporter->setExportQuery($config['query'])->toString();
+			$sql = $exporter->toSql();
 
-			return ['report' => $report];
+			$columns = null;
+			$result = $exporter->getResult();
+			if ($result != null) $columns = $result->columns;
+
+			return ['report' => $report, 'sql' => $sql, 'columns' => $columns];
 		} catch (\Throwable $e) {
 			return ['error' => $this->error('Report generation failed: ' . $e->getMessage())];
 		}
