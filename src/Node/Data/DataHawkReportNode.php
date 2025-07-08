@@ -23,7 +23,7 @@ class DataHawkReportNode extends AbstractAgentNode {
 		return [
 			new AgentNodePort(
 				name: 'config',
-				description: 'Input configuration as JSON string, e.g., { "type": "table", "query": { ... } }',
+				description: 'Input configuration as JSON string, e.g., { "message": "The response for the user", "type": "table", "query": { ... } }',
 				type: 'string',
 				required: true
 			)
@@ -32,6 +32,12 @@ class DataHawkReportNode extends AbstractAgentNode {
 
 	public function getOutputDefinitions(): array {
 		return [
+			new AgentNodePort(
+				name: 'response',
+				description: 'The assistant\'s reply to the prompt.',
+				type: 'string',
+				required: false
+			),
 			new AgentNodePort(
 				name: 'report',
 				description: 'The generated report as string.',
@@ -77,9 +83,14 @@ class DataHawkReportNode extends AbstractAgentNode {
 		}
 
 		try {
+			$response = $config['message'] ?? '';
+
 			$type = strtolower((string)$config['type']);
 			$exporterType = match ($type) {
 				'table' => 'htmltablereportexporter',
+				'datatable' => 'datatablereportexporter',
+				'piechart' => 'piechartreportexporter',
+				'barchart' => 'barchartreportexporter',
 				default => 'htmltablereportexporter'
 			};
 
@@ -92,7 +103,7 @@ class DataHawkReportNode extends AbstractAgentNode {
 			$result = $exporter->getResult();
 			if ($result != null) $columns = $result->columns;
 
-			return ['report' => $report, 'sql' => $sql, 'columns' => $columns];
+			return ['response' => $response, 'report' => $report, 'sql' => $sql, 'columns' => $columns];
 		} catch (\Throwable $e) {
 			return ['error' => $this->error('Report generation failed: ' . $e->getMessage())];
 		}
