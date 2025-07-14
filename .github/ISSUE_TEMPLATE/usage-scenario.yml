@@ -1,0 +1,52 @@
+name: "Usage Scenario"
+description: "Describe a concrete usage scenario for this project"
+title: "[Usage Scenario] <Short title>"
+labels: ["usage scenario"]
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: "🧭 Context"
+      description: "What is the background or motivation? Who is the user or stakeholder? Why is this scenario relevant?"
+      placeholder: "Example: A DevOps engineer wants to automate backups for XYZ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "🧪 Steps / Interaction"
+      description: "What steps does the user take? What happens in the system?"
+      placeholder: "1. User logs in\n2. Clicks 'Create Backup'\n3. System stores file in Bucket X..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: "✅ Desired Outcome"
+      description: "What is the user's goal or the expected result?"
+      placeholder: "The backup is created successfully and visible in the dashboard."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: "🎯 Priority (subjective)"
+      description: "How important is this scenario right now?"
+      options:
+        - High
+        - Medium
+        - Low
+      default: 1
+
+  - type: input
+    id: related
+    attributes:
+      label: "🔗 Related Issues/PRs"
+      description: "Reference any related issues or pull requests"
+      placeholder: "#23, #42"
+    validations:
+      required: false
+
