@@ -7,6 +7,9 @@ MissionBay is a modular flow engine for the BASE3 Framework, enabling declarativ
 * **Flow Structure**: JSON-based definition of nodes and connections
 * **Node Types**: HTTP, JSON, OpenAI, Delay, Switch, Loop, Context, etc.
 * **Execution Context**: Shared context with memory and runtime variables
+* **Resources**: Reusable services like logging, configured independently
+* **Docking**: Nodes can "dock" to external resources (e.g. logger)
+* **Per-Node Config**: Nodes and Resources accept structured configuration
 * **Integration**: Fully integrated with the BASE3 Framework (DI, configuration, class map)
 
 ## ⚙️ JSON-based Flows
@@ -70,6 +73,96 @@ The `AgentContext` provides:
 The `GetConfigurationNode` accesses BASE3 config (e.g. to supply OpenAI keys).
 `AgentFlow` uses `IClassMap` to dynamically resolve node types.
 
+## 🧱 Resource System (Shared Services)
+
+AgentFlows support **resources** – reusable, dockable service objects that nodes can use.
+
+Resources are defined separately and can be connected (via `docks`) to any number of nodes:
+
+```json
+"resources": [
+  {
+    "id": "log-res",
+    "type": "loggerresource",
+    "config": {
+      "scope": { "mode": "fixed", "value": "MyApp" }
+    }
+  }
+],
+"nodes": [
+  {
+    "id": "telegram",
+    "type": "telegramsendmessage",
+    "inputs": {
+      "message": "Hello!"
+    },
+    "docks": {
+      "logger": ["log-res"]
+    }
+  }
+]
+```
+
+### 🔌 Docks
+
+* Each node can define **dock ports** (e.g. `"logger"`)
+* These are matched with `resources` by ID
+* Any node can retrieve the resource(s) for its dock at runtime
+
+### 🔧 Resource Config
+
+Resources can have custom configuration via the `"config"` block.
+Example for a logger resource:
+
+```json
+{
+  "id": "log-res",
+  "type": "loggerresource",
+  "config": {
+    "scope": {
+      "mode": "fixed",
+      "value": "MySubsystem"
+    }
+  }
+}
+```
+
+LoggerResource supports:
+
+* `"mode"`:
+  * `"fixed"` – always use given scope
+  * `"default"` – fallback if none is passed
+  * `"inherit"` – use whatever is passed to `log()`
+* `"value"`: the scope string (e.g. `"MySubsystem"`)
+
+## ⚙️ Node Config Blocks
+
+Nodes can also receive a structured `"config"` object:
+
+```json
+{
+  "id": "logger",
+  "type": "loggernode",
+  "config": {
+    "level": "info",
+    "includeTimestamp": true
+  },
+  "inputs": {
+    "message": "Test log message"
+  }
+}
+```
+
+In the node implementation:
+
+```php
+public function setConfig(array $config): void {
+	$this->logLevel = $config['level'] ?? 'debug';
+}
+```
+
+This allows flexible per-node behavior **independent of inputs** (e.g. static parameters).
+
 ## 🪩 Project Structure
 
 ```
@@ -77,7 +170,9 @@ MissionBay/
 ├── Agent/           # AgentContext, AgentFlow, AgentNodePort
 ├── Api/             # Interfaces (IAgentNode, IAgentMemory, ...)
 ├── Memory/          # Memory backends (NoMemory, ...)
-└── Node/            # Node implementations (HttpGetNode, ...)
+├── Node/            # Node implementations (HttpGetNode, ...)
+├── Resource/        # Resource implementations (LoggerResource, ...)
+└── Flow/            # Flow engine (StrictFlow, AbstractFlow, etc.)
 ```
 
 ## ➕ Extending
@@ -99,11 +194,30 @@ class UpperCaseNode extends AbstractAgentNode {
 }
 ```
 
+To support config and docks:
+
+```php
+public function setConfig(array $config): void {
+	$this->prefix = $config['prefix'] ?? '';
+}
+
+public function execute(array $inputs, array $resources, AgentContext $ctx): array {
+	$loggers = $resources['logger'] ?? [];
+	foreach ($loggers as $logger) {
+		if ($logger instanceof ILogger) {
+			$logger->log('node', $this->prefix . $inputs['text']);
+		}
+	}
+	return ['result' => strtoupper($inputs['text'])];
+}
+```
+
 ## Runtime Architecture
 
 * `AgentFlow::fromArray(...)` – Loads a flow from JSON using `IClassMap`
 * `AgentFlow::run(...)` – Executes connected nodes in dependency order
 * Terminal node outputs are collected and returned
+* Resources and node config are injected automatically before execution
 
 ## Available Node Types
 
@@ -140,6 +254,7 @@ class UpperCaseNode extends AbstractAgentNode {
 * ✔️ Stable architecture
 * ✔️ JSON-based agent flows fully supported
 * ✔️ Configuration, context, logging, memory integrated
+* ✔️ Resource and docking system fully supported
 * ⚧️ Subflows, validation and visual tools in progress
 
 ## 📜 License
@@ -155,4 +270,3 @@ Have a node idea? Feel free to propose a PR!
 ---
 
 © BASE3 Framework
-

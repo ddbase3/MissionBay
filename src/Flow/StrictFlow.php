@@ -88,6 +88,11 @@ class StrictFlow extends AbstractFlow {
 			if (!$node instanceof IAgentNode) continue;
 
 			$node->setId($id);
+
+			if (!empty($nodeData['config'])) {
+				$node->setConfig($nodeData['config']);
+			}
+
 			$this->addNode($node);
 
 			if (!empty($nodeData['inputs'])) {
@@ -114,6 +119,11 @@ class StrictFlow extends AbstractFlow {
 			if (!$resource instanceof IAgentResource) continue;
 
 			$resource->setId($id);
+
+			if (!empty($res['config'])) {
+				$resource->setConfig($res['config']);
+			}
+
 			$this->addResource($resource);
 		}
 
