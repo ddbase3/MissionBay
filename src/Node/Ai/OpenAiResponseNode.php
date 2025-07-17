@@ -53,7 +53,7 @@ class OpenAiResponseNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$messages = $inputs['messages'] ?? null;
 		$model = $inputs['model'] ?? 'gpt-3.5-turbo';
 		$apiKey = $inputs['apikey'] ?? null;

@@ -4,7 +4,10 @@ namespace MissionBay\Node\Message;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
+use MissionBay\Agent\AgentNodeDock;
+use MissionBay\Api\IAgentResource;
 use MissionBay\Node\AbstractAgentNode;
+use Base3\Logger\Api\ILogger;
 
 class TelegramSendMessage extends AbstractAgentNode {
 
@@ -56,14 +59,35 @@ class TelegramSendMessage extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $input, IAgentContext $context): array {
-		if (empty($input['bot_token']) || empty($input['chat_id']) || empty($input['message'])) {
-			return ["error" => $this->error("Missing required input: bot_token, chat_id, and message are all required.")];
+	public function getDockDefinitions(): array {
+		return [
+			new AgentNodeDock(
+				name: 'logger',
+				description: 'Optional logger for status messages.',
+				interface: ILogger::class,
+				maxConnections: 1
+			)
+		];
+	}
+
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+		/** @var ILogger|null $logger */
+		$logger = $resources['logger'][0] ?? null;
+		$scope = 'telegram';
+
+		if (empty($inputs['bot_token']) || empty($inputs['chat_id']) || empty($inputs['message'])) {
+			$msg = "Missing required input: bot_token, chat_id, and message are all required.";
+			if ($logger instanceof ILogger) $logger->log($scope, "[ERROR] $msg");
+			return ["error" => $this->error($msg)];
 		}
 
-		$botToken = $input["bot_token"];
-		$chatId = $input["chat_id"];
-		$message = $input["message"];
+		$botToken = $inputs["bot_token"];
+		$chatId = $inputs["chat_id"];
+		$message = $inputs["message"];
+
+		if ($logger instanceof ILogger) {
+			$logger->log($scope, "Sending message to chat $chatId: " . substr($message, 0, 80));
+		}
 
 		$url = "https://api.telegram.org/bot{$botToken}/sendMessage";
 
@@ -85,15 +109,21 @@ class TelegramSendMessage extends AbstractAgentNode {
 		$result = @file_get_contents($url, false, $contextStream);
 
 		if ($result === false) {
-			return ["error" => $this->error("Failed to send message. HTTP request error.")];
+			$msg = "Failed to send message. HTTP request error.";
+			if ($logger instanceof ILogger) $logger->log($scope, "[ERROR] $msg");
+			return ["error" => $this->error($msg)];
 		}
 
 		$response = json_decode($result, true);
 
 		if (isset($response['ok']) && $response['ok']) {
-			return ["message_id" => $response['result']['message_id'] ?? null];
+			$mid = $response['result']['message_id'] ?? null;
+			if ($logger instanceof ILogger) $logger->log($scope, "Telegram message sent successfully. ID: $mid");
+			return ["message_id" => $mid];
 		} else {
-			return ["error" => $this->error($response['description'] ?? "Unknown error from Telegram API.")];
+			$msg = $response['description'] ?? "Unknown error from Telegram API.";
+			if ($logger instanceof ILogger) $logger->log($scope, "[ERROR] Telegram API error: $msg");
+			return ["error" => $this->error($msg)];
 		}
 	}
 }

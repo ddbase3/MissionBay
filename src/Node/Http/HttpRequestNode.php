@@ -78,7 +78,7 @@ class HttpRequestNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$url = $inputs['url'] ?? null;
 		$method = strtoupper($inputs['method'] ?? 'GET');
 		$headers = $inputs['headers'] ?? [];

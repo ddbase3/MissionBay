@@ -41,7 +41,7 @@ class DelayNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$seconds = $inputs['seconds'] ?? 1;
 
 		if (!is_numeric($seconds) || $seconds < 0 || $seconds > 60) {

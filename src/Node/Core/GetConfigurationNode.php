@@ -54,7 +54,7 @@ class GetConfigurationNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$section = $inputs['section'] ?? null;
 		$key = $inputs['key'] ?? null;
 

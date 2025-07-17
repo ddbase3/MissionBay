@@ -46,7 +46,7 @@ class IfNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		if (!array_key_exists('condition', $inputs)) {
 			return ['error' => $this->error('Missing "condition" input')];
 		}

@@ -56,7 +56,7 @@ class LoggerNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$scope = $inputs['scope'] ?? 'default';
 		$message = (string)($inputs['message'] ?? '');
 

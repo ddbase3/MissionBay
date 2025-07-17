@@ -6,14 +6,19 @@ use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentNodeFactory;
+use MissionBay\Api\IAgentResourceFactory;
 
 abstract class AbstractFlow implements IAgentFlow {
 
         protected array $nodes = [];
+        protected array $resources = [];
 	protected bool $allowReentrant = false;
 	protected ?IAgentContext $context = null;
 
-        public function __construct(protected readonly IAgentNodeFactory $agentnodefactory) {}
+	public function __construct(
+		protected readonly IAgentNodeFactory $agentnodefactory,
+		protected readonly IAgentResourceFactory $agentresourcefactory
+	) {}
 
         public function setContext(IAgentContext $context): void {
                 $this->context = $context;

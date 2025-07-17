@@ -11,6 +11,7 @@ class AgentContext implements IAgentContext {
 
 	private IAgentMemory $memory;
 	private array $vars;
+	private array $resources = [];
 
 	public function __construct(
 		?IAgentMemory $memory = null,

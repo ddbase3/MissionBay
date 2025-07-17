@@ -54,7 +54,7 @@ class LoopNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$count = $inputs['count'] ?? null;
 		$node = $inputs['node'] ?? null;
 		$inputMap = $inputs['inputMap'] ?? [];

@@ -61,7 +61,7 @@ class DeepLTranslateNode extends AbstractAgentNode
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$apiKey = trim($inputs['apikey'] ?? '');
 		$text = trim($inputs['text'] ?? '');
 		$target = strtoupper(trim($inputs['target'] ?? ''));

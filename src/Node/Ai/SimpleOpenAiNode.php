@@ -67,7 +67,7 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$prompt = $inputs['prompt'] ?? null;
 		$system = $inputs['system'] ?? 'You are a helpful assistant.';
 		$model = $inputs['model'] ?? 'gpt-3.5-turbo';

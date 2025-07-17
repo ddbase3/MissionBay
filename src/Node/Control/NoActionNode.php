@@ -28,7 +28,7 @@ class NoActionNode extends AbstractAgentNode {
 		return [];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		return [];
 	}
 

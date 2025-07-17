@@ -40,7 +40,7 @@ class GetContextVarNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$key = $inputs['key'] ?? null;
 
 		if (!is_string($key)) {

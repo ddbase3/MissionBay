@@ -54,7 +54,7 @@ class ForEachNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$items = $inputs['items'] ?? null;
 		$node = $inputs['node'] ?? null;
 		$inputMap = $inputs['inputMap'] ?? [];

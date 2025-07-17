@@ -47,7 +47,7 @@ class HttpGetNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$url = $inputs['url'] ?? null;
 
 		if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {

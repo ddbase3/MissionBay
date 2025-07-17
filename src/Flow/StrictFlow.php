@@ -4,220 +4,275 @@ namespace MissionBay\Flow;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
+use MissionBay\Api\IAgentResource;
 use MissionBay\Agent\AgentNodePort;
 
 class StrictFlow extends AbstractFlow {
 
-    private array $connections = [];
-    private array $initialInputs = [];
+	private array $connections = [];
+	private array $dockConnections = [];
+	private array $initialInputs = [];
 
-    public static function getName(): string {
-        return 'strictflow';
-    }
+	public static function getName(): string {
+		return 'strictflow';
+	}
 
-    public function addConnection(string $fromNode, string $fromOutput, string $toNode, string $toInput): void {
-        $this->connections[] = [
-            'fromNode' => $fromNode,
-            'fromOutput' => $fromOutput,
-            'toNode' => $toNode,
-            'toInput' => $toInput
-        ];
-    }
+	public function addConnection(string $fromNode, string $fromOutput, string $toNode, string $toInput): void {
+		$this->connections[] = [
+			'fromNode' => $fromNode,
+			'fromOutput' => $fromOutput,
+			'toNode' => $toNode,
+			'toInput' => $toInput
+		];
+	}
 
-    public function addInitialInput(string $nodeId, string $key, mixed $value): void {
-        $this->initialInputs[$nodeId][$key] = $value;
-    }
+	public function addInitialInput(string $nodeId, string $key, mixed $value): void {
+		$this->initialInputs[$nodeId][$key] = $value;
+	}
 
-    public function getConnections(): array {
-        return $this->connections;
-    }
+	public function getConnections(): array {
+		return $this->connections;
+	}
 
-    public function getInitialInputs(): array {
-        return $this->initialInputs;
-    }
+	public function getInitialInputs(): array {
+		return $this->initialInputs;
+	}
 
-    public function getNextNode(string $currentNodeId, array $output): ?string {
-        foreach ($this->connections as $conn) {
-            if ($conn['fromNode'] === $currentNodeId) {
-                return $conn['toNode'];
-            }
-        }
-        return null;
-    }
+	public function addDockConnection(string $nodeId, string $dockName, string $resourceId): void {
+		$this->dockConnections[$nodeId][$dockName][] = $resourceId;
+	}
 
-    public function mapInputs(string $fromNodeId, string $toNodeId, array $output): array {
-        $mapped = [];
-        foreach ($this->connections as $conn) {
-            if ($conn['fromNode'] === $fromNodeId && $conn['toNode'] === $toNodeId) {
-                $mapped[$conn['toInput']] = $output[$conn['fromOutput']] ?? null;
-            }
-        }
-        return $mapped;
-    }
+	public function getDockConnections(string $nodeId): array {
+		return $this->dockConnections[$nodeId] ?? [];
+	}
 
-    public function fromArray(array $data): self {
-        foreach ($data['nodes'] ?? [] as $nodeData) {
-            $type = $nodeData['type'] ?? null;
-            $id = $nodeData['id'] ?? null;
+	public function getAllDockConnections(): array {
+		return $this->dockConnections;
+	}
 
-            if (!$type || !$id) continue;
+	public function addResource(IAgentResource $resource): void {
+		$this->resources[$resource->getId()] = $resource;
+	}
 
-            $node = $this->agentnodefactory->createNode($type);
-            if (!$node instanceof IAgentNode) continue;
+	public function getResources(): array {
+		return $this->resources;
+	}
 
-            $node->setId($id);
-            $this->addNode($node);
+	public function getNextNode(string $currentNodeId, array $output): ?string {
+		foreach ($this->connections as $conn) {
+			if ($conn['fromNode'] === $currentNodeId) {
+				return $conn['toNode'];
+			}
+		}
+		return null;
+	}
 
-            if (!empty($nodeData['inputs'])) {
-                foreach ($nodeData['inputs'] as $key => $value) {
-                    $this->addInitialInput($id, $key, $value);
-                }
-            }
-        }
+	public function mapInputs(string $fromNodeId, string $toNodeId, array $output): array {
+		$mapped = [];
+		foreach ($this->connections as $conn) {
+			if ($conn['fromNode'] === $fromNodeId && $conn['toNode'] === $toNodeId) {
+				$mapped[$conn['toInput']] = $output[$conn['fromOutput']] ?? null;
+			}
+		}
+		return $mapped;
+	}
 
-        foreach ($data['connections'] ?? [] as $conn) {
-            $this->addConnection(
-                $conn['from'] ?? '',
-                $conn['output'] ?? '',
-                $conn['to'] ?? '',
-                $conn['input'] ?? ''
-            );
-        }
+	public function fromArray(array $data): self {
+		foreach ($data['nodes'] ?? [] as $nodeData) {
+			$type = $nodeData['type'] ?? null;
+			$id = $nodeData['id'] ?? null;
 
-        return $this;
-    }
+			if (!$type || !$id) continue;
 
-    public function run(array $inputs): array {
-        if (!$this->context) throw new \RuntimeException("Context is not set");
+			$node = $this->agentnodefactory->createNode($type);
+			if (!$node instanceof IAgentNode) continue;
 
-        $nodeInputs = [];
-        $nodeOutputs = [];
+			$node->setId($id);
+			$this->addNode($node);
 
-        foreach ($this->nodes as $nodeId => $_) {
-            $nodeInputs[$nodeId] = [];
-        }
+			if (!empty($nodeData['inputs'])) {
+				foreach ($nodeData['inputs'] as $key => $value) {
+					$this->addInitialInput($id, $key, $value);
+				}
+			}
 
-        foreach ($this->initialInputs as $nodeId => $preset) {
-            foreach ($preset as $key => $value) {
-                $nodeInputs[$nodeId][$key] = $value;
-            }
-        }
+			if (!empty($nodeData['docks'])) {
+				foreach ($nodeData['docks'] as $dockName => $resourceIds) {
+					foreach ((array)$resourceIds as $resourceId) {
+						$this->addDockConnection($id, $dockName, $resourceId);
+					}
+				}
+			}
+		}
 
-        foreach ($inputs as $inputName => $value) {
-            foreach ($this->connections as $conn) {
-                if ($conn['fromNode'] === '__input__' && $conn['fromOutput'] === $inputName) {
-                    $nodeInputs[$conn['toNode']][$conn['toInput']] = $value;
-                }
-            }
-        }
+		foreach ($data['resources'] ?? [] as $res) {
+			$id = $res['id'] ?? null;
+			$type = $res['type'] ?? null;
+			if (!$id || !$type) continue;
 
-        $executed = [];
-        $loopGuard = 0;
-        $maxLoops = 1000;
+			$resource = $this->agentresourcefactory->createResource($type);
+			if (!$resource instanceof IAgentResource) continue;
 
-        while (count($executed) < count($this->nodes)) {
-            if (++$loopGuard > $maxLoops) {
-                return [['error' => 'Flow execution exceeded safe iteration limit']];
-            }
+			$resource->setId($id);
+			$this->addResource($resource);
+		}
 
-            $progress = false;
+		foreach ($data['connections'] ?? [] as $conn) {
+			$this->addConnection(
+				$conn['from'] ?? '',
+				$conn['output'] ?? '',
+				$conn['to'] ?? '',
+				$conn['input'] ?? ''
+			);
+		}
 
-            foreach ($this->nodes as $nodeId => $node) {
-                if (!$this->allowReentrant && in_array($nodeId, $executed)) continue;
-                if (!$this->isReady($nodeId, $nodeInputs[$nodeId] ?? [])) continue;
+		return $this;
+	}
 
-                $inputDefs = $this->normalizePortDefs($node->getInputDefinitions());
+	public function run(array $inputs): array {
+		if (!$this->context) throw new \RuntimeException("Context is not set");
 
-                $hasActive = false;
-                foreach ($inputDefs as $port) {
-                    if ($port->name === 'active') {
-                        $hasActive = true;
-                        break;
-                    }
-                }
-                if ($hasActive) {
-                    $isActive = $nodeInputs[$nodeId]['active'] ?? true;
-                    if (!$this->isTruthy($isActive)) {
-                         $executed[] = $nodeId;
-                         continue;
-                    }
-                }
+		$nodeInputs = [];
+		$nodeOutputs = [];
 
-		foreach ($inputDefs as $port) {
-                    if (!array_key_exists($port->name, $nodeInputs[$nodeId])) {
-                        if ($port->required && $port->default === null) {
-                            $nodeOutputs[$nodeId] = ['error' => "Missing required input '{$port->name}' for node '$nodeId'"];
-                            $executed[] = $nodeId;
-                            $progress = true;
-                            continue 2;
-                        }
-                        $nodeInputs[$nodeId][$port->name] = $port->default;
-                    }
-                }
+		foreach ($this->nodes as $nodeId => $_) {
+			$nodeInputs[$nodeId] = [];
+		}
 
-                try {
-                    $output = $node->execute($nodeInputs[$nodeId], $this->context);
-                } catch (\Throwable $e) {
-                    $output = ['error' => $e->getMessage()];
-                }
+		foreach ($this->initialInputs as $nodeId => $preset) {
+			foreach ($preset as $key => $value) {
+				$nodeInputs[$nodeId][$key] = $value;
+			}
+		}
 
-                $outputDefs = $this->normalizePortDefs($node->getOutputDefinitions());
-                foreach ($outputDefs as $port) {
-                    if (!array_key_exists($port->name, $output) && $port->default !== null) {
-                        $output[$port->name] = $port->default;
-                    }
-                }
+		foreach ($inputs as $inputName => $value) {
+			foreach ($this->connections as $conn) {
+				if ($conn['fromNode'] === '__input__' && $conn['fromOutput'] === $inputName) {
+					$nodeInputs[$conn['toNode']][$conn['toInput']] = $value;
+				}
+			}
+		}
 
-                $nodeOutputs[$nodeId] = $output;
-                $executed[] = $nodeId;
-                $progress = true;
+		$executed = [];
+		$loopGuard = 0;
+		$maxLoops = 1000;
 
-                foreach ($this->connections as $conn) {
-                    if ($conn['fromNode'] === $nodeId) {
-                        $toNode = $conn['toNode'];
-                        $fromOutput = $conn['fromOutput'];
-                        $toInput = $conn['toInput'];
-                        if (isset($this->nodes[$toNode]) && array_key_exists($fromOutput, $output)) {
-                            $nodeInputs[$toNode][$toInput] = $output[$fromOutput] ?? null;
-                        }
-                    }
-                }
-            }
+		while (count($executed) < count($this->nodes)) {
+			if (++$loopGuard > $maxLoops) {
+				return [['error' => 'Flow execution exceeded safe iteration limit']];
+			}
 
-            if (!$progress) break;
-        }
+			$progress = false;
 
-        $terminalNodes = array_filter(array_keys($this->nodes), function ($nodeId) {
-            foreach ($this->connections as $conn) {
-                if ($conn['fromNode'] === $nodeId) return false;
-            }
-            return true;
-        });
+			foreach ($this->nodes as $nodeId => $node) {
+				if (!$this->allowReentrant && in_array($nodeId, $executed)) continue;
+				if (!$this->isReady($nodeId, $nodeInputs[$nodeId] ?? [])) continue;
 
-        $outputs = [];
-        foreach ($terminalNodes as $nodeId) {
-            if (isset($nodeOutputs[$nodeId])) {
-                $outputs[$nodeId] = $nodeOutputs[$nodeId];
-            }
-        }
+				$inputDefs = $this->normalizePortDefs($node->getInputDefinitions());
 
-        return $outputs;
-    }
+				$hasActive = false;
+				foreach ($inputDefs as $port) {
+					if ($port->name === 'active') {
+						$hasActive = true;
+						break;
+					}
+				}
+				if ($hasActive) {
+					$isActive = $nodeInputs[$nodeId]['active'] ?? true;
+					if (!$this->isTruthy($isActive)) {
+						$executed[] = $nodeId;
+						continue;
+					}
+				}
 
-    public function isReady(string $nodeId, array $currentInputs): bool {
-        foreach ($this->connections as $conn) {
-            if ($conn['toNode'] === $nodeId && !array_key_exists($conn['toInput'], $currentInputs)) {
-                return false;
-            }
-        }
-        return true;
-    }
+				foreach ($inputDefs as $port) {
+					if (!array_key_exists($port->name, $nodeInputs[$nodeId])) {
+						if ($port->required && $port->default === null) {
+							$nodeOutputs[$nodeId] = ['error' => "Missing required input '{$port->name}' for node '$nodeId'"];
+							$executed[] = $nodeId;
+							$progress = true;
+							continue 2;
+						}
+						$nodeInputs[$nodeId][$port->name] = $port->default;
+					}
+				}
 
-    // Private methods
+				try {
+					$resources = $this->getResourcesForNode($nodeId);
+					$output = $node->execute($nodeInputs[$nodeId], $resources, $this->context);
+				} catch (\Throwable $e) {
+					$output = ['error' => $e->getMessage()];
+				}
 
-    private function isTruthy(mixed $value): bool {
-        if (is_array($value)) return !empty($value);
-        return (bool)$value;
-    }
+				$outputDefs = $this->normalizePortDefs($node->getOutputDefinitions());
+				foreach ($outputDefs as $port) {
+					if (!array_key_exists($port->name, $output) && $port->default !== null) {
+						$output[$port->name] = $port->default;
+					}
+				}
+
+				$nodeOutputs[$nodeId] = $output;
+				$executed[] = $nodeId;
+				$progress = true;
+
+				foreach ($this->connections as $conn) {
+					if ($conn['fromNode'] === $nodeId) {
+						$toNode = $conn['toNode'];
+						$fromOutput = $conn['fromOutput'];
+						$toInput = $conn['toInput'];
+						if (isset($this->nodes[$toNode]) && array_key_exists($fromOutput, $output)) {
+							$nodeInputs[$toNode][$toInput] = $output[$fromOutput] ?? null;
+						}
+					}
+				}
+			}
+
+			if (!$progress) break;
+		}
+
+		$terminalNodes = array_filter(array_keys($this->nodes), function ($nodeId) {
+			foreach ($this->connections as $conn) {
+				if ($conn['fromNode'] === $nodeId) return false;
+			}
+			return true;
+		});
+
+		$outputs = [];
+		foreach ($terminalNodes as $nodeId) {
+			if (isset($nodeOutputs[$nodeId])) {
+				$outputs[$nodeId] = $nodeOutputs[$nodeId];
+			}
+		}
+
+		return $outputs;
+	}
+
+	public function isReady(string $nodeId, array $currentInputs): bool {
+		foreach ($this->connections as $conn) {
+			if ($conn['toNode'] === $nodeId && !array_key_exists($conn['toInput'], $currentInputs)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// Private methods
+
+	private function getResourcesForNode(string $nodeId): array {
+		$result = [];
+		foreach ($this->dockConnections[$nodeId] ?? [] as $dockName => $resourceIds) {
+			foreach ($resourceIds as $resourceId) {
+				if (isset($this->resources[$resourceId])) {
+					$result[$dockName][] = $this->resources[$resourceId];
+				}
+			}
+		}
+		return $result;
+	}
+
+	private function isTruthy(mixed $value): bool {
+		if (is_array($value)) return !empty($value);
+		return (bool)$value;
+	}
 }
 

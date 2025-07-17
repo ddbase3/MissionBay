@@ -6,7 +6,7 @@ use Base3\Api\IBase;
 
 /**
  * Interface for executable agent flows within the MissionBay system.
- * Defines lifecycle management, node linking, data routing, and input/output control.
+ * Defines lifecycle management, node linking, data routing, and resource docking.
  */
 interface IAgentFlow extends IBase {
 
@@ -52,6 +52,20 @@ interface IAgentFlow extends IBase {
 	public function addInitialInput(string $nodeId, string $key, mixed $value): void;
 
 	/**
+	 * Returns all initially defined static inputs for the flow.
+	 *
+	 * @return array Nested array of initial input values indexed by node ID.
+	 */
+	public function getInitialInputs(): array;
+
+	/**
+	 * Returns the list of connections (edges) between node outputs and inputs.
+	 *
+	 * @return array List of connections, each with fromNode, fromOutput, toNode, toInput.
+	 */
+	public function getConnections(): array;
+
+	/**
 	 * Determines the next node to execute based on the output of the current node.
 	 *
 	 * @param string $currentNodeId ID of the node just executed.
@@ -80,17 +94,41 @@ interface IAgentFlow extends IBase {
 	public function isReady(string $nodeId, array $currentInputs): bool;
 
 	/**
-	 * Returns all initially defined static inputs for the flow.
+	 * Registers a globally available resource that can be docked to nodes.
 	 *
-	 * @return array Nested array of initial input values indexed by node ID.
+	 * @param IAgentResource $resource
 	 */
-	public function getInitialInputs(): array;
+	public function addResource(IAgentResource $resource): void;
 
 	/**
-	 * Returns the list of connections (edges) between node outputs and inputs.
+	 * Returns all globally available resources in this flow.
 	 *
-	 * @return array List of connections, each with fromNode, fromOutput, toNode, toInput.
+	 * @return IAgentResource[]
 	 */
-	public function getConnections(): array;
+	public function getResources(): array;
+
+	/**
+	 * Assigns a resource to a specific node's dock.
+	 *
+	 * @param string $nodeId
+	 * @param string $dockName
+	 * @param string $resourceId
+	 */
+	public function addDockConnection(string $nodeId, string $dockName, string $resourceId): void;
+
+	/**
+	 * Returns all dock-to-resource assignments for all nodes.
+	 *
+	 * @return array<string, array<string, string[]>>
+	 */
+	public function getAllDockConnections(): array;
+
+	/**
+	 * Returns all dock-to-resource assignments for a specific node.
+	 *
+	 * @param string $nodeId
+	 * @return array<string, string[]>
+	 */
+	public function getDockConnections(string $nodeId): array;
 }
 
