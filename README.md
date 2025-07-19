@@ -242,6 +242,125 @@ public function execute(array $inputs, array $resources, AgentContext $ctx): arr
 * Terminal node outputs are collected and returned
 * Resources and node config are injected automatically before execution
 
+---
+
+## 🌐 MCP Endpoint (MissionBay Control Point)
+
+MissionBay provides a **single OpenAI-compatible JSON endpoint** that allows external systems (including ChatGPT) to discover and execute agent functions via standard OpenAPI 3.1.
+
+This is useful for:
+
+* **Chatbot integration with function calling**
+* **Automated workflows**
+* **External systems triggering structured agent actions**
+
+The endpoint is typically available at:
+
+```
+https://example.com/missionbaymcp.json
+```
+
+### `GET` Request – OpenAPI 3.1 Spec
+
+Returns a full OpenAPI 3.1 specification including all available functions:
+
+```json
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MissionBay MCP API",
+    "version": "1.0.0",
+    "description": "OpenAI-compatible Agent Function Interface"
+  },
+  "paths": {
+    "/functions/reverse_string": {
+      "post": {
+        "summary": "Reverses a given string",
+        "operationId": "reverse_string",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "description": "Text to reverse"
+                  }
+                },
+                "required": ["text"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reversed": {
+                      "type": "string",
+                      "description": "The reversed text"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This is **fully compatible with GPT function calling** and OpenAPI-aware tools.
+
+### `POST` Request – Function Call
+
+Invoke a specific function:
+
+```
+POST /mcp/functions/reverse_string
+Authorization: Bearer <TOKEN>
+Content-Type: application/json
+```
+
+Request body:
+
+```json
+{
+  "text": "Hello"
+}
+```
+
+Response:
+
+```json
+{
+  "reversed": "olleH"
+}
+```
+
+Internally, the server uses an `AgentContext`, logs all calls, resolves agents via the BASE3 ClassMap, and ensures token-based access protection for secure use in both backend systems and AI agents.
+
+### MCP Server Configuration
+
+For the BASE3 context and routing add the folloginto your .htaccess:
+
+```
+# Rewrite MCP functoin calls: /mcp/functions/<name> → index.php?name=missionbaymcp&out=json&function=functions/<name>
+RewriteRule ^mcp/functions/(.+)$ index.php?name=missionbaymcp&out=json&function=$1 [L,QSA]
+# MCP documentation: /mcp → index.php?name=missionbaymcp&out=json
+RewriteRule ^mcp$ index.php?name=missionbaymcp&out=json [L,QSA]
+```
+
+---
+
 ## Available Node Types
 
 | Node                 | Purpose                         |

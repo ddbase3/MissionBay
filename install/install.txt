@@ -1,0 +1,7 @@
+.htaccess-add:
+
+# Rewrite MCP functoin calls: /mcp/functions/<name> → index.php?name=missionbaymcp&out=json&function=functions/<name>
+RewriteRule ^mcp/functions/(.+)$ index.php?name=missionbaymcp&out=json&function=$1 [L,QSA]
+# MCP documentation: /mcp → index.php?name=missionbaymcp&out=json
+RewriteRule ^mcp$ index.php?name=missionbaymcp&out=json [L,QSA]
+

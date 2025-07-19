@@ -6,87 +6,144 @@ use Base3\Api\IOutput;
 use Base3\Api\IClassMap;
 use Base3\Api\IRequest;
 use Base3\Logger\Api\ILogger;
+use Base3\Token\Api\IToken;
 use MissionBay\Api\IMcpAgent;
-use MissionBay\Api\IAgentContextFactory;
 
 class MissionBayMcp implements IOutput {
+
+	private const TOKEN_SCOPE = 'api';
+	private const TOKEN_ID = 'missionbaymcpserver';
 
 	public function __construct(
 		private readonly IClassMap $classMap,
 		private readonly IRequest $request,
-		private readonly ILogger $logger,
-		private readonly IAgentContextFactory $agentcontextfactory
+		private readonly IToken $tokenService,
+		private readonly ILogger $logger
 	) {}
 
 	public static function getName(): string {
 		return 'missionbaymcp';
 	}
 
-	public function getOutput($out = "html") {
-		if ($out !== "json") return 'This is a JSON endpoint only';
+	private function isAuthorized(): bool {
+		$header = $_SERVER['HTTP_AUTHORIZATION']
+			?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
+			?? apache_request_headers()['Authorization'] ?? '';
 
-		$context = $this->agentcontextfactory->createContext();
-		$agents = $this->classMap->getInstancesByInterface(IMcpAgent::class);
+		$this->logger->log('MCP', 'Auth check: ' . $header);
 
-		if ($this->request->getContext() === IRequest::CONTEXT_WEB_GET) {
-			$data = [];
-			foreach ($agents as $agent) {
-				$data[] = [
-					'name' => $agent->getFunctionName(),
-					'description' => $agent->getDescription(),
-					'parameters' => [
-						'type' => 'object',
-						'properties' => array_map(function ($def) {
-							return [
-								'type' => $def['type'] ?? 'string',
-								'description' => $def['description'] ?? '',
-							];
-						}, $agent->getInputSpec()),
-						'required' => array_keys(array_filter($agent->getInputSpec(), fn($def) => ($def['required'] ?? false)))
-					],
-					'category' => $agent->getCategory(),
-					'tags' => $agent->getTags(),
-					'version' => $agent->getVersion(),
-				];
-			}
-			return json_encode(['functions' => $data], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+		if (str_starts_with(strtolower($header), 'bearer ')) {
+			$token = trim(substr($header, 7));
+			return $this->tokenService->check(self::TOKEN_SCOPE, self::TOKEN_ID, $token);
 		}
+		return false;
+	}
 
-		if ($this->request->getContext() === IRequest::CONTEXT_WEB_POST) {
-			$raw = file_get_contents("php://input");
-			$post = json_decode($raw, true);
-			$function = $post['function'] ?? null;
-			$inputs = $post['inputs'] ?? ($post['parameters'] ?? []);
+	public function getOutput($out = "json") {
+		if ($out !== "json") return 'This endpoint only supports JSON output.';
+
+		$context = $this->request->getContext();
+		$function = $this->request->get('function');
+
+		// POST → Function Call
+		if ($context === IRequest::CONTEXT_WEB_POST) {
+
+			if (!$this->isAuthorized()) {
+				http_response_code(401);
+				return json_encode(['error' => 'Unauthorized'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+			}
+
+			$agents = $this->classMap->getInstancesByInterface(IMcpAgent::class);
 
 			foreach ($agents as $agent) {
 				if ($agent->getFunctionName() === $function) {
-					$agent->setId(uniqid("agent_"));
-					$agent->setContext($context);
-
-					$this->logger->log("MCP", "Calling agent function '$function' with inputs: " . json_encode($inputs));
-					$output = $agent->run($inputs);
-					$this->logger->log("MCP", "Agent '$function' returned: " . json_encode($output));
-
-					return json_encode([
-						'function' => $function,
-						'output' => $output
-					], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+					$input = $this->request->getJsonBody();
+					if (!$input) $input = $this->request->allPost();
+					$output = $agent->run($input);
+					return json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 				}
 			}
 
-			return json_encode([
-				'error' => "Unknown function: $function"
-			], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+			http_response_code(404);
+			return json_encode(['error' => 'Function not found: ' . $function], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 		}
 
-		return json_encode([
-			'error' => 'Unsupported request context'
-		], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+		// Default → OpenAPI-Spec ausgeben
+		$agents = $this->classMap->getInstancesByInterface(IMcpAgent::class);
+		$paths = [];
+
+		foreach ($agents as $agent) {
+			$fn = $agent->getFunctionName();
+			$inputSpec = $agent->getInputSpec();
+
+			$properties = [];
+			$required = [];
+			foreach ($inputSpec as $key => $val) {
+				$properties[$key] = [
+					'type' => $val['type'] ?? 'string',
+					'description' => $val['description'] ?? ''
+				];
+				if (!empty($val['required'])) {
+					$required[] = $key;
+				}
+			}
+
+			$schema = [
+				'type' => 'object',
+				'properties' => !empty($properties) ? $properties : new \stdClass()
+			];
+			if (!empty($required)) {
+				$schema['required'] = $required;
+			}
+
+			$paths["/functions/$fn"] = [
+				'post' => [
+					'summary' => $agent->getDescription(),
+					'operationId' => $fn,
+					'requestBody' => [
+						'required' => true,
+						'content' => [
+							'application/json' => [
+								'schema' => $schema
+							]
+						]
+					],
+					'responses' => [
+						'200' => [
+							'description' => 'Successful response',
+							'content' => [
+								'application/json' => [
+									'schema' => [
+										'type' => 'object',
+										'properties' => $agent->getOutputSpec()
+									]
+								]
+							]
+						]
+					]
+				]
+			];
+		}
+
+		$openapi = [
+			'openapi' => '3.1.0',
+			'info' => [
+				'title' => 'MissionBay MCP API',
+				'version' => '1.0.0',
+				'description' => 'OpenAI-compatible Agent Function Interface'
+			],
+			'servers' => [
+				[ 'url' => 'https://agents.base3.de/mcp' ]
+			],
+			'x-debug-id' => uniqid('dbg_'),
+			'paths' => $paths
+		];
+
+		return json_encode($openapi, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 	}
 
 	public function getHelp(): string {
-		return "'GET' => OpenAI-compatible list of available functions with JSON Schema.\n"
-			. "'POST' => { function: string, inputs: { ... } } or { name: string, parameters: { ... } }";
+		return "Returns OpenAPI 3.1 spec or executes agent function for GPT function calling integration.";
 	}
 }
 
