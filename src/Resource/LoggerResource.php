@@ -2,25 +2,28 @@
 
 namespace MissionBay\Resource;
 
-use MissionBay\Resource\AbstractAgentResource;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Agent\AgentConfigValueResolver;
+use MissionBay\Resource\AbstractAgentResource;
 
 /**
  * LoggerResource
  *
  * Wraps an existing ILogger instance as a dockable resource for nodes.
- * Provides structured logging functionality.
+ * Provides structured logging functionality with flexible scope resolving.
  */
 class LoggerResource extends AbstractAgentResource implements ILogger {
 
 	protected ILogger $logger;
+	protected IAgentConfigValueResolver $resolver;
 
-	protected string $mode = 'inherit'; // 'default', 'fixed', 'inherit'
-	protected ?string $configuredScope = null;
+	protected array|string|null $scopeConfig = null;
 
-	public function __construct(ILogger $logger, ?string $id = null) {
+	public function __construct(ILogger $logger, IAgentConfigValueResolver $resolver, ?string $id = null) {
 		parent::__construct($id);
 		$this->logger = $logger;
+		$this->resolver = $resolver;
 	}
 
 	// Implementation of IBase
@@ -33,39 +36,21 @@ class LoggerResource extends AbstractAgentResource implements ILogger {
 
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
-
-		$scopeCfg = $config['scope'] ?? null;
-
-		if (is_array($scopeCfg)) {
-			$this->mode = $scopeCfg['mode'] ?? 'inherit';
-			$this->configuredScope = $scopeCfg['value'] ?? null;
-		} else {
-			// Backward compatibility fallback?
-			$this->mode = 'inherit';
-			$this->configuredScope = null;
-		}
+		$this->scopeConfig = $config['scope'] ?? null;
 	}
 
 	public function getDescription(): string {
 		return 'Provides structured logging functionality to nodes and other resources.';
 	}
 
-	// Implementation of ILogger 
+	// Implementation of ILogger
 
 	public function log(string $scope, string $log, ?int $timestamp = null): bool {
-		switch ($this->mode) {
-			case 'fixed':
-				$scope = $this->configuredScope ?? 'default';
-				break;
-			case 'default':
-				if (empty($scope)) {
-					$scope = $this->configuredScope ?? 'default';
-				}
-				break;
-			case 'inherit':
-			default:
-				// Use given scope
-				break;
+		// Let the resolver decide the final scope (could override the given one)
+		$resolvedScope = $this->resolver->resolveValue($this->scopeConfig);
+
+		if (is_string($resolvedScope) && $resolvedScope !== '') {
+			$scope = $resolvedScope;
 		}
 
 		return $this->logger->log($scope, $log, $timestamp);

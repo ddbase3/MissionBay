@@ -127,13 +127,33 @@ Example for a logger resource:
 }
 ```
 
-LoggerResource supports:
+#### LoggerResource supports:
 
 * `"mode"`:
-  * `"fixed"` – always use given scope
-  * `"default"` – fallback if none is passed
-  * `"inherit"` – use whatever is passed to `log()`
-* `"value"`: the scope string (e.g. `"MySubsystem"`)
+
+  * `"fixed"` – always use the given value as scope
+  * `"default"` – use the value only if no scope is passed
+  * `"inherit"` – use whatever is passed to `log()` by the calling node
+  * `"context"` – resolve scope from context via `$context->getVar(value)`
+  * `"env"` – resolve scope from environment variable
+  * `"config"` – resolve scope from BASE3 application config
+* `"value"`: the actual string used for resolution (e.g. `"LOGGER_SCOPE"`, `"log.scope"` or a context variable name)
+
+This is resolved by the `AgentConfigValueResolver`, which supports the following resolution logic:
+
+| `mode`    | Description                                                                 |
+| --------- | --------------------------------------------------------------------------- |
+| `fixed`   | Always use `value` as-is                                                    |
+| `default` | Use `value` if the calling code does not provide a value                    |
+| `context` | Use `$context->getVar(value)` (e.g. `value: "currentScope"`)                |
+| `env`     | Read from `getenv(value)` (e.g. `value: "LOGGER_SCOPE"`)                    |
+| `config`  | Read from BASE3 `$configuration->get(value)` (e.g. `value: "logger.scope"`) |
+| `inherit` | Use the value provided by the node at runtime (if any)                      |
+
+If no value can be resolved, the final fallback is to whatever is passed to the method (e.g. from the node).
+Each resource may define **its own default behavior** when no `config` is given at all.
+
+---
 
 ## ⚙️ Node Config Blocks
 
@@ -161,7 +181,10 @@ public function setConfig(array $config): void {
 }
 ```
 
-This allows flexible per-node behavior **independent of inputs** (e.g. static parameters).
+This allows flexible per-node behavior **independent of inputs** (e.g. static parameters or execution flags).
+
+Node configs can also use the same **structured resolution format** (`mode`, `value`) as resources if supported by the node.
+It is up to the individual node to decide how to resolve config values using the `IAgentConfigValueResolver`.
 
 ## 🪩 Project Structure
 

@@ -32,23 +32,31 @@ class AgentNodeDock {
 	public ?int $maxConnections;
 
 	/**
+	 * @var bool Whether this dock is required for execution
+	 */
+	public bool $required;
+
+	/**
 	 * AgentNodeDock constructor.
 	 *
 	 * @param string $name Dock identifier used in the node
 	 * @param string $description Short description of what this dock does
 	 * @param string $interface Interface that connected resources must implement (FQCN)
 	 * @param int|null $maxConnections Optional maximum number of allowed connections
+	 * @param bool $required Whether this dock is required (default: false)
 	 */
 	public function __construct(
 		string $name,
 		string $description = '',
 		string $interface = '',
-		?int $maxConnections = null
+		?int $maxConnections = null,
+		bool $required = false
 	) {
 		$this->name = $name;
 		$this->description = $description;
 		$this->interface = $interface;
 		$this->maxConnections = $maxConnections;
+		$this->required = $required;
 	}
 
 	/**
@@ -63,6 +71,7 @@ class AgentNodeDock {
 			'description'    => $this->description,
 			'interface'      => $this->interface,
 			'maxConnections' => $this->maxConnections,
+			'required'       => $this->required,
 		];
 	}
 }

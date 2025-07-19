@@ -5,12 +5,15 @@ namespace MissionBay;
 use Base3\Api\IClassMap;
 use Base3\Api\IContainer;
 use Base3\Api\IPlugin;
+use Base3\Configuration\Api\IConfiguration;
+use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IAgentMemoryFactory;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentResourceFactory;
+use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
 // use MissionBay\Agent\AgentRouterFactory;
 use MissionBay\Agent\AgentMemoryFactory;
@@ -39,6 +42,7 @@ class MissionBayPlugin implements IPlugin {
 			->set(IAgentMemoryFactory::class, fn($c) => new AgentMemoryFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentNodeFactory::class, fn($c) => new AgentNodeFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
+			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfiguration::class)), IContainer::SHARED)
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED);
 	}
 }
