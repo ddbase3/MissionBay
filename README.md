@@ -350,10 +350,10 @@ Internally, the server uses an `AgentContext`, logs all calls, resolves agents v
 
 ### MCP Server Configuration
 
-For the BASE3 context and routing add the folloginto your .htaccess:
+For the BASE3 context and routing add the following to your .htaccess:
 
 ```
-# Rewrite MCP functoin calls: /mcp/functions/<name> → index.php?name=missionbaymcp&out=json&function=functions/<name>
+# Rewrite MCP function calls: /mcp/functions/<name> → index.php?name=missionbaymcp&out=json&function=functions/<name>
 RewriteRule ^mcp/functions/(.+)$ index.php?name=missionbaymcp&out=json&function=$1 [L,QSA]
 # MCP documentation: /mcp → index.php?name=missionbaymcp&out=json
 RewriteRule ^mcp$ index.php?name=missionbaymcp&out=json [L,QSA]
