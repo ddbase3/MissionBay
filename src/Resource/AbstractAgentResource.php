@@ -2,6 +2,7 @@
 
 namespace MissionBay\Resource;
 
+use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Agent\AgentNodeDock;
 
@@ -45,6 +46,17 @@ abstract class AbstractAgentResource implements IAgentResource {
 	 */
 	public function getDockDefinitions(): array {
 		return [];
+	}
+
+	/**
+	 * Default initialization for docked resources and context.
+	 * Concrete resources can override this to pull their dependencies.
+	 *
+	 * @param array<string, IAgentResource[]> $resources Docked resources by dock name
+	 * @param IAgentContext $context Flow-wide context
+	 */
+	public function init(array $resources, IAgentContext $context): void {
+		// no-op by default
 	}
 
 	/**

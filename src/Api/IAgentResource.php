@@ -64,5 +64,15 @@ interface IAgentResource extends IBase {
 	 * @param array<string, mixed> $config
 	 */
 	public function setConfig(array $config): void;
+
+	/**
+	 * Hook: allows a resource to be initialized with its docked resources.
+	 * Works like node execution, but for resources that wrap services.
+	 *
+	 * @param array<string, IAgentResource[]> $resources
+	 * @param IAgentContext $context
+	 * @return void
+	 */
+	public function init(array $resources, IAgentContext $context): void;
 }
 
