@@ -66,7 +66,6 @@ class RagSearchAgentTool extends AbstractAgentResource implements IAgentTool {
 		$this->log("Initialized with limit={$this->limit}, minScore={$this->minScore}");
 	}
 
-/*
 	public function getToolDefinitions(): array {
 		return [[
 			'type' => 'function',
@@ -79,31 +78,6 @@ class RagSearchAgentTool extends AbstractAgentResource implements IAgentTool {
 						'query' => [
 							'type' => 'string',
 							'description' => 'The natural language query to search for.'
-						]
-					],
-					'required' => ['query']
-				]
-			]
-		]];
-	}
-*/
-
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'function' => [
-				'name' => 'rag_search',
-				'description' => 'This tool MUST be called for EVERY user question before answering. '
-					. 'The assistant is NOT allowed to answer from its own knowledge. '
-					. 'The vector database is the ONLY source of truth. '
-					. 'If the tool returns no relevant results, answer: "I don’t know." '
-					. 'Always call this tool first with the full user query.',
-				'parameters' => [
-					'type' => 'object',
-					'properties' => [
-						'query' => [
-							'type' => 'string',
-							'description' => 'The full natural language query from the user.'
 						]
 					],
 					'required' => ['query']
@@ -164,9 +138,9 @@ class RagSearchAgentTool extends AbstractAgentResource implements IAgentTool {
 
 	// Convenience: log with consistent prefix
 	protected function log(string $message): void {
-		if ($this->logger) {
-			$this->logger->log("RagSearchAgentTool:" . $this->getId(), $message);
-		}
+		if (!$this->logger) return;
+		$fullMsg = '[' . $this->getName() . '|' . $this->getId() . '] ' . $message;
+		$this->logger->log('RagSearchAgentTool', $fullMsg);
 	}
 
 	// Convenience: error response with logging

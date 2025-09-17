@@ -13,6 +13,8 @@ use MissionBay\Node\AbstractAgentNode;
 
 class AiAssistantNode extends AbstractAgentNode {
 
+	protected ?ILogger $logger = null;
+
         public static function getName(): string {
                 return 'aiassistantnode';
         }
@@ -109,11 +111,13 @@ class AiAssistantNode extends AbstractAgentNode {
                 /** @var IAgentTool[] $tools */
                 $tools  = $resources['tools'] ?? [];
 
-                $scope = 'aiassistant';
+                if (isset($resources['logger'][0]) && $resources['logger'][0] instanceof ILogger) {
+                        $this->logger = $resources['logger'][0];
+                }
 
                 if (!$model) {
                         $msg = 'Missing required chat model.';
-                        if ($logger) $logger->log($scope, '[ERROR] ' . $msg);
+                        $this->log('[ERROR] ' . $msg);
                         return ['error' => $this->error($msg)];
                 }
 
@@ -122,7 +126,7 @@ class AiAssistantNode extends AbstractAgentNode {
 
                 if ($prompt === '') {
                         $msg = 'Prompt is required.';
-                        if ($logger) $logger->log($scope, '[ERROR] ' . $msg);
+                        $this->log('[ERROR] ' . $msg);
                         return ['error' => $this->error($msg)];
                 }
 
@@ -133,7 +137,7 @@ class AiAssistantNode extends AbstractAgentNode {
                 // Memory laden
                 if ($memory) {
                         $history = $memory->loadNodeHistory($nodeId);
-                        if ($logger) $logger->log($scope, "Loaded history entries: " . count($history));
+                        $this->log("Loaded history entries: " . count($history));
                         foreach ($history as [$role, $text]) {
                                 $messages[] = ['role' => $role, 'content' => $text];
                         }
@@ -141,7 +145,7 @@ class AiAssistantNode extends AbstractAgentNode {
 
                 // User input
                 $messages[] = ['role' => 'user', 'content' => $prompt];
-                if ($logger) $logger->log($scope, "User prompt appended: $prompt");
+                $this->log("User prompt appended: $prompt");
 
                 // Tools sammeln
                 $toolDefs = [];
@@ -150,8 +154,8 @@ class AiAssistantNode extends AbstractAgentNode {
                                 $toolDefs[] = $def;
                         }
                 }
-                if ($logger && !empty($toolDefs)) {
-                        $logger->log($scope, "Tools registered: " . json_encode(array_column(array_column($toolDefs, 'function'), 'name')));
+                if (!empty($toolDefs)) {
+                        $this->log("Tools registered: " . json_encode(array_column(array_column($toolDefs, 'function'), 'name')));
                 }
 
                 // --- Tool-Loop ---
@@ -161,17 +165,15 @@ class AiAssistantNode extends AbstractAgentNode {
                 $maxLoops = 5;
 
                 while ($loopGuard++ < $maxLoops) {
-                        if ($logger) {
-                                $logger->log($scope, "Loop iteration $loopGuard, sending messages (" . count($messages) . " total)");
-                                $logger->log($scope, "Messages before API call:\n" . json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-                        }
+			$this->log("Loop iteration $loopGuard, sending messages (" . count($messages) . " total)");
+			// $this->log("Messages before API call:\n" . json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
                         // API Call
                         $result = $model->raw($messages, $toolDefs);
 
                         if (!isset($result['choices'][0]['message'])) {
                                 $msg = "Malformed model response";
-                                if ($logger) $logger->log($scope, "[ERROR] $msg");
+                                $this->log("[ERROR] $msg");
                                 return ['error' => $this->error($msg)];
                         }
 
@@ -184,7 +186,7 @@ class AiAssistantNode extends AbstractAgentNode {
                                         $toolName = $call['function']['name'] ?? '';
                                         $args     = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
 
-                                        if ($logger) $logger->log($scope, "Tool call detected: $toolName " . json_encode($args));
+                                        $this->log("Tool call detected: $toolName " . json_encode($args));
 
                                         $tool = $this->findToolByName($tools, $toolName);
                                         if ($tool) {
@@ -194,7 +196,7 @@ class AiAssistantNode extends AbstractAgentNode {
                                                         'arguments' => $args,
                                                         'result' => $result
                                                 ];
-                                                if ($logger) $logger->log($scope, "Tool result: " . json_encode($result));
+                                                $this->log("Tool result: " . json_encode($result));
 
                                                 // Tool-Antwort korrekt anfügen
                                                 $messages[] = [
@@ -203,7 +205,7 @@ class AiAssistantNode extends AbstractAgentNode {
                                                         'content' => json_encode($result)
                                                 ];
                                         } else {
-                                                if ($logger) $logger->log($scope, "[WARN] Tool not found: $toolName");
+                                                $this->log("[WARN] Tool not found: $toolName");
                                         }
                                 }
 
@@ -213,10 +215,8 @@ class AiAssistantNode extends AbstractAgentNode {
 
                         // Normale Antwort → fertig
                         $finalResponse = $message['content'] ?? '';
-                        if ($logger) {
-                                $logger->log($scope, "Final response received, breaking loop.");
-                                // $logger->log($scope, "Final Messages basis for response:\n" . json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-                        }
+			$this->log("Final response received, breaking loop.");
+			// $this->log("Final Messages basis for response:\n" . json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
                         break;
                 }
 
@@ -244,5 +244,11 @@ class AiAssistantNode extends AbstractAgentNode {
                 }
                 return null;
         }
+
+	protected function log(string $message): void {
+		if (!$this->logger) return;
+		$fullMsg = '[' . $this->getName() . '|' . $this->getId() . '] ' . $message;
+		$this->logger->log('AiAssistantNode', $fullMsg);
+	}
 }
 
