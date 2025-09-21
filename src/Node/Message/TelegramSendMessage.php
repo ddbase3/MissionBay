@@ -77,7 +77,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 
 		if (empty($inputs['bot_token']) || empty($inputs['chat_id']) || empty($inputs['message'])) {
 			$msg = "Missing required input: bot_token, chat_id, and message are all required.";
-			if ($logger instanceof ILogger) $logger->log($scope, "[ERROR] $msg");
+			if ($logger instanceof ILogger) $logger->error($msg, ['scope' => $scope]);
 			return ["error" => $this->error($msg)];
 		}
 
@@ -86,7 +86,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 		$message = $inputs["message"];
 
 		if ($logger instanceof ILogger) {
-			$logger->log($scope, "Sending message to chat $chatId: " . substr($message, 0, 80));
+			$logger->info("Sending message to chat $chatId: " . substr($message, 0, 80), ['scope' => $scope]);
 		}
 
 		$url = "https://api.telegram.org/bot{$botToken}/sendMessage";
@@ -110,7 +110,7 @@ class TelegramSendMessage extends AbstractAgentNode {
 
 		if ($result === false) {
 			$msg = "Failed to send message. HTTP request error.";
-			if ($logger instanceof ILogger) $logger->log($scope, "[ERROR] $msg");
+			if ($logger instanceof ILogger) $logger->error($msg, ['scope' => $scope]);
 			return ["error" => $this->error($msg)];
 		}
 
@@ -118,11 +118,11 @@ class TelegramSendMessage extends AbstractAgentNode {
 
 		if (isset($response['ok']) && $response['ok']) {
 			$mid = $response['result']['message_id'] ?? null;
-			if ($logger instanceof ILogger) $logger->log($scope, "Telegram message sent successfully. ID: $mid");
+			if ($logger instanceof ILogger) $logger->info("Telegram message sent successfully. ID: $mid", ['scope' => $scope]);
 			return ["message_id" => $mid];
 		} else {
 			$msg = $response['description'] ?? "Unknown error from Telegram API.";
-			if ($logger instanceof ILogger) $logger->log($scope, "[ERROR] Telegram API error: $msg");
+			if ($logger instanceof ILogger) $logger->error("Telegram API error: $msg", ['scope' => $scope]);
 			return ["error" => $this->error($msg)];
 		}
 	}
