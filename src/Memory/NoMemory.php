@@ -37,5 +37,9 @@ class NoMemory implements IAgentMemory
 	public function keys(): array {
 		return [];
 	}
+
+	public function getPriority(): int {
+		return 0;
+	}
 }
 

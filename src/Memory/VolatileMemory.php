@@ -45,5 +45,9 @@ class VolatileMemory implements IAgentMemory
 	public function keys(): array {
 		return array_keys($this->data);
 	}
+
+	public function getPriority(): int {
+		return 0;
+	}
 }
 

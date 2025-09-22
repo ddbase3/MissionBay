@@ -9,12 +9,6 @@ use Base3\Session\Api\ISession;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 
-/**
- * SessionMemoryAgentResource
- *
- * Dockable agent memory backed by ISession.
- * Supports resolver-based config for namespace/max/debug and optional logger.
- */
 class SessionMemoryAgentResource extends AbstractAgentResource implements IAgentMemory {
 
 	private ISession $session;
@@ -23,6 +17,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	private string $namespace = 'default';
 	private int $max = 20;
+	private int $priority = 80;
 
 	public function __construct(ISession $session, IAgentConfigValueResolver $resolver, ?string $id = null) {
 		parent::__construct($id);
@@ -55,14 +50,14 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		// Support resolver (fixed/config/inherit)
 		$this->namespace = (string)($this->resolver->resolveValue($config['namespace'] ?? null) ?? 'default');
 		$this->max = (int)($this->resolver->resolveValue($config['max'] ?? null) ?? 20);
+		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 80);
 
 		$this->ensureInitialized();
 	}
 
-	// ------- Dock injection (unified) -------
+	// ------- Dock injection -------
 	public function init(array $resources, IAgentContext $context): void {
 		if (!empty($resources['logger'][0]) && $resources['logger'][0] instanceof ILogger) {
 			$this->logger = $resources['logger'][0];
@@ -87,7 +82,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	public function appendNodeHistory(string $nodeId, string $role, string $text): void {
 		$this->ensureInitialized();
 		$nodes = $this->nodes();
-		$nodes[$nodeId][] = [$role, $text];
+		$nodes[$nodeId][] = ['role' => $role, 'content' => $text];
 		$this->trimNodeHistory($nodes[$nodeId]);
 		$this->setNodes($nodes);
 		$this->log("append $role for $nodeId (len=" . count($nodes[$nodeId]) . ")");
@@ -129,6 +124,10 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$keys = array_keys($this->data());
 		$this->log("keys count=" . count($keys));
 		return $keys;
+	}
+
+	public function getPriority(): int {
+		return $this->priority;
 	}
 
 	// ------- internals -------

@@ -81,7 +81,7 @@ class AiAssistantNode extends AbstractAgentNode {
                                 name: 'memory',
                                 description: 'Optional memory for storing previous messages.',
                                 interface: IAgentMemory::class,
-                                maxConnections: 1,
+                                maxConnections: 99,
                                 required: false
                         ),
                         new AgentNodeDock(
@@ -104,10 +104,8 @@ class AiAssistantNode extends AbstractAgentNode {
         public function execute(array $inputs, array $resources, IAgentContext $context): array {
                 /** @var IAiChatModel|null $model */
                 $model  = $resources['chatmodel'][0] ?? null;
-                /** @var IAgentMemory|null $memory */
-                $memory = $resources['memory'][0] ?? null;
-                /** @var ILogger|null $logger */
-                $logger = $resources['logger'][0] ?? null;
+		/** @var IAgentMemory[] $memories */
+		$memories = $resources['memory'] ?? [];
                 /** @var IAgentTool[] $tools */
                 $tools  = $resources['tools'] ?? [];
 
@@ -120,6 +118,8 @@ class AiAssistantNode extends AbstractAgentNode {
                         $this->log('[ERROR] ' . $msg);
                         return ['error' => $this->error($msg)];
                 }
+
+		usort($memories, fn(IAgentMemory $a, IAgentMemory $b) => $a->getPriority() <=> $b->getPriority());
 
                 $prompt = trim($inputs['prompt'] ?? '');
                 $system = trim($inputs['system'] ?? 'You are a helpful assistant.');
@@ -134,14 +134,18 @@ class AiAssistantNode extends AbstractAgentNode {
                 $messages = [['role' => 'system', 'content' => $system]];
                 $nodeId   = $this->getId();
 
-                // Memory laden
-                if ($memory) {
-                        $history = $memory->loadNodeHistory($nodeId);
-                        $this->log("Loaded history entries: " . count($history));
-                        foreach ($history as [$role, $text]) {
-                                $messages[] = ['role' => $role, 'content' => $text];
-                        }
-                }
+		// Memory laden
+		foreach ($memories as $memory) {
+			$history = $memory->loadNodeHistory($nodeId);
+			$this->log("Loaded history entries from " . get_class($memory) . ": " . count($history));
+			foreach ($history as $entry) {
+				if (isset($entry['role']) && isset($entry['content'])) {
+					$messages[] = ['role' => $entry['role'], 'content' => $entry['content']];
+				} elseif (isset($entry[0]) && isset($entry[1])) {
+					$messages[] = ['role' => $entry[0], 'content' => $entry[1]];
+				}
+			}
+		}
 
                 // User input
                 $messages[] = ['role' => 'user', 'content' => $prompt];
@@ -221,12 +225,12 @@ class AiAssistantNode extends AbstractAgentNode {
                 }
 
                 // Memory speichern
-                if ($memory) {
-                        $memory->appendNodeHistory($nodeId, 'user', $prompt);
-                        if ($finalResponse) {
-                                $memory->appendNodeHistory($nodeId, 'assistant', $finalResponse);
-                        }
-                }
+		foreach ($memories as $memory) {
+			$memory->appendNodeHistory($nodeId, 'user', $prompt);
+			if ($finalResponse) {
+				$memory->appendNodeHistory($nodeId, 'assistant', $finalResponse);
+			}
+		}
 
                 return [
                         'response'   => $finalResponse,

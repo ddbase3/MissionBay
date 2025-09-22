@@ -63,5 +63,14 @@ interface IAgentMemory extends IBase {
 	 * @return array List of key names.
 	 */
 	public function keys(): array;
+
+	/**
+	 * Defines the priority for this memory instance.
+	 *
+	 * Lower numbers indicate higher priority (executed earlier).
+	 *
+	 * @return int
+	 */
+	public function getPriority(): int;
 }
 

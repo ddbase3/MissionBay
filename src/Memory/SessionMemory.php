@@ -60,5 +60,9 @@ class SessionMemory implements IAgentMemory
 		$this->ensure();
 		return array_keys($_SESSION['mb_memory']['data'] ?? []);
 	}
+
+	public function getPriority(): int {
+		return 0;
+	}
 }
 
