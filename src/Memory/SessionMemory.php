@@ -5,8 +5,8 @@ namespace MissionBay\Memory;
 use MissionBay\Api\IAgentMemory;
 use Base3\Session\Api\ISession;
 
-class SessionMemory implements IAgentMemory
-{
+class SessionMemory implements IAgentMemory {
+
 	private int $max = 20;
 
 	public function __construct(private readonly ISession $session) {}
@@ -20,6 +20,12 @@ class SessionMemory implements IAgentMemory
 		if (!isset($_SESSION['mb_memory'])) {
 			$_SESSION['mb_memory'] = ['nodes' => [], 'data' => []];
 		}
+		if (!isset($_SESSION['mb_memory']['nodes'])) {
+			$_SESSION['mb_memory']['nodes'] = [];
+		}
+		if (!isset($_SESSION['mb_memory']['data'])) {
+			$_SESSION['mb_memory']['data'] = [];
+		}
 	}
 
 	public function loadNodeHistory(string $nodeId): array {
@@ -27,13 +33,30 @@ class SessionMemory implements IAgentMemory
 		return $_SESSION['mb_memory']['nodes'][$nodeId] ?? [];
 	}
 
-	public function appendNodeHistory(string $nodeId, string $role, string $text): void {
+	public function appendNodeHistory(string $nodeId, array $message): void {
 		$this->ensure();
-		$_SESSION['mb_memory']['nodes'][$nodeId][] = [$role, $text];
+		$_SESSION['mb_memory']['nodes'][$nodeId][] = $message;
 
 		if (count($_SESSION['mb_memory']['nodes'][$nodeId]) > $this->max) {
-			array_shift($_SESSION['mb_memory']['nodes'][$nodeId]);
+			$_SESSION['mb_memory']['nodes'][$nodeId] = array_slice(
+				$_SESSION['mb_memory']['nodes'][$nodeId],
+				-$this->max
+			);
 		}
+	}
+
+	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
+		$this->ensure();
+		if (!isset($_SESSION['mb_memory']['nodes'][$nodeId])) {
+			return false;
+		}
+		foreach ($_SESSION['mb_memory']['nodes'][$nodeId] as &$entry) {
+			if (($entry['id'] ?? null) === $messageId) {
+				$entry['feedback'] = $feedback;
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public function resetNodeHistory(string $nodeId): void {

@@ -79,13 +79,35 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		return $h;
 	}
 
-	public function appendNodeHistory(string $nodeId, string $role, string $text): void {
+	public function appendNodeHistory(string $nodeId, array $message): void {
 		$this->ensureInitialized();
 		$nodes = $this->nodes();
-		$nodes[$nodeId][] = ['role' => $role, 'content' => $text];
+
+		// just store the given message object
+		$nodes[$nodeId][] = $message;
 		$this->trimNodeHistory($nodes[$nodeId]);
 		$this->setNodes($nodes);
-		$this->log("append $role for $nodeId (len=" . count($nodes[$nodeId]) . ")");
+
+		$this->log("append message for $nodeId (len=" . count($nodes[$nodeId]) . ")");
+	}
+
+	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
+		$this->ensureInitialized();
+		$nodes = $this->nodes();
+		if (!isset($nodes[$nodeId])) {
+			$this->log("setFeedback failed: nodeId=$nodeId not found");
+			return false;
+		}
+		foreach ($nodes[$nodeId] as &$entry) {
+			if (($entry['id'] ?? null) === $messageId) {
+				$entry['feedback'] = $feedback;
+				$this->setNodes($nodes);
+				$this->log("setFeedback for nodeId=$nodeId, msgId=$messageId => " . ($feedback === null ? 'null' : $feedback));
+				return true;
+			}
+		}
+		$this->log("setFeedback failed: msgId=$messageId not found in nodeId=$nodeId");
+		return false;
 	}
 
 	public function resetNodeHistory(string $nodeId): void {

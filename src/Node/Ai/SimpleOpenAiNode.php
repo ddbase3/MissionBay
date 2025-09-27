@@ -82,9 +82,12 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 		$nodeId = $this->getId();
 		$history = $memory->loadNodeHistory($nodeId);
 
+		// Build chat messages for API (reduce memory to role/content only)
 		$messages = [['role' => 'system', 'content' => $system]];
-		foreach ($history as [$role, $text]) {
-			$messages[] = ['role' => $role, 'content' => $text];
+		foreach ($history as $entry) {
+			if (isset($entry['role'], $entry['content'])) {
+				$messages[] = ['role' => $entry['role'], 'content' => $entry['content']];
+			}
 		}
 		$messages[] = ['role' => 'user', 'content' => $prompt];
 
@@ -117,9 +120,24 @@ class SimpleOpenAiNode extends AbstractAgentNode {
 			return ['error' => $this->error('Invalid OpenAI response')];
 		}
 
-		// Gesprächsverlauf speichern
-		$memory->appendNodeHistory($nodeId, 'user', $prompt);
-		$memory->appendNodeHistory($nodeId, 'assistant', $content);
+		// --- Store conversation in memory ---
+		$userMessage = [
+			'id'        => uniqid('msg_', true),
+			'role'      => 'user',
+			'content'   => $prompt,
+			'timestamp' => (new \DateTimeImmutable())->format('c'),
+			'feedback'  => null
+		];
+		$assistantMessage = [
+			'id'        => uniqid('msg_', true),
+			'role'      => 'assistant',
+			'content'   => $content,
+			'timestamp' => (new \DateTimeImmutable())->format('c'),
+			'feedback'  => null
+		];
+
+		$memory->appendNodeHistory($nodeId, $userMessage);
+		$memory->appendNodeHistory($nodeId, $assistantMessage);
 
 		return ['response' => $content];
 	}

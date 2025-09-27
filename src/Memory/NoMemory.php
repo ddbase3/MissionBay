@@ -14,8 +14,12 @@ class NoMemory implements IAgentMemory
 		return [];
 	}
 
-	public function appendNodeHistory(string $nodeId, string $role, string $text): void {
+	public function appendNodeHistory(string $nodeId, array $message): void {
 		// intentionally stateless
+	}
+
+	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
+		// nothing to clear
 	}
 
 	public function resetNodeHistory(string $nodeId): void {

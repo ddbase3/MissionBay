@@ -44,7 +44,11 @@ class TimeMemoryAgentResource extends AbstractAgentResource implements IAgentMem
 		]];
 	}
 
-	public function appendNodeHistory(string $nodeId, string $role, string $text): void {
+	public function appendNodeHistory(string $nodeId, array $message): void {
+		// no-op
+	}
+
+	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
 		// no-op
 	}
 

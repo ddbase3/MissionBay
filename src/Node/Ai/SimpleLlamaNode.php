@@ -77,6 +77,7 @@ class SimpleLlamaNode extends AbstractAgentNode {
 			return ['error' => $this->error('Missing required input: endpoint, model or prompt')];
 		}
 
+		// Build full prompt for LLaMA
 		$fullPrompt = $system ? $system . "\n" . $prompt : $prompt;
 
 		$body = json_encode([
@@ -108,11 +109,33 @@ class SimpleLlamaNode extends AbstractAgentNode {
 			return ['error' => $this->error('Invalid LLaMA response')];
 		}
 
+		// --- Memory integration ---
+		$memory = $context->getMemory();
+		$nodeId = $this->getId();
+
+		$userMessage = [
+			'id'        => uniqid('msg_', true),
+			'role'      => 'user',
+			'content'   => $prompt,
+			'timestamp' => (new \DateTimeImmutable())->format('c'),
+			'feedback'  => null
+		];
+		$assistantMessage = [
+			'id'        => uniqid('msg_', true),
+			'role'      => 'assistant',
+			'content'   => $content,
+			'timestamp' => (new \DateTimeImmutable())->format('c'),
+			'feedback'  => null
+		];
+
+		$memory->appendNodeHistory($nodeId, $userMessage);
+		$memory->appendNodeHistory($nodeId, $assistantMessage);
+
 		return ['response' => $content];
 	}
 
 	public function getDescription(): string {
-		return 'Sends a prompt to a local or remote LLaMA model endpoint and returns the generated response. Accepts optional system prompt and temperature for behavior control.';
+		return 'Sends a prompt to a local or remote LLaMA model endpoint and returns the generated response. Accepts optional system prompt and temperature for behavior control. Stores conversation in memory.';
 	}
 }
 

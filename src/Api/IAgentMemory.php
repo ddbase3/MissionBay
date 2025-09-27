@@ -14,18 +14,32 @@ interface IAgentMemory extends IBase {
 	 * Returns the chat history associated with a specific node.
 	 *
 	 * @param string $nodeId ID of the node.
-	 * @return array Array of messages, typically including role and text.
+	 * @return array Array of message objects (each typically including id, role, content, timestamp, feedback).
 	 */
 	public function loadNodeHistory(string $nodeId): array;
 
 	/**
-	 * Appends a message to the chat history of a given node.
+	 * Appends a complete message object to the chat history of a given node.
 	 *
-	 * @param string $nodeId ID of the node.
-	 * @param string $role Role of the message sender (e.g. 'user', 'assistant').
-	 * @param string $text Message content.
+	 * @param string $nodeId  ID of the node.
+	 * @param array  $message Message object containing at least:
+	 *                        - id        (string) Unique message ID
+	 *                        - role      (string) Sender role, e.g. 'user' or 'assistant'
+	 *                        - content   (string) Message content
+	 *                        - timestamp (string) ISO 8601 timestamp
+	 *                        - feedback  (?string) Optional feedback
 	 */
-	public function appendNodeHistory(string $nodeId, string $role, string $text): void;
+	public function appendNodeHistory(string $nodeId, array $message): void;
+
+	/**
+	 * Sets or clears feedback for a specific message in a node's history.
+	 *
+	 * @param string  $nodeId    ID of the node.
+	 * @param string  $messageId ID of the message within the node's history.
+	 * @param ?string $feedback  Text feedback, or null to reset.
+	 * @return bool True if the message was found and updated, false otherwise.
+	 */
+	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool;
 
 	/**
 	 * Clears the chat history for a specific node.
@@ -37,8 +51,8 @@ interface IAgentMemory extends IBase {
 	/**
 	 * Stores a key-value pair in global memory.
 	 *
-	 * @param string $key Unique key identifier.
-	 * @param mixed $value Arbitrary value to store.
+	 * @param string $key   Unique key identifier.
+	 * @param mixed  $value Arbitrary value to store.
 	 */
 	public function put(string $key, mixed $value): void;
 

@@ -70,7 +70,7 @@ class OpenAiResponseNode extends AbstractAgentNode {
 		$nodeId = $this->getId();
 		$responses = [];
 
-		// ein globaler Verlauf für alle Nachrichten in diesem Node
+		// Load existing history (already in rich format with id/content/etc.)
 		$history = $memory->loadNodeHistory($nodeId);
 
 		foreach ($messages as $msg) {
@@ -78,22 +78,43 @@ class OpenAiResponseNode extends AbstractAgentNode {
 			$subject = $msg['subject'] ?? '';
 			$to = $msg['from'] ?? '';
 
+			// Build conversation for API call: reduce to role/content only
 			$chatMessages = [['role' => 'system', 'content' => 'You are a helpful assistant.']];
-			foreach ($history as [$role, $text]) {
-				$chatMessages[] = ['role' => $role, 'content' => $text];
+			foreach ($history as $entry) {
+				if (isset($entry['role'], $entry['content'])) {
+					$chatMessages[] = ['role' => $entry['role'], 'content' => $entry['content']];
+				}
 			}
 			$chatMessages[] = ['role' => 'user', 'content' => $body];
 
+			// Call OpenAI
 			$reply = $this->callOpenAi($apiKey, $model, $chatMessages);
 
+			// Collect response (compatibility: simple string fields)
 			$responses[] = [
 				'to' => $to,
 				'subject' => 'Re: ' . $subject,
 				'body' => $reply
 			];
 
-			$memory->appendNodeHistory($nodeId, 'user', $body);
-			$memory->appendNodeHistory($nodeId, 'assistant', $reply);
+			// Store full messages in memory
+			$userMessage = [
+				'id'        => uniqid('msg_', true),
+				'role'      => 'user',
+				'content'   => $body,
+				'timestamp' => (new \DateTimeImmutable())->format('c'),
+				'feedback'  => null
+			];
+			$assistantMessage = [
+				'id'        => uniqid('msg_', true),
+				'role'      => 'assistant',
+				'content'   => $reply,
+				'timestamp' => (new \DateTimeImmutable())->format('c'),
+				'feedback'  => null
+			];
+
+			$memory->appendNodeHistory($nodeId, $userMessage);
+			$memory->appendNodeHistory($nodeId, $assistantMessage);
 		}
 
 		return ['responses' => $responses];
@@ -101,8 +122,10 @@ class OpenAiResponseNode extends AbstractAgentNode {
 
 	protected function buildPrompt(array $history, string $newMessage): string {
 		$prompt = "";
-		foreach ($history as [$role, $msg]) {
-			$prompt .= ucfirst($role) . ": " . $msg . "\n";
+		foreach ($history as $entry) {
+			if (is_array($entry) && isset($entry['role'], $entry['content'])) {
+				$prompt .= ucfirst($entry['role']) . ": " . $entry['content'] . "\n";
+			}
 		}
 		$prompt .= "User: " . $newMessage . "\nBot:";
 		return $prompt;
