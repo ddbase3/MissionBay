@@ -107,6 +107,7 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
                 }
 
                 $jsonPayload = json_encode($payload);
+		// file_put_contents('debug-prompt.txt', print_r($payload, true));
 
                 $headers = [
                         'Content-Type: application/json',
