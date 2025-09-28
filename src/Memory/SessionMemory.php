@@ -64,26 +64,6 @@ class SessionMemory implements IAgentMemory {
 		unset($_SESSION['mb_memory']['nodes'][$nodeId]);
 	}
 
-	public function put(string $key, mixed $value): void {
-		$this->ensure();
-		$_SESSION['mb_memory']['data'][$key] = $value;
-	}
-
-	public function get(string $key): mixed {
-		$this->ensure();
-		return $_SESSION['mb_memory']['data'][$key] ?? null;
-	}
-
-	public function forget(string $key): void {
-		$this->ensure();
-		unset($_SESSION['mb_memory']['data'][$key]);
-	}
-
-	public function keys(): array {
-		$this->ensure();
-		return array_keys($_SESSION['mb_memory']['data'] ?? []);
-	}
-
 	public function getPriority(): int {
 		return 0;
 	}

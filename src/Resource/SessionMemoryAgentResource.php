@@ -32,7 +32,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	public function getDescription(): string {
-		return 'Provides session-backed memory (chat history & key/value) using ISession. Can log activity if a logger is docked.';
+		return 'Provides session-backed node chat history using ISession. Can log activity if a logger is docked.';
 	}
 
 	public function getDockDefinitions(): array {
@@ -83,7 +83,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$this->ensureInitialized();
 		$nodes = $this->nodes();
 
-		// just store the given message object
 		$nodes[$nodeId][] = $message;
 		$this->trimNodeHistory($nodes[$nodeId]);
 		$this->setNodes($nodes);
@@ -118,36 +117,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$this->log("reset history for $nodeId");
 	}
 
-	public function put(string $key, mixed $value): void {
-		$this->ensureInitialized();
-		$data = $this->data();
-		$data[$key] = $value;
-		$this->setData($data);
-		$this->log("put key=$key");
-	}
-
-	public function get(string $key): mixed {
-		$this->ensureInitialized();
-		$val = $this->data()[$key] ?? null;
-		$this->log("get key=$key => " . ($val === null ? 'null' : 'ok'));
-		return $val;
-	}
-
-	public function forget(string $key): void {
-		$this->ensureInitialized();
-		$data = $this->data();
-		unset($data[$key]);
-		$this->setData($data);
-		$this->log("forget key=$key");
-	}
-
-	public function keys(): array {
-		$this->ensureInitialized();
-		$keys = array_keys($this->data());
-		$this->log("keys count=" . count($keys));
-		return $keys;
-	}
-
 	public function getPriority(): int {
 		return $this->priority;
 	}
@@ -168,15 +137,14 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		}
 		if (!isset($_SESSION['mb_memory'][$this->namespace])) {
 			$_SESSION['mb_memory'][$this->namespace] = [
-				'nodes' => [],
-				'data' => [],
+				'nodes' => []
 			];
 		}
 	}
 
 	private function &bucket(): array {
 		if (!isset($_SESSION['mb_memory'][$this->namespace])) {
-			$_SESSION['mb_memory'][$this->namespace] = ['nodes' => [], 'data' => []];
+			$_SESSION['mb_memory'][$this->namespace] = ['nodes' => []];
 		}
 		return $_SESSION['mb_memory'][$this->namespace];
 	}
@@ -188,15 +156,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	private function setNodes(array $nodes): void {
 		$bucket = &$this->bucket();
 		$bucket['nodes'] = $nodes;
-	}
-
-	private function data(): array {
-		return $this->bucket()['data'] ?? [];
-	}
-
-	private function setData(array $data): void {
-		$bucket = &$this->bucket();
-		$bucket['data'] = $data;
 	}
 
 	private function trimNodeHistory(array &$history): void {

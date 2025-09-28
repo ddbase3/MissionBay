@@ -40,5 +40,19 @@ interface IAgentContext extends IBase {
 	 * @return mixed
 	 */
 	public function getVar(string $key): mixed;
+
+	/**
+	 * Forgets a flow-scoped variable.
+	 *
+	 * @param string $key
+	 */
+	public function forgetVar(string $key): void;
+
+	/**
+	 * Returns a list of all variable keys.
+	 *
+	 * @return string[]
+	 */
+	public function listVars(): array;
 }
 

@@ -43,22 +43,6 @@ class VolatileMemory implements IAgentMemory {
 		unset($this->nodes[$nodeId]);
 	}
 
-	public function put(string $key, mixed $value): void {
-		$this->data[$key] = $value;
-	}
-
-	public function get(string $key): mixed {
-		return $this->data[$key] ?? null;
-	}
-
-	public function forget(string $key): void {
-		unset($this->data[$key]);
-	}
-
-	public function keys(): array {
-		return array_keys($this->data);
-	}
-
 	public function getPriority(): int {
 		return 0;
 	}

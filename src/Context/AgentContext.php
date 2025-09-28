@@ -40,5 +40,13 @@ class AgentContext implements IAgentContext {
 	public function getVar(string $key): mixed {
 		return $this->vars[$key] ?? null;
 	}
+
+	public function forgetVar(string $key): void {
+		unset($this->vars[$key]);
+	}
+
+	public function listVars(): array {
+		return array_keys($this->vars);
+	}
 }
 

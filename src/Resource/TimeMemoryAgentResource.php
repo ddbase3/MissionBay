@@ -56,22 +56,6 @@ class TimeMemoryAgentResource extends AbstractAgentResource implements IAgentMem
 		// no-op
 	}
 
-	public function put(string $key, mixed $value): void {
-		// no-op
-	}
-
-	public function get(string $key): mixed {
-		return null;
-	}
-
-	public function forget(string $key): void {
-		// no-op
-	}
-
-	public function keys(): array {
-		return [];
-	}
-
 	public function getPriority(): int {
 		return $this->priority;
 	}

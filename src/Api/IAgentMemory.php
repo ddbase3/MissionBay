@@ -49,36 +49,6 @@ interface IAgentMemory extends IBase {
 	public function resetNodeHistory(string $nodeId): void;
 
 	/**
-	 * Stores a key-value pair in global memory.
-	 *
-	 * @param string $key   Unique key identifier.
-	 * @param mixed  $value Arbitrary value to store.
-	 */
-	public function put(string $key, mixed $value): void;
-
-	/**
-	 * Retrieves a value from global memory by key.
-	 *
-	 * @param string $key Key identifier.
-	 * @return mixed Stored value, or null if not found.
-	 */
-	public function get(string $key): mixed;
-
-	/**
-	 * Deletes a key-value pair from global memory.
-	 *
-	 * @param string $key Key to remove.
-	 */
-	public function forget(string $key): void;
-
-	/**
-	 * Returns a list of all currently stored keys.
-	 *
-	 * @return array List of key names.
-	 */
-	public function keys(): array;
-
-	/**
 	 * Defines the priority for this memory instance.
 	 *
 	 * Lower numbers indicate higher priority (executed earlier).
