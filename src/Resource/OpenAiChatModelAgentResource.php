@@ -2,7 +2,7 @@
 
 namespace MissionBay\Resource;
 
-use Base3\Api\IAiChatModel;
+use AssistentApi\Api\IAiChatModel;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**

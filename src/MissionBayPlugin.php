@@ -2,6 +2,7 @@
 
 namespace MissionBay;
 
+use Base3\Api\ICheck;
 use Base3\Api\IClassMap;
 use Base3\Api\IContainer;
 use Base3\Api\IPlugin;
@@ -21,7 +22,7 @@ use MissionBay\Agent\AgentFlowFactory;
 use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Agent\AgentNodeFactory;
 
-class MissionBayPlugin implements IPlugin {
+class MissionBayPlugin implements IPlugin, ICheck {
 
 	public function __construct(private readonly IContainer $container) {}
 
@@ -44,5 +45,13 @@ class MissionBayPlugin implements IPlugin {
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfiguration::class)), IContainer::SHARED)
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED);
+	}
+
+	// Implementation of ICheck
+
+	public function checkDependencies() {
+		return array(
+			'assistentapiplugin_installed' => $this->container->get('assistentapiplugin') ? 'Ok' : 'assistentapiplugin not installed'
+		);
 	}
 }

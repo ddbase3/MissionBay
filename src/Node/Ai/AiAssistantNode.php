@@ -2,7 +2,7 @@
 
 namespace MissionBay\Node\Ai;
 
-use Base3\Api\IAiChatModel;
+use AssistentApi\Api\IAiChatModel;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentMemory;
