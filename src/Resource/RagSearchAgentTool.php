@@ -6,8 +6,8 @@ use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Resource\AbstractAgentResource;
-use AssistentApi\Api\IAiEmbeddingModel;
-use AssistentApi\Api\IVectorSearch;
+use AssistentFoundation\Api\IAiEmbeddingModel;
+use AssistentFoundation\Api\IVectorSearch;
 use Base3\Logger\Api\ILogger;
 
 /**
