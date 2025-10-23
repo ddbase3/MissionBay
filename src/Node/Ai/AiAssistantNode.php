@@ -194,7 +194,7 @@ class AiAssistantNode extends AbstractAgentNode {
                         $messages[] = $message; // Modellantwort (roh) für evtl. weitere Tool-Schleifen
 
                         // Tool Calls?
-                        if (isset($message['tool_calls'])) {
+                        if (!empty($message['tool_calls'])) {
                                 foreach ($message['tool_calls'] as $call) {
                                         $toolName = $call['function']['name'] ?? '';
                                         $args     = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
