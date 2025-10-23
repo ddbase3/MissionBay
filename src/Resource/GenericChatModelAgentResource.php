@@ -21,7 +21,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
         protected array|string|null $apikeyConfig = null;
         protected array|string|null $endpointConfig = null;
         protected array|string|null $temperatureConfig = null;
-        protected array|string|null $maxTokensConfig = null;
+        protected array|string|null $maxtokensConfig = null;
 
         protected array $resolvedOptions = [];
 
@@ -45,14 +45,14 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
                 $this->apikeyConfig      = $config['apikey'] ?? null;
                 $this->endpointConfig    = $config['endpoint'] ?? null;
                 $this->temperatureConfig = $config['temperature'] ?? null;
-                $this->maxTokensConfig   = $config['max_tokens'] ?? null;
+                $this->maxtokensConfig   = $config['maxtokens'] ?? null;
 
                 $this->resolvedOptions = [
                         'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'gpt-4o-mini',
                         'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
                         'endpoint'    => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.openai.com/v1/chat/completions',
                         'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.7),
-                        'max_tokens'  => (int)($this->resolver->resolveValue($this->maxTokensConfig) ?? 512),
+                        'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 512),
                 ];
         }
 
@@ -90,7 +90,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
                 $apikey    = $this->resolvedOptions['apikey'] ?? null;
                 $endpoint  = $this->resolvedOptions['endpoint'] ?? 'https://api.openai.com/v1/chat/completions';
                 $temp      = $this->resolvedOptions['temperature'] ?? 0.7;
-                $maxTokens = $this->resolvedOptions['max_tokens'] ?? 512;
+                $maxtokens = $this->resolvedOptions['maxtokens'] ?? 512;
 
                 if (!$apikey) {
                         throw new \RuntimeException("Missing API key for chat model.");
@@ -102,7 +102,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
                         'model'       => $model,
                         'messages'    => $normalized,
                         'temperature' => $temp,
-                        'max_tokens'  => $maxTokens,
+                        'max_tokens'  => $maxtokens,
                 ];
 
                 if (!empty($tools)) {
