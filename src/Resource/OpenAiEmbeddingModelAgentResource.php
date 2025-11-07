@@ -2,7 +2,7 @@
 
 namespace MissionBay\Resource;
 
-use AssistentFoundation\Api\IAiEmbeddingModel;
+use AssistantFoundation\Api\IAiEmbeddingModel;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;

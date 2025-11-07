@@ -51,7 +51,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 
 	public function checkDependencies() {
 		return array(
-			'assistentfoundationplugin_installed' => $this->container->get('assistentfoundationplugin') ? 'Ok' : 'assistentfoundationplugin not installed'
+			'assistantfoundationplugin_installed' => $this->container->get('assistantfoundationplugin') ? 'Ok' : 'assistantfoundationplugin not installed'
 		);
 	}
 }

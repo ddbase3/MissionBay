@@ -2,7 +2,7 @@
 
 namespace MissionBay\Node\Ai;
 
-use AssistentFoundation\Api\IAiEmbeddingModel;
+use AssistantFoundation\Api\IAiEmbeddingModel;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Agent\AgentNodeDock;

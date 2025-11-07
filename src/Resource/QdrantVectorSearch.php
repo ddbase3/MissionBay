@@ -5,7 +5,7 @@ namespace MissionBay\Resource;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Resource\AbstractAgentResource;
-use AssistentFoundation\Api\IVectorSearch;
+use AssistantFoundation\Api\IVectorSearch;
 
 /**
  * QdrantVectorSearch
