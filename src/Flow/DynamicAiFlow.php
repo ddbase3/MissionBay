@@ -245,7 +245,7 @@ EOT;
 	}
 
 	private function callOpenAiApi(string $prompt): string {
-		$cnf = $this->configuration->get('openaiconversation');
+		$cnf = $this->configuration->get('openai');
 		$apikey = $cnf['apikey'];
 
 		$url = 'https://api.openai.com/v1/chat/completions';
