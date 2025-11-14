@@ -94,7 +94,7 @@ class StringReverserNode extends AbstractAgentNode {
       "id": "cfg",
       "type": "getconfigurationnode",
       "inputs": {
-        "section": "openaiconversation",
+        "section": "openai",
         "key": "apikey"
       }
     },
