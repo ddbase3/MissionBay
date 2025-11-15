@@ -3,6 +3,7 @@
 namespace MissionBay\Node\Control;
 
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
 
@@ -41,7 +42,7 @@ class DelayNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$seconds = $inputs['seconds'] ?? 1;
 
 		if (!is_numeric($seconds) || $seconds < 0 || $seconds > 60) {

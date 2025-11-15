@@ -4,7 +4,9 @@ namespace MissionBay\Node;
 
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodeDock;
+use MissionBay\Agent\AgentNodePort;
 
 abstract class AbstractAgentNode implements IAgentNode {
 
@@ -41,7 +43,7 @@ abstract class AbstractAgentNode implements IAgentNode {
 
 	abstract public function getOutputDefinitions(): array;
 
-	abstract public function execute(array $inputs, array $resources, IAgentContext $context): array;
+	abstract public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array;
 
 	abstract public function getDescription(): string;
 
@@ -49,4 +51,3 @@ abstract class AbstractAgentNode implements IAgentNode {
 		return '[ ' . static::getName() . ' | ' . $this->id . ' ] ' . $message;
 	}
 }
-

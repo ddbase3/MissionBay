@@ -5,6 +5,7 @@ namespace MissionBay\Node\Ai;
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
@@ -66,7 +67,7 @@ class AiEmbedTextNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		/** @var IAiEmbeddingModel $model */
 		$model = $resources['embeddingmodel'][0] ?? null;
 		/** @var ILogger|null $logger */

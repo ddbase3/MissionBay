@@ -3,6 +3,7 @@
 namespace MissionBay\Node\Control;
 
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
@@ -54,7 +55,7 @@ class ForEachNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$items = $inputs['items'] ?? null;
 		$node = $inputs['node'] ?? null;
 		$inputMap = $inputs['inputMap'] ?? [];

@@ -3,6 +3,7 @@
 namespace MissionBay\Node\Data;
 
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
 use DataHawk\Api\IReportExporterFactory;
@@ -65,7 +66,7 @@ class DataHawkReportNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$configStr = $inputs['config'] ?? '';
 
 		if (!is_string($configStr) || trim($configStr) === '') {

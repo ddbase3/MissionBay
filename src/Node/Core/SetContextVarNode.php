@@ -3,6 +3,7 @@
 namespace MissionBay\Node\Core;
 
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
 
@@ -46,7 +47,7 @@ class SetContextVarNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$key = $inputs['key'] ?? null;
 		$value = $inputs['value'] ?? null;
 

@@ -2,11 +2,13 @@
 
 namespace MissionBay\Flow;
 
-use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentEventEmitter;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentResourceFactory;
+use MissionBay\Agent\AgentNodePort;
 
 abstract class AbstractFlow implements IAgentFlow {
 
@@ -14,6 +16,7 @@ abstract class AbstractFlow implements IAgentFlow {
         protected array $resources = [];
 	protected bool $allowReentrant = false;
 	protected ?IAgentContext $context = null;
+	protected ?IAgentEventEmitter $eventEmitter = null;
 
 	public function __construct(
 		protected readonly IAgentNodeFactory $agentnodefactory,
@@ -23,6 +26,15 @@ abstract class AbstractFlow implements IAgentFlow {
         public function setContext(IAgentContext $context): void {
                 $this->context = $context;
         }
+
+	public function setEventEmitter(?IAgentEventEmitter $emitter): void {
+		$this->eventEmitter = $emitter;
+	}
+
+	public function emitEvent(array $event): void {
+		if (!$this->eventEmitter) return;
+		$this->eventEmitter->emitEvent($event);
+	}
 
         public function addNode(IAgentNode $node): void {
                 $this->nodes[$node->getId()] = $node;
@@ -47,4 +59,3 @@ abstract class AbstractFlow implements IAgentFlow {
 	abstract public function fromArray(array $data): self;
         abstract public function run(array $inputs): array;
 }
-

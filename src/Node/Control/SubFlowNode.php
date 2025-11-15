@@ -36,7 +36,7 @@ class SubFlowNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$flow = isset($inputs['flow']) && $inputs['flow'] instanceof IAgentFlow
 			? clone $inputs['flow']
 			: null;

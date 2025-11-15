@@ -73,5 +73,32 @@ abstract class AbstractAgentResource implements IAgentResource {
 	 * @return string
 	 */
 	abstract public function getDescription(): string;
+
+	/**
+	 * Emits a runtime event to the active AgentContext.
+	 *
+	 * Resources can call this method to send non-blocking informational
+	 * events during long-running operations. Events do not affect the
+	 * regular node output and are handled separately by the context or
+	 * the hosting system.
+	 *
+	 * Examples of runtime events:
+	 * - status_update: progress information for the UI
+	 * - canvas_content: structured output intended for a canvas panel
+	 * - canvas_close: request to close an active canvas
+	 *
+	 * If the AgentContext does not support event emission, calling this
+	 * method has no effect. This keeps the behavior fully backwards
+	 * compatible and safe to use in all environments.
+	 *
+	 * @param IAgentContext $ctx Flow-wide context instance
+	 * @param array<string,mixed> $event Structured event payload
+	 * @return void
+	 */
+	protected function emit(IAgentContext $ctx, array $event): void {
+		if (method_exists($ctx, 'emitEvent')) {
+			$ctx->emitEvent($event);
+		}
+	}
 }
 

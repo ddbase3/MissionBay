@@ -3,6 +3,7 @@
 namespace MissionBay\Node\Ai;
 
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
 
@@ -66,7 +67,7 @@ class SimpleLlamaNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$endpoint = $inputs['endpoint'] ?? '';
 		$model = $inputs['model'] ?? '';
 		$prompt = $inputs['prompt'] ?? '';

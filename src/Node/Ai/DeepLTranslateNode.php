@@ -4,6 +4,7 @@ namespace MissionBay\Node\Ai;
 
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Node\AbstractAgentNode;
 use MissionBay\Agent\AgentNodePort;
 
@@ -61,7 +62,7 @@ class DeepLTranslateNode extends AbstractAgentNode
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$apiKey = trim($inputs['apikey'] ?? '');
 		$text = trim($inputs['text'] ?? '');
 		$target = strtoupper(trim($inputs['target'] ?? ''));

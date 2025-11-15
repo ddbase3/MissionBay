@@ -2,7 +2,6 @@
 
 namespace MissionBay\Flow;
 
-use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentNodeFactory;
@@ -10,16 +9,13 @@ use MissionBay\Api\IAgentResource;
 use Base3\Api\IClassMap;
 use Base3\Configuration\Api\IConfiguration;
 
-class DynamicAiFlow implements IAgentFlow {
+class DynamicAiFlow extends AbstractFlow {
 
-	private array $nodes = [];
-	private array $resources = [];
 	private array $dockConnections = [];
-	private ?IAgentContext $context = null;
 	private string $model = 'gpt-3.5-turbo';
 
 	public function __construct(
-		private readonly IAgentNodeFactory $agentnodefactory,
+		protected readonly IAgentNodeFactory $agentnodefactory,
 		private readonly IClassMap $classmap,
 		private readonly IConfiguration $configuration
 	) {}
@@ -146,7 +142,7 @@ class DynamicAiFlow implements IAgentFlow {
 			$inputData = $nodeInputs[$currentNodeId] ?? [];
 
 			try {
-				$output = $node->execute($inputData, $this->context);
+				$output = $node->execute($inputData, $this->context, $this);
 			} catch (\Throwable $e) {
 				$output = ['error' => $e->getMessage()];
 			}

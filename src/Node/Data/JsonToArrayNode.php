@@ -3,6 +3,7 @@
 namespace MissionBay\Node\Data;
 
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
 
@@ -40,7 +41,7 @@ class JsonToArrayNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$json = $inputs['json'] ?? '';
 
 		$data = json_decode($json, true);

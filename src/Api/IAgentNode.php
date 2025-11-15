@@ -118,8 +118,8 @@ interface IAgentNode extends IBase {
 	 * @param array<string, mixed> $inputs Named input values
 	 * @param array<string, IAgentResource[]> $resources Docked resources by dock name
 	 * @param IAgentContext $context Flow-wide execution context
+	 * @param IAgentFlow $flow Agent flow
 	 * @return array<string, mixed> Named output values
 	 */
-	public function execute(array $inputs, array $resources, IAgentContext $context): array;
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array;
 }
-

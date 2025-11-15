@@ -3,6 +3,7 @@
 namespace MissionBay\Node\Message;
 
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Agent\AgentNodePort;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Node\AbstractAgentNode;
@@ -56,7 +57,7 @@ class LoggerNode extends AbstractAgentNode {
 		];
 	}
 
-	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context, IAgentFlow $flow): array {
 		$scope = $inputs['scope'] ?? 'default';
 		$message = (string)($inputs['message'] ?? '');
 

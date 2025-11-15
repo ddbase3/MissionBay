@@ -9,6 +9,7 @@ use Base3\Api\IPlugin;
 use Base3\Configuration\Api\IConfiguration;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
+use MissionBay\Api\IAgentEventEmitterFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IAgentMemoryFactory;
 use MissionBay\Api\IAgentFlowFactory;
@@ -16,6 +17,7 @@ use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
+use MissionBay\Agent\AgentEventEmitterFactory;
 // use MissionBay\Agent\AgentRouterFactory;
 use MissionBay\Agent\AgentMemoryFactory;
 use MissionBay\Agent\AgentFlowFactory;
@@ -39,6 +41,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(self::getName(), $this, IContainer::SHARED)
 
 			->set(IAgentContextFactory::class, fn($c) => new AgentContextFactory($c->get(IClassMap::class)), IContainer::SHARED)
+			->set(IAgentEventEmitterFactory::class, fn($c) => new AgentEventEmitterFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			// ->set(IAgentRouterFactory::class, fn($c) => new AgentRouterFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentMemoryFactory::class, fn($c) => new AgentMemoryFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentNodeFactory::class, fn($c) => new AgentNodeFactory($c->get(IClassMap::class)), IContainer::SHARED)
