@@ -8,299 +8,368 @@ use MissionBay\Api\IAgentConfigValueResolver;
 /**
  * GeminiChatModelAgentResource
  *
- * Adapter for Google Gemini Generative Language API (v1beta).
- * Supports:
- *  - rich message normalization
- *  - function calling (Gemini "function_call")
- *  - streaming via chunked JSON lines
+ * Drop-in replacement compatible with OpenAiChatModelAgentResource
+ * Produces OpenAI-compatible outputs (choices/message/etc),
+ * but behind the scenes calls Google's Gemini v1beta API.
  */
 class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
-	protected IAgentConfigValueResolver $resolver;
-	protected array $resolvedOptions = [];
+        protected IAgentConfigValueResolver $resolver;
 
-	protected array|string|null $modelConfig = null;
-	protected array|string|null $apikeyConfig = null;
-	protected array|string|null $endpointConfig = null;
-	protected array|string|null $temperatureConfig = null;
-	protected array|string|null $maxtokensConfig = null;
+        protected array|string|null $modelConfig = null;
+        protected array|string|null $apikeyConfig = null;
+        protected array|string|null $endpointConfig = null;
+        protected array|string|null $temperatureConfig = null;
+        protected array|string|null $maxtokensConfig = null;
 
-	public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
-		parent::__construct($id);
-		$this->resolver = $resolver;
-	}
+        protected array $resolvedOptions = [];
 
-	public static function getName(): string {
-		return 'geminichatmodelagentresource';
-	}
+        public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
+                parent::__construct($id);
+                $this->resolver = $resolver;
+        }
 
-	public function getDescription(): string {
-		return 'Connects to Google Gemini API. Supports streaming, tool-calling and rich message objects.';
-	}
+        public static function getName(): string {
+                return 'geminichatmodelagentresource';
+        }
 
-	public function setConfig(array $config): void {
-		parent::setConfig($config);
+        public function getDescription(): string {
+                return 'Connects to Google Gemini API with full OpenAI-style output compatibility.';
+        }
 
-		$this->modelConfig       = $config['model'] ?? null;
-		$this->apikeyConfig      = $config['apikey'] ?? null;
-		$this->endpointConfig    = $config['endpoint'] ?? null;
-		$this->temperatureConfig = $config['temperature'] ?? null;
-		$this->maxtokensConfig   = $config['maxtokens'] ?? null;
+        /**
+         * Load config (same pattern as OpenAI version)
+         */
+        public function setConfig(array $config): void {
+                parent::setConfig($config);
 
-		$this->resolvedOptions = [
-			'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'gemini-1.5-flash',
-			'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
-				?? 'https://generativelanguage.googleapis.com/v1beta/models',
-			'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.3),
-			'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 4096),
-		];
-	}
+                $this->modelConfig       = $config['model'] ?? null;
+                $this->apikeyConfig      = $config['apikey'] ?? null;
+                $this->endpointConfig    = $config['endpoint'] ?? null;
+                $this->temperatureConfig = $config['temperature'] ?? null;
+                $this->maxtokensConfig   = $config['maxtokens'] ?? null;
 
-	public function getOptions(): array {
-		return $this->resolvedOptions;
-	}
+                $this->resolvedOptions = [
+                        'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'gemini-1.5-flash',
+                        'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
+                        'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
+                                ?? 'https://generativelanguage.googleapis.com/v1beta/models',
+                        'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.7),
+                        'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 4096),
+                ];
+        }
 
-	public function setOptions(array $options): void {
-		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
-	}
+        public function getOptions(): array {
+                return $this->resolvedOptions;
+        }
 
-	/**
-	 * Basic non-streaming chat.
-	 */
-	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-		return $result['candidates'][0]['content']['parts'][0]['text'] ?? '';
-	}
+        public function setOptions(array $options): void {
+                $this->resolvedOptions = array_merge($this->resolvedOptions, $options);
+        }
 
-	/**
-	 * Non-streaming Gemini call.
-	 */
-	public function raw(array $messages, array $tools = []): mixed {
-		$apikey   = $this->resolvedOptions['apikey'];
-		$endpoint = $this->resolvedOptions['endpoint'];
-		$model    = $this->resolvedOptions['model'];
-		$temp     = $this->resolvedOptions['temperature'];
-		$maxtokens = $this->resolvedOptions['maxtokens'];
+        /**
+         * OPENAI-COMPATIBLE CHAT OUTPUT
+         */
+        public function chat(array $messages): string {
+                $result = $this->raw($messages);
 
-		if (!$apikey) {
-			throw new \RuntimeException("Missing Gemini API key.");
-		}
+                if (!isset($result['choices'][0]['message']['content'])) {
+                        throw new \RuntimeException("Malformed Gemini(OpenAI-mode) response: " . json_encode($result));
+                }
 
-		$normalized = $this->normalizeMessages($messages);
+                return $result['choices'][0]['message']['content'];
+        }
 
-		$payload = [
-			'contents' => $normalized,
-			'generationConfig' => [
-				'temperature' => $temp,
-				'maxOutputTokens' => $maxtokens
-			]
-		];
 
-		if (!empty($tools)) {
-			$payload['tools'] = [
-				[
-					'functionDeclarations' => $tools
-				]
-			];
-		}
+        /**
+         * Convert OpenAI tools → Gemini functionDeclarations
+         */
+        private function normalizeTools(array $tools): array {
+                $geminiTools = [];
 
-		$jsonPayload = json_encode($payload);
+                foreach ($tools as $t) {
+                        if (isset($t['function'])) {
+                                $fn = $t['function'];
 
-		$url = $endpoint . '/' . $model . ':generateContent?key=' . urlencode($apikey);
+                                $geminiTools[] = [
+                                        'name' => $fn['name'] ?? '',
+                                        'description' => $fn['description'] ?? '',
+                                        'parameters' => $fn['parameters'] ?? [
+                                                'type' => 'object',
+                                                'properties' => []
+                                        ]
+                                ];
+                        }
+                }
 
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			'Content-Type: application/json'
-		]);
+                return $geminiTools;
+        }
 
-		$result = curl_exec($ch);
 
-		if (curl_errno($ch)) {
-			throw new \RuntimeException('Gemini request failed: ' . curl_error($ch));
-		}
+        /**
+         * RAW Gemini-call → OpenAI-compatible response
+         */
+        public function raw(array $messages, array $tools = []): mixed {
 
-		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		curl_close($ch);
+                $apikey   = $this->resolvedOptions['apikey'];
+                $endpoint = $this->resolvedOptions['endpoint'];
+                $model    = $this->resolvedOptions['model'];
+                $temp     = $this->resolvedOptions['temperature'];
+                $maxtokens = $this->resolvedOptions['maxtokens'];
 
-		if ($httpCode !== 200) {
-			throw new \RuntimeException("Gemini error $httpCode: $result");
-		}
+                if (!$apikey) {
+                        throw new \RuntimeException("Missing Gemini API key.");
+                }
 
-		$data = json_decode($result, true);
-		if (!is_array($data)) {
-			throw new \RuntimeException("Invalid Gemini JSON: " . substr($result, 0, 200));
-		}
+                $normalized = $this->normalizeMessages($messages);
 
-		return $data;
-	}
+                $payload = [
+                        'contents' => $normalized,
+                        'generationConfig' => [
+                                'temperature' => $temp,
+                                'maxOutputTokens' => $maxtokens
+                        ]
+                ];
 
-	/**
-	 * Streaming API
-	 *
-	 * Gemini streams JSON objects on each line (NOT SSE "data:").
-	 */
-	public function stream(
-			array $messages,
-			array $tools,
-			callable $onData,
-			callable $onMeta = null
-	): void {
+                if (!empty($tools)) {
+                        $payload['tools'] = [
+                                [
+                                        'functionDeclarations' => $this->normalizeTools($tools)
+                                ]
+                        ];
+                }
 
-		$apikey   = $this->resolvedOptions['apikey'];
-		$endpoint = $this->resolvedOptions['endpoint'];
-		$model    = $this->resolvedOptions['model'];
-		$temp     = $this->resolvedOptions['temperature'];
-		$maxtokens = $this->resolvedOptions['maxtokens'];
+                $jsonPayload = json_encode($payload);
 
-		if (!$apikey) {
-			throw new \RuntimeException("Missing Gemini API key.");
-		}
+                $url = $endpoint . '/' . $model . ':generateContent?key=' . urlencode($apikey);
 
-		$normalized = $this->normalizeMessages($messages);
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
 
-		$payload = [
-			'contents' => $normalized,
-			'generationConfig' => [
-				'temperature' => $temp,
-				'maxOutputTokens' => $maxtokens
-			],
-			'stream' => true
-		];
+                $result = curl_exec($ch);
 
-		if (!empty($tools)) {
-			$payload['tools'] = [
-				[
-					'functionDeclarations' => $tools
-				]
-			];
-		}
+                if (curl_errno($ch)) {
+                        throw new \RuntimeException('Gemini request failed: ' . curl_error($ch));
+                }
 
-		$jsonPayload = json_encode($payload);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
 
-		$url = $endpoint . '/' . $model . ':streamGenerateContent?key=' . urlencode($apikey);
+                if ($httpCode !== 200) {
+                        throw new \RuntimeException("Gemini error $httpCode: $result");
+                }
 
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			'Content-Type: application/json'
-		]);
-		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+                $data = json_decode($result, true);
+                if (!is_array($data)) {
+                        throw new \RuntimeException("Invalid Gemini JSON: " . substr($result ?? '', 0, 200));
+                }
 
-		curl_setopt(
-			$ch,
-			CURLOPT_WRITEFUNCTION,
-			function ($ch, $chunk) use ($onData, $onMeta) {
+                // ---- OPENAI-COMPATIBLE WRAPPING ----
 
-				$lines = preg_split("/\r\n|\n|\r/", $chunk);
+                $candidate = $data['candidates'][0] ?? [];
 
-				foreach ($lines as $line) {
-					$line = trim($line);
-					if ($line === '') {
-						continue;
-					}
+                $parts = $candidate['content']['parts'][0] ?? [];
+                $text = $parts['text'] ?? '';
+                $toolCall = $parts['functionCall'] ?? null;
 
-					$json = json_decode($line, true);
-					if (!is_array($json)) {
-						continue;
-					}
+                $message = [
+                        'role' => 'assistant',
+                        'content' => $text,
+                ];
 
-					$candidates = $json['candidates'][0] ?? null;
-					if (!$candidates) {
-						continue;
-					}
+                if ($toolCall) {
+                        $message['tool_calls'] = [
+                                [
+                                        'id' => uniqid('tool_', true),
+                                        'type' => 'function',
+                                        'function' => [
+                                                'name' => $toolCall['name'] ?? '',
+                                                'arguments' => json_encode($toolCall['args'] ?? [])
+                                        ]
+                                ]
+                        ];
+                }
 
-					$parts = $candidates['content']['parts'][0] ?? [];
+                return [
+                        'choices' => [
+                                [
+                                        'message' => $message,
+                                        'finish_reason' => $candidate['finishReason'] ?? 'stop'
+                                ]
+                        ]
+                ];
+        }
 
-					// Text chunk
-					if (!empty($parts['text'])) {
-						$onData($parts['text']);
-					}
 
-					// Function call
-					if (isset($parts['functionCall']) && $onMeta !== null) {
-						$onMeta([
-							'event' => 'toolcall',
-							'tool_calls' => [
-								[
-									'id' => uniqid('tool_', true),
-									'type' => 'function',
-									'function' => [
-										'name' => $parts['functionCall']['name'] ?? '',
-										'arguments' => json_encode($parts['functionCall']['args'] ?? [])
-									]
-								]
-							]
-						]);
-					}
+        /**
+         * STREAMING Gemini → OpenAI-style SSE-compatible
+         */
+        public function stream(
+                array $messages,
+                array $tools,
+                callable $onData,
+                callable $onMeta = null
+        ): void {
 
-					// finish_reason
-					if ($onMeta !== null && isset($candidates['finishReason'])) {
-						$onMeta([
-							'event' => 'meta',
-							'finish_reason' => $candidates['finishReason']
-						]);
-					}
-				}
+                $apikey   = $this->resolvedOptions['apikey'];
+                $endpoint = $this->resolvedOptions['endpoint'];
+                $model    = $this->resolvedOptions['model'];
+                $temp     = $this->resolvedOptions['temperature'];
+                $maxtokens = $this->resolvedOptions['maxtokens'];
 
-				return strlen($chunk);
-			}
-		);
+                if (!$apikey) {
+                        throw new \RuntimeException("Missing Gemini API key.");
+                }
 
-		curl_exec($ch);
-		curl_close($ch);
-	}
+                $normalized = $this->normalizeMessages($messages);
 
-	/**
-	 * Convert rich memory messages → Gemini content/messages format.
-	 */
-	private function normalizeMessages(array $messages): array {
-		$out = [];
+                $payload = [
+                        'contents' => $normalized,
+                        'generationConfig' => [
+                                'temperature' => $temp,
+                                'maxOutputTokens' => $maxtokens
+                        ],
+                        'stream' => true
+                ];
 
-		foreach ($messages as $m) {
-			if (!isset($m['role'])) {
-				continue;
-			}
+                if (!empty($tools)) {
+                        $payload['tools'] = [
+                                [
+                                        'functionDeclarations' => $this->normalizeTools($tools)
+                                ]
+                        ];
+                }
 
-			$role = $m['role'];
-			$content = $m['content'] ?? '';
+                $jsonPayload = json_encode($payload);
 
-			// Gemini structure:
-			// { "role": "user", "parts": [ {"text": "..."} ] }
-			// Gemini does NOT support role:"tool".
+                $url = $endpoint . '/' . $model . ':streamGenerateContent?key=' . urlencode($apikey);
 
-			if ($role === 'tool') {
-				$text = is_string($content)
-					? $content
-					: json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                $ch = curl_init($url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 0);
 
-				$out[] = [
-					'role' => 'user',
-					'parts' => [
-						['text' =>
-							"Tool output:\n\n"
-							. $text
-							. "\n\nPlease use this information for the final answer."
-						]
-					]
-				];
-				continue;
-			}
+                curl_setopt(
+                        $ch,
+                        CURLOPT_WRITEFUNCTION,
+                        function ($ch, $chunk) use ($onData, $onMeta) {
 
-			$out[] = [
-				'role' => $role,
-				'parts' => [
-					['text' => is_string($content) ? $content : json_encode($content)]
-				]
-			];
-		}
+                                $lines = preg_split("/\r\n|\n|\r/", $chunk);
 
-		return $out;
-	}
+                                foreach ($lines as $line) {
+                                        $line = trim($line);
+                                        if ($line === '') {
+                                                continue;
+                                        }
+
+                                        $json = json_decode($line, true);
+                                        if (!is_array($json)) {
+                                                continue;
+                                        }
+
+                                        $candidate = $json['candidates'][0] ?? null;
+                                        if (!$candidate) {
+                                                continue;
+                                        }
+
+                                        $parts = $candidate['content']['parts'][0] ?? [];
+
+                                        // text chunk
+                                        if (isset($parts['text'])) {
+                                                $onData($parts['text']);
+                                        }
+
+                                        // tool call
+                                        if (isset($parts['functionCall']) && $onMeta !== null) {
+                                                $onMeta([
+                                                        'event' => 'toolcall',
+                                                        'tool_calls' => [
+                                                                [
+                                                                        'id' => uniqid('tool_', true),
+                                                                        'type' => 'function',
+                                                                        'function' => [
+                                                                                'name' => $parts['functionCall']['name'] ?? '',
+                                                                                'arguments' => json_encode($parts['functionCall']['args'] ?? [])
+                                                                        ]
+                                                                ]
+                                                        ]
+                                                ]);
+                                        }
+
+                                        // finish reason
+                                        if ($onMeta !== null && isset($candidate['finishReason'])) {
+                                                $onMeta([
+                                                        'event' => 'meta',
+                                                        'finish_reason' => $candidate['finishReason']
+                                                ]);
+                                        }
+                                }
+
+                                return strlen($chunk);
+                        }
+                );
+
+                curl_exec($ch);
+                curl_close($ch);
+        }
+
+
+        /**
+         * Normalize messages to Gemini format, but accept OpenAI-format input.
+         */
+        private function normalizeMessages(array $messages): array {
+                $out = [];
+
+                foreach ($messages as $m) {
+                        if (!isset($m['role'])) {
+                                continue;
+                        }
+
+                        $role = $m['role'];
+                        $content = $m['content'] ?? '';
+
+                        // Gemini supports only: user, model
+                        // system + tool must be converted to user instructions
+
+                        if ($role === 'system' || $role === 'tool') {
+
+                                $prefix = ($role === 'tool')
+                                        ? "Tool output:"
+                                        : "System instruction:";
+
+                                $text = is_string($content)
+                                        ? $content
+                                        : json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+                                $out[] = [
+                                        'role' => 'user',
+                                        'parts' => [
+                                                ['text' =>
+                                                        $prefix . "\n\n"
+                                                        . $text
+                                                        . "\n\nPlease follow this information."
+                                                ]
+                                        ]
+                                ];
+                                continue;
+                        }
+
+                        // regular assistant/user messages
+                        $out[] = [
+                                'role' => $role === 'assistant' ? 'model' : 'user',
+                                'parts' => [
+                                        [
+                                                'text' => is_string($content) ? $content : json_encode($content)
+                                        ]
+                                ]
+                        ];
+                }
+
+                return $out;
+        }
 }
-
