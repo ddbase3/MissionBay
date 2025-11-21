@@ -8,9 +8,12 @@ use MissionBay\Api\IAgentConfigValueResolver;
 /**
  * MistralChatModelAgentResource
  *
- * Adapter für Mistral-kompatible Chat Completion APIs (z. B. Fireworks, Mistral.ai).
- * Unterstützt einfache Tool-Calls, die von Mistral typischerweise als JSON im content-Feld
- * zurückgegeben werden. Wandelt Tool-Ergebnisse automatisch in sprachliche Kontexte um.
+ * Adapter for Mistral-compatible Chat APIs (e.g., Mistral.ai, Fireworks).
+ * Supports:
+ * - rich message objects
+ * - tool-call extraction from JSON blocks inside assistant content
+ * - streaming responses using SSE-like chunking
+ * - natural-language transformation for tool results (Mistral cannot process role:'tool')
  */
 class MistralChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -33,10 +36,13 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	public function getDescription(): string {
-		return 'Connects to Mistral-compatible Chat Completion APIs (e.g. Mistral, Fireworks). '
-		     . 'Converts structured tool outputs into natural-language context so Mistral can use them effectively.';
+		return 'Connects to Mistral-compatible Chat Completion APIs (Mistral.ai / Fireworks). '
+			. 'Supports tool-call extraction and natural-language result injection.';
 	}
 
+	/**
+	 * Load config and resolve config values from Section/Key sources.
+	 */
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
@@ -47,9 +53,11 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		$this->maxtokensConfig   = $config['maxtokens'] ?? null;
 
 		$this->resolvedOptions = [
-			'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'mistralai/Mistral-7B-Instruct-v0.3',
+			'model'       => $this->resolver->resolveValue($this->modelConfig) 
+				?? 'mistralai/Mistral-7B-Instruct-v0.3',
 			'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.fireworks.ai/inference/v1/chat/completions',
+			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
+				?? 'https://api.fireworks.ai/inference/v1/chat/completions',
 			'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.3),
 			'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 512),
 		];
@@ -63,11 +71,17 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
 	}
 
+	/**
+	 * Basic chat → return assistant text only.
+	 */
 	public function chat(array $messages): string {
 		$result = $this->raw($messages);
 		return $result['choices'][0]['message']['content'] ?? '';
 	}
 
+	/**
+	 * Non-streaming raw response.
+	 */
 	public function raw(array $messages, array $tools = []): mixed {
 		$model     = $this->resolvedOptions['model'];
 		$apikey    = $this->resolvedOptions['apikey'];
@@ -85,7 +99,7 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 			'model'       => $model,
 			'messages'    => $normalized,
 			'temperature' => $temp,
-			'max_tokens'  => $maxtokens,
+			'max_tokens'  => $maxtokens
 		];
 
 		if (!empty($tools)) {
@@ -106,6 +120,7 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
 
 		$result = curl_exec($ch);
+
 		if (curl_errno($ch)) {
 			throw new \RuntimeException('Chat API request failed: ' . curl_error($ch));
 		}
@@ -119,7 +134,7 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 
 		$data = json_decode($result, true);
 		if (!is_array($data)) {
-			throw new \RuntimeException("Invalid JSON response from Mistral API: " . substr($result, 0, 200));
+			throw new \RuntimeException("Invalid JSON response: " . substr($result, 0, 200));
 		}
 
 		$this->normalizeMistralResponse($data);
@@ -127,7 +142,123 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	/**
-	 * Erkennung & Normalisierung von Mistral-typischen Tool-Call-Blöcken.
+	 * ------------------------------------------
+	 * STREAMING (SSE-like chunks)
+	 * ------------------------------------------
+	 * Mistral/Fireworks stream format closely follows
+	 * OpenAI-style "data: {...}" lines.
+	 */
+	public function stream(
+			array $messages,
+			array $tools,
+			callable $onData,
+			callable $onMeta = null
+	): void {
+
+		$model     = $this->resolvedOptions['model'];
+		$apikey    = $this->resolvedOptions['apikey'];
+		$endpoint  = $this->resolvedOptions['endpoint'];
+		$temp      = $this->resolvedOptions['temperature'];
+		$maxtokens = $this->resolvedOptions['maxtokens'];
+
+		if (!$apikey) {
+			throw new \RuntimeException("Missing API key for Mistral model.");
+		}
+
+		$normalized = $this->normalizeMessages($messages);
+
+		$payload = [
+			'model'       => $model,
+			'messages'    => $normalized,
+			'temperature' => $temp,
+			'max_tokens'  => $maxtokens,
+			'stream'      => true
+		];
+
+		if (!empty($tools)) {
+			$payload['tools'] = $tools;
+			$payload['tool_choice'] = 'auto';
+		}
+
+		$jsonPayload = json_encode($payload);
+
+		$headers = [
+			'Content-Type: application/json',
+			'Authorization: Bearer ' . $apikey
+		];
+
+		$ch = curl_init($endpoint);
+		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
+
+		curl_setopt(
+			$ch,
+			CURLOPT_WRITEFUNCTION,
+			function ($ch, $chunk) use ($onData, $onMeta) {
+
+				$lines = preg_split("/\r\n|\n|\r/", $chunk);
+
+				foreach ($lines as $line) {
+					$line = trim($line);
+
+					if ($line === '' || !str_starts_with($line, 'data:')) {
+						continue;
+					}
+
+					$data = trim(substr($line, 5));
+
+					// End-of-stream signal
+					if ($data === '[DONE]') {
+						if ($onMeta !== null) {
+							$onMeta(['event' => 'done']);
+						}
+						continue;
+					}
+
+					$json = json_decode($data, true);
+					if (!is_array($json)) {
+						continue;
+					}
+
+					$choice = $json['choices'][0] ?? [];
+
+					// Text chunk
+					$delta = $choice['delta']['content'] ?? null;
+					if ($delta !== null) {
+						$onData($delta);
+					}
+
+					// finish_reason
+					if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+						$onMeta([
+							'event'          => 'meta',
+							'finish_reason'  => $choice['finish_reason'],
+							'full'           => $json
+						]);
+					}
+
+					// tool call chunks (rare)
+					if (!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
+						$onMeta([
+							'event'      => 'toolcall',
+							'tool_calls' => $choice['delta']['tool_calls']
+						]);
+					}
+				}
+
+				return strlen($chunk);
+			}
+		);
+
+		curl_exec($ch);
+		curl_close($ch);
+	}
+
+	/**
+	 * Extracts tool-calls from Mistral JSON-in-text blocks.
 	 */
 	private function normalizeMistralResponse(array &$data): void {
 		if (empty($data['choices'][0]['message']['content'])) {
@@ -136,16 +267,22 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 
 		$content = trim($data['choices'][0]['message']['content']);
 		$parts = preg_split('/\n\s*\n/', $content);
+
 		$toolCalls = [];
 
 		foreach ($parts as $part) {
 			$trimmed = trim($part);
-			if ($trimmed === '' || !preg_match('/^\[?\s*\{/', $trimmed)) continue;
+			if ($trimmed === '' || !preg_match('/^\[?\s*\{/', $trimmed)) {
+				continue;
+			}
 
 			$parsed = json_decode($trimmed, true);
-			if (!is_array($parsed)) continue;
+			if (!is_array($parsed)) {
+				continue;
+			}
 
 			$items = isset($parsed[0]) ? $parsed : [$parsed];
+
 			foreach ($items as $tool) {
 				if (isset($tool['name'])) {
 					$toolCalls[] = [
@@ -166,56 +303,60 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	/**
-	 * Wandelt Tool-Ergebnisse in natürlichsprachliche Nachrichten um,
-	 * damit Mistral sie semantisch verwerten kann (RAG-ähnliches Verhalten).
+	 * Converts rich memory objects into Mistral-friendly messages.
+	 *
+	 * Important: Mistral does NOT support role:"tool".
+	 * → We convert tool results into natural-language user messages.
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
-		$systemContents = [];
+		$systemBlocks = [];
 
 		foreach ($messages as $m) {
-			if (!is_array($m) || !isset($m['role'])) continue;
+			if (!is_array($m) || !isset($m['role'])) {
+				continue;
+			}
 
 			$role = $m['role'];
 			$content = $m['content'] ?? '';
 
+			// System messages aggregated
 			if ($role === 'system') {
 				if (is_string($content) && trim($content) !== '') {
-					$systemContents[] = trim($content);
+					$systemBlocks[] = trim($content);
 				}
 				continue;
 			}
 
-			// 🧠 Mistral versteht role:"tool" nicht – wir formulieren den Inhalt als Fließtext.
+			// Mistral cannot handle role:"tool"
 			if ($role === 'tool') {
-				$resultText = is_string($content)
+				$text = is_string($content)
 					? $content
-					: json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+					: json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-				// 🗣️ natürliche Sprachformulierung statt technischer JSON-Ausgabe
 				$out[] = [
 					'role' => 'user',
-					'content' => "Das Tool hat folgende Information geliefert:\n\n"
-						. $resultText
-						. "\n\nBitte verwende diese Information, um die ursprüngliche Frage korrekt und natürlichsprachlich zu beantworten."
+					'content' =>
+						"Das Tool hat folgende Information geliefert:\n\n"
+						. $text
+						. "\n\nBitte verwende diese Information für die weitere Beantwortung."
 				];
 				continue;
 			}
 
 			$out[] = [
-				'role' => $role,
-				'content' => is_string($content) ? $content : json_encode($content),
+				'role'    => $role,
+				'content' => is_string($content) ? $content : json_encode($content)
 			];
 		}
 
-		if (!empty($systemContents)) {
+		if (!empty($systemBlocks)) {
 			array_unshift($out, [
 				'role' => 'system',
-				'content' => implode("\n\n", $systemContents),
+				'content' => implode("\n\n", $systemBlocks),
 			]);
 		}
 
 		return $out;
 	}
 }
-
