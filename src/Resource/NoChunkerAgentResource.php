@@ -3,12 +3,13 @@
 namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentChunker;
+use MissionBay\Dto\AgentParsedContent;
 
 /**
  * NoChunkerAgentResource
  *
- * Creates a single chunk from the parsed text.
- * Useful when text is already short or pre-chunked.
+ * Creates exactly one chunk from parsed content.
+ * Useful when text is already small or pre-chunked.
  */
 class NoChunkerAgentResource extends AbstractAgentResource implements IAgentChunker {
 
@@ -17,23 +18,23 @@ class NoChunkerAgentResource extends AbstractAgentResource implements IAgentChun
 	}
 
 	public function getDescription(): string {
-		return 'Creates exactly one chunk from parsed text.';
+		return 'Creates exactly one chunk from parsed content.';
 	}
 
 	public function getPriority(): int {
 		return 999;
 	}
 
-	public function supports(array $parsed): bool {
-		return isset($parsed['text']) && strlen($parsed['text']) < 2000;
+	public function supports(AgentParsedContent $parsed): bool {
+		return strlen($parsed->text) < 2000;
 	}
 
-	public function chunk(array $parsed): array {
+	public function chunk(AgentParsedContent $parsed): array {
 		return [
 			[
 				'id' => uniqid('chunk_', true),
-				'text' => $parsed['text'],
-				'meta' => $parsed['meta'] ?? []
+				'text' => $parsed->text,
+				'meta' => $parsed->metadata
 			]
 		];
 	}

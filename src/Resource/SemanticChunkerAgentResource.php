@@ -3,18 +3,8 @@
 namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentChunker;
+use MissionBay\Dto\AgentParsedContent;
 
-/**
- * SemanticChunkerAgentResource
- *
- * Creates semantically meaningful chunks based on:
- * - sentence boundaries
- * - paragraph structure
- * - max chunk length
- * - optional overlap
- *
- * The strategy is lightweight and works without external ML models.
- */
 class SemanticChunkerAgentResource extends AbstractAgentResource implements IAgentChunker {
 
 	protected int $maxLength = 800;
@@ -26,7 +16,7 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 	}
 
 	public function getDescription(): string {
-		return 'Semantic chunker that splits text by paragraphs and sentences with configurable max length and overlap.';
+		return 'Semantic chunker splitting text by paragraphs and sentences.';
 	}
 
 	public function setConfig(array $config): void {
@@ -37,26 +27,32 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 	}
 
 	public function getPriority(): int {
-		return 100; // prefer relative early over NoChunker
+		return 100;
 	}
 
-	public function supports(array $parsed): bool {
-		return isset($parsed['text']) && is_string($parsed['text']);
+	public function supports(AgentParsedContent $parsed): bool {
+		return is_string($parsed->text) && strlen($parsed->text) > 0;
 	}
 
-	public function chunk(array $parsed): array {
-		$text = $parsed['text'];
+	public function chunk(AgentParsedContent $parsed): array {
+		$text = $parsed->text;
+		$meta = $parsed->metadata;
+
 		$paragraphs = $this->splitParagraphs($text);
-
 		$chunks = [];
+
 		foreach ($paragraphs as $p) {
-			$chunks = array_merge($chunks, $this->splitParagraphIntoChunks($p, $parsed['meta'] ?? []));
+			$chunks = array_merge(
+				$chunks,
+				$this->splitParagraphIntoChunks($p, $meta)
+			);
 		}
+
 		return $chunks;
 	}
 
 	// ---------------------------------------------------------
-	// Paragraph & sentence splitting
+	// Text splitting
 	// ---------------------------------------------------------
 
 	private function splitParagraphs(string $text): array {
@@ -81,10 +77,10 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 		$chunks = [];
 
 		$current = '';
+
 		foreach ($sentences as $sentence) {
-			// if adding this sentence would exceed chunk length -> finalize chunk
 			if (strlen($current) + strlen($sentence) > $this->maxLength) {
-				if (strlen($current) > 0) {
+				if ($current !== '') {
 					$chunks[] = $this->makeChunk($current, $meta);
 				}
 				$current = $sentence;
@@ -94,15 +90,12 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 			$current .= ($current === '' ? '' : ' ') . $sentence;
 		}
 
-		// last chunk
-		if (strlen($current) > 0) {
+		if ($current !== '') {
 			$chunks[] = $this->makeChunk($current, $meta);
 		}
 
-		// Ensure minimum size — merge tiny chunks
 		$chunks = $this->enforceMinSize($chunks, $meta);
 
-		// Add overlaps if configured
 		if ($this->overlap > 0) {
 			$chunks = $this->applyOverlap($chunks, $meta);
 		}
@@ -111,7 +104,9 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 	}
 
 	private function enforceMinSize(array $chunks, array $meta): array {
-		if (count($chunks) < 2) return $chunks;
+		if (count($chunks) < 2) {
+			return $chunks;
+		}
 
 		$out = [];
 		$buffer = '';
@@ -126,6 +121,7 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 				$out[] = $this->makeChunk(trim($buffer), $meta);
 				$buffer = '';
 			}
+
 			$out[] = $c;
 		}
 
@@ -142,7 +138,6 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 		for ($i = 0; $i < count($chunks); $i++) {
 			$current = $chunks[$i]['text'];
 
-			// Add overlap text from previous chunk
 			if ($i > 0) {
 				$prev = $chunks[$i - 1]['text'];
 				$tail = mb_substr($prev, -$this->overlap);
@@ -154,10 +149,6 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 
 		return $out;
 	}
-
-	// ---------------------------------------------------------
-	// Helper
-	// ---------------------------------------------------------
 
 	private function makeChunk(string $text, array $meta): array {
 		return [

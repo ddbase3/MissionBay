@@ -2,6 +2,8 @@
 
 namespace MissionBay\Api;
 
+use MissionBay\Dto\AgentParsedContent;
+
 /**
  * Chunkers split parsed content into embeddings-friendly chunks.
  * They are priority-driven and selected dynamically by supports().
@@ -16,8 +18,10 @@ interface IAgentChunker {
 
 	/**
 	 * Whether this chunker supports the parsed content.
+	 * @param AgentParsedContent $parsed
+	 * @return bool
 	 */
-	public function supports(array $parsed): bool;
+	public function supports(AgentParsedContent $parsed): bool;
 
 	/**
 	 * Creates chunks:
@@ -25,6 +29,8 @@ interface IAgentChunker {
 	 * 	 ['id' => string, 'text' => string, 'meta' => array],
 	 * 	 ...
 	 * ]
+	 * @param AgentParsedContent $parsed
+	 * @return array<int,array<string,mixed>>
 	 */
-	public function chunk(array $parsed): array;
+	public function chunk(AgentParsedContent $parsed): array;
 }

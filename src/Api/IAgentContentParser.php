@@ -2,29 +2,28 @@
 
 namespace MissionBay\Api;
 
+use MissionBay\Dto\AgentContentItem;
+use MissionBay\Dto\AgentParsedContent;
+
 /**
- * Parsers convert raw content into a normalized structure.
- * Each parser declares a priority; lowest value = highest priority.
+ * Parsers convert an AgentContentItem into AgentParsedContent.
  */
 interface IAgentContentParser {
 
-	/**
-	 * Defines parser priority.
-	 * Lower numbers mean earlier execution.
-	 */
 	public function getPriority(): int;
 
 	/**
-	 * Returns true if this parser can parse the content.
+	 * Determines whether this parser can handle the content.
+	 *
+	 * @param AgentContentItem $item
 	 */
-	public function supports(mixed $content): bool;
+	public function supports(AgentContentItem $item): bool;
 
 	/**
-	 * Parses the content and returns a normalized structure:
-	 * [
-	 * 	 'text' => string,
-	 * 	 'meta' => array<string,mixed>
-	 * ]
+	 * Parses raw content into a normalized parsed content object.
+	 *
+	 * @param AgentContentItem $item
+	 * @return AgentParsedContent
 	 */
-	public function parse(mixed $content): array;
+	public function parse(AgentContentItem $item): AgentParsedContent;
 }

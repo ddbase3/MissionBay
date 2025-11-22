@@ -2,19 +2,21 @@
 
 namespace MissionBay\Api;
 
-use MissionBay\Api\IAgentContext;
+use MissionBay\Dto\AgentContentItem;
 
 /**
- * Extractors produce raw content objects directly from sources
- * (database rows, filesystem, http, streams, etc).
+ * Extractors produce normalized content items from external sources
+ * (uploads, database rows, filesystem paths, streams, etc).
+ *
+ * Each extractor must return a list of stable AgentContentItem objects.
  */
 interface IAgentContentExtractor {
 
 	/**
-	 * Extracts raw content objects.
+	 * Extracts content items from a given context.
 	 *
 	 * @param IAgentContext $context
-	 * @return array<int,mixed> Raw content items
+	 * @return AgentContentItem[] Normalized, hash-stable content items
 	 */
 	public function extract(IAgentContext $context): array;
 }

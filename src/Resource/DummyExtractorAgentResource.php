@@ -4,29 +4,49 @@ namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentContentExtractor;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Dto\AgentContentItem;
 
 /**
  * DummyExtractorAgentResource
  *
- * Simple static extractor for testing embedding pipelines.
+ * Produces fixed text items for testing embedding pipelines.
  */
 class DummyExtractorAgentResource extends AbstractAgentResource implements IAgentContentExtractor {
 
-	public static function getName(): string {
-		return 'dummyextractoragentresource';
-	}
+        public static function getName(): string {
+                return 'dummyextractoragentresource';
+        }
 
-	public function getDescription(): string {
-		return 'Returns a fixed list of simple text contents for testing.';
-	}
+        public function getDescription(): string {
+                return 'Returns a fixed list of plain-text content items for testing.';
+        }
 
-	/**
-	 * @return array<int,string>
-	 */
-	public function extract(IAgentContext $context): array {
-		return [
-			"Hello world, this is a test.",
-			"Second test content block."
-		];
-	}
+        /**
+         * @return AgentContentItem[]
+         */
+        public function extract(IAgentContext $context): array {
+                $items = [];
+
+                $texts = [
+                        "Hello world, this is a test.",
+                        "Second test content block."
+                ];
+
+                foreach ($texts as $text) {
+
+                        $hash = hash('sha256', $text);
+
+                        $items[] = new AgentContentItem(
+                                id: $hash,
+                                hash: $hash,
+                                contentType: 'text/plain',
+                                content: $text,
+                                isBinary: false,
+                                size: strlen($text),
+                                metadata: []
+                        );
+                }
+
+                return $items;
+        }
 }
