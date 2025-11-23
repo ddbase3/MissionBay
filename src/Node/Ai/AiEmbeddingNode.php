@@ -68,7 +68,7 @@ class AiEmbeddingNode extends AbstractAgentNode {
         public function getDockDefinitions(): array {
                 return [
                         new AgentNodeDock(
-                                name: 'contentextractor',
+                                name: 'extractor',
                                 description: 'Extractors producing AgentContentItem.',
                                 interface: IAgentContentExtractor::class,
                                 maxConnections: 99,
@@ -115,12 +115,11 @@ class AiEmbeddingNode extends AbstractAgentNode {
         public function execute(array $inputs, array $resources, IAgentContext $context): array {
                 $this->logger = $resources['logger'][0] ?? null;
 
-                $extractors = $resources['contentextractor'] ?? [];
+                $extractors = $resources['extractor'] ?? [];
+                $parsers    = $resources['parser'] ?? [];
+                $chunkers   = $resources['chunker'] ?? [];
 
-                $parsers = $resources['parser'] ?? [];
                 usort($parsers, fn($a, $b) => $a->getPriority() <=> $b->getPriority());
-
-                $chunkers = $resources['chunker'] ?? [];
                 usort($chunkers, fn($a, $b) => $a->getPriority() <=> $b->getPriority());
 
                 /** @var IAiEmbeddingModel|null $embedder */
@@ -152,6 +151,7 @@ class AiEmbeddingNode extends AbstractAgentNode {
 
                         $hash = $item->hash;
 
+                        // Duplicate detection
                         if ($vectorStore->existsByHash($hash) && $mode === 'skip') {
                                 $this->log("Duplicate skipped: $hash");
                                 $stats['num_skipped_duplicates']++;
@@ -173,7 +173,7 @@ class AiEmbeddingNode extends AbstractAgentNode {
                         $this->stepStore($vectorStore, $chunks, $vectors, $hash, $sourceId);
                 }
 
-		$this->log("Embedding done: " . $stats['num_chunks'] . " Chunks.");
+                $this->log("Embedding done: " . $stats['num_chunks'] . " Chunks.");
 
                 return ['stats' => $stats];
         }
@@ -242,8 +242,7 @@ class AiEmbeddingNode extends AbstractAgentNode {
                         $text = (string)($chunk['text'] ?? '');
 
                         try {
-                                // Single-chunk embedding
-                                $result = $embedder->embed([ $text ]);
+                                $result = $embedder->embed([$text]);
                                 $vectors[$i] = $result[0] ?? [];
 
                                 if (!empty($vectors[$i])) {
@@ -268,17 +267,24 @@ class AiEmbeddingNode extends AbstractAgentNode {
         ): void {
                 foreach ($chunks as $i => $chunk) {
 
-                        $id = $chunk['id'] ?? uniqid('chunk_', true);
+                        $id   = $chunk['id'] ?? uniqid('chunk_', true);
+                        $text = (string)($chunk['text'] ?? '');
 
+                        // flatten payload
                         $meta = [
-                                'hash' => $hash,
-                                'source_id' => $sourceId,
+                                'hash'        => $hash,
+                                'source_id'   => $sourceId,
                                 'chunk_index' => $i,
-                                'metadata' => $chunk['meta'] ?? []
+                                'text'        => $text
                         ];
 
+                        // flatten additional metadata (filename, page, etc.)
+                        foreach (($chunk['meta'] ?? []) as $k => $v) {
+                                $meta[$k] = $v;
+                        }
+
                         try {
-                                $store->upsert($id, $vectors[$i] ?? [], $meta);
+                                $store->upsert($id, $vectors[$i] ?? [], $text, $meta);
                         } catch (\Throwable $e) {
                                 $this->log('Vector store upsert failed: ' . $e->getMessage());
                         }

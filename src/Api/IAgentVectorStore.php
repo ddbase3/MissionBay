@@ -17,7 +17,7 @@ interface IAgentVectorStore {
 	 * @param array<float> $vector
 	 * @param array<string,mixed> $metadata
 	 */
-	public function upsert(string $id, array $vector, array $metadata = []): void;
+	public function upsert(string $id, array $vector, string $text, array $metadata = []): void;
 
 	/**
 	 * Checks whether a given content hash already exists.

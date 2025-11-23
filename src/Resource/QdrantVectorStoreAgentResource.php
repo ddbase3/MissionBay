@@ -10,7 +10,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
  *
  * Unified Qdrant backend providing:
  * - vector upsert
- * - vector similarity search (unchanged from QdrantVectorSearch)
+ * - vector similarity search
  * - duplicate lookup by hash payload
  */
 class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
@@ -59,21 +59,30 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 	 *
 	 * @param string $id
 	 * @param array<float> $vector
+	 * @param string $text
 	 * @param array<string,mixed> $metadata
 	 */
-	public function upsert(string $id, array $vector, array $metadata = []): void {
+	public function upsert(string $id, array $vector, string $text, array $metadata = []): void {
 		if (!$this->endpoint || !$this->collection) {
 			throw new \RuntimeException("QdrantVectorStore: missing endpoint or collection.");
 		}
 
 		$url = "{$this->endpoint}/collections/{$this->collection}/points";
 
+		// Flatten payload (no nested metadata)
+		$payload = array_merge(
+			[
+				'text' => $text
+			],
+			$metadata
+		);
+
 		$body = [
 			"points" => [
 				[
-					"id" => $id,
-					"vector" => $vector,
-					"payload" => $metadata
+					"id"      => $id,
+					"vector"  => $vector,
+					"payload" => $payload
 				]
 			]
 		];
@@ -101,9 +110,6 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 
 	/**
 	 * Checks whether a content hash already exists in the Qdrant payloads.
-	 *
-	 * @param string $hash
-	 * @return bool
 	 */
 	public function existsByHash(string $hash): bool {
 		if (!$this->endpoint || !$this->collection) {
@@ -117,7 +123,9 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 				"must" => [
 					[
 						"key" => "hash",
-						"match" => [ "value" => $hash ]
+						"match" => [
+							"value" => $hash
+						]
 					]
 				]
 			],
@@ -143,6 +151,7 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		curl_close($ch);
 
 		$data = json_decode($response, true);
+
 		if (!isset($data['result']['points'])) {
 			return false;
 		}
@@ -151,10 +160,12 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 	}
 
 	// ---------------------------------------------------------
-	// Search (unchanged from QdrantVectorSearch)
+	// Search
 	// ---------------------------------------------------------
 
 	/**
+	 * Vector similarity search.
+	 *
 	 * @param array<float> $vector
 	 * @param int $limit
 	 * @param float|null $minScore
@@ -166,11 +177,12 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		}
 
 		$url = "{$this->endpoint}/collections/{$this->collection}/points/search";
+
 		$body = [
-			"vector" => $vector,
-			"limit" => $limit,
+			"vector"       => $vector,
+			"limit"        => $limit,
 			"with_payload" => true,
-			"with_vector" => false
+			"with_vector"  => false
 		];
 
 		$ch = curl_init($url);
@@ -186,6 +198,7 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		if ($response === false) {
 			throw new \RuntimeException("QdrantVectorSearch: request failed: " . curl_error($ch));
 		}
+
 		curl_close($ch);
 
 		$data = json_decode($response, true);
@@ -196,7 +209,9 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		$results = [];
 		foreach ($data['result'] as $hit) {
 			$score = $hit['score'] ?? null;
-			if ($minScore !== null && $score < $minScore) continue;
+			if ($minScore !== null && $score < $minScore) {
+				continue;
+			}
 
 			$results[] = [
 				'id'      => $hit['id'] ?? null,
