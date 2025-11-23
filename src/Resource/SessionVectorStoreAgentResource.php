@@ -4,6 +4,15 @@ namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentVectorStore;
 
+/**
+ * SessionVectorStoreAgentResource
+ *
+ * Vector store implementation that persists embeddings
+ * inside the current PHP session. Useful for testing flows
+ * without a real vector database.
+ *
+ * WARNING: Not persistent beyond the session lifetime.
+ */
 class SessionVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
 
 	protected string $sessionKey = 'missionbay_vectorstore';
@@ -16,9 +25,6 @@ class SessionVectorStoreAgentResource extends AbstractAgentResource implements I
 		return 'Stores vectors temporarily inside the PHP session for testing purposes.';
 	}
 
-	/**
-	 * Ensure session storage exists.
-	 */
 	protected function ensureSession(): void {
 		if (session_status() !== PHP_SESSION_ACTIVE) {
 			@session_start();
@@ -28,26 +34,18 @@ class SessionVectorStoreAgentResource extends AbstractAgentResource implements I
 		}
 	}
 
-	/**
-	 * Upsert a vector with flatten payload structure.
-	 */
-	public function upsert(string $id, array $vector, string $text, array $metadata = []): void {
+	public function upsert(string $id, array $vector, string $text, string $hash, array $metadata = []): void {
 		$this->ensureSession();
 
 		$_SESSION[$this->sessionKey][$id] = [
 			'vector'  => $vector,
-			'payload' => array_merge(
-				[
-					'text' => $text
-				],
-				$metadata
-			)
+			'payload' => array_merge([
+				'text' => $text,
+				'hash' => $hash
+			], $metadata)
 		];
 	}
 
-	/**
-	 * Fast duplicate detection by comparing hash.
-	 */
 	public function existsByHash(string $hash): bool {
 		$this->ensureSession();
 
@@ -56,24 +54,17 @@ class SessionVectorStoreAgentResource extends AbstractAgentResource implements I
 				return true;
 			}
 		}
-
 		return false;
 	}
 
-	/**
-	 * Cosine-similarity search over all vectors stored in session.
-	 */
 	public function search(array $vector, int $limit = 3, ?float $minScore = null): array {
 		$this->ensureSession();
 
 		$results = [];
 
 		foreach ($_SESSION[$this->sessionKey] as $id => $item) {
-
 			$score = $this->cosineSimilarity($vector, $item['vector']);
-			if ($minScore !== null && $score < $minScore) {
-				continue;
-			}
+			if ($minScore !== null && $score < $minScore) continue;
 
 			$results[] = [
 				'id'      => $id,
@@ -86,21 +77,17 @@ class SessionVectorStoreAgentResource extends AbstractAgentResource implements I
 		return array_slice($results, 0, $limit);
 	}
 
-	/**
-	 * Pure cosine similarity without external dependencies.
-	 */
 	protected function cosineSimilarity(array $a, array $b): float {
 		if (empty($a) || empty($b) || count($a) !== count($b)) {
 			return 0.0;
 		}
 
-		$dot = 0.0;
+		$dot   = 0.0;
 		$normA = 0.0;
 		$normB = 0.0;
 
-		$len = count($a);
-		for ($i = 0; $i < $len; $i++) {
-			$dot += $a[$i] * $b[$i];
+		for ($i = 0; $i < count($a); $i++) {
+			$dot   += $a[$i] * $b[$i];
 			$normA += $a[$i] * $a[$i];
 			$normB += $b[$i] * $b[$i];
 		}
@@ -111,4 +98,16 @@ class SessionVectorStoreAgentResource extends AbstractAgentResource implements I
 
 		return $dot / (sqrt($normA) * sqrt($normB));
 	}
+
+	public function createCollection(): void {
+		// just reset session store
+		$this->ensureSession();
+		$_SESSION[$this->sessionKey] = [];
+	}
+
+	public function deleteCollection(): void {
+		$this->ensureSession();
+		unset($_SESSION[$this->sessionKey]);
+	}
 }
+
