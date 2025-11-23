@@ -8,8 +8,7 @@ use MissionBay\Dto\AgentParsedContent;
 /**
  * NoChunkerAgentResource
  *
- * Creates exactly one chunk from parsed content.
- * Useful when text is already small or pre-chunked.
+ * Creates exactly one chunk from small plain-text content.
  */
 class NoChunkerAgentResource extends AbstractAgentResource implements IAgentChunker {
 
@@ -18,7 +17,7 @@ class NoChunkerAgentResource extends AbstractAgentResource implements IAgentChun
 	}
 
 	public function getDescription(): string {
-		return 'Creates exactly one chunk from parsed content.';
+		return 'Creates exactly one chunk from parsed plain-text content.';
 	}
 
 	public function getPriority(): int {
@@ -26,14 +25,26 @@ class NoChunkerAgentResource extends AbstractAgentResource implements IAgentChun
 	}
 
 	public function supports(AgentParsedContent $parsed): bool {
-		return strlen($parsed->text) < 2000;
+		if (!is_string($parsed->text)) {
+			return false;
+		}
+
+		$text = trim($parsed->text);
+
+		if ($text === '') {
+			return false;
+		}
+
+		return strlen($text) < 2000;
 	}
 
 	public function chunk(AgentParsedContent $parsed): array {
+		$text = trim($parsed->text ?? '');
+
 		return [
 			[
-				'id' => uniqid('chunk_', true),
-				'text' => $parsed->text,
+				'id'   => uniqid('chunk_', true),
+				'text' => $text,
 				'meta' => $parsed->metadata
 			]
 		];

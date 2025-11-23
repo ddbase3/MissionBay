@@ -6,15 +6,6 @@ use MissionBay\Api\IAgentVectorStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentRagPayloadNormalizer;
 
-/**
- * QdrantVectorStoreAgentResource
- *
- * Unified Qdrant backend providing:
- * - vector upsert
- * - vector similarity search
- * - duplicate lookup by hash payload
- * - collection lifecycle management
- */
 class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
 
 	protected IAgentConfigValueResolver $resolver;
@@ -44,7 +35,7 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 	}
 
 	public static function getName(): string {
-		return strtolower(__CLASS__);
+		return 'qdrantvectorstoreagentresource';
 	}
 
 	public function getDescription(): string {
@@ -65,41 +56,26 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		$this->collection = (string)$this->resolver->resolveValue($this->collectionConfig);
 
 		$size = $this->resolver->resolveValue($this->vectorSizeConfig);
-		if (is_numeric($size)) {
-			$this->vectorSize = (int)$size;
-		}
+		if (is_numeric($size)) $this->vectorSize = (int)$size;
 
 		$dist = $this->resolver->resolveValue($this->distanceConfig);
-		if (is_string($dist) && $dist !== '') {
-			$this->distance = $dist;
-		}
+		if (is_string($dist) && $dist !== '') $this->distance = $dist;
 	}
 
 	// ---------------------------------------------------------
-	// Upsert (Store)
+	// UPSERT - Always UUID
 	// ---------------------------------------------------------
 
-	/**
-	 * @param string $id
-	 * @param array<float> $vector
-	 * @param string $text
-	 * @param string $hash
-	 * @param array<string,mixed> $metadata
-	 */
 	public function upsert(string $id, array $vector, string $text, string $hash, array $metadata = []): void {
-		if (!$this->endpoint || !$this->collection) {
-			throw new \RuntimeException("QdrantVectorStore: missing endpoint or collection.");
-		}
+		$url = "{$this->endpoint}/collections/{$this->collection}/points?wait=true";
 
-		$url = "{$this->endpoint}/collections/{$this->collection}/points";
-
-		// Use normalizer to build flat payload
+		$uuid = $this->generateUuid();
 		$payload = $this->normalizer->normalize($text, $hash, $metadata);
 
 		$body = [
 			"points" => [
 				[
-					"id"      => $id,
+					"id"      => $uuid,
 					"vector"  => $vector,
 					"payload" => $payload
 				]
@@ -112,38 +88,34 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 			"Content-Type: application/json",
 			"api-key: {$this->apikey}"
 		]);
-		curl_setopt($ch, CURLOPT_POST, true);
+		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
 
-		$response = curl_exec($ch);
-		if ($response === false) {
-			throw new \RuntimeException("QdrantVectorStore: upsert failed: " . curl_error($ch));
-		}
+		$r = curl_exec($ch);
+		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$err = curl_error($ch);
 
 		curl_close($ch);
+
+		if ($r === false || $http < 200 || $http >= 300) {
+			throw new \RuntimeException("upsert failed HTTP $http: $err $r");
+		}
 	}
 
 	// ---------------------------------------------------------
-	// Duplicate Detection
+	// EXISTS BY HASH
 	// ---------------------------------------------------------
 
 	public function existsByHash(string $hash): bool {
-		if (!$this->endpoint || !$this->collection) {
-			throw new \RuntimeException("QdrantVectorStore: missing endpoint or collection.");
-		}
-
 		$url = "{$this->endpoint}/collections/{$this->collection}/points/scroll";
 
 		$body = [
 			"filter" => [
 				"must" => [
-					[
-						"key"   => "hash",
-						"match" => ["value" => $hash]
-					]
+					["key" => "hash", "match" => ["value" => $hash]]
 				]
 			],
-			"limit"        => 1,
+			"limit" => 1,
 			"with_payload" => true,
 			"with_vector"  => false
 		];
@@ -157,31 +129,18 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
 
-		$response = curl_exec($ch);
-		if ($response === false) {
-			throw new \RuntimeException("QdrantVectorStore: existsByHash query failed: " . curl_error($ch));
-		}
-
+		$r = curl_exec($ch);
 		curl_close($ch);
 
-		$data = json_decode($response, true);
-
-		if (!isset($data['result']['points'])) {
-			return false;
-		}
-
-		return count($data['result']['points']) > 0;
+		$data = json_decode($r, true);
+		return isset($data['result']['points']) && count($data['result']['points']) > 0;
 	}
 
 	// ---------------------------------------------------------
-	// Search
+	// SEARCH
 	// ---------------------------------------------------------
 
 	public function search(array $vector, int $limit = 3, ?float $minScore = null): array {
-		if (!$this->endpoint || !$this->collection) {
-			throw new \RuntimeException("QdrantVectorStore: endpoint or collection not configured.");
-		}
-
 		$url = "{$this->endpoint}/collections/{$this->collection}/points/search";
 
 		$body = [
@@ -200,44 +159,32 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
 
-		$response = curl_exec($ch);
-		if ($response === false) {
-			throw new \RuntimeException("QdrantVectorStore: request failed: " . curl_error($ch));
-		}
+		$r = curl_exec($ch);
 		curl_close($ch);
 
-		$data = json_decode($response, true);
-		if (!isset($data['result']) || !is_array($data['result'])) {
-			return [];
-		}
+		$data = json_decode($r, true);
+		if (!isset($data['result'])) return [];
 
-		$results = [];
+		$out = [];
 		foreach ($data['result'] as $hit) {
 			$score = $hit['score'] ?? null;
 			if ($minScore !== null && $score < $minScore) continue;
 
-			$results[] = [
+			$out[] = [
 				'id'      => $hit['id'] ?? null,
 				'score'   => $score,
 				'payload' => $hit['payload'] ?? []
 			];
 		}
-
-		return $results;
+		return $out;
 	}
 
 	// ---------------------------------------------------------
-	// Collection lifecycle
+	// CREATE COLLECTION
 	// ---------------------------------------------------------
 
 	public function createCollection(): void {
-		if (!$this->endpoint || !$this->collection) {
-			throw new \RuntimeException("QdrantVectorStore: missing endpoint or collection.");
-		}
-
 		$url = "{$this->endpoint}/collections/{$this->collection}";
-
-		$schema = $this->normalizer->getSchema();
 
 		$body = [
 			"vectors" => [
@@ -246,48 +193,126 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 			]
 		];
 
-		// Optional: attach logical payload schema (Qdrant will ignore unknown keys)
-		if (!empty($schema)) {
-			$body["payload_schema"] = $schema['fields'] ?? $schema;
-		}
-
 		$ch = curl_init($url);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, [
 			"Content-Type: application/json",
 			"api-key: {$this->apikey}"
 		]);
-		curl_setopt($ch, CURLOPT_PUT, true);
+		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
 		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
 
-		$response = curl_exec($ch);
-		if ($response === false) {
-			throw new \RuntimeException("QdrantVectorStore: createCollection failed: " . curl_error($ch));
-		}
+		$r = curl_exec($ch);
+		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$err = curl_error($ch);
 
 		curl_close($ch);
-	}
 
-	public function deleteCollection(): void {
-		if (!$this->endpoint || !$this->collection) {
-			throw new \RuntimeException("QdrantVectorStore: missing endpoint or collection.");
+		if ($r === false || $http < 200 || $http >= 300) {
+			throw new \RuntimeException("createCollection HTTP $http: $err $r");
 		}
 
+		$this->createPayloadIndexes();
+	}
+
+	// ---------------------------------------------------------
+	// DELETE COLLECTION
+	// ---------------------------------------------------------
+
+	public function deleteCollection(): void {
 		$url = "{$this->endpoint}/collections/{$this->collection}";
 
 		$ch = curl_init($url);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
 		curl_setopt($ch, CURLOPT_HTTPHEADER, [
 			"Content-Type: application/json",
 			"api-key: {$this->apikey}"
 		]);
+		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
 
-		$response = curl_exec($ch);
-		if ($response === false) {
-			throw new \RuntimeException("QdrantVectorStore: deleteCollection failed: " . curl_error($ch));
-		}
-
+		$r = curl_exec($ch);
+		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
+
+		if ($r === false || $http < 200 || $http >= 300) {
+			throw new \RuntimeException("deleteCollection HTTP $http: $r");
+		}
+	}
+
+	// ---------------------------------------------------------
+	// PAYLOAD INDEX CREATION
+	// ---------------------------------------------------------
+
+	protected function createPayloadIndexes(): void {
+		$schema = $this->normalizer->getSchema();
+		if (empty($schema)) return;
+
+		foreach ($schema as $field => $def) {
+			$url = "{$this->endpoint}/collections/{$this->collection}/index";
+
+			$body = [
+				"field_name"   => $field,
+				"field_schema" => $def
+			];
+
+			$ch = curl_init($url);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, [
+				"Content-Type: application/json",
+				"api-key: {$this->apikey}"
+			]);
+			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
+			curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+
+			$r = curl_exec($ch);
+			$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			curl_close($ch);
+
+			if ($http < 200 || $http >= 300) {
+				throw new \RuntimeException("createPayloadIndex($field) HTTP $http: $r");
+			}
+		}
+	}
+
+	// ---------------------------------------------------------
+	// GET COLLECTION INFO
+	// ---------------------------------------------------------
+
+	public function getInfo(): array {
+		$url = "{$this->endpoint}/collections/{$this->collection}";
+
+		$ch = curl_init($url);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_HTTPHEADER, [
+			"Content-Type: application/json",
+			"api-key: {$this->apikey}"
+		]);
+		$r = curl_exec($ch);
+		curl_close($ch);
+
+		$data = json_decode($r, true);
+
+		return [
+			'collection'     => $this->collection,
+			'vector_size'    => $this->vectorSize,
+			'distance'       => $this->distance,
+			'payload_schema' => $data['result']['payload_schema'] ?? [],
+			'qdrant_raw'     => $data
+		];
+	}
+
+	// ---------------------------------------------------------
+	// UUID GENERATOR
+	// ---------------------------------------------------------
+
+	protected function generateUuid(): string {
+		return sprintf(
+			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+			mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+			mt_rand(0, 0xffff),
+			mt_rand(0, 0x0fff) | 0x4000,
+			mt_rand(0, 0x3fff) | 0x8000,
+			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+		);
 	}
 }

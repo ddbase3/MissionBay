@@ -6,18 +6,18 @@ use MissionBay\Api\IAgentContentParser;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Dto\AgentParsedContent;
 
-class NoParserAgentResource extends AbstractAgentResource implements IAgentContentParser {
+class StructuredObjectParserAgentResource extends AbstractAgentResource implements IAgentContentParser {
 
 	public static function getName(): string {
-		return 'noparseragentresource';
+		return 'structuredobjectparseragentresource';
 	}
 
 	public function getDescription(): string {
-		return 'Pass-through parser for plain-text items. Does not handle binary content.';
+		return 'Parser for associative arrays or structured CRM/CMS objects.';
 	}
 
 	public function getPriority(): int {
-		return 999;
+		return 100;
 	}
 
 	public function supports(mixed $item): bool {
@@ -25,30 +25,20 @@ class NoParserAgentResource extends AbstractAgentResource implements IAgentConte
 			return false;
 		}
 
-		if ($item->isBinary === true) {
-			return false;
-		}
-
-		if (!is_string($item->content)) {
-			return false;
-		}
-
-		if (trim($item->content) === '') {
-			return false;
-		}
-
-		return true;
+		return is_array($item->content) || is_object($item->content);
 	}
 
 	public function parse(mixed $item): AgentParsedContent {
 		if (!$item instanceof AgentContentItem) {
-			throw new \InvalidArgumentException("NoParser: Expected AgentContentItem.");
+			throw new \InvalidArgumentException(
+				"StructuredObjectParser expects AgentContentItem."
+			);
 		}
 
 		return new AgentParsedContent(
-			text: trim($item->content),
+			text: '',					// no text yet
 			metadata: $item->metadata,
-			structured: null,
+			structured: $item->content,	// raw structured data
 			attachments: []
 		);
 	}

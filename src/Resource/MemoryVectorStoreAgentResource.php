@@ -24,7 +24,9 @@ class MemoryVectorStoreAgentResource extends AbstractAgentResource implements IA
 	}
 
 	public function upsert(string $id, array $vector, string $text, string $hash, array $metadata = []): void {
-		$this->store[$id] = [
+		$uuid = $this->generateUuid();
+
+		$this->store[$uuid] = [
 			'vector'  => $vector,
 			'payload' => array_merge([
 				'text' => $text,
@@ -48,12 +50,40 @@ class MemoryVectorStoreAgentResource extends AbstractAgentResource implements IA
 	}
 
 	public function createCollection(): void {
-		// in-memory; nothing to create
 		$this->store = [];
 	}
 
 	public function deleteCollection(): void {
-		// just clear everything
 		$this->store = [];
+	}
+
+	public function getInfo(): array {
+		$count = count($this->store);
+		$ids = array_keys($this->store);
+
+		return [
+			'type'       => 'memory',
+			'collection' => 'in-memory',
+			'count'      => $count,
+			'ids'        => $ids,
+			'details'    => [
+				'persistent'  => false,
+				'description' => 'Simple volatile memory-based vector store.'
+			]
+		];
+	}
+
+	/**
+	 * Generates UUID v4.
+	 */
+	protected function generateUuid(): string {
+		return sprintf(
+			'%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+			mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+			mt_rand(0, 0xffff),
+			mt_rand(0, 0x0fff) | 0x4000,
+			mt_rand(0, 0x3fff) | 0x8000,
+			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+		);
 	}
 }

@@ -10,12 +10,13 @@ namespace MissionBay\Dto;
  */
 class AgentContentItem {
 
+	/** internal extractor-local ID, never used for vector storage */
         public string $id;
         public string $hash;
         public string $contentType;
 
         /** Raw bytes OR text — always a string */
-        public string $content;
+        public mixed $content;
 
         /** true = binary, false = text */
         public bool $isBinary;
@@ -29,7 +30,7 @@ class AgentContentItem {
                 string $id,
                 string $hash,
                 string $contentType,
-                string $content,
+                mixed $content,
                 bool $isBinary,
                 int $size,
                 array $metadata = []

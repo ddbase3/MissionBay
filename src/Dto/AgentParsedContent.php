@@ -9,32 +9,20 @@ namespace MissionBay\Dto;
  */
 class AgentParsedContent {
 
-	/** General plain text extracted from the source */
-	public string $text;
+	/** Plain text extracted from the source (may be null before chunking) */
+	public ?string $text = null;
 
 	/** Metadata extracted or forwarded by parser */
 	public array $metadata = [];
 
-	/**
-	 * Optional structured representation:
-	 * - Docling document
-	 * - DOM tree (HTML)
-	 * - JSON structure
-	 * - Markdown AST
-	 * - etc.
-	 */
+	/** Optional structured representation (JSON, docling, DOM, etc.) */
 	public mixed $structured = null;
 
-	/**
-	 * Optional attachments:
-	 * - extracted images
-	 * - extracted tables
-	 * - binary assets
-	 */
+	/** Optional attachments (images, tables, binary assets) */
 	public array $attachments = [];
 
 	public function __construct(
-		string $text,
+		?string $text,
 		array $metadata = [],
 		mixed $structured = null,
 		array $attachments = []

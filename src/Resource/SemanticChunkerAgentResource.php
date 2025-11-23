@@ -9,7 +9,7 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 
 	protected int $maxLength = 800;
 	protected int $minLength = 200;
-	protected int $overlap = 50;
+	protected int $overlap   = 50;
 
 	public static function getName(): string {
 		return 'semanticchunkeragentresource';
@@ -23,7 +23,7 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 		parent::setConfig($config);
 		$this->maxLength = $config['max_length'] ?? 800;
 		$this->minLength = $config['min_length'] ?? 200;
-		$this->overlap = $config['overlap'] ?? 50;
+		$this->overlap   = $config['overlap'] ?? 50;
 	}
 
 	public function getPriority(): int {
@@ -31,24 +31,28 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 	}
 
 	public function supports(AgentParsedContent $parsed): bool {
-		return is_string($parsed->text) && strlen($parsed->text) > 0;
+		if (!is_string($parsed->text)) {
+			return false;
+		}
+		return trim($parsed->text) !== '';
 	}
 
 	public function chunk(AgentParsedContent $parsed): array {
-		$text = $parsed->text;
+		$text = trim($parsed->text ?? '');
 		$meta = $parsed->metadata;
 
 		$paragraphs = $this->splitParagraphs($text);
-		$chunks = [];
+		$out = [];
+		$index = 0;
 
 		foreach ($paragraphs as $p) {
-			$chunks = array_merge(
-				$chunks,
-				$this->splitParagraphIntoChunks($p, $meta)
-			);
+			$chunks = $this->splitParagraphIntoChunks($p, $meta);
+			foreach ($chunks as $c) {
+				$out[] = $this->makeChunk($c['text'], $meta, $index++);
+			}
 		}
 
-		return $chunks;
+		return $out;
 	}
 
 	// ---------------------------------------------------------
@@ -74,14 +78,13 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 
 	private function splitParagraphIntoChunks(string $paragraph, array $meta): array {
 		$sentences = $this->splitSentences($paragraph);
-		$chunks = [];
-
+		$out = [];
 		$current = '';
 
 		foreach ($sentences as $sentence) {
 			if (strlen($current) + strlen($sentence) > $this->maxLength) {
 				if ($current !== '') {
-					$chunks[] = $this->makeChunk($current, $meta);
+					$out[] = ['text' => trim($current), 'meta' => $meta];
 				}
 				$current = $sentence;
 				continue;
@@ -91,16 +94,16 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 		}
 
 		if ($current !== '') {
-			$chunks[] = $this->makeChunk($current, $meta);
+			$out[] = ['text' => trim($current), 'meta' => $meta];
 		}
 
-		$chunks = $this->enforceMinSize($chunks, $meta);
+		$out = $this->enforceMinSize($out, $meta);
 
 		if ($this->overlap > 0) {
-			$chunks = $this->applyOverlap($chunks, $meta);
+			$out = $this->applyOverlap($out, $meta);
 		}
 
-		return $chunks;
+		return $out;
 	}
 
 	private function enforceMinSize(array $chunks, array $meta): array {
@@ -118,7 +121,7 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 			}
 
 			if ($buffer !== '') {
-				$out[] = $this->makeChunk(trim($buffer), $meta);
+				$out[] = ['text' => trim($buffer), 'meta' => $meta];
 				$buffer = '';
 			}
 
@@ -126,7 +129,7 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 		}
 
 		if ($buffer !== '') {
-			$out[] = $this->makeChunk(trim($buffer), $meta);
+			$out[] = ['text' => trim($buffer), 'meta' => $meta];
 		}
 
 		return $out;
@@ -141,20 +144,23 @@ class SemanticChunkerAgentResource extends AbstractAgentResource implements IAge
 			if ($i > 0) {
 				$prev = $chunks[$i - 1]['text'];
 				$tail = mb_substr($prev, -$this->overlap);
-				$current = $tail . "\n" . $current;
+				$current = trim($tail . "\n" . $current);
 			}
 
-			$out[] = $this->makeChunk($current, $meta);
+			$out[] = ['text' => $current, 'meta' => $meta];
 		}
 
 		return $out;
 	}
 
-	private function makeChunk(string $text, array $meta): array {
+	private function makeChunk(string $text, array $meta, int $index): array {
+		$cmeta = $meta;
+		$cmeta['chunk_index'] = $index;
+
 		return [
-			'id' => uniqid('chunk_', true),
+			'id'   => uniqid('chunk_', true),
 			'text' => trim($text),
-			'meta' => $meta
+			'meta' => $cmeta
 		];
 	}
 }

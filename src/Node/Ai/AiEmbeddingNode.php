@@ -122,10 +122,7 @@ class AiEmbeddingNode extends AbstractAgentNode {
 		usort($parsers, fn($a, $b) => $a->getPriority() <=> $b->getPriority());
 		usort($chunkers, fn($a, $b) => $a->getPriority() <=> $b->getPriority());
 
-		/** @var IAiEmbeddingModel|null $embedder */
 		$embedder = $resources['embedder'][0] ?? null;
-
-		/** @var IAgentVectorStore|null $vectorStore */
 		$vectorStore = $resources['vectordb'][0] ?? null;
 
 		if (!$embedder || !$vectorStore) {
@@ -144,7 +141,6 @@ class AiEmbeddingNode extends AbstractAgentNode {
 			'num_vectors'            => 0
 		];
 
-		/** @var AgentContentItem[] $rawItems */
 		$rawItems = $this->stepExtract($extractors, $context, $stats);
 
 		foreach ($rawItems as $item) {
@@ -157,18 +153,14 @@ class AiEmbeddingNode extends AbstractAgentNode {
 				continue;
 			}
 
-			// PARSE
 			$parsed = $this->stepParse($parsers, $item, $stats);
 			if (!$parsed) continue;
 
-			// CHUNK
 			$chunks = $this->stepChunk($chunkers, $parsed, $stats);
 			if (!$chunks) continue;
 
-			// EMBED
 			$vectors = $this->stepEmbed($embedder, $chunks, $stats);
 
-			// STORE
 			$this->stepStore($vectorStore, $chunks, $vectors, $hash, $sourceId);
 		}
 
@@ -263,10 +255,11 @@ class AiEmbeddingNode extends AbstractAgentNode {
 		?string $sourceId
 	): void {
 		foreach ($chunks as $i => $chunk) {
-			$id   = $chunk['id'] ?? uniqid('chunk_', true);
+			// ID is ignored by backend → do not generate one here
+			$dummyId = '';
+
 			$text = (string)($chunk['text'] ?? '');
 
-			// Flatten metadata: everything on top-level, no nested "metadata" key.
 			$meta = [
 				'source_id'   => $sourceId,
 				'chunk_index' => $i
@@ -277,7 +270,7 @@ class AiEmbeddingNode extends AbstractAgentNode {
 			}
 
 			try {
-				$store->upsert($id, $vectors[$i] ?? [], $text, $hash, $meta);
+				$store->upsert($dummyId, $vectors[$i] ?? [], $text, $hash, $meta);
 			} catch (\Throwable $e) {
 				$this->log('Vector store upsert failed: ' . $e->getMessage());
 			}
