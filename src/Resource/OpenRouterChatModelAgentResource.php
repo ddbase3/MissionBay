@@ -6,18 +6,16 @@ use AssistantFoundation\Api\IAiChatModel;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
- * GenericChatModelAgentResource
+ * OpenRouterChatModelAgentResource
  *
- * Generic OpenAI-compatible Chat Completion adapter.
+ * Full OpenAI-compatible implementation for OpenRouter.ai.
  * Supports:
- *  - rich message normalization
- *  - non-streaming raw completion
- *  - SSE-style streaming via "data: {...}" chunks
- *  - function/tool calling
- *
- * Suitable for OpenAI, Fireworks, Mistral, Ollama, LM Studio, etc.
+ * - rich messages
+ * - function/tool calling
+ * - non-stream + streaming mode
+ * - all OpenRouter models (Mistral, Qwen, Llama, DeepSeek, Mixtral, etc.)
  */
-class GenericChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+class OpenRouterChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -35,15 +33,15 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	public static function getName(): string {
-		return 'genericchatmodelagentresource';
+		return 'openrouterchatmodelagentresource';
 	}
 
 	public function getDescription(): string {
-		return 'Generic OpenAI-compatible Chat Completion adapter. Supports streaming + tool-calling.';
+		return 'Connects to OpenRouter.ai (OpenAI-compatible API). Supports tools + streaming.';
 	}
 
 	/**
-	 * Load global configuration from Flow JSON.
+	 * Load configuration and resolve dynamic values from config/environment/context.
 	 */
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
@@ -54,13 +52,22 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 		$this->temperatureConfig = $config['temperature'] ?? null;
 		$this->maxtokensConfig   = $config['maxtokens'] ?? null;
 
+		$model     = $this->resolver->resolveValue($this->modelConfig) ?? 'mistralai/mistral-medium';
+		$apikey    = $this->resolver->resolveValue($this->apikeyConfig);
+		$endpoint  = $this->resolver->resolveValue($this->endpointConfig);
+		$temp      = $this->resolver->resolveValue($this->temperatureConfig);
+		$maxtokens = $this->resolver->resolveValue($this->maxtokensConfig);
+
+		if (empty($endpoint)) {
+			$endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+		}
+
 		$this->resolvedOptions = [
-			'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'gpt-4o-mini',
-			'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
-				?? 'https://api.openai.com/v1/chat/completions',
-			'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.7),
-			'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 512),
+			'model'       => $model,
+			'apikey'      => $apikey,
+			'endpoint'    => $endpoint,
+			'temperature' => (float)($temp ?? 0.3),
+			'maxtokens'   => (int)($maxtokens ?? 512)
 		];
 	}
 
@@ -73,22 +80,23 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	/**
-	 * Basic convenience wrapper → return only assistant text.
+	 * -------------------------------------------------------
+	 * BASIC CHAT (non-stream)
+	 * -------------------------------------------------------
 	 */
 	public function chat(array $messages): string {
 		$result = $this->raw($messages);
 
-		if (!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException("Malformed chat response: " . json_encode($result));
-		}
-
-		return $result['choices'][0]['message']['content'];
+		return $result['choices'][0]['message']['content'] ?? '';
 	}
 
 	/**
-	 * Standard non-streaming OpenAI-compatible call.
+	 * -------------------------------------------------------
+	 * RAW NON-STREAM REQUEST
+	 * -------------------------------------------------------
 	 */
 	public function raw(array $messages, array $tools = []): mixed {
+
 		$model     = $this->resolvedOptions['model'];
 		$apikey    = $this->resolvedOptions['apikey'];
 		$endpoint  = $this->resolvedOptions['endpoint'];
@@ -96,7 +104,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 		$maxtokens = $this->resolvedOptions['maxtokens'];
 
 		if (!$apikey) {
-			throw new \RuntimeException("Missing API key for chat model.");
+			throw new \RuntimeException("Missing API key for OpenRouter.");
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -117,7 +125,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: Bearer ' . $apikey
+			'Authorization: ' . 'Bearer ' . $apikey
 		];
 
 		$ch = curl_init($endpoint);
@@ -127,34 +135,36 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
 
 		$result = curl_exec($ch);
-
-		if (curl_errno($ch)) {
-			throw new \RuntimeException('Chat API request failed: ' . curl_error($ch));
-		}
-
-		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$error  = curl_error($ch);
+		$http   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
 
-		if ($httpCode !== 200) {
-			throw new \RuntimeException("Chat API request failed with status $httpCode: $result");
+		if ($error) {
+			throw new \RuntimeException("OpenRouter request failed: " . $error);
+		}
+
+		if ($http !== 200) {
+			throw new \RuntimeException("OpenRouter error HTTP $http: " . $result);
 		}
 
 		$data = json_decode($result, true);
 		if (!is_array($data)) {
-			throw new \RuntimeException("Invalid JSON response from chat model: " . substr($result, 0, 200));
+			throw new \RuntimeException("Invalid JSON response from OpenRouter.");
 		}
 
 		return $data;
 	}
 
 	/**
-	 * Streaming API (OpenAI-compatible SSE / "data: {...}").
+	 * -------------------------------------------------------
+	 * STREAMING (SSE)
+	 * -------------------------------------------------------
 	 */
 	public function stream(
-			array $messages,
-			array $tools,
-			callable $onData,
-			callable $onMeta = null
+		array $messages,
+		array $tools,
+		callable $onData,
+		callable $onMeta = null
 	): void {
 
 		$model     = $this->resolvedOptions['model'];
@@ -164,7 +174,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 		$maxtokens = $this->resolvedOptions['maxtokens'];
 
 		if (!$apikey) {
-			throw new \RuntimeException("Missing API key for chat model.");
+			throw new \RuntimeException("Missing API key for OpenRouter.");
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -182,17 +192,17 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 			$payload['tool_choice'] = 'auto';
 		}
 
-		$jsonPayload = json_encode($payload);
+		$json = json_encode($payload);
 
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: Bearer ' . $apikey
+			'Authorization: ' . 'Bearer ' . $apikey
 		];
 
 		$ch = curl_init($endpoint);
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+		curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
 
@@ -205,46 +215,36 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 
 				foreach ($lines as $line) {
 					$line = trim($line);
-
 					if ($line === '' || !str_starts_with($line, 'data:')) {
 						continue;
 					}
 
-					$data = trim(substr($line, 5));
+					$payload = trim(substr($line, 5));
 
-					if ($data === '[DONE]') {
-						if ($onMeta !== null) {
+					if ($payload === '[DONE]') {
+						if ($onMeta) {
 							$onMeta(['event' => 'done']);
 						}
 						continue;
 					}
 
-					$json = json_decode($data, true);
+					$json = json_decode($payload, true);
 					if (!is_array($json)) {
 						continue;
 					}
 
 					$choice = $json['choices'][0] ?? [];
+					$delta  = $choice['delta']['content'] ?? null;
 
-					// delta text
-					if (isset($choice['delta']['content'])) {
-						$onData($choice['delta']['content']);
+					if ($delta !== null) {
+						$onData($delta);
 					}
 
-					// finish_reason
-					if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+					if ($onMeta && isset($choice['finish_reason'])) {
 						$onMeta([
-							'event'          => 'meta',
-							'finish_reason'  => $choice['finish_reason'],
-							'full'           => $json
-						]);
-					}
-
-					// tool call chunks (if any)
-					if (!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
-						$onMeta([
-							'event'      => 'toolcall',
-							'tool_calls' => $choice['delta']['tool_calls']
+							'event'         => 'meta',
+							'finish_reason' => $choice['finish_reason'],
+							'full'          => $json
 						]);
 					}
 				}
@@ -258,34 +258,27 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	/**
-	 * Normalizes structured rich messages → OpenAI schema.
-	 * Merges system messages and handles tool messages + tool_calls.
+	 * -------------------------------------------------------
+	 * MESSAGE NORMALIZATION
+	 * -------------------------------------------------------
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
-		$systemContents = [];
 
 		foreach ($messages as $m) {
 			if (!is_array($m) || !isset($m['role'])) {
 				continue;
 			}
 
-			$role    = $m['role'];
+			$role = $m['role'];
 			$content = $m['content'] ?? '';
 
-			// Collect system messages
-			if ($role === 'system') {
-				if (is_string($content) && trim($content) !== '') {
-					$systemContents[] = trim($content);
-				}
-				continue;
-			}
-
-			// Tool result message
+			// tool execution feedback
 			if ($role === 'tool') {
 				if (empty($m['tool_call_id'])) {
 					continue;
 				}
+
 				$out[] = [
 					'role'         => 'tool',
 					'tool_call_id' => (string)$m['tool_call_id'],
@@ -294,14 +287,15 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 				continue;
 			}
 
-			// Assistant tool-calling message
-			if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
+			// assistant message INCLUDING tool calls
+			if ($role === 'assistant' && !empty($m['tool_calls'])) {
 				$toolCalls = [];
 
 				foreach ($m['tool_calls'] as $call) {
 					if (!isset($call['id'], $call['function']['name'])) {
 						continue;
 					}
+
 					$args = $call['function']['arguments'] ?? '{}';
 					if (!is_string($args)) {
 						$args = json_encode($args);
@@ -322,10 +316,11 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 					'content'    => is_string($content) ? $content : json_encode($content),
 					'tool_calls' => $toolCalls
 				];
+
 				continue;
 			}
 
-			// Normal assistant/user messages
+			// Standard chat message
 			$out[] = [
 				'role'    => $role,
 				'content' => is_string($content) ? $content : json_encode($content)
@@ -341,14 +336,6 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 					];
 				}
 			}
-		}
-
-		// Merge system messages → prepend
-		if (!empty($systemContents)) {
-			array_unshift($out, [
-				'role'    => 'system',
-				'content' => implode("\n\n", $systemContents)
-			]);
 		}
 
 		return $out;

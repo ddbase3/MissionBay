@@ -13,6 +13,7 @@ use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IAgentMemoryFactory;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Api\IAgentNodeFactory;
+use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
@@ -21,6 +22,7 @@ use MissionBay\Agent\AgentMemoryFactory;
 use MissionBay\Agent\AgentFlowFactory;
 use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Agent\AgentNodeFactory;
+use MissionBay\Agent\AgentRagPayloadNormalizer;
 
 class MissionBayPlugin implements IPlugin, ICheck {
 
@@ -43,15 +45,16 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentMemoryFactory::class, fn($c) => new AgentMemoryFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentNodeFactory::class, fn($c) => new AgentNodeFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
-			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfiguration::class)), IContainer::SHARED)
-			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED);
+			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfiguration::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)
+			->set(IAgentRagPayloadNormalizer::class, fn() => new AgentRagPayloadNormalizer(), IContainer::SHARED | IContainer::NOOVERWRITE);
 	}
 
 	// Implementation of ICheck
 
 	public function checkDependencies() {
 		return array(
-			'assistentfoundationplugin_installed' => $this->container->get('assistentfoundationplugin') ? 'Ok' : 'assistentfoundationplugin not installed'
+			'assistantfoundationplugin_installed' => $this->container->get('assistantfoundationplugin') ? 'Ok' : 'assistantfoundationplugin not installed'
 		);
 	}
 }

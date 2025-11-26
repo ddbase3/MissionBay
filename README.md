@@ -5,10 +5,10 @@ MissionBay is a modular flow engine for the BASE3 Framework, enabling declarativ
 ## Overview
 
 * **Flow Structure**: JSON-based definition of nodes and connections
-* **Node Types**: HTTP, JSON, OpenAI, Delay, Switch, Loop, Context, etc.
+* **Node Types**: HTTP, JSON, OpenAI, Delay, Switch, Loop, Context, RAG, Embedding, etc.
 * **Execution Context**: Shared context with memory and runtime variables
-* **Resources**: Reusable services like logging, configured independently
-* **Docking**: Nodes can "dock" to external resources (e.g. logger)
+* **Resources**: Reusable services like logging, memories, extractors, parsers, chunkers, vector stores, configured independently
+* **Docking**: Nodes can "dock" to external resources (e.g. logger, embedder, vector store)
 * **Per-Node Config**: Nodes and Resources accept structured configuration
 * **Integration**: Fully integrated with the BASE3 Framework (DI, configuration, class map)
 
@@ -177,7 +177,7 @@ In the node implementation:
 
 ```php
 public function setConfig(array $config): void {
-	$this->logLevel = $config['level'] ?? 'debug';
+        $this->logLevel = $config['level'] ?? 'debug';
 }
 ```
 
@@ -204,16 +204,16 @@ New nodes can be created easily using `IAgentNode` or `AbstractAgentNode` with f
 
 ```php
 class UpperCaseNode extends AbstractAgentNode {
-	public static function getName(): string { return 'uppercasenode'; }
-	public function getInputDefinitions(): array {
-		return [new AgentNodePort(name: 'text', type: 'string')];
-	}
-	public function getOutputDefinitions(): array {
-		return [new AgentNodePort(name: 'result', type: 'string')];
-	}
-	public function execute(array $inputs, AgentContext $ctx): array {
-		return ['result' => strtoupper($inputs['text'] ?? '')];
-	}
+        public static function getName(): string { return 'uppercasenode'; }
+        public function getInputDefinitions(): array {
+                return [new AgentNodePort(name: 'text', type: 'string')];
+        }
+        public function getOutputDefinitions(): array {
+                return [new AgentNodePort(name: 'result', type: 'string')];
+        }
+        public function execute(array $inputs, AgentContext $ctx): array {
+                return ['result' => strtoupper($inputs['text'] ?? '')];
+        }
 }
 ```
 
@@ -221,17 +221,17 @@ To support config and docks:
 
 ```php
 public function setConfig(array $config): void {
-	$this->prefix = $config['prefix'] ?? '';
+        $this->prefix = $config['prefix'] ?? '';
 }
 
 public function execute(array $inputs, array $resources, AgentContext $ctx): array {
-	$loggers = $resources['logger'] ?? [];
-	foreach ($loggers as $logger) {
-		if ($logger instanceof ILogger) {
-			$logger->log('node', $this->prefix . $inputs['text']);
-		}
-	}
-	return ['result' => strtoupper($inputs['text'])];
+        $loggers = $resources['logger'] ?? [];
+        foreach ($loggers as $logger) {
+                if ($logger instanceof ILogger) {
+                        $logger->log('node', $this->prefix . $inputs['text']);
+                }
+        }
+        return ['result' => strtoupper($inputs['text'])];
 }
 ```
 
@@ -241,6 +241,41 @@ public function execute(array $inputs, array $resources, AgentContext $ctx): arr
 * `AgentFlow::run(...)` – Executes connected nodes in dependency order
 * Terminal node outputs are collected and returned
 * Resources and node config are injected automatically before execution
+
+---
+
+## 🧠 RAG, Embedding, and Vector Pipelines
+
+MissionBay also supports RAG-style pipelines through dedicated nodes and resources:
+
+* **AiAssistantNode** – sends user prompts to a docked chat model, with memory and tool calls
+* **AiEmbeddingNode** – full embedding pipeline node (extract → parse → chunk → embed → store)
+* **Content Extractor Resources** – fetch raw content from DB, HTTP, files, uploads
+* **Parser Resources** – select the right parser by priority (e.g. Docling, NoParser)
+* **Chunker Resources** – chunk parsed text into embedding-friendly segments
+* **Embedding Resources** – implement `IAiEmbeddingModel` (e.g. OpenAI embeddings)
+* **Vector Store Resources** – implement `IAgentVectorStore` for read/write similarity search
+* **LoggerResource** – used throughout for debug and audit logs
+
+Typical embedding flow:
+
+1. Cron or another trigger executes a flow containing `aiembeddingnode`.
+2. One or more extractors collect raw content items.
+3. Parsers decide which content they support and normalize it into `{ text, meta }`.
+4. Chunkers split the text into chunks with IDs and metadata.
+5. An embedding resource batches texts and returns vectors.
+6. A vector store upserts vectors plus metadata.
+7. Duplicate detection is performed early via a content hash and `existsByHash()` on the vector store.
+
+Example resources used for testing:
+
+* `DummyExtractorAgentResource` – simple static text list
+* `NoParserAgentResource` – pass-through parser for plain text
+* `NoChunkerAgentResource` – single-chunk strategy
+* `MemoryVectorStoreAgentResource` – in-memory vector store (non-persistent)
+* `OpenAiEmbeddingModelAgentResource` – OpenAI embedding API adapter
+
+These resources live under `MissionBay\Resource\...` and all extend `AbstractAgentResource`.
 
 ---
 
@@ -363,27 +398,29 @@ RewriteRule ^mcp$ index.php?name=missionbaymcp&out=json [L,QSA]
 
 ## Available Node Types
 
-| Node                 | Purpose                         |
-| -------------------- | ------------------------------- |
-| HttpGetNode          | Simple GET request              |
-| JsonToArrayNode      | Decode JSON to PHP array        |
-| ArrayGetNode         | Extract nested value by path    |
-| ArraySetNode         | Build associative array         |
-| StaticMessageNode    | Emit a static message           |
-| SimpleOpenAiNode     | Basic OpenAI chat call          |
-| OpenAiResponseNode   | Stateful OpenAI conversation    |
-| SwitchNode           | Branch by value (like switch)   |
-| IfNode               | Simple true/false branching     |
-| ForEachNode          | Loop over a list of items       |
-| LoopNode             | Generic repeat structure        |
-| DelayNode            | Pause for N seconds             |
-| SetContextVarNode    | Save value into context         |
-| GetContextVarNode    | Read value from context         |
-| HttpRequestNode      | Full HTTP client (GET/POST/...) |
-| TestInputNode        | Return static or test value     |
-| LoggerNode           | Write to the BASE3 logger       |
-| GetConfigurationNode | Load BASE3 config values        |
-| SubFlowNode          | Execute a nested sub-flow       |
+| Node                 | Purpose                                                  |
+| -------------------- | -------------------------------------------------------- |
+| HttpGetNode          | Simple GET request                                       |
+| JsonToArrayNode      | Decode JSON to PHP array                                 |
+| ArrayGetNode         | Extract nested value by path                             |
+| ArraySetNode         | Build associative array                                  |
+| StaticMessageNode    | Emit a static message                                    |
+| SimpleOpenAiNode     | Basic OpenAI chat call                                   |
+| OpenAiResponseNode   | Stateful OpenAI conversation                             |
+| AiAssistantNode      | Tool-enabled assistant with memory and logging           |
+| AiEmbeddingNode      | Embedding pipeline (extract, parse, chunk, embed, store) |
+| SwitchNode           | Branch by value (like switch)                            |
+| IfNode               | Simple true/false branching                              |
+| ForEachNode          | Loop over a list of items                                |
+| LoopNode             | Generic repeat structure                                 |
+| DelayNode            | Pause for N seconds                                      |
+| SetContextVarNode    | Save value into context                                  |
+| GetContextVarNode    | Read value from context                                  |
+| HttpRequestNode      | Full HTTP client (GET/POST/...)                          |
+| TestInputNode        | Return static or test value                              |
+| LoggerNode           | Write to the BASE3 logger                                |
+| GetConfigurationNode | Load BASE3 config values                                 |
+| SubFlowNode          | Execute a nested sub-flow                                |
 
 ## 📌 Requirements
 
@@ -397,11 +434,12 @@ RewriteRule ^mcp$ index.php?name=missionbaymcp&out=json [L,QSA]
 * ✔️ JSON-based agent flows fully supported
 * ✔️ Configuration, context, logging, memory integrated
 * ✔️ Resource and docking system fully supported
+* ✔️ RAG and embedding pipelines available
 * ⚧️ Subflows, validation and visual tools in progress
 
 ## 📜 License
 
-LGPL License
+GPL 3.0 License
 
 ## 🤝 Contributing
 
