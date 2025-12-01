@@ -75,7 +75,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	public function loadNodeHistory(string $nodeId): array {
 		$this->ensureInitialized();
 		$h = $this->nodes()[$nodeId] ?? [];
-		$this->log("load history for $nodeId: " . count($h));
+		$this->log("load history for $nodeId: " . count($h) . " [" . session_id() . "]");
 		return $h;
 	}
 

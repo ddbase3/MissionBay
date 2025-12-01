@@ -16,301 +16,322 @@ use MissionBay\Node\AbstractAgentNode;
  * StreamingAiAssistantNode
  *
  * Tool-calling (non-streaming) + final answer via autonomous streaming.
+ * Memory is updated for:
+ * - user messages immediately
+ * - assistant tool-call messages
+ * - tool responses
+ * - final streamed assistant message
  */
 class StreamingAiAssistantNode extends AbstractAgentNode {
 
-    private ?ILogger $logger = null;
-    private IEventStreamFactory $streamFactory;
+	private ?ILogger $logger = null;
+	private IEventStreamFactory $streamFactory;
 
-    public function __construct(IEventStreamFactory $streamFactory, ?string $id = null) {
-        parent::__construct($id);
-        $this->streamFactory = $streamFactory;
-    }
+	public function __construct(IEventStreamFactory $streamFactory, ?string $id = null) {
+		parent::__construct($id);
+		$this->streamFactory = $streamFactory;
+	}
 
-    public static function getName(): string {
-        return 'streamingaiassistantnode';
-    }
+	public static function getName(): string {
+		return 'streamingaiassistantnode';
+	}
 
-    public function getDescription(): string {
-        return 'Assistant node with tool-calling phase and fully autonomous streaming.';
-    }
+	public function getDescription(): string {
+		return 'Assistant node with tool-calling phase and fully autonomous streaming.';
+	}
 
-    public function getInputDefinitions(): array {
-        return [
-            new AgentNodePort(
-                name: 'prompt',
-                description: 'User message.',
-                type: 'string',
-                default: null,
-                required: true
-            ),
-            new AgentNodePort(
-                name: 'system',
-                description: 'Optional system message.',
-                type: 'string',
-                default: 'You are a helpful assistant.',
-                required: false
-            )
-        ];
-    }
+	public function getInputDefinitions(): array {
+		return [
+			new AgentNodePort(
+				name: 'prompt',
+				description: 'User message.',
+				type: 'string',
+				default: null,
+				required: true
+			),
+			new AgentNodePort(
+				name: 'system',
+				description: 'Optional system message.',
+				type: 'string',
+				default: 'You are a helpful assistant.',
+				required: false
+			)
+		];
+	}
 
-    public function getOutputDefinitions(): array {
-        return [
-            new AgentNodePort(
-                name: 'stream_ready',
-                description: 'Indicates that the stream has been opened and is running.',
-                type: 'bool',
-                default: true,
-                required: false
-            ),
-            new AgentNodePort(
-                name: 'error',
-                description: 'Error message, if any.',
-                type: 'string',
-                default: null,
-                required: false
-            )
-        ];
-    }
+	public function getOutputDefinitions(): array {
+		return [
+			new AgentNodePort(
+				name: 'stream_ready',
+				description: 'Indicates that the stream has been opened and is running.',
+				type: 'bool',
+				default: true,
+				required: false
+			),
+			new AgentNodePort(
+				name: 'error',
+				description: 'Error message, if any.',
+				type: 'string',
+				default: null,
+				required: false
+			)
+		];
+	}
 
-    public function getDockDefinitions(): array {
-        return [
-            new AgentNodeDock(
-                name: 'chatmodel',
-                description: 'Chat model implementing IAiChatModel.',
-                interface: IAiChatModel::class,
-                maxConnections: 1,
-                required: true
-            ),
-            new AgentNodeDock(
-                name: 'memory',
-                description: 'Optional memory for chat history.',
-                interface: IAgentMemory::class,
-                maxConnections: 99,
-                required: false
-            ),
-            new AgentNodeDock(
-                name: 'logger',
-                description: 'Optional logger.',
-                interface: ILogger::class,
-                maxConnections: 1,
-                required: false
-            ),
-            new AgentNodeDock(
-                name: 'tools',
-                description: 'Callable tools (function calling).',
-                interface: IAgentTool::class,
-                maxConnections: 99,
-                required: false
-            )
-        ];
-    }
+	public function getDockDefinitions(): array {
+		return [
+			new AgentNodeDock(
+				name: 'chatmodel',
+				description: 'Chat model implementing IAiChatModel.',
+				interface: IAiChatModel::class,
+				maxConnections: 1,
+				required: true
+			),
+			new AgentNodeDock(
+				name: 'memory',
+				description: 'Optional memory for chat history.',
+				interface: IAgentMemory::class,
+				maxConnections: 99,
+				required: false
+			),
+			new AgentNodeDock(
+				name: 'logger',
+				description: 'Optional logger.',
+				interface: ILogger::class,
+				maxConnections: 1,
+				required: false
+			),
+			new AgentNodeDock(
+				name: 'tools',
+				description: 'Callable tools (function calling).',
+				interface: IAgentTool::class,
+				maxConnections: 99,
+				required: false
+			)
+		];
+	}
 
-    public function execute(array $inputs, array $resources, IAgentContext $context): array {
+	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 
-        $model    = $resources['chatmodel'][0] ?? null;
-        $memories = $resources['memory'] ?? [];
-        $tools    = $resources['tools'] ?? [];
+		$model    = $resources['chatmodel'][0] ?? null;
+		$memories = $resources['memory'] ?? [];
+		$tools    = $resources['tools'] ?? [];
 
-        if (isset($resources['logger'][0]) && $resources['logger'][0] instanceof ILogger) {
-            $this->logger = $resources['logger'][0];
-        }
+		if (isset($resources['logger'][0]) && $resources['logger'][0] instanceof ILogger) {
+			$this->logger = $resources['logger'][0];
+		}
 
-        if (!$model) {
-            $err = 'Missing chat model.';
-            $this->logError($err);
-            return ['error' => $this->error($err)];
-        }
+		if (!$model) {
+			$err = 'Missing chat model.';
+			$this->logError($err);
+			return ['error' => $this->error($err)];
+		}
 
-        usort($memories, fn(IAgentMemory $a, IAgentMemory $b) => $a->getPriority() <=> $b->getPriority());
+		usort($memories, fn(IAgentMemory $a, IAgentMemory $b) => $a->getPriority() <=> $b->getPriority());
 
-        $prompt = trim($inputs['prompt'] ?? '');
-        $system = trim($inputs['system'] ?? 'You are a helpful assistant.');
+		$prompt = trim($inputs['prompt'] ?? '');
+		$system = trim($inputs['system'] ?? 'You are a helpful assistant.');
 
-        if ($prompt === '') {
-            $err = 'Prompt is required.';
-            $this->logError($err);
-            return ['error' => $this->error($err)];
-        }
+		if ($prompt === '') {
+			$err = 'Prompt is required.';
+			$this->logError($err);
+			return ['error' => $this->error($err)];
+		}
 
-        // ----------------------------------------------------
-        // BUILD MESSAGE CONTEXT
-        // ----------------------------------------------------
+		// ----------------------------------------------------
+		// BUILD MESSAGE CONTEXT
+		// ----------------------------------------------------
 
-        $messages = [
-            ['role' => 'system', 'content' => $system]
-        ];
+		$messages = [
+			['role' => 'system', 'content' => $system]
+		];
 
-        $nodeId = $this->getId();
+		$nodeId = $this->getId();
 
-        foreach ($memories as $memory) {
-            foreach ($memory->loadNodeHistory($nodeId) as $entry) {
-                if (!isset($entry['role'])) continue;
-                $messages[] = $entry;
-            }
-        }
+		// Load memory history into messages
+		foreach ($memories as $memory) {
+			foreach ($memory->loadNodeHistory($nodeId) as $entry) {
+				if (!isset($entry['role'])) continue;
+				$messages[] = $entry;
+			}
+		}
 
-        $userMessage = [
-            'id'        => uniqid('msg_', true),
-            'role'      => 'user',
-            'content'   => $prompt,
-            'timestamp' => (new \DateTimeImmutable())->format('c'),
-            'feedback'  => null
-        ];
+		// Create user message
+		$userMessage = [
+			'id'        => uniqid('msg_', true),
+			'role'      => 'user',
+			'content'   => $prompt,
+			'timestamp' => (new \DateTimeImmutable())->format('c'),
+			'feedback'  => null
+		];
 
-        $messages[] = $userMessage;
+		$messages[] = $userMessage;
 
-        // ----------------------------------------------------
-        // TOOL DEFINITIONS
-        // ----------------------------------------------------
+		// Immediately store user message in all memories
+		foreach ($memories as $memory) {
+			$memory->appendNodeHistory($nodeId, $userMessage);
+		}
 
-        $toolDefs = [];
-        foreach ($tools as $tool) {
-            foreach ($tool->getToolDefinitions() as $def) {
-                $toolDefs[] = $def;
-            }
-        }
+		// ----------------------------------------------------
+		// TOOL DEFINITIONS
+		// ----------------------------------------------------
 
-        // ----------------------------------------------------
-        // PHASE 1 → TOOL LOOP (non-stream)
-        // ----------------------------------------------------
+		$toolDefs = [];
+		foreach ($tools as $tool) {
+			foreach ($tool->getToolDefinitions() as $def) {
+				$toolDefs[] = $def;
+			}
+		}
 
-        $toolCalls = [];
-        $loopGuard = 0;
-        $maxLoops  = 5;
+		// ----------------------------------------------------
+		// PHASE 1 → TOOL LOOP (non-stream)
+		// ----------------------------------------------------
 
-        while ($loopGuard++ < $maxLoops) {
+		$toolCalls = [];
+		$loopGuard = 0;
+		$maxLoops  = 5;
 
-            $result = $model->raw($messages, $toolDefs);
+		while ($loopGuard++ < $maxLoops) {
 
-            if (!isset($result['choices'][0]['message'])) {
-                $err = 'Malformed model response.';
-                $this->logError($err);
-                return ['error' => $this->error($err)];
-            }
+			$result = $model->raw($messages, $toolDefs);
 
-            $assistant = $result['choices'][0]['message'];
+			if (!isset($result['choices'][0]['message'])) {
+				$err = 'Malformed model response.';
+				$this->logError($err);
+				return ['error' => $this->error($err)];
+			}
 
-            // CASE 1: Assistant wants to call tools
-            if (!empty($assistant['tool_calls'])) {
+			$assistant = $result['choices'][0]['message'];
 
-                // Add assistant tool-call message
-                $messages[] = $assistant;
+			// Save assistant tool message in memory
+			foreach ($memories as $memory) {
+				$memory->appendNodeHistory($nodeId, $assistant);
+			}
 
-                foreach ($assistant['tool_calls'] as $call) {
+			// CASE 1: Assistant wants to call tools
+			if (!empty($assistant['tool_calls'])) {
 
-                    $toolName = $call['function']['name'] ?? '';
-                    $args     = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
+				$messages[] = $assistant;
 
-                    $tool = $this->findTool($tools, $toolName);
+				foreach ($assistant['tool_calls'] as $call) {
 
-                    if ($tool) {
-                        $res = $tool->callTool($toolName, $args, $context);
+					$toolName = $call['function']['name'] ?? '';
+					$args     = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
 
-                        $toolCalls[] = [
-                            'tool'      => $toolName,
-                            'arguments' => $args,
-                            'result'    => $res
-                        ];
+					$tool = $this->findTool($tools, $toolName);
 
-                        // Add tool response message
-                        $messages[] = [
-                            'role'         => 'tool',
-                            'tool_call_id' => $call['id'],
-                            'content'      => json_encode($res)
-                        ];
+					if ($tool) {
+						$res = $tool->callTool($toolName, $args, $context);
 
-                    } else {
-                        $this->log("[WARN] Tool not found: $toolName");
-                    }
-                }
+						$toolCalls[] = [
+							'tool'      => $toolName,
+							'arguments' => $args,
+							'result'    => $res
+						];
 
-                continue; // go next iteration
-            }
+						$toolMsg = [
+							'role'         => 'tool',
+							'tool_call_id' => $call['id'],
+							'content'      => json_encode($res)
+						];
 
-            // CASE 2: Assistant provided a final answer WITHOUT tools
-            // → DO NOT add this assistant message to $messages
-            break; // end tool phase
-        }
+						$messages[] = $toolMsg;
 
-        // ----------------------------------------------------
-        // PHASE 2 → FINAL STREAMING RESPONSE
-        // ----------------------------------------------------
+						// Save tool result message in memory
+						foreach ($memories as $memory) {
+							$memory->appendNodeHistory($nodeId, $toolMsg);
+						}
 
-        $assistantId = uniqid('msg_', true);
+					} else {
+						$this->log("[WARN] Tool not found: $toolName");
+					}
+				}
 
-        $stream = $this->streamFactory->createStream(
-            'streamingaiassistant',
-            uniqid('chat-', true)
-        );
+				continue;
+			}
 
-        $stream->start();
-        $stream->push('msgid', ['id' => $assistantId]);
+			// CASE 2: Final assistant response without tools
+			break;
+		}
 
-        $finalContent = '';
+		// ----------------------------------------------------
+		// PHASE 2 → FINAL STREAMING RESPONSE
+		// ----------------------------------------------------
 
-        $model->stream(
-            $messages,
-            [], // no tools during streaming
-            function (string $delta) use ($stream, &$finalContent) {
-                if ($stream->isDisconnected()) return;
-                $finalContent .= $delta;
-                $stream->push('token', ['text' => $delta]);
-            },
-            function (array $meta) use ($stream) {
-                if ($stream->isDisconnected()) return;
-                $stream->push('meta', $meta);
-            }
-        );
+		$assistantId = uniqid('msg_', true);
 
-        if (!$stream->isDisconnected()) {
-            $stream->push('done', ['status' => 'complete']);
-        }
+		$stream = $this->streamFactory->createStream(
+			'streamingaiassistant',
+			uniqid('chat-', true)
+		);
 
-        // ----------------------------------------------------
-        // SAVE MEMORY AFTER STREAMING
-        // ----------------------------------------------------
+		$stream->start();
+		$stream->push('msgid', ['id' => $assistantId]);
 
-        $assistantMessage = [
-            'id'        => $assistantId,
-            'role'      => 'assistant',
-            'content'   => $finalContent,
-            'timestamp' => (new \DateTimeImmutable())->format('c'),
-            'feedback'  => null
-        ];
+		$finalContent = '';
 
-        foreach ($memories as $memory) {
-            $memory->appendNodeHistory($nodeId, $userMessage);
-            $memory->appendNodeHistory($nodeId, $assistantMessage);
-        }
+		$model->stream(
+			$messages,
+			[],
+			function (string $delta) use ($stream, &$finalContent) {
+				if ($stream->isDisconnected()) return;
+				$finalContent .= $delta;
+				$stream->push('token', ['text' => $delta]);
+			},
+			function (array $meta) use ($stream) {
+				if ($stream->isDisconnected()) return;
+				$stream->push('meta', $meta);
+			}
+		);
 
-        return [
-            'stream_ready' => true
-        ];
-    }
+		if (!$stream->isDisconnected()) {
+			$stream->push('done', ['status' => 'complete']);
+		}
 
-    // ----------------------------------------------------
-    // UTILITIES
-    // ----------------------------------------------------
+		// ----------------------------------------------------
+		// SAVE FINAL ASSISTANT MESSAGE
+		// ----------------------------------------------------
 
-    private function findTool(array $tools, string $name): ?IAgentTool {
-        foreach ($tools as $tool) {
-            foreach ($tool->getToolDefinitions() as $def) {
-                if (($def['function']['name'] ?? '') === $name) {
-                    return $tool;
-                }
-            }
-        }
-        return null;
-    }
+		$assistantMessage = [
+			'id'        => $assistantId,
+			'role'      => 'assistant',
+			'content'   => $finalContent,
+			'timestamp' => (new \DateTimeImmutable())->format('c'),
+			'feedback'  => null
+		];
 
-    private function log(string $msg): void {
-        if ($this->logger) {
-            $this->logger->log(static::getName(), '[' . $this->id . '] ' . $msg);
-        }
-    }
+		foreach ($memories as $memory) {
+			$memory->appendNodeHistory($nodeId, $assistantMessage);
+		}
 
-    private function logError(string $msg): void {
-        $this->log('[ERROR] ' . $msg);
-    }
+		return [
+			'stream_ready' => true
+		];
+	}
+
+	// ----------------------------------------------------
+	// UTILITIES
+	// ----------------------------------------------------
+
+	private function findTool(array $tools, string $name): ?IAgentTool {
+		foreach ($tools as $tool) {
+			foreach ($tool->getToolDefinitions() as $def) {
+				if (($def['function']['name'] ?? '') === $name) {
+					return $tool;
+				}
+			}
+		}
+		return null;
+	}
+
+	private function log(string $msg): void {
+		if ($this->logger) {
+			$this->logger->log(static::getName(), '[' . $this->id . '] ' . $msg);
+		}
+	}
+
+	private function logError(string $msg): void {
+		$this->log('[ERROR] ' . $msg);
+	}
 }
+
