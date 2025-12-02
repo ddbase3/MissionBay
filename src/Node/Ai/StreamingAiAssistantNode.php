@@ -15,12 +15,15 @@ use MissionBay\Node\AbstractAgentNode;
 /**
  * StreamingAiAssistantNode
  *
- * Tool-calling (non-streaming) + final answer via autonomous streaming.
- * Memory is updated for:
+ * Two-phase logic:
+ * Phase 1: Tool-calling (non-stream) — stream is already opened and emits tool events.
+ * Phase 2: Final assistant answer via token streaming (same stream).
+ *
+ * Memory updates:
  * - user messages immediately
  * - assistant tool-call messages
- * - tool responses
- * - final streamed assistant message
+ * - tool results
+ * - final streamed assistant output
  */
 class StreamingAiAssistantNode extends AbstractAgentNode {
 
@@ -37,7 +40,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 	}
 
 	public function getDescription(): string {
-		return 'Assistant node with tool-calling phase and fully autonomous streaming.';
+		return 'Assistant node with early opened stream, tool-calling events and final streaming.';
 	}
 
 	public function getInputDefinitions(): array {
@@ -139,6 +142,22 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		}
 
 		// ----------------------------------------------------
+		// OPEN STREAM IMMEDIATELY (PHASE 1 + PHASE 2)
+		// ----------------------------------------------------
+
+		$assistantId = uniqid('msg_', true);
+
+		$stream = $this->streamFactory->createStream(
+			'streamingaiassistant',
+			uniqid('chat-', true)
+		);
+
+		$stream->start();
+
+		// Let UI know the final message id before any tool events
+		$stream->push('msgid', ['id' => $assistantId]);
+
+		// ----------------------------------------------------
 		// BUILD MESSAGE CONTEXT
 		// ----------------------------------------------------
 
@@ -148,7 +167,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 		$nodeId = $this->getId();
 
-		// Load memory history into messages
+		// Load memory history
 		foreach ($memories as $memory) {
 			foreach ($memory->loadNodeHistory($nodeId) as $entry) {
 				if (!isset($entry['role'])) continue;
@@ -167,7 +186,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 		$messages[] = $userMessage;
 
-		// Immediately store user message in all memories
+		// Store user message immediately
 		foreach ($memories as $memory) {
 			$memory->appendNodeHistory($nodeId, $userMessage);
 		}
@@ -184,10 +203,9 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		}
 
 		// ----------------------------------------------------
-		// PHASE 1 → TOOL LOOP (non-stream)
+		// PHASE 1 — TOOL CALLING (STREAM IS ALREADY OPEN)
 		// ----------------------------------------------------
 
-		$toolCalls = [];
 		$loopGuard = 0;
 		$maxLoops  = 5;
 
@@ -203,12 +221,12 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 			$assistant = $result['choices'][0]['message'];
 
-			// Save assistant tool message in memory
+			// Save assistant tool-call message in memory
 			foreach ($memories as $memory) {
 				$memory->appendNodeHistory($nodeId, $assistant);
 			}
 
-			// CASE 1: Assistant wants to call tools
+			// CASE: assistant wants to call tools
 			if (!empty($assistant['tool_calls'])) {
 
 				$messages[] = $assistant;
@@ -218,16 +236,21 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 					$toolName = $call['function']['name'] ?? '';
 					$args     = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
 
+					// Notify UI: tool started
+					$stream->push('tool.started', [
+						'tool' => $toolName,
+						'args' => $args
+					]);
+
 					$tool = $this->findTool($tools, $toolName);
 
 					if ($tool) {
 						$res = $tool->callTool($toolName, $args, $context);
 
-						$toolCalls[] = [
-							'tool'      => $toolName,
-							'arguments' => $args,
-							'result'    => $res
-						];
+						// Notify UI: tool finished
+						$stream->push('tool.finished', [
+							'tool' => $toolName
+						]);
 
 						$toolMsg = [
 							'role'         => 'tool',
@@ -237,7 +260,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 						$messages[] = $toolMsg;
 
-						// Save tool result message in memory
+						// Store tool result
 						foreach ($memories as $memory) {
 							$memory->appendNodeHistory($nodeId, $toolMsg);
 						}
@@ -250,23 +273,13 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				continue;
 			}
 
-			// CASE 2: Final assistant response without tools
+			// CASE: No more tool calls → final answer phase begins
 			break;
 		}
 
 		// ----------------------------------------------------
-		// PHASE 2 → FINAL STREAMING RESPONSE
+		// PHASE 2 — FINAL STREAMING RESPONSE (same stream)
 		// ----------------------------------------------------
-
-		$assistantId = uniqid('msg_', true);
-
-		$stream = $this->streamFactory->createStream(
-			'streamingaiassistant',
-			uniqid('chat-', true)
-		);
-
-		$stream->start();
-		$stream->push('msgid', ['id' => $assistantId]);
 
 		$finalContent = '';
 
@@ -334,4 +347,3 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		$this->log('[ERROR] ' . $msg);
 	}
 }
-
