@@ -58,6 +58,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	// ------- Dock injection -------
+
 	public function init(array $resources, IAgentContext $context): void {
 		if (!empty($resources['logger'][0]) && $resources['logger'][0] instanceof ILogger) {
 			$this->logger = $resources['logger'][0];
@@ -72,9 +73,11 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	// ------- IAgentMemory -------
+
 	public function loadNodeHistory(string $nodeId): array {
 		$this->ensureInitialized();
-		$h = $this->nodes()[$nodeId] ?? [];
+		$nodes = $this->nodes();
+		$h = $nodes[$nodeId] ?? [];
 		$this->log("load history for $nodeId: " . count($h) . " [" . session_id() . "]");
 		return $h;
 	}
@@ -82,6 +85,10 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	public function appendNodeHistory(string $nodeId, array $message): void {
 		$this->ensureInitialized();
 		$nodes = $this->nodes();
+
+		if (!isset($nodes[$nodeId])) {
+			$nodes[$nodeId] = [];
+		}
 
 		$nodes[$nodeId][] = $message;
 		$this->trimNodeHistory($nodes[$nodeId]);
@@ -122,6 +129,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	// ------- internals -------
+
 	private function ensureStarted(): void {
 		if (!$this->session->started()) {
 			$this->session->start();
@@ -150,7 +158,8 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	private function nodes(): array {
-		return $this->bucket()['nodes'] ?? [];
+		$bucket = $this->bucket();
+		return $bucket['nodes'] ?? [];
 	}
 
 	private function setNodes(array $nodes): void {
@@ -158,10 +167,15 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$bucket['nodes'] = $nodes;
 	}
 
+	/**
+	 * Trim node history to at most $this->max messages.
+	 * Always reindex numerically to keep a clean list.
+	 */
 	private function trimNodeHistory(array &$history): void {
-		if (count($history) > $this->max) {
-			$history = array_slice($history, -$this->max);
+		$count = count($history);
+		if ($count > $this->max) {
+			$history = array_values(array_slice($history, -$this->max));
+			$this->log("trim history (len=$count -> " . count($history) . ", max={$this->max})");
 		}
 	}
 }
-

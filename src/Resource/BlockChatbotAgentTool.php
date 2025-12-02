@@ -28,6 +28,7 @@ class BlockChatbotAgentTool extends AbstractAgentResource implements IAgentTool 
 	public function getToolDefinitions(): array {
 		return [[
 			'type' => 'function',
+			'label' => 'Chatbot Blocking',
 			'function' => [
 				'name' => 'block_chatbot',
 				'description' => 'Blocks the chatbot by setting $_SESSION["chatblocker"] = "block". '

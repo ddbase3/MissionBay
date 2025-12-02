@@ -16,8 +16,8 @@ use MissionBay\Node\AbstractAgentNode;
  * StreamingAiAssistantNode
  *
  * Two-phase logic:
- * Phase 1: Tool-calling (non-stream) — stream is already opened and emits tool events.
- * Phase 2: Final assistant answer via token streaming (same stream).
+ * Phase 1: tool-calling (non-stream) — stream is already opened and emits tool events.
+ * Phase 2: final assistant answer via token streaming (same stream).
  *
  * Memory updates:
  * - user messages immediately
@@ -169,8 +169,10 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 		// Load memory history
 		foreach ($memories as $memory) {
-			foreach ($memory->loadNodeHistory($nodeId) as $entry) {
-				if (!isset($entry['role'])) continue;
+			foreach ($this->safeLoadHistory($memory, $nodeId) as $entry) {
+				if (!isset($entry['role'])) {
+					continue;
+				}
 				$messages[] = $entry;
 			}
 		}
@@ -188,7 +190,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 		// Store user message immediately
 		foreach ($memories as $memory) {
-			$memory->appendNodeHistory($nodeId, $userMessage);
+			$this->safeAppendHistory($memory, $nodeId, $userMessage);
 		}
 
 		// ----------------------------------------------------
@@ -202,8 +204,10 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			}
 		}
 
+		$this->log('Number of Tools: ' . count($toolDefs) . '.');
+
 		// ----------------------------------------------------
-		// PHASE 1 — TOOL CALLING (STREAM IS ALREADY OPEN)
+		// PHASE 1 — TOOL CALLING
 		// ----------------------------------------------------
 
 		$loopGuard = 0;
@@ -221,12 +225,10 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 			$assistant = $result['choices'][0]['message'];
 
-			// Save assistant tool-call message in memory
 			foreach ($memories as $memory) {
-				$memory->appendNodeHistory($nodeId, $assistant);
+				$this->safeAppendHistory($memory, $nodeId, $assistant);
 			}
 
-			// CASE: assistant wants to call tools
 			if (!empty($assistant['tool_calls'])) {
 
 				$messages[] = $assistant;
@@ -236,20 +238,33 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 					$toolName = $call['function']['name'] ?? '';
 					$args     = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
 
-					// Notify UI: tool started
+					// ------------------------------------------------------------------
+					// LABEL EXTRACTION DIRECTLY FROM THE TOOL
+					// ------------------------------------------------------------------
+					$label = $toolName;
+					$toolObj = $this->findTool($tools, $toolName);
+					if ($toolObj) {
+						foreach ($toolObj->getToolDefinitions() as $def) {
+							if (($def['function']['name'] ?? '') === $toolName) {
+								$label = $def['label'] ?? $toolName;
+								break;
+							}
+						}
+					}
+
+					// Notify UI
 					$stream->push('tool.started', [
-						'tool' => $toolName,
-						'args' => $args
+						'tool'  => $toolName,
+						'label' => $label,
+						'args'  => $args
 					]);
 
-					$tool = $this->findTool($tools, $toolName);
+					if ($toolObj) {
+						$res = $toolObj->callTool($toolName, $args, $context);
 
-					if ($tool) {
-						$res = $tool->callTool($toolName, $args, $context);
-
-						// Notify UI: tool finished
 						$stream->push('tool.finished', [
-							'tool' => $toolName
+							'tool'  => $toolName,
+							'label' => $label
 						]);
 
 						$toolMsg = [
@@ -260,9 +275,8 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 						$messages[] = $toolMsg;
 
-						// Store tool result
 						foreach ($memories as $memory) {
-							$memory->appendNodeHistory($nodeId, $toolMsg);
+							$this->safeAppendHistory($memory, $nodeId, $toolMsg);
 						}
 
 					} else {
@@ -273,12 +287,11 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				continue;
 			}
 
-			// CASE: No more tool calls → final answer phase begins
 			break;
 		}
 
 		// ----------------------------------------------------
-		// PHASE 2 — FINAL STREAMING RESPONSE (same stream)
+		// PHASE 2 — FINAL STREAMING RESPONSE
 		// ----------------------------------------------------
 
 		$finalContent = '';
@@ -287,12 +300,16 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			$messages,
 			[],
 			function (string $delta) use ($stream, &$finalContent) {
-				if ($stream->isDisconnected()) return;
+				if ($stream->isDisconnected()) {
+					return;
+				}
 				$finalContent .= $delta;
 				$stream->push('token', ['text' => $delta]);
 			},
 			function (array $meta) use ($stream) {
-				if ($stream->isDisconnected()) return;
+				if ($stream->isDisconnected()) {
+					return;
+				}
 				$stream->push('meta', $meta);
 			}
 		);
@@ -314,7 +331,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		];
 
 		foreach ($memories as $memory) {
-			$memory->appendNodeHistory($nodeId, $assistantMessage);
+			$this->safeAppendHistory($memory, $nodeId, $assistantMessage);
 		}
 
 		return [
@@ -335,6 +352,23 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			}
 		}
 		return null;
+	}
+
+	private function safeLoadHistory(IAgentMemory $memory, string $nodeId): array {
+		try {
+			return $memory->loadNodeHistory($nodeId) ?? [];
+		} catch (\Throwable $e) {
+			$this->logError('Memory loadNodeHistory failed: ' . $e->getMessage());
+			return [];
+		}
+	}
+
+	private function safeAppendHistory(IAgentMemory $memory, string $nodeId, array $message): void {
+		try {
+			$memory->appendNodeHistory($nodeId, $message);
+		} catch (\Throwable $e) {
+			$this->logError('Memory appendNodeHistory failed: ' . $e->getMessage());
+		}
 	}
 
 	private function log(string $msg): void {
