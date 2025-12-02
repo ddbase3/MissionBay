@@ -154,6 +154,10 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 		$stream->start();
 
+		// Put stream into context so tools can push UI events directly (canvas.open/render/close/etc.)
+		// Key is intentionally simple/internal: "eventstream"
+		$context->setVar('eventstream', $stream);
+
 		// Let UI know the final message id before any tool events
 		$stream->push('msgid', ['id' => $assistantId]);
 
