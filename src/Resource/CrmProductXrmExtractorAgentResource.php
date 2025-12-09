@@ -66,6 +66,14 @@ class CrmProductXrmExtractorAgentResource extends AbstractAgentResource implemen
 		$items = [];
 
 		foreach ($entries as $entry) {
+
+			// tidy up
+			unset($entry['data']['price']);
+			unset($entry['data']['weight']);
+
+			// debug
+			// echo json_encode($entry, JSON_PRETTY_PRINT);exit;
+
 			$raw = [
 				'id'   => $entry['id'] ?? null,
 				'name' => $entry['name'] ?? '',
@@ -85,6 +93,7 @@ class CrmProductXrmExtractorAgentResource extends AbstractAgentResource implemen
 				metadata: [
 					'source_id' => 'crm-product',
 					'content_id' => $entry['id'] ?? null,
+					'content_uuid' => $entry['uuid'] ?? null,
 					'name' => $entry['name'] ?? '',
 				]
 			);

@@ -17,6 +17,7 @@ class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 	public function normalize(string $text, string $hash, array $metadata = []): array {
 		$sourceId      = $metadata['source_id'] ?? null;
 		$contentId     = $metadata['content_id'] ?? null;
+		$contentUuid   = $metadata['content_uuid'] ?? null;
 		$chunkIndex    = $metadata['chunk_index'] ?? 0;
 		$filename      = $metadata['filename'] ?? null;
 		$url           = $metadata['url'] ?? null;
@@ -38,7 +39,7 @@ class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			?? ($chunkIndex !== null ? "{$hash}-{$chunkIndex}" : $hash);
 
 		$known = [
-			'text','hash','source_id','content_id','chunk_index','filename','url',
+			'text','hash','source_id','source_uuid','content_id','chunk_index','filename','url',
 			'allowed_user_ids','allowed_group_ids','path','section','parent_id',
 			'doctype','lang','created_at','updated_at','chunktoken','name'
 		];
@@ -50,6 +51,7 @@ class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			'hash'              => $hash,
 			'source_id'         => $sourceId,
 			'content_id'        => $contentId,
+			'content_uuid'      => $contentUuid,
 			'chunktoken'        => $chunktoken,
 			'chunk_index'       => $chunkIndex,
 			'filename'          => $filename,
@@ -77,6 +79,7 @@ class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			'hash'              => [ 'type' => 'keyword' ],
 			'source_id'         => [ 'type' => 'keyword' ],
 			'content_id'        => [ 'type' => 'keyword' ],
+			'content_uuid'      => [ 'type' => 'keyword' ],
 			'chunktoken'        => [ 'type' => 'keyword' ],
 			'chunk_index'       => [ 'type' => 'integer' ],
 			'filename'          => [ 'type' => 'keyword' ],
