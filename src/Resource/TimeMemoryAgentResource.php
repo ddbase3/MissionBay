@@ -41,6 +41,7 @@ class TimeMemoryAgentResource extends AbstractAgentResource implements IAgentMem
 		return [[
 			'role' => 'system',
 			'content' => 'Current time is ' . $now->format(\DateTimeInterface::ATOM)
+				. ' (weekday: ' . $now->format('l') . ')'
 		]];
 	}
 
