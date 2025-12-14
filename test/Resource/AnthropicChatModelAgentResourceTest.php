@@ -3,80 +3,257 @@
 namespace MissionBay\Resource;
 
 /**
- * Namespaced cURL function overrides to fully unit test without real HTTP calls.
- * PHP resolves curl_* inside MissionBay\Resource\* to these functions first.
+ * Global namespaced cURL function overrides for ALL MissionBay\Resource tests.
+ * Guarded to avoid redeclare errors when multiple test files are loaded.
  */
-final class FakeCurlState {
+if (!class_exists(__NAMESPACE__ . '\\CurlStub')) {
+	final class CurlStub {
 
-	public static int $errno = 0;
-	public static string $error = '';
-	public static int $httpCode = 200;
-	public static mixed $execResult = null;
+		public static int $errno = 0;
+		public static string $error = '';
+		public static int $httpCode = 200;
 
-	/** @var string[] */
-	public static array $streamChunks = [];
+		public static mixed $execResult = null;
 
-	private static array $options = [];
+		/** @var string[] */
+		public static array $streamChunks = [];
 
-	public static function reset(): void {
-		self::$errno = 0;
-		self::$error = '';
-		self::$httpCode = 200;
-		self::$execResult = null;
-		self::$streamChunks = [];
-		self::$options = [];
-	}
+		/** @var array<int,mixed> */
+		private static array $options = [];
 
-	public static function setOpt(int $opt, mixed $value): void {
-		self::$options[$opt] = $value;
-	}
+		/** @var array<int,array{endpoint:string,options:array<int,mixed>}> */
+		private static array $handles = [];
 
-	public static function getOpt(int $opt): mixed {
-		return self::$options[$opt] ?? null;
-	}
-}
+		private static int $nextHandle = 1;
 
-function curl_init($url) {
-	return (object)['endpoint' => $url];
-}
+		/** @var array<int,array{http:int,response:mixed,errno:int,error:string}> */
+		private static array $queue = [];
 
-function curl_setopt($ch, $option, $value) {
-	FakeCurlState::setOpt((int)$option, $value);
-	return true;
-}
+		/** @var array<string,mixed> */
+		public static array $lastRequest = [];
 
-function curl_exec($ch) {
-	$writeFn = FakeCurlState::getOpt(CURLOPT_WRITEFUNCTION);
-
-	if (is_callable($writeFn)) {
-		foreach (FakeCurlState::$streamChunks as $chunk) {
-			$writeFn($ch, $chunk);
+		public static function reset(): void {
+			self::$errno = 0;
+			self::$error = '';
+			self::$httpCode = 200;
+			self::$execResult = null;
+			self::$streamChunks = [];
+			self::$options = [];
+			self::$handles = [];
+			self::$nextHandle = 1;
+			self::$queue = [];
+			self::$lastRequest = [];
 		}
+
+		public static function setOpt(int $opt, mixed $value): void {
+			self::$options[$opt] = $value;
+		}
+
+		public static function getOpt(int $opt): mixed {
+			return self::$options[$opt] ?? null;
+		}
+
+		public static function queueResponse(int $http, mixed $response, int $errno = 0, string $error = ''): void {
+			self::$queue[] = [
+				'http' => $http,
+				'response' => $response,
+				'errno' => $errno,
+				'error' => $error,
+			];
+		}
+
+		public static function consumeResponse(): array {
+			if (!empty(self::$queue)) {
+				return array_shift(self::$queue);
+			}
+			return [
+				'http' => self::$httpCode,
+				'response' => self::$execResult,
+				'errno' => self::$errno,
+				'error' => self::$error,
+			];
+		}
+
+		public static function registerHandle(string $endpoint): object {
+			$id = self::$nextHandle++;
+			$h = (object)['__curl_id' => $id, 'endpoint' => $endpoint];
+			self::$handles[$id] = ['endpoint' => $endpoint, 'options' => []];
+			return $h;
+		}
+
+		public static function setHandleOpt(object $ch, int $opt, mixed $value): void {
+			$id = (int)($ch->__curl_id ?? 0);
+			if ($id > 0 && isset(self::$handles[$id])) {
+				self::$handles[$id]['options'][$opt] = $value;
+			}
+			self::setOpt($opt, $value);
+		}
+
+		public static function getHandleOptions(object $ch): array {
+			$id = (int)($ch->__curl_id ?? 0);
+			return ($id > 0 && isset(self::$handles[$id])) ? self::$handles[$id]['options'] : [];
+		}
+
+		public static function inferMethod(array $opts): string {
+			$custom = $opts[CURLOPT_CUSTOMREQUEST] ?? null;
+			if (is_string($custom) && $custom !== '') {
+				return strtoupper($custom);
+			}
+			$post = $opts[CURLOPT_POST] ?? null;
+			if ($post) return 'POST';
+			return 'GET';
+		}
+
+		public static function rememberLastRequest(object $ch, array $opts, int $http, int $errno, string $error): void {
+			self::$lastRequest = [
+				'url' => (string)($ch->endpoint ?? ''),
+				'method' => self::inferMethod($opts),
+				'headers' => $opts[CURLOPT_HTTPHEADER] ?? [],
+				'body' => $opts[CURLOPT_POSTFIELDS] ?? null,
+				'options' => $opts,
+				'http' => $http,
+				'errno' => $errno,
+				'error' => $error,
+			];
+		}
+	}
+}
+
+/**
+ * Backward-compatible wrapper for existing Anthropic tests.
+ * Explicit static forwarding – NO magic methods.
+ */
+if (!class_exists(__NAMESPACE__ . '\\FakeCurlState')) {
+	final class FakeCurlState {
+
+		public static int $errno = 0;
+		public static string $error = '';
+		public static int $httpCode = 200;
+		public static mixed $execResult = null;
+
+		/** @var string[] */
+		public static array $streamChunks = [];
+
+		public static function reset(): void {
+			CurlStub::reset();
+
+			// keep mirror vars in sync for legacy direct property writes
+			self::$errno = CurlStub::$errno;
+			self::$error = CurlStub::$error;
+			self::$httpCode = CurlStub::$httpCode;
+			self::$execResult = CurlStub::$execResult;
+			self::$streamChunks = CurlStub::$streamChunks;
+		}
+
+		/**
+		 * Legacy tests might write FakeCurlState::$execResult etc.
+		 * We sync those values into CurlStub right before a request via curl_exec().
+		 */
+		public static function syncToStub(): void {
+			CurlStub::$errno = self::$errno;
+			CurlStub::$error = self::$error;
+			CurlStub::$httpCode = self::$httpCode;
+			CurlStub::$execResult = self::$execResult;
+			CurlStub::$streamChunks = self::$streamChunks;
+		}
+
+		public static function setOpt(int $opt, mixed $value): void {
+			CurlStub::setOpt($opt, $value);
+		}
+
+		public static function getOpt(int $opt): mixed {
+			return CurlStub::getOpt($opt);
+		}
+
+		public static function queueResponse(int $http, mixed $response, int $errno = 0, string $error = ''): void {
+			CurlStub::queueResponse($http, $response, $errno, $error);
+		}
+	}
+}
+
+// ---- Guarded function overrides (avoid "Cannot redeclare") ----
+
+if (!function_exists(__NAMESPACE__ . '\\curl_init')) {
+	function curl_init($url) {
+		return CurlStub::registerHandle((string)$url);
+	}
+}
+
+if (!function_exists(__NAMESPACE__ . '\\curl_setopt')) {
+	function curl_setopt($ch, $option, $value) {
+		CurlStub::setHandleOpt($ch, (int)$option, $value);
 		return true;
 	}
-
-	return FakeCurlState::$execResult;
 }
 
-function curl_errno($ch) {
-	return FakeCurlState::$errno;
-}
+if (!function_exists(__NAMESPACE__ . '\\curl_exec')) {
+	function curl_exec($ch) {
+		// sync legacy FakeCurlState -> CurlStub for tests that write FakeCurlState::$...
+		if (class_exists(__NAMESPACE__ . '\\FakeCurlState')) {
+			/** @var class-string $cls */
+			$cls = __NAMESPACE__ . '\\FakeCurlState';
+			if (method_exists($cls, 'syncToStub')) {
+				$cls::syncToStub();
+			}
+		}
 
-function curl_error($ch) {
-	return FakeCurlState::$error;
-}
+		$opts = CurlStub::getHandleOptions($ch);
+		$writeFn = $opts[CURLOPT_WRITEFUNCTION] ?? CurlStub::getOpt(CURLOPT_WRITEFUNCTION);
 
-function curl_getinfo($ch, $opt) {
-	if ($opt === CURLINFO_HTTP_CODE) {
-		return FakeCurlState::$httpCode;
+		$resp = CurlStub::consumeResponse();
+
+		// store for curl_getinfo / curl_errno / curl_error and assertions
+		CurlStub::$httpCode = (int)$resp['http'];
+		CurlStub::$errno = (int)$resp['errno'];
+		CurlStub::$error = (string)$resp['error'];
+
+		CurlStub::rememberLastRequest($ch, $opts, CurlStub::$httpCode, CurlStub::$errno, CurlStub::$error);
+
+		// Streaming path: simulate SSE by feeding chunks into WRITEFUNCTION
+		if (is_callable($writeFn)) {
+			foreach (CurlStub::$streamChunks as $chunk) {
+				$writeFn($ch, $chunk);
+			}
+			if (CurlStub::$errno !== 0) {
+				return false;
+			}
+			return true;
+		}
+
+		// Non-streaming: return response, or false on error
+		if (CurlStub::$errno !== 0) {
+			return false;
+		}
+		return $resp['response'];
 	}
-	return null;
 }
 
-function curl_close($ch) {
-	return;
+if (!function_exists(__NAMESPACE__ . '\\curl_errno')) {
+	function curl_errno($ch) {
+		return CurlStub::$errno;
+	}
 }
 
+if (!function_exists(__NAMESPACE__ . '\\curl_error')) {
+	function curl_error($ch) {
+		return CurlStub::$error;
+	}
+}
+
+if (!function_exists(__NAMESPACE__ . '\\curl_getinfo')) {
+	function curl_getinfo($ch, $opt) {
+		if ($opt === CURLINFO_HTTP_CODE) {
+			return CurlStub::$httpCode;
+		}
+		return null;
+	}
+}
+
+if (!function_exists(__NAMESPACE__ . '\\curl_close')) {
+	function curl_close($ch) {
+		return;
+	}
+}
 
 namespace MissionBay\Resource\Test;
 
