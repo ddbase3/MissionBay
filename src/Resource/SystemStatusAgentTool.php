@@ -32,6 +32,9 @@ class SystemStatusAgentTool extends AbstractAgentResource implements IAgentTool 
 		return [[
 			'type' => 'function',
 			'label' => 'System Status',
+			'category' => 'system',
+			'tags' => ['system', 'status', 'health', 'diagnostics'],
+			'priority' => 50,
 			'function' => [
 				'name' => 'system_status',
 				'description' => 'Returns safe diagnostic information about the server.',

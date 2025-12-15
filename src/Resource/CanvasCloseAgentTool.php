@@ -25,6 +25,9 @@ class CanvasCloseAgentTool extends AbstractAgentResource implements IAgentTool {
 		return [[
 			'type' => 'function',
 			'label' => 'Canvas Close',
+			'category' => 'canvas',
+			'tags' => ['canvas', 'close', 'ui'],
+			'priority' => 50,
 			'function' => [
 				'name' => 'close_canvas',
 				'description' => 'Closes the chatbot canvas panel (optionally a specific canvas id).',

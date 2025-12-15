@@ -32,6 +32,9 @@ class CurrencyConvertAgentTool extends AbstractAgentResource implements IAgentTo
 		return [[
 			'type' => 'function',
 			'label' => 'Currency Conversion',
+			'category' => 'lookup',
+			'tags' => ['currency', 'convert', 'exchange_rate', 'forex'],
+			'priority' => 50,
 			'function' => [
 				'name' => 'currency_convert',
 				'description' => 'Converts an amount from one currency into another.',

@@ -49,6 +49,9 @@ class TelegramAgentTool extends AbstractAgentResource implements IAgentTool {
 		return [[
 			'type' => 'function',
 			'label' => 'Telegram Message Sending',
+			'category' => 'communication',
+			'tags' => ['telegram', 'message', 'notify', 'escalation'],
+			'priority' => 50,
 			'function' => [
 				'name' => 'send_telegram_message',
 				'description' => 'Sends a message to a predefined Telegram account using a configured bot.',

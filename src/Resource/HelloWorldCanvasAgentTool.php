@@ -19,6 +19,9 @@ class HelloWorldCanvasAgentTool extends AbstractAgentResource implements IAgentT
 		return [[
 			'type' => 'function',
 			'label' => 'Hello World Canvas',
+			'category' => 'demo',
+			'tags' => ['demo', 'canvas', 'ui'],
+			'priority' => 50,
 			'function' => [
 				'name' => 'hello_world_canvas',
 				'description' => 'Opens the chatbot canvas and renders a hello-world demo (two HTML blocks).',

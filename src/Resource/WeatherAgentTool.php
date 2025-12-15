@@ -36,6 +36,9 @@ class WeatherAgentTool extends AbstractAgentResource implements IAgentTool {
 		return [[
 			'type' => 'function',
 			'label' => 'Weather Information Lookup',
+			'category' => 'lookup',
+			'tags' => ['weather', 'forecast', 'location', 'open_meteo'],
+			'priority' => 50,
 			'function' => [
 				'name' => 'get_weather',
 				'description' => 'Returns current or forecast weather for a given location.',

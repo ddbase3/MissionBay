@@ -70,6 +70,9 @@ class RagSearchAgentTool extends AbstractAgentResource implements IAgentTool {
 		return [[
 			'type' => 'function',
 			'label' => 'Knowledge Base Lookup',
+			'category' => 'knowledge',
+			'tags' => ['rag', 'search', 'docs', 'schema'],
+			'priority' => 50,
 			'function' => [
 				'name' => 'rag_search',
 				'description' => 'Searches the vector database for documents relevant to a query.',
