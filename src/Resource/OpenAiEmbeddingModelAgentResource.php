@@ -29,7 +29,7 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 	}
 
 	public static function getName(): string {
-		return 'openaiembeddingresource';
+		return 'openaiembeddingmodelagentresource';
 	}
 
 	public function getDescription(): string {
