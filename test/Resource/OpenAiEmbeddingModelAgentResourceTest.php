@@ -30,7 +30,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 	}
 
 	public function testGetName(): void {
-		$this->assertSame('openaiembeddingresource', OpenAiEmbeddingModelAgentResource::getName());
+		$this->assertSame('openaiembeddingmodelagentresource', OpenAiEmbeddingModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaults(): void {
