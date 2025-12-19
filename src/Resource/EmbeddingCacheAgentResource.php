@@ -16,11 +16,12 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	private ?IAiEmbeddingModel $embedding = null;
 	private ?ILogger $logger = null;
 
+	private array|string|null $tableConfig = null;
+
 	private string $table = 'mb_embedding_cache';
 	private bool $tableReady = false;
 
-	private ?string $modelOverride = null;
-	private ?int $dimensionOverride = null;
+	private array $resolvedOptions = [];
 
 	public function __construct(IDatabase $db, IAgentConfigValueResolver $resolver, ?string $id = null) {
 		parent::__construct($id);
@@ -39,17 +40,16 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		if (isset($config['table'])) {
-			$v = $this->resolver->resolveValue($config['table']);
-			if (is_string($v) && $v !== '') $this->table = $v;
+		$this->tableConfig = $config['table'] ?? null;
+
+		$table = $this->resolver->resolveValue($this->tableConfig);
+		if (is_string($table) && $table !== '') {
+			$this->table = $table;
 		}
-		if (isset($config['model'])) {
-			$v = $this->resolver->resolveValue($config['model']);
-			if (is_string($v) && $v !== '') $this->modelOverride = $v;
-		}
-		if (isset($config['dimension'])) {
-			$v = $this->resolver->resolveValue($config['dimension']);
-			if (is_int($v) && $v > 0) $this->dimensionOverride = $v;
+
+		// Optional: allow passing IAiEmbeddingModel options via config
+		if (isset($config['options']) && is_array($config['options'])) {
+			$this->setOptions($config['options']);
 		}
 	}
 
@@ -61,8 +61,12 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 			$this->logger = $resources['logger'][0];
 		}
 
-		$this->log('Initialized');
+		$this->log('Initialized (table=' . $this->table . ')');
 	}
+
+	// ---------------------------------------------------------
+	// IAiEmbeddingModel
+	// ---------------------------------------------------------
 
 	public function embed(array $texts): array {
 		if (empty($texts)) return [];
@@ -70,12 +74,17 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 			throw new \RuntimeException('EmbeddingCacheAgentResource: Missing dock "embedding".');
 		}
 
+		// Forward cache-level options to the real embedder
+		if (!empty($this->resolvedOptions)) {
+			$this->embedding->setOptions($this->resolvedOptions);
+		}
+
 		$this->ensureTable();
 
-		$model = $this->getModelName();
-		$dimension = $this->getDimension();
+		$model = $this->getEffectiveModelName();
+		$salt = $this->getEffectiveSalt();
 
-		$hashes = $this->buildHashes($texts, $model);
+		$hashes = $this->buildHashes($texts, $model, $salt);
 
 		$cached = $this->loadCachedVectors($hashes, $model);
 
@@ -90,7 +99,7 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 			}
 
 			$missingIndexMap[] = $i;
-			$missingTexts[] = $texts[$i];
+			$missingTexts[] = (string)$texts[$i];
 		}
 
 		if (!empty($missingTexts)) {
@@ -102,11 +111,12 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 				$vector = $embedded[$k] ?? [];
 				$result[$originalIndex] = $vector;
 
-				$hash = $hashes[$originalIndex];
+				if (empty($vector)) continue;
 
-				if (!empty($vector)) {
-					$this->storeVector($hash, $model, $dimension, $vector);
-				}
+				$hash = $hashes[$originalIndex];
+				$dim = count($vector);
+
+				$this->storeVector($hash, $model, $dim, $vector);
 			}
 		} else {
 			$this->log('Cache hit: ' . count($texts) . ' / ' . count($texts));
@@ -115,6 +125,29 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 		$this->touchRows($hashes, $model);
 
 		return $result;
+	}
+
+	public function setOptions(array $options): void {
+		// Merge and keep options at cache-level
+		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
+
+		// Forward immediately if embedder is already available
+		if ($this->embedding) {
+			$this->embedding->setOptions($options);
+		}
+	}
+
+	public function getOptions(): array {
+		// Expose combined options for introspection/debugging
+		$base = [];
+
+		if ($this->embedding) {
+			$base = $this->embedding->getOptions();
+		}
+
+		return array_merge($base, $this->resolvedOptions, [
+			'table' => $this->table
+		]);
 	}
 
 	// ---------------------------------------------------------
@@ -147,12 +180,12 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 		$this->log('Cache table ready: ' . $this->table);
 	}
 
-	private function buildHashes(array $texts, string $model): array {
+	private function buildHashes(array $texts, string $model, string $salt): array {
 		$out = [];
 
 		foreach ($texts as $t) {
 			$norm = $this->normalizeText((string)$t);
-			$out[] = hash('sha256', $model . "\n" . $norm);
+			$out[] = hash('sha256', $model . "\n" . $salt . "\n" . $norm);
 		}
 
 		return $out;
@@ -183,8 +216,8 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 		foreach ($rows as $r) {
 			$hash = (string)($r['hash'] ?? '');
 			$json = (string)($r['vector_json'] ?? '');
-			$vec = json_decode($json, true);
 
+			$vec = json_decode($json, true);
 			if ($hash !== '' && is_array($vec)) {
 				$out[$hash] = $vec;
 			}
@@ -244,27 +277,41 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	}
 
 	private function escapeIdent(string $name): string {
+		// Basic identifier escaping for MySQL: allow only [a-zA-Z0-9_]
 		$clean = preg_replace('/[^a-zA-Z0-9_]/', '', $name) ?? '';
 		if ($clean === '') $clean = 'mb_embedding_cache';
 		return '`' . $clean . '`';
 	}
 
-	private function getModelName(): string {
-		if ($this->modelOverride) return $this->modelOverride;
+	private function getEffectiveModelName(): string {
+		// Prefer explicit options on cache
+		if (isset($this->resolvedOptions['model']) && is_string($this->resolvedOptions['model']) && $this->resolvedOptions['model'] !== '') {
+			return $this->resolvedOptions['model'];
+		}
 
-		if (method_exists($this->embedding, 'getOptions')) {
-			$opts = $this->embedding->getOptions();
-			if (isset($opts['model']) && is_string($opts['model']) && $opts['model'] !== '') {
-				return $opts['model'];
-			}
+		// Otherwise use embedder options
+		$opts = $this->embedding ? $this->embedding->getOptions() : [];
+		if (isset($opts['model']) && is_string($opts['model']) && $opts['model'] !== '') {
+			return $opts['model'];
 		}
 
 		return 'unknown';
 	}
 
-	private function getDimension(): int {
-		if ($this->dimensionOverride) return $this->dimensionOverride;
-		return 0;
+	private function getEffectiveSalt(): string {
+		// Optional: add endpoint/provider to avoid collisions across vendors
+		$endpoint = null;
+
+		if (isset($this->resolvedOptions['endpoint']) && is_string($this->resolvedOptions['endpoint']) && $this->resolvedOptions['endpoint'] !== '') {
+			$endpoint = $this->resolvedOptions['endpoint'];
+		} else {
+			$opts = $this->embedding ? $this->embedding->getOptions() : [];
+			if (isset($opts['endpoint']) && is_string($opts['endpoint']) && $opts['endpoint'] !== '') {
+				$endpoint = $opts['endpoint'];
+			}
+		}
+
+		return $endpoint ? $endpoint : 'default';
 	}
 
 	private function log(string $msg): void {
