@@ -14,6 +14,11 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - function/tool calling
  * - non-stream + streaming mode
  * - all OpenRouter models (Mistral, Qwen, Llama, DeepSeek, Mixtral, etc.)
+ *
+ * Important:
+ * - We MUST not send orphaned tool messages. A tool message is only valid if it
+ *   responds to a preceding assistant message that declared matching tool_calls
+ *   in THIS outgoing payload.
  */
 class OpenRouterChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -97,14 +102,20 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 	 */
 	public function raw(array $messages, array $tools = []): mixed {
 
-		$model     = $this->resolvedOptions['model'];
-		$apikey    = $this->resolvedOptions['apikey'];
-		$endpoint  = $this->resolvedOptions['endpoint'];
-		$temp      = $this->resolvedOptions['temperature'];
-		$maxtokens = $this->resolvedOptions['maxtokens'];
+		$model     = $this->resolvedOptions['model'] ?? null;
+		$apikey    = $this->resolvedOptions['apikey'] ?? null;
+		$endpoint  = $this->resolvedOptions['endpoint'] ?? null;
+		$temp      = $this->resolvedOptions['temperature'] ?? 0.3;
+		$maxtokens = $this->resolvedOptions['maxtokens'] ?? 512;
 
 		if (!$apikey) {
 			throw new \RuntimeException("Missing API key for OpenRouter.");
+		}
+		if (!$endpoint) {
+			throw new \RuntimeException("Missing endpoint for OpenRouter.");
+		}
+		if (!$model) {
+			throw new \RuntimeException("Missing model for OpenRouter.");
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -125,10 +136,10 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: ' . 'Bearer ' . $apikey
+			'Authorization: Bearer ' . $apikey
 		];
 
-		$ch = curl_init($endpoint);
+		$ch = curl_init((string)$endpoint);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
@@ -147,7 +158,7 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 			throw new \RuntimeException("OpenRouter error HTTP $http: " . $result);
 		}
 
-		$data = json_decode($result, true);
+		$data = json_decode((string)$result, true);
 		if (!is_array($data)) {
 			throw new \RuntimeException("Invalid JSON response from OpenRouter.");
 		}
@@ -167,14 +178,20 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 		callable $onMeta = null
 	): void {
 
-		$model     = $this->resolvedOptions['model'];
-		$apikey    = $this->resolvedOptions['apikey'];
-		$endpoint  = $this->resolvedOptions['endpoint'];
-		$temp      = $this->resolvedOptions['temperature'];
-		$maxtokens = $this->resolvedOptions['maxtokens'];
+		$model     = $this->resolvedOptions['model'] ?? null;
+		$apikey    = $this->resolvedOptions['apikey'] ?? null;
+		$endpoint  = $this->resolvedOptions['endpoint'] ?? null;
+		$temp      = $this->resolvedOptions['temperature'] ?? 0.3;
+		$maxtokens = $this->resolvedOptions['maxtokens'] ?? 512;
 
 		if (!$apikey) {
 			throw new \RuntimeException("Missing API key for OpenRouter.");
+		}
+		if (!$endpoint) {
+			throw new \RuntimeException("Missing endpoint for OpenRouter.");
+		}
+		if (!$model) {
+			throw new \RuntimeException("Missing model for OpenRouter.");
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -196,62 +213,58 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: ' . 'Bearer ' . $apikey
+			'Authorization: Bearer ' . $apikey
 		];
 
-		$ch = curl_init($endpoint);
+		$ch = curl_init((string)$endpoint);
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
 
-		curl_setopt(
-			$ch,
-			CURLOPT_WRITEFUNCTION,
-			function ($ch, $chunk) use ($onData, $onMeta) {
+		curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use ($onData, $onMeta) {
 
-				$lines = preg_split("/\r\n|\n|\r/", $chunk);
+			$lines = preg_split("/\r\n|\n|\r/", $chunk);
 
-				foreach ($lines as $line) {
-					$line = trim($line);
-					if ($line === '' || !str_starts_with($line, 'data:')) {
-						continue;
-					}
-
-					$payload = trim(substr($line, 5));
-
-					if ($payload === '[DONE]') {
-						if ($onMeta) {
-							$onMeta(['event' => 'done']);
-						}
-						continue;
-					}
-
-					$json = json_decode($payload, true);
-					if (!is_array($json)) {
-						continue;
-					}
-
-					$choice = $json['choices'][0] ?? [];
-					$delta  = $choice['delta']['content'] ?? null;
-
-					if ($delta !== null) {
-						$onData($delta);
-					}
-
-					if ($onMeta && isset($choice['finish_reason'])) {
-						$onMeta([
-							'event'         => 'meta',
-							'finish_reason' => $choice['finish_reason'],
-							'full'          => $json
-						]);
-					}
+			foreach ($lines as $line) {
+				$line = trim($line);
+				if ($line === '' || !str_starts_with($line, 'data:')) {
+					continue;
 				}
 
-				return strlen($chunk);
+				$payload = trim(substr($line, 5));
+
+				if ($payload === '[DONE]') {
+					if ($onMeta) {
+						$onMeta(['event' => 'done']);
+					}
+					continue;
+				}
+
+				$json = json_decode($payload, true);
+				if (!is_array($json)) {
+					continue;
+				}
+
+				$choice = $json['choices'][0] ?? [];
+				$delta  = $choice['delta']['content'] ?? null;
+
+				if ($delta !== null) {
+					$onData($delta);
+				}
+
+				if ($onMeta && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+					$onMeta([
+						'event'         => 'meta',
+						'finish_reason' => $choice['finish_reason'],
+						'full'          => $json
+					]);
+				}
 			}
-		);
+
+			return strlen($chunk);
+		});
 
 		curl_exec($ch);
 		curl_close($ch);
@@ -261,34 +274,22 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 	 * -------------------------------------------------------
 	 * MESSAGE NORMALIZATION
 	 * -------------------------------------------------------
+	 * Prevents orphaned tool messages that would cause OpenAI-compatible APIs to 400.
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
+		$validToolCallIds = [];
 
 		foreach ($messages as $m) {
 			if (!is_array($m) || !isset($m['role'])) {
 				continue;
 			}
 
-			$role = $m['role'];
+			$role = (string)$m['role'];
 			$content = $m['content'] ?? '';
 
-			// tool execution feedback
-			if ($role === 'tool') {
-				if (empty($m['tool_call_id'])) {
-					continue;
-				}
-
-				$out[] = [
-					'role'         => 'tool',
-					'tool_call_id' => (string)$m['tool_call_id'],
-					'content'      => is_string($content) ? $content : json_encode($content)
-				];
-				continue;
-			}
-
-			// assistant message INCLUDING tool calls
-			if ($role === 'assistant' && !empty($m['tool_calls'])) {
+			// Assistant message INCLUDING tool calls
+			if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
 				$toolCalls = [];
 
 				foreach ($m['tool_calls'] as $call) {
@@ -296,19 +297,22 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 						continue;
 					}
 
+					$callId = (string)$call['id'];
 					$args = $call['function']['arguments'] ?? '{}';
 					if (!is_string($args)) {
 						$args = json_encode($args);
 					}
 
 					$toolCalls[] = [
-						'id'       => (string)$call['id'],
+						'id'       => $callId,
 						'type'     => 'function',
 						'function' => [
 							'name'      => (string)$call['function']['name'],
-							'arguments' => $args
+							'arguments' => (string)$args
 						]
 					];
+
+					$validToolCallIds[$callId] = true;
 				}
 
 				$out[] = [
@@ -317,6 +321,25 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 					'tool_calls' => $toolCalls
 				];
 
+				continue;
+			}
+
+			// Tool execution feedback (must match a preceding assistant tool_call_id in THIS payload)
+			if ($role === 'tool') {
+				$toolCallId = (string)($m['tool_call_id'] ?? '');
+
+				if ($toolCallId === '' || empty($validToolCallIds[$toolCallId])) {
+					// skip orphaned tool message
+					continue;
+				}
+
+				$out[] = [
+					'role'         => 'tool',
+					'tool_call_id' => $toolCallId,
+					'content'      => is_string($content) ? $content : json_encode($content)
+				];
+
+				unset($validToolCallIds[$toolCallId]);
 				continue;
 			}
 

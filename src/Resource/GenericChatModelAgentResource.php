@@ -10,10 +10,10 @@ use MissionBay\Api\IAgentConfigValueResolver;
  *
  * Generic OpenAI-compatible Chat Completion adapter.
  * Supports:
- *  - rich message normalization
- *  - non-streaming raw completion
- *  - SSE-style streaming via "data: {...}" chunks
- *  - function/tool calling
+ *	- rich message normalization
+ *	- non-streaming raw completion
+ *	- SSE-style streaming via "data: {...}" chunks
+ *	- function/tool calling
  *
  * Suitable for OpenAI, Fireworks, Mistral, Ollama, LM Studio, etc.
  */
@@ -151,10 +151,10 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 	 * Streaming API (OpenAI-compatible SSE / "data: {...}").
 	 */
 	public function stream(
-			array $messages,
-			array $tools,
-			callable $onData,
-			callable $onMeta = null
+		array $messages,
+		array $tools,
+		callable $onData,
+		callable $onMeta = null
 	): void {
 
 		$model     = $this->resolvedOptions['model'];
@@ -259,21 +259,23 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 
 	/**
 	 * Normalizes structured rich messages → OpenAI schema.
-	 * Merges system messages and handles tool messages + tool_calls.
+	 * - Merges system messages into one (prepended)
+	 * - Filters orphaned tool messages (tool_call_id must match a previous assistant.tool_calls id)
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
 		$systemContents = [];
+		$validToolCallIds = [];
 
 		foreach ($messages as $m) {
 			if (!is_array($m) || !isset($m['role'])) {
 				continue;
 			}
 
-			$role    = $m['role'];
+			$role    = (string)$m['role'];
 			$content = $m['content'] ?? '';
 
-			// Collect system messages
+			// Collect system messages (merge later)
 			if ($role === 'system') {
 				if (is_string($content) && trim($content) !== '') {
 					$systemContents[] = trim($content);
@@ -281,20 +283,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 				continue;
 			}
 
-			// Tool result message
-			if ($role === 'tool') {
-				if (empty($m['tool_call_id'])) {
-					continue;
-				}
-				$out[] = [
-					'role'         => 'tool',
-					'tool_call_id' => (string)$m['tool_call_id'],
-					'content'      => is_string($content) ? $content : json_encode($content)
-				];
-				continue;
-			}
-
-			// Assistant tool-calling message
+			// Assistant tool-calling message (declares valid tool_call_ids)
 			if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
 				$toolCalls = [];
 
@@ -302,19 +291,23 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 					if (!isset($call['id'], $call['function']['name'])) {
 						continue;
 					}
+
+					$callId = (string)$call['id'];
 					$args = $call['function']['arguments'] ?? '{}';
 					if (!is_string($args)) {
 						$args = json_encode($args);
 					}
 
 					$toolCalls[] = [
-						'id'       => (string)$call['id'],
+						'id'       => $callId,
 						'type'     => 'function',
 						'function' => [
 							'name'      => (string)$call['function']['name'],
 							'arguments' => $args
 						]
 					];
+
+					$validToolCallIds[$callId] = true;
 				}
 
 				$out[] = [
@@ -322,6 +315,27 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 					'content'    => is_string($content) ? $content : json_encode($content),
 					'tool_calls' => $toolCalls
 				];
+				continue;
+			}
+
+			// Tool result message (must match a previously declared tool_call_id)
+			if ($role === 'tool') {
+				$toolCallId = (string)($m['tool_call_id'] ?? '');
+
+				if ($toolCallId === '' || empty($validToolCallIds[$toolCallId])) {
+					// Skip orphaned tool messages to avoid 400 errors on strict providers.
+					continue;
+				}
+
+				$out[] = [
+					'role'         => 'tool',
+					'tool_call_id' => $toolCallId,
+					'content'      => is_string($content) ? $content : json_encode($content)
+				];
+
+				// Optional: prevent duplicates
+				unset($validToolCallIds[$toolCallId]);
+
 				continue;
 			}
 
@@ -343,7 +357,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 			}
 		}
 
-		// Merge system messages → prepend
+		// Merge system messages → prepend as a single system message
 		if (!empty($systemContents)) {
 			array_unshift($out, [
 				'role'    => 'system',

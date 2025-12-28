@@ -30,9 +30,6 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		return 'Connects to the native Mistral.ai Chat Completion API (no tools).';
 	}
 
-	/**
-	 * Loads config and resolves dynamic values.
-	 */
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
@@ -48,7 +45,6 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		$temp      = $this->resolver->resolveValue($this->temperatureConfig);
 		$maxtokens = $this->resolver->resolveValue($this->maxtokensConfig);
 
-		// Correct default endpoint
 		if (empty($endpoint)) {
 			$endpoint = 'https://api.mistral.ai/v1/chat/completions';
 		}
@@ -70,27 +66,27 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
 	}
 
-	/**
-	 * Simple chat
-	 */
 	public function chat(array $messages): string {
 		$result = $this->raw($messages);
 
 		return $result['choices'][0]['message']['content'] ?? '';
 	}
 
-	/**
-	 * Non-streaming request
-	 */
 	public function raw(array $messages, array $tools = []): mixed {
-		$model     = $this->resolvedOptions['model'];
-		$apikey    = $this->resolvedOptions['apikey'];
-		$endpoint  = $this->resolvedOptions['endpoint'];
-		$temp      = $this->resolvedOptions['temperature'];
-		$maxtokens = $this->resolvedOptions['maxtokens'];
+		$model     = $this->resolvedOptions['model'] ?? null;
+		$apikey    = $this->resolvedOptions['apikey'] ?? null;
+		$endpoint  = $this->resolvedOptions['endpoint'] ?? null;
+		$temp      = $this->resolvedOptions['temperature'] ?? 0.3;
+		$maxtokens = $this->resolvedOptions['maxtokens'] ?? 512;
 
 		if (!$apikey) {
 			throw new \RuntimeException("Missing API key for Mistral model.");
+		}
+		if (!$endpoint) {
+			throw new \RuntimeException("Missing endpoint for Mistral model.");
+		}
+		if (!$model) {
+			throw new \RuntimeException("Missing model name for Mistral model.");
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -103,12 +99,13 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		];
 
 		$json = json_encode($payload);
+
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: ' . 'Bearer ' . $apikey
+			'Authorization: Bearer ' . $apikey
 		];
 
-		$ch = curl_init($endpoint);
+		$ch = curl_init((string)$endpoint);
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
@@ -127,22 +124,30 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 			throw new \RuntimeException("Mistral API error $http: $result");
 		}
 
-		return json_decode($result, true);
+		$data = json_decode((string)$result, true);
+		if (!is_array($data)) {
+			throw new \RuntimeException("Invalid JSON response from Mistral: " . substr((string)$result, 0, 200));
+		}
+
+		return $data;
 	}
 
-	/**
-	 * Streaming responses
-	 */
 	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
 
-		$model     = $this->resolvedOptions['model'];
-		$apikey    = $this->resolvedOptions['apikey'];
-		$endpoint  = $this->resolvedOptions['endpoint'];
-		$temp      = $this->resolvedOptions['temperature'];
-		$maxtokens = $this->resolvedOptions['maxtokens'];
+		$model     = $this->resolvedOptions['model'] ?? null;
+		$apikey    = $this->resolvedOptions['apikey'] ?? null;
+		$endpoint  = $this->resolvedOptions['endpoint'] ?? null;
+		$temp      = $this->resolvedOptions['temperature'] ?? 0.3;
+		$maxtokens = $this->resolvedOptions['maxtokens'] ?? 512;
 
 		if (!$apikey) {
 			throw new \RuntimeException("Missing API key for Mistral model.");
+		}
+		if (!$endpoint) {
+			throw new \RuntimeException("Missing endpoint for Mistral model.");
+		}
+		if (!$model) {
+			throw new \RuntimeException("Missing model name for Mistral model.");
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -159,10 +164,10 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: ' . 'Bearer ' . $apikey
+			'Authorization: Bearer ' . $apikey
 		];
 
-		$ch = curl_init($endpoint);
+		$ch = curl_init((string)$endpoint);
 		curl_setopt($ch, CURLOPT_POST, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 		curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
@@ -171,10 +176,10 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 
 		curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use ($onData, $onMeta) {
 
-			$lines = preg_split("/\r\n|\n|\r/", $chunk);
+			$lines = preg_split("/\r\n|\n|\r/", (string)$chunk);
 
 			foreach ($lines as $line) {
-				$line = trim($line);
+				$line = trim((string)$line);
 				if ($line === '' || !str_starts_with($line, 'data:')) {
 					continue;
 				}
@@ -197,25 +202,61 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 				$delta = $choice['delta']['content'] ?? null;
 
 				if ($delta !== null) {
-					$onData($delta);
+					$onData((string)$delta);
 				}
 			}
 
-			return strlen($chunk);
+			return strlen((string)$chunk);
 		});
 
 		curl_exec($ch);
 		curl_close($ch);
 	}
 
+	/**
+	 * Normalize to Mistral format.
+	 *
+	 * Important:
+	 * - Mistral Chat API does not support tool role messages in this adapter.
+	 * - We must drop orphaned tool messages (and all tool messages) to avoid
+	 *	 invalid role sequences / history pollution.
+	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
 
 		foreach ($messages as $m) {
+			if (!is_array($m) || !isset($m['role'])) {
+				continue;
+			}
+
+			$role = (string)$m['role'];
+
+			// This adapter has "no tools" => drop tool messages always.
+			// Also implicitly fixes the "orphaned tool message" problem.
+			if ($role === 'tool') {
+				continue;
+			}
+
+			$content = $m['content'] ?? '';
+			if (!is_string($content)) {
+				$content = json_encode($content);
+			}
+
 			$out[] = [
-				'role'    => $m['role'],
-				'content' => $m['content']
+				'role'    => $role,
+				'content' => $content
 			];
+
+			// Keep your existing behavior: feedback => extra user message
+			if (!empty($m['feedback']) && is_string($m['feedback'])) {
+				$fb = trim($m['feedback']);
+				if ($fb !== '') {
+					$out[] = [
+						'role'    => 'user',
+						'content' => $fb
+					];
+				}
+			}
 		}
 
 		return $out;

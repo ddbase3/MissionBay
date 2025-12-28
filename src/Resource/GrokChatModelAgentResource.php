@@ -13,7 +13,9 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - chat()
  * - raw()
  * - stream()
- * No tool-calling included.
+ *
+ * No tool-calling included:
+ * - Tool messages and assistant tool_calls are filtered out defensively.
  */
 class GrokChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -54,8 +56,7 @@ class GrokChatModelAgentResource extends AbstractAgentResource implements IAiCha
 		$this->resolvedOptions = [
 			'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'grok-beta',
 			'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
-				?? 'https://api.x.ai/v1/chat/completions',
+			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.x.ai/v1/chat/completions',
 			'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.3),
 			'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 512),
 		];
@@ -74,11 +75,18 @@ class GrokChatModelAgentResource extends AbstractAgentResource implements IAiCha
 	 */
 	public function chat(array $messages): string {
 		$raw = $this->raw($messages);
-		return $raw['choices'][0]['message']['content'] ?? '';
+
+		$content = $raw['choices'][0]['message']['content'] ?? '';
+		if (!is_string($content)) {
+			return '';
+		}
+
+		return $content;
 	}
 
 	/**
 	 * Raw non-streaming request.
+	 * $tools is ignored (this adapter is tool-free by design).
 	 */
 	public function raw(array $messages, array $tools = []): mixed {
 		$opts = $this->resolvedOptions;
@@ -130,6 +138,7 @@ class GrokChatModelAgentResource extends AbstractAgentResource implements IAiCha
 
 	/**
 	 * SSE streaming.
+	 * $tools is ignored (this adapter is tool-free by design).
 	 */
 	public function stream(
 		array $messages,
@@ -166,60 +175,63 @@ class GrokChatModelAgentResource extends AbstractAgentResource implements IAiCha
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
 
-		curl_setopt(
-			$ch,
-			CURLOPT_WRITEFUNCTION,
-			function ($ch, $chunk) use ($onData, $onMeta) {
+		curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use ($onData, $onMeta) {
+			$lines = preg_split("/\r\n|\n|\r/", $chunk);
 
-				$lines = preg_split("/\r\n|\n|\r/", $chunk);
+			foreach ($lines as $line) {
+				$line = trim($line);
 
-				foreach ($lines as $line) {
-					$line = trim($line);
-
-					if ($line === '' || !str_starts_with($line, 'data:')) {
-						continue;
-					}
-
-					$data = trim(substr($line, 5));
-
-					if ($data === '[DONE]') {
-						if ($onMeta !== null) {
-							$onMeta(['event' => 'done']);
-						}
-						continue;
-					}
-
-					$json = json_decode($data, true);
-					if (!is_array($json)) {
-						continue;
-					}
-
-					$choice = $json['choices'][0] ?? [];
-					$delta  = $choice['delta']['content'] ?? null;
-
-					if ($delta !== null) {
-						$onData($delta);
-					}
-
-					if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
-						$onMeta([
-							'event'         => 'meta',
-							'finish_reason' => $choice['finish_reason'],
-							'full'          => $json
-						]);
-					}
+				if ($line === '' || !str_starts_with($line, 'data:')) {
+					continue;
 				}
 
-				return strlen($chunk);
+				$data = trim(substr($line, 5));
+
+				if ($data === '[DONE]') {
+					if ($onMeta !== null) {
+						$onMeta(['event' => 'done']);
+					}
+					continue;
+				}
+
+				$json = json_decode($data, true);
+				if (!is_array($json)) {
+					continue;
+				}
+
+				$choice = $json['choices'][0] ?? [];
+				$delta  = $choice['delta']['content'] ?? null;
+
+				if ($delta !== null) {
+					$onData((string)$delta);
+				}
+
+				if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+					$onMeta([
+						'event'         => 'meta',
+						'finish_reason' => $choice['finish_reason'],
+						'full'          => $json
+					]);
+				}
 			}
-		);
+
+			return strlen($chunk);
+		});
 
 		curl_exec($ch);
 		curl_close($ch);
 	}
 
 	/**
-	 * Normalize messages for Grok standard schema.
+	 * Normalize messages for Grok standard schema (tool-free).
+	 *
+	 * We filter out:
+	 * - role=tool (never allowed in tool-free adapter)
+	 * - assistant messages that contain tool_calls (tool-free)
+	 *
+	 * We keep:
+	 * - role system/user/assistant with plain content
+	 * - optional feedback as extra user message (only if non-empty)
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
@@ -229,18 +241,35 @@ class GrokChatModelAgentResource extends AbstractAgentResource implements IAiCha
 				continue;
 			}
 
+			$role = (string)$m['role'];
+
+			// Tool-free: skip tool messages completely
+			if ($role === 'tool') {
+				continue;
+			}
+
+			// Tool-free: skip assistant tool-call declarations (they make no sense here)
+			if ($role === 'assistant' && !empty($m['tool_calls'])) {
+				continue;
+			}
+
 			$content = $m['content'] ?? '';
+			$contentStr = is_string($content) ? $content : json_encode($content);
 
 			$out[] = [
-				'role'    => $m['role'],
-				'content' => is_string($content) ? $content : json_encode($content)
+				'role'    => $role,
+				'content' => $contentStr
 			];
 
+			// Inject feedback as extra user message (only if non-empty after trim)
 			if (!empty($m['feedback']) && is_string($m['feedback'])) {
-				$out[] = [
-					'role'    => 'user',
-					'content' => trim($m['feedback'])
-				];
+				$fb = trim($m['feedback']);
+				if ($fb !== '') {
+					$out[] = [
+						'role'    => 'user',
+						'content' => $fb
+					];
+				}
 			}
 		}
 

@@ -13,7 +13,11 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - chat()
  * - raw()
  * - stream()
- * No tool calling included.
+ *
+ * Notes:
+ * - Anthropic messages API expects roles user/assistant in "messages".
+ * - System prompt must be passed via top-level "system" (NOT as role=system message).
+ * - Tool messages or unknown roles must be filtered out.
  *
  * Endpoint:
  *   https://api.anthropic.com/v1/messages
@@ -54,8 +58,7 @@ class AnthropicChatModelAgentResource extends AbstractAgentResource implements I
 		$this->resolvedOptions = [
 			'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'claude-3-haiku-20240307',
 			'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
-				?? 'https://api.anthropic.com/v1/messages',
+			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.anthropic.com/v1/messages',
 			'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.3),
 			'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 1024),
 		];
@@ -87,12 +90,18 @@ class AnthropicChatModelAgentResource extends AbstractAgentResource implements I
 			throw new \RuntimeException("Missing API key for Anthropic model.");
 		}
 
+		$norm = $this->normalizeMessages($messages);
+
 		$payload = [
 			'model'       => $opts['model'],
-			'messages'    => $this->normalizeMessages($messages),
+			'messages'    => $norm['messages'],
 			'temperature' => $opts['temperature'],
-			'max_tokens'  => $opts['maxtokens']
+			'max_tokens'  => $opts['maxtokens'],
 		];
+
+		if ($norm['system'] !== '') {
+			$payload['system'] = $norm['system'];
+		}
 
 		$json = json_encode($payload);
 
@@ -131,6 +140,8 @@ class AnthropicChatModelAgentResource extends AbstractAgentResource implements I
 
 	/**
 	 * Streaming Claude (SSE)
+	 *
+	 * Anthropic streams evented JSON messages (e.g. content_block_delta with delta.text).
 	 */
 	public function stream(
 		array $messages,
@@ -145,13 +156,19 @@ class AnthropicChatModelAgentResource extends AbstractAgentResource implements I
 			throw new \RuntimeException("Missing API key for Anthropic model.");
 		}
 
+		$norm = $this->normalizeMessages($messages);
+
 		$payload = [
 			'model'       => $opts['model'],
-			'messages'    => $this->normalizeMessages($messages),
+			'messages'    => $norm['messages'],
 			'temperature' => $opts['temperature'],
 			'max_tokens'  => $opts['maxtokens'],
 			'stream'      => true
 		];
+
+		if ($norm['system'] !== '') {
+			$payload['system'] = $norm['system'];
+		}
 
 		$json = json_encode($payload);
 
@@ -168,91 +185,166 @@ class AnthropicChatModelAgentResource extends AbstractAgentResource implements I
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
 
-		curl_setopt(
-			$ch,
-			CURLOPT_WRITEFUNCTION,
-			function ($ch, $chunk) use ($onData, $onMeta) {
+		$buffer = '';
+		$eventName = '';
 
-				$lines = preg_split("/\r\n|\n|\r/", $chunk);
+		curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use (&$buffer, &$eventName, $onData, $onMeta) {
 
-				foreach ($lines as $line) {
-					$line = trim($line);
+			$buffer .= $chunk;
 
-					if ($line === '' || !str_starts_with($line, 'data:')) {
-						continue;
-					}
+			// Process complete lines
+			while (($pos = strpos($buffer, "\n")) !== false) {
+				$line = substr($buffer, 0, $pos);
+				$buffer = substr($buffer, $pos + 1);
 
-					$data = trim(substr($line, 5));
+				$line = rtrim($line, "\r");
+				$trim = trim($line);
 
-					if ($data === '[DONE]') {
-						if ($onMeta !== null) {
-							$onMeta(['event' => 'done']);
-						}
-						continue;
-					}
-
-					$json = json_decode($data, true);
-					if (!is_array($json)) {
-						continue;
-					}
-
-					if (!empty($json['delta']['text'])) {
-						$onData($json['delta']['text']);
-					}
-
-					if ($onMeta !== null && isset($json['stop_reason'])) {
-						$onMeta([
-							'event'        => 'meta',
-							'stop_reason'  => $json['stop_reason'],
-							'full'         => $json
-						]);
-					}
+				if ($trim === '') {
+					// event separator
+					$eventName = '';
+					continue;
 				}
 
-				return strlen($chunk);
+				if (str_starts_with($trim, 'event:')) {
+					$eventName = trim(substr($trim, 6));
+					continue;
+				}
+
+				if (!str_starts_with($trim, 'data:')) {
+					continue;
+				}
+
+				$dataStr = trim(substr($trim, 5));
+				if ($dataStr === '' || $dataStr === '[DONE]') {
+					if ($dataStr === '[DONE]' && $onMeta !== null) {
+						$onMeta(['event' => 'done']);
+					}
+					continue;
+				}
+
+				$json = json_decode($dataStr, true);
+				if (!is_array($json)) {
+					continue;
+				}
+
+				// Anthropic stream types are in "type" (not always via eventName)
+				$type = (string)($json['type'] ?? $eventName);
+
+				if ($type === 'content_block_delta') {
+					$deltaText = $json['delta']['text'] ?? null;
+					if (is_string($deltaText) && $deltaText !== '') {
+						$onData($deltaText);
+					}
+					continue;
+				}
+
+				if ($type === 'message_delta') {
+					$stop = $json['delta']['stop_reason'] ?? null;
+					if ($onMeta !== null && $stop !== null) {
+						$onMeta([
+							'event'       => 'meta',
+							'stop_reason' => $stop,
+							'full'        => $json
+						]);
+					}
+					continue;
+				}
+
+				if ($type === 'message_stop') {
+					if ($onMeta !== null) {
+						$onMeta(['event' => 'done']);
+					}
+					continue;
+				}
+
+				// Optional: forward unknown meta
+				if ($onMeta !== null) {
+					$onMeta([
+						'event' => 'meta',
+						'type'  => $type,
+						'full'  => $json
+					]);
+				}
 			}
-		);
+
+			return strlen($chunk);
+		});
 
 		curl_exec($ch);
 		curl_close($ch);
 	}
 
 	/**
-	 * Convert your internal message schema into Anthropic format.
+	 * Convert internal message schema into Anthropic format.
+	 *
+	 * - Collect "system" messages into one system string (top-level field).
+	 * - Only keep roles user/assistant in messages.
+	 * - Drop tool messages and unknown roles.
+	 * - Preserve feedback as extra user message.
+	 *
+	 * @return array{system:string,messages:array}
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
+		$systemParts = [];
 
 		foreach ($messages as $m) {
 			if (!is_array($m) || !isset($m['role'])) {
 				continue;
 			}
 
+			$role = (string)$m['role'];
 			$content = $m['content'] ?? '';
 
+			// System is top-level in Anthropic, not in messages[]
+			if ($role === 'system') {
+				$text = is_string($content) ? $content : json_encode($content);
+				$text = trim((string)$text);
+				if ($text !== '') {
+					$systemParts[] = $text;
+				}
+				continue;
+			}
+
+			// Anthropic messages accept only user/assistant
+			if ($role !== 'user' && $role !== 'assistant') {
+				// Drop tool, function, developer, etc.
+				continue;
+			}
+
+			$text = is_string($content) ? $content : json_encode($content);
+
 			$out[] = [
-				'role'    => $m['role'],
+				'role'    => $role,
 				'content' => [
 					[
 						'type' => 'text',
-						'text' => is_string($content) ? $content : json_encode($content)
+						'text' => (string)$text
 					]
 				]
 			];
 
+			// Inject feedback as extra user message
 			if (!empty($m['feedback']) && is_string($m['feedback'])) {
-				$out[] = [
-					'role'    => 'user',
-					'content' => [
-						[
-							'type' => 'text',
-							'text' => trim($m['feedback'])
+				$fb = trim($m['feedback']);
+				if ($fb !== '') {
+					$out[] = [
+						'role'    => 'user',
+						'content' => [
+							[
+								'type' => 'text',
+								'text' => $fb
+							]
 						]
-					]
-				];
+					];
+				}
 			}
 		}
 
-		return $out;
+		return [
+			'system'   => implode("\n\n", $systemParts),
+			'messages' => $out
+		];
 	}
 }

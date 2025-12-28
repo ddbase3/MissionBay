@@ -20,6 +20,10 @@ use MissionBay\Api\IAgentResource;
  * - sticky selection (global or per operation)
  * - light circuit breaker (failures -> cooldown)
  * - optional logging via ILogger
+ *
+ * Robustness:
+ * - Can strip orphaned tool messages before delegating to targets,
+ *   preventing OpenAI-compatible backends from rejecting requests.
  */
 class RoutingChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -106,7 +110,6 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 			$this->stickyMode = (string)($this->resolver->resolveValue($config['stickymode']) ?? 'global');
 		}
 
-		// normalize stickyMode
 		$this->stickyMode = strtolower(trim($this->stickyMode));
 		if ($this->stickyMode !== 'per_op') {
 			$this->stickyMode = 'global';
@@ -119,9 +122,6 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 			$this->cooldownSec = (int)($this->resolver->resolveValue($config['cooldownsec']) ?? 120);
 		}
 
-		// Per-target capability config (optional)
-		// Expected shape:
-		// "targets": { "<id>": { "tools": 0/1|true/false|spec, "stream": 0/1|true/false|spec, "weight": int|spec }, ... }
 		$this->targetPolicy = [];
 		$targetsCfg = $config['targets'] ?? null;
 
@@ -204,28 +204,35 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 
 	public function raw(array $messages, array $tools = []): mixed {
 		$needsTools = !empty($tools);
+
+		// If tools are NOT used, strip orphan tool messages defensively.
+		$sendMessages = $needsTools ? $messages : $this->stripOrphanedToolMessages($messages);
+
 		return $this->routeCall(
 			op: 'raw',
 			requiredCap: $needsTools ? 'tools' : null,
-			fn: function (IAiChatModel $target) use ($messages, $tools) {
-				return $target->raw($messages, $tools);
+			fn: function (IAiChatModel $target) use ($sendMessages, $tools) {
+				return $target->raw($sendMessages, $tools);
 			}
 		);
 	}
 
 	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+		// Streaming phase should not carry tool messages unless they are properly paired.
+		$sendMessages = $this->stripOrphanedToolMessages($messages);
+
 		$this->routeCall(
 			op: 'stream',
 			requiredCap: 'stream',
-			fn: function (IAiChatModel $target) use ($messages, $tools, $onData, $onMeta) {
-				$target->stream($messages, $tools, $onData, $onMeta);
+			fn: function (IAiChatModel $target) use ($sendMessages, $tools, $onData, $onMeta) {
+				$target->stream($sendMessages, $tools, $onData, $onMeta);
 				return null;
 			}
 		);
 	}
 
 	public function getOptions(): array {
-		$idx = $this->getStickyIndex('raw'); // best-effort: raw selection tends to exist first
+		$idx = $this->getStickyIndex('raw');
 		if ($idx !== null && isset($this->targets[$idx])) {
 			$opts = $this->targets[$idx]->getOptions();
 			return is_array($opts) ? $opts : [];
@@ -269,7 +276,6 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 			throw new \RuntimeException("RoutingChatModelAgentResource: no targets match required capability: {$cap}");
 		}
 
-		// Sticky target first (if still valid + available)
 		if ($this->sticky && $ctx !== null) {
 			$selected = $ctx->getVar($stickyKey);
 			if (is_int($selected) && in_array($selected, $candidates, true) && $this->isAvailable($selected)) {
@@ -339,7 +345,6 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 		$id = $this->targetIds[$idx] ?? null;
 		$policy = $id ? ($this->targetPolicy[$id] ?? null) : null;
 
-		// default: everything allowed
 		if (!is_array($policy)) {
 			return true;
 		}
@@ -368,7 +373,6 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 	protected function buildRoundRobinOrderWeighted(array $candidates, string $rrKey): array {
 		$ctx = $this->context;
 
-		// If no context, behave like failover
 		if ($ctx === null) return $candidates;
 
 		$weighted = [];
@@ -472,12 +476,51 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	// ----------------------------------------------------
+	// Message safety (tool message pairing)
+	// ----------------------------------------------------
+
+	protected function stripOrphanedToolMessages(array $messages): array {
+		$out = [];
+		$validToolCallIds = [];
+
+		foreach ($messages as $m) {
+			if (!is_array($m) || !isset($m['role'])) {
+				continue;
+			}
+
+			$role = (string)$m['role'];
+
+			if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
+				foreach ($m['tool_calls'] as $call) {
+					if (!isset($call['id'])) continue;
+					$validToolCallIds[(string)$call['id']] = true;
+				}
+
+				$out[] = $m;
+				continue;
+			}
+
+			if ($role === 'tool') {
+				$toolCallId = (string)($m['tool_call_id'] ?? '');
+				if ($toolCallId === '' || empty($validToolCallIds[$toolCallId])) {
+					continue;
+				}
+
+				$out[] = $m;
+				unset($validToolCallIds[$toolCallId]);
+				continue;
+			}
+
+			$out[] = $m;
+		}
+
+		return $out;
+	}
+
+	// ----------------------------------------------------
 	// Config helpers
 	// ----------------------------------------------------
 
-	/**
-	 * Resolve either a structured resolver spec (array|string|null) or accept raw scalar values.
-	 */
 	protected function resolveMaybeSpec(mixed $value): mixed {
 		if (is_array($value) || is_string($value) || $value === null) {
 			return $this->resolver->resolveValue($value);

@@ -13,7 +13,11 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - chat()
  * - raw()
  * - stream()
- * No tool-calling.
+ *
+ * Notes:
+ * - No tool-calling (tools parameter is ignored).
+ * - We MUST filter out tool messages / tool_calls residues that may exist in memory,
+ *	 otherwise Groq/OpenAI-compatible endpoints can throw 400 errors.
  */
 class GroqChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -52,11 +56,9 @@ class GroqChatModelAgentResource extends AbstractAgentResource implements IAiCha
 		$this->maxtokensConfig   = $config['maxtokens'] ?? null;
 
 		$this->resolvedOptions = [
-			'model'       => $this->resolver->resolveValue($this->modelConfig)
-				?? 'llama3-8b-8192',
+			'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'llama3-8b-8192',
 			'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
-				?? 'https://api.groq.com/openai/v1/chat/completions',
+			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.groq.com/openai/v1/chat/completions',
 			'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.3),
 			'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 512),
 		];
@@ -75,11 +77,17 @@ class GroqChatModelAgentResource extends AbstractAgentResource implements IAiCha
 	 */
 	public function chat(array $messages): string {
 		$raw = $this->raw($messages);
-		return $raw['choices'][0]['message']['content'] ?? '';
+
+		if (!isset($raw['choices'][0]['message']['content'])) {
+			throw new \RuntimeException("Malformed Groq chat response: " . json_encode($raw));
+		}
+
+		return (string)$raw['choices'][0]['message']['content'];
 	}
 
 	/**
 	 * Non-streaming raw request.
+	 * Tools are ignored by this adapter (no tool-calling).
 	 */
 	public function raw(array $messages, array $tools = []): mixed {
 		$opts = $this->resolvedOptions;
@@ -131,6 +139,7 @@ class GroqChatModelAgentResource extends AbstractAgentResource implements IAiCha
 
 	/**
 	 * Streaming SSE-like output.
+	 * Tools are ignored by this adapter (no tool-calling).
 	 */
 	public function stream(
 		array $messages,
@@ -221,6 +230,11 @@ class GroqChatModelAgentResource extends AbstractAgentResource implements IAiCha
 
 	/**
 	 * Normalize rich messages.
+	 *
+	 * Important:
+	 * - Groq adapter does not support tool calling.
+	 * - Drop any role "tool" messages and ignore tool_calls residues from other models/memory.
+	 * - Keep only: system/user/assistant.
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
@@ -230,18 +244,25 @@ class GroqChatModelAgentResource extends AbstractAgentResource implements IAiCha
 				continue;
 			}
 
-			$content = $m['content'] ?? '';
+			$role = (string)$m['role'];
+			if (!in_array($role, ['system', 'user', 'assistant'], true)) {
+				continue;
+			}
 
+			$content = $m['content'] ?? '';
 			$out[] = [
-				'role'    => $m['role'],
+				'role'    => $role,
 				'content' => is_string($content) ? $content : json_encode($content)
 			];
 
 			if (!empty($m['feedback']) && is_string($m['feedback'])) {
-				$out[] = [
-					'role'    => 'user',
-					'content' => trim($m['feedback'])
-				];
+				$fb = trim($m['feedback']);
+				if ($fb !== '') {
+					$out[] = [
+						'role'    => 'user',
+						'content' => $fb
+					];
+				}
 			}
 		}
 

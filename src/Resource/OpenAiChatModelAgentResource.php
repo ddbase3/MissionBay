@@ -14,6 +14,10 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - standard chat()
  * - raw() non-streaming function-calls
  * - stream() streaming responses with token callbacks
+ *
+ * Important:
+ * - We MUST not send orphaned tool messages to OpenAI. A tool message is only valid
+ *	 if it responds to a preceding assistant message that declared matching tool_calls.
  */
 class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -39,9 +43,6 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		return 'Connects to OpenAI Chat API (GPT models). Supports streaming + function calling.';
 	}
 
-	/**
-	 * Load config from Flow JSON, resolve dynamic config values.
-	 */
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
@@ -66,11 +67,6 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
 	}
 
-	/**
-	 * -------------------------------------------
-	 * BASIC CHAT (non-stream)
-	 * -------------------------------------------
-	 */
 	public function chat(array $messages): string {
 		$result = $this->raw($messages);
 
@@ -81,11 +77,6 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		return $result['choices'][0]['message']['content'];
 	}
 
-	/**
-	 * -------------------------------------------
-	 * RAW REQUEST (non-streaming)
-	 * -------------------------------------------
-	 */
 	public function raw(array $messages, array $tools = []): mixed {
 		$model    = $this->resolvedOptions['model'] ?? 'gpt-4o-mini';
 		$apikey   = $this->resolvedOptions['apikey'] ?? null;
@@ -143,17 +134,11 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		return $data;
 	}
 
-	/**
-	 * -------------------------------------------
-	 * STREAMING IMPLEMENTATION (IAiChatModel::stream)
-	 * -------------------------------------------
-	 * Sends streaming SSE chunks, line-based ("data: {json}")
-	 */
 	public function stream(
-			array $messages,
-			array $tools,
-			callable $onData,
-			callable $onMeta = null
+		array $messages,
+		array $tools,
+		callable $onData,
+		callable $onMeta = null
 	): void {
 
 		$model    = $this->resolvedOptions['model'] ?? 'gpt-4o-mini';
@@ -193,7 +178,6 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
 
-		// Streaming callback
 		curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use ($onData, $onMeta) {
 
 			$lines = preg_split("/\r\n|\n|\r/", $chunk);
@@ -206,7 +190,6 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 
 				$data = trim(substr($line, 5));
 
-				// End of stream
 				if ($data === '[DONE]') {
 					if ($onMeta !== null) {
 						$onMeta(['event' => 'done']);
@@ -221,7 +204,6 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 
 				$choice = $json['choices'][0] ?? [];
 
-				// Meta info (finish_reason etc)
 				if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
 					$onMeta([
 						'event'          => 'meta',
@@ -230,13 +212,11 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 					]);
 				}
 
-				// Delta text (token)
 				$delta = $choice['delta']['content'] ?? null;
 				if ($delta !== null) {
 					$onData($delta);
 				}
 
-				// Tool call deltas (rare in streaming, but possible)
 				if (!empty($choice['delta']['tool_calls'])) {
 					if ($onMeta !== null) {
 						$onMeta([
@@ -255,55 +235,51 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 	}
 
 	/**
-	 * -------------------------------------------
 	 * NORMALIZATION OF RICH MESSAGE OBJECTS
-	 * -------------------------------------------
+	 *
+	 * Critical invariant:
+	 * - A tool message can only be sent if we have seen a preceding assistant tool_calls
+	 *	 message that declared the same tool_call_id in THIS outgoing payload.
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
+		$validToolCallIds = [];
 
 		foreach ($messages as $m) {
 			if (!is_array($m) || !isset($m['role'])) {
 				continue;
 			}
 
-			$role    = $m['role'];
+			$role = (string)$m['role'];
 			$content = $m['content'] ?? '';
-
-			// Tool execution feedback
-			if ($role === 'tool') {
-				if (empty($m['tool_call_id'])) {
-					continue;
-				}
-				$out[] = [
-					'role'         => 'tool',
-					'tool_call_id' => (string)$m['tool_call_id'],
-					'content'      => is_string($content) ? $content : json_encode($content)
-				];
-				continue;
-			}
 
 			// Assistant message that includes tool calls
 			if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
 				$toolCalls = [];
+
 				foreach ($m['tool_calls'] as $call) {
 					if (!isset($call['id'], $call['function']['name'])) {
 						continue;
 					}
 
+					$callId = (string)$call['id'];
 					$args = $call['function']['arguments'] ?? '{}';
+
 					if (!is_string($args)) {
 						$args = json_encode($args);
 					}
 
 					$toolCalls[] = [
-						'id'       => (string)$call['id'],
+						'id'       => $callId,
 						'type'     => 'function',
 						'function' => [
 							'name'      => (string)$call['function']['name'],
 							'arguments' => $args
 						]
 					];
+
+					// Mark this tool_call_id as valid for upcoming tool responses
+					$validToolCallIds[$callId] = true;
 				}
 
 				$out[] = [
@@ -311,6 +287,28 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 					'content'    => is_string($content) ? $content : json_encode($content),
 					'tool_calls' => $toolCalls
 				];
+
+				continue;
+			}
+
+			// Tool execution feedback (must match a preceding assistant tool_call_id)
+			if ($role === 'tool') {
+				$toolCallId = (string)($m['tool_call_id'] ?? '');
+
+				if ($toolCallId === '' || empty($validToolCallIds[$toolCallId])) {
+					// Skip orphaned tool messages to avoid OpenAI 400 errors.
+					continue;
+				}
+
+				$out[] = [
+					'role'         => 'tool',
+					'tool_call_id' => $toolCallId,
+					'content'      => is_string($content) ? $content : json_encode($content)
+				];
+
+				// Optional: consume id to avoid accidental duplicates
+				unset($validToolCallIds[$toolCallId]);
+
 				continue;
 			}
 

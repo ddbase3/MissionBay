@@ -9,13 +9,14 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * FireworksChatModelAgentResource
  *
  * Adapter for Fireworks.ai Chat Completion API.
- * Fully compatible with OpenAI-style models, Mistral-style models
- * and all other Fireworks-hosted models.
+ * OpenAI-compatible chat/completions endpoint.
  *
  * Supports:
  * - non-streaming chat() and raw()
  * - streaming via SSE-like chunks (data: {...})
- * - rich messages via normalizeMessages()
+ * - tool calling (tools + tool_choice=auto)
+ * - robust normalizeMessages(): supports assistant tool_calls and tool responses
+ *	 and filters orphaned tool messages to avoid API 400 errors.
  */
 class FireworksChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -41,9 +42,6 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 		return 'Connects to Fireworks.ai Chat Completion API (OpenAI-compatible).';
 	}
 
-	/**
-	 * Load config from AgentFlow.
-	 */
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
@@ -72,17 +70,11 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
 	}
 
-	/**
-	 * Basic chat → return assistant text only.
-	 */
 	public function chat(array $messages): string {
 		$r = $this->raw($messages);
 		return $r['choices'][0]['message']['content'] ?? '';
 	}
 
-	/**
-	 * Non-streaming raw request.
-	 */
 	public function raw(array $messages, array $tools = []): mixed {
 		$opts = $this->resolvedOptions;
 
@@ -96,6 +88,11 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 			'temperature' => $opts['temperature'],
 			'max_tokens'  => $opts['maxtokens']
 		];
+
+		if (!empty($tools)) {
+			$payload['tools'] = $tools;
+			$payload['tool_choice'] = 'auto';
+		}
 
 		$jsonPayload = json_encode($payload);
 
@@ -131,9 +128,6 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 		return $data;
 	}
 
-	/**
-	 * Streaming SSE-like callback.
-	 */
 	public function stream(
 		array $messages,
 		array $tools,
@@ -155,6 +149,11 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 			'stream'      => true
 		];
 
+		if (!empty($tools)) {
+			$payload['tools'] = $tools;
+			$payload['tool_choice'] = 'auto';
+		}
+
 		$jsonPayload = json_encode($payload);
 
 		$headers = [
@@ -169,82 +168,153 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, false);
 		curl_setopt($ch, CURLOPT_TIMEOUT, 0);
 
-		curl_setopt(
-			$ch,
-			CURLOPT_WRITEFUNCTION,
-			function ($ch, $chunk) use ($onData, $onMeta) {
+		curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($ch, $chunk) use ($onData, $onMeta) {
 
-				$lines = preg_split("/\r\n|\n|\r/", $chunk);
+			$lines = preg_split("/\r\n|\n|\r/", $chunk);
 
-				foreach ($lines as $line) {
-					$line = trim($line);
+			foreach ($lines as $line) {
+				$line = trim($line);
 
-					if ($line === '' || !str_starts_with($line, 'data:')) {
-						continue;
+				if ($line === '' || !str_starts_with($line, 'data:')) {
+					continue;
+				}
+
+				$data = trim(substr($line, 5));
+
+				if ($data === '[DONE]') {
+					if ($onMeta !== null) {
+						$onMeta(['event' => 'done']);
 					}
+					continue;
+				}
 
-					$data = trim(substr($line, 5));
+				$json = json_decode($data, true);
+				if (!is_array($json)) {
+					continue;
+				}
 
-					if ($data === '[DONE]') {
-						if ($onMeta !== null) {
-							$onMeta(['event' => 'done']);
-						}
-						continue;
-					}
+				$choice = $json['choices'][0] ?? [];
 
-					$json = json_decode($data, true);
-					if (!is_array($json)) {
-						continue;
-					}
+				if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+					$onMeta([
+						'event'         => 'meta',
+						'finish_reason' => $choice['finish_reason'],
+						'full'          => $json
+					]);
+				}
 
-					$choice = $json['choices'][0] ?? [];
-					$delta  = $choice['delta']['content'] ?? null;
+				$delta = $choice['delta']['content'] ?? null;
+				if ($delta !== null) {
+					$onData($delta);
+				}
 
-					if ($delta !== null) {
-						$onData($delta);
-					}
-
-					if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+				if (!empty($choice['delta']['tool_calls'])) {
+					if ($onMeta !== null) {
 						$onMeta([
-							'event'         => 'meta',
-							'finish_reason' => $choice['finish_reason'],
-							'full'          => $json
+							'event'      => 'toolcall',
+							'tool_calls' => $choice['delta']['tool_calls']
 						]);
 					}
 				}
-
-				return strlen($chunk);
 			}
-		);
+
+			return strlen($chunk);
+		});
 
 		curl_exec($ch);
 		curl_close($ch);
 	}
 
 	/**
-	 * Normalizes rich message objects into standard Fireworks/OpenAI format.
+	 * Normalizes rich message objects into standard OpenAI-compatible format.
+	 *
+	 * Critical invariant:
+	 * - A tool message is only valid if it responds to a preceding assistant message
+	 *	 that declared a matching tool_call_id in THIS outgoing payload.
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
+		$validToolCallIds = [];
 
 		foreach ($messages as $m) {
 			if (!is_array($m) || !isset($m['role'])) {
 				continue;
 			}
 
-			$role    = $m['role'];
+			$role = (string)$m['role'];
 			$content = $m['content'] ?? '';
 
+			// Assistant message with tool calls
+			if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
+				$toolCalls = [];
+
+				foreach ($m['tool_calls'] as $call) {
+					if (!isset($call['id'], $call['function']['name'])) {
+						continue;
+					}
+
+					$callId = (string)$call['id'];
+					$args = $call['function']['arguments'] ?? '{}';
+
+					if (!is_string($args)) {
+						$args = json_encode($args);
+					}
+
+					$toolCalls[] = [
+						'id'       => $callId,
+						'type'     => 'function',
+						'function' => [
+							'name'      => (string)$call['function']['name'],
+							'arguments' => $args
+						]
+					];
+
+					$validToolCallIds[$callId] = true;
+				}
+
+				$out[] = [
+					'role'       => 'assistant',
+					'content'    => is_string($content) ? $content : json_encode($content),
+					'tool_calls' => $toolCalls
+				];
+
+				continue;
+			}
+
+			// Tool message (must match prior declared tool_call_id)
+			if ($role === 'tool') {
+				$toolCallId = (string)($m['tool_call_id'] ?? '');
+
+				if ($toolCallId === '' || empty($validToolCallIds[$toolCallId])) {
+					// Skip orphaned tool messages to avoid API 400 errors.
+					continue;
+				}
+
+				$out[] = [
+					'role'         => 'tool',
+					'tool_call_id' => $toolCallId,
+					'content'      => is_string($content) ? $content : json_encode($content)
+				];
+
+				unset($validToolCallIds[$toolCallId]);
+				continue;
+			}
+
+			// Standard message
 			$out[] = [
 				'role'    => $role,
 				'content' => is_string($content) ? $content : json_encode($content)
 			];
 
+			// Inject feedback as extra user message
 			if (!empty($m['feedback']) && is_string($m['feedback'])) {
-				$out[] = [
-					'role'    => 'user',
-					'content' => trim($m['feedback'])
-				];
+				$fb = trim($m['feedback']);
+				if ($fb !== '') {
+					$out[] = [
+						'role'    => 'user',
+						'content' => $fb
+					];
+				}
 			}
 		}
 

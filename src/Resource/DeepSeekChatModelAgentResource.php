@@ -14,6 +14,10 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - raw()
  * - stream()
  * No tool calling included.
+ *
+ * Important:
+ * - We MUST filter out tool-related messages (role=tool, assistant.tool_calls),
+ *   because this resource does not support tool calling but memory/history may contain it.
  */
 class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
 
@@ -51,8 +55,7 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 		$this->resolvedOptions = [
 			'model'       => $this->resolver->resolveValue($this->modelConfig) ?? 'deepseek-chat',
 			'apikey'      => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig)
-				?? 'https://api.deepseek.com/beta/chat/completions',
+			'endpoint'    => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.deepseek.com/beta/chat/completions',
 			'temperature' => (float)($this->resolver->resolveValue($this->temperatureConfig) ?? 0.3),
 			'maxtokens'   => (int)($this->resolver->resolveValue($this->maxtokensConfig) ?? 512),
 		];
@@ -71,11 +74,13 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 	 */
 	public function chat(array $messages): string {
 		$raw = $this->raw($messages);
-		return $raw['choices'][0]['message']['content'] ?? '';
+		$content = $raw['choices'][0]['message']['content'] ?? '';
+		return is_string($content) ? $content : json_encode($content);
 	}
 
 	/**
 	 * Non-streaming call
+	 * Note: $tools is ignored by design (no tool calling for DeepSeek adapter here).
 	 */
 	public function raw(array $messages, array $tools = []): mixed {
 		$opts = $this->resolvedOptions;
@@ -127,6 +132,7 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 
 	/**
 	 * Streaming (SSE)
+	 * Note: $tools is ignored by design (no tool calling for DeepSeek adapter here).
 	 */
 	public function stream(
 		array $messages,
@@ -216,7 +222,12 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 	}
 
 	/**
-	 * Convert message schema to DeepSeek/OpenAI format
+	 * Convert message schema to DeepSeek/OpenAI format (no tools).
+	 *
+	 * Important:
+	 * - Drop role=tool messages entirely (they would be invalid / unsupported here).
+	 * - Drop assistant.tool_calls metadata (we don't support it in this adapter).
+	 * - Keep roles: system, user, assistant.
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
@@ -226,19 +237,34 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 				continue;
 			}
 
+			$role = (string)$m['role'];
+
+			// This adapter does not support tools; skip tool messages to avoid provider errors.
+			if ($role === 'tool') {
+				continue;
+			}
+
+			// Keep only supported roles
+			if ($role !== 'system' && $role !== 'user' && $role !== 'assistant') {
+				continue;
+			}
+
 			$content = $m['content'] ?? '';
 
 			$out[] = [
-				'role'    => $m['role'],
+				'role'    => $role,
 				'content' => is_string($content) ? $content : json_encode($content)
 			];
 
-			// Optional feedback injection
+			// Optional feedback injection (skip empty)
 			if (!empty($m['feedback']) && is_string($m['feedback'])) {
-				$out[] = [
-					'role'    => 'user',
-					'content' => trim($m['feedback'])
-				];
+				$fb = trim($m['feedback']);
+				if ($fb !== '') {
+					$out[] = [
+						'role'    => 'user',
+						'content' => $fb
+					];
+				}
 			}
 		}
 
