@@ -6,7 +6,7 @@ use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Dto\AgentEmbeddingChunk;
 
 /**
- * XrmRagPayloadNormalizer
+ * AgentRagPayloadNormalizer
  *
  * XRM-specific normalizer for Qdrant payloads.
  *
@@ -26,7 +26,7 @@ use MissionBay\Dto\AgentEmbeddingChunk;
  * - workflow control fields MUST NOT be persisted
  * - includes deterministic "chunktoken" derived from (hash + chunkIndex)
  */
-final class XrmRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
+final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 
 	/** @var string */
 	private const COLLECTION_KEY = 'xrm';
@@ -47,7 +47,7 @@ final class XrmRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 	public function getBackendCollectionName(string $collectionKey): string {
 		$collectionKey = strtolower(trim($collectionKey));
 		if ($collectionKey !== self::COLLECTION_KEY) {
-			throw new \InvalidArgumentException("Unknown collectionKey '$collectionKey' for XrmRagPayloadNormalizer.");
+			throw new \InvalidArgumentException("Unknown collectionKey '$collectionKey' for AgentRagPayloadNormalizer.");
 		}
 		return self::BACKEND_COLLECTION;
 	}
