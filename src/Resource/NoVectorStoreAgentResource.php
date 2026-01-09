@@ -3,75 +3,62 @@
 namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentVectorStore;
+use MissionBay\Dto\AgentEmbeddingChunk;
 
 /**
  * NoVectorStoreAgentResource
  *
  * A no-operation vector store resource.
  * Does not store, search, or return any data.
+ *
+ * Implements IAgentVectorStore (multi-collection contract), but intentionally does nothing.
  */
-class NoVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
+final class NoVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
 
-	/**
-	 * Returns the internal name of this resource.
-	 */
 	public static function getName(): string {
 		return 'novectorstoreagentresource';
 	}
 
-	/**
-	 * Returns a human-readable description.
-	 */
 	public function getDescription(): string {
 		return 'A no-operation vector store that does not store or retrieve vectors.';
 	}
 
-	/**
-	 * No-op: does not store anything.
-	 */
-	public function upsert(string $id, array $vector, string $text, string $hash, array $metadata = []): void {
-		// Intentionally left blank
+	public function upsert(AgentEmbeddingChunk $chunk): void {
+		// Intentionally no-op
 	}
 
-	/**
-	 * No-op: always returns false.
-	 */
-	public function existsByHash(string $hash): bool {
+	public function existsByHash(string $collectionKey, string $hash): bool {
 		return false;
 	}
 
-	/**
-	 * No-op: always returns an empty result list.
-	 */
-	public function search(array $vector, int $limit = 3, ?float $minScore = null): array {
+	public function existsByFilter(string $collectionKey, array $filter): bool {
+		return false;
+	}
+
+	public function deleteByFilter(string $collectionKey, array $filter): int {
+		return 0;
+	}
+
+	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null): array {
 		return [];
 	}
 
-	/**
-	 * No-op: nothing to create.
-	 */
-	public function createCollection(): void {
-		// No collection to create
+	public function createCollection(string $collectionKey): void {
+		// Intentionally no-op
 	}
 
-	/**
-	 * No-op: nothing to delete.
-	 */
-	public function deleteCollection(): void {
-		// No collection to delete
+	public function deleteCollection(string $collectionKey): void {
+		// Intentionally no-op
 	}
 
-	/**
-	 * Returns static info describing the no-operation nature.
-	 */
-	public function getInfo(): array {
+	public function getInfo(string $collectionKey): array {
 		return [
-			'type'       => 'no-op',
+			'type' => 'no-op',
+			'collection_key' => $collectionKey,
 			'collection' => null,
-			'count'      => 0,
-			'ids'        => [],
-			'details'    => [
-				'persistent'  => false,
+			'count' => 0,
+			'details' => [
+				'persistent' => false,
 				'description' => 'This vector store does not store or return any data.'
 			]
 		];

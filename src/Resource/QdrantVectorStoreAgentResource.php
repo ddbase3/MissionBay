@@ -5,24 +5,41 @@ namespace MissionBay\Resource;
 use MissionBay\Api\IAgentVectorStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentRagPayloadNormalizer;
+use MissionBay\Dto\AgentEmbeddingChunk;
 
-class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
+/**
+ * QdrantVectorStoreAgentResource
+ *
+ * Qdrant-backed VectorStore (multi-collection).
+ *
+ * Key rules:
+ * - Routing is driven ONLY by collectionKey provided upstream.
+ * - Physical collection name + schema + vector size + distance come from the Normalizer.
+ * - This store builds/validates payload via normalizer, then writes to Qdrant.
+ *
+ * Config:
+ * - endpoint (required)
+ * - apikey (required)
+ * - create_payload_indexes (optional, default false)
+ *
+ * Note:
+ * - No "collection" config here anymore.
+ *   Collections are owned by the normalizer and addressed via collectionKey.
+ */
+final class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
 
 	protected IAgentConfigValueResolver $resolver;
 	protected IAgentRagPayloadNormalizer $normalizer;
 
-	protected array|string|null $endpointConfig   = null;
-	protected array|string|null $apikeyConfig     = null;
-	protected array|string|null $collectionConfig = null;
-	protected array|string|null $vectorSizeConfig = null;
-	protected array|string|null $distanceConfig   = null;
+	protected array|string|null $endpointConfig = null;
+	protected array|string|null $apikeyConfig = null;
+	protected mixed $createPayloadIndexesConfig = null;
 
-	protected ?string $endpoint   = null;
-	protected ?string $apikey     = null;
-	protected ?string $collection = null;
+	protected ?string $endpoint = null;
+	protected ?string $apikey = null;
 
-	protected int $vectorSize = 1536;
-	protected string $distance = 'Cosine';
+	// Safety: default OFF so first test cannot fail due to schema mismatch.
+	protected bool $createPayloadIndexes = false;
 
 	public function __construct(
 		IAgentConfigValueResolver $resolver,
@@ -30,7 +47,7 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 		?string $id = null
 	) {
 		parent::__construct($id);
-		$this->resolver   = $resolver;
+		$this->resolver = $resolver;
 		$this->normalizer = $normalizer;
 	}
 
@@ -39,66 +56,72 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 	}
 
 	public function getDescription(): string {
-		return 'Provides vector upsert, search, and duplicate detection for Qdrant.';
+		return 'Provides vector upsert, search, and duplicate detection for Qdrant (multi-collection).';
 	}
 
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->endpointConfig   = $config['endpoint']   ?? null;
-		$this->apikeyConfig     = $config['apikey']     ?? null;
-		$this->collectionConfig = $config['collection'] ?? null;
-		$this->vectorSizeConfig = $config['vector_size'] ?? null;
-		$this->distanceConfig   = $config['distance'] ?? null;
+		$this->endpointConfig = $config['endpoint'] ?? null;
+		$this->apikeyConfig = $config['apikey'] ?? null;
+		$this->createPayloadIndexesConfig = $config['create_payload_indexes'] ?? null;
 
-		$this->endpoint   = rtrim((string)$this->resolver->resolveValue($this->endpointConfig), '/');
-		$this->apikey     = (string)$this->resolver->resolveValue($this->apikeyConfig);
-		$this->collection = (string)$this->resolver->resolveValue($this->collectionConfig);
+		$endpoint = (string)$this->resolver->resolveValue($this->endpointConfig);
+		$apikey = (string)$this->resolver->resolveValue($this->apikeyConfig);
 
-		$size = $this->resolver->resolveValue($this->vectorSizeConfig);
-		if (is_numeric($size)) $this->vectorSize = (int)$size;
+		$endpoint = rtrim(trim($endpoint), '/');
 
-		$dist = $this->resolver->resolveValue($this->distanceConfig);
-		if (is_string($dist) && $dist !== '') $this->distance = $dist;
+		if ($endpoint === '') {
+			throw new \InvalidArgumentException('QdrantVectorStore: endpoint is required.');
+		}
+		if ($apikey === '') {
+			throw new \InvalidArgumentException('QdrantVectorStore: apikey is required.');
+		}
+
+		$this->endpoint = $endpoint;
+		$this->apikey = $apikey;
+
+		$flag = $this->resolver->resolveValue($this->createPayloadIndexesConfig);
+		if (is_bool($flag)) {
+			$this->createPayloadIndexes = $flag;
+		} else if (is_string($flag)) {
+			$this->createPayloadIndexes = in_array(strtolower(trim($flag)), ['1', 'true', 'yes', 'on'], true);
+		} else if (is_int($flag)) {
+			$this->createPayloadIndexes = $flag === 1;
+		}
 	}
 
 	// ---------------------------------------------------------
-	// UPSERT - Always UUID
+	// UPSERT
 	// ---------------------------------------------------------
 
-	public function upsert(string $id, array $vector, string $text, string $hash, array $metadata = []): void {
-		$url = "{$this->endpoint}/collections/{$this->collection}/points?wait=true";
+	public function upsert(AgentEmbeddingChunk $chunk): void {
+		$this->assertReady();
+
+		// Strict: normalizer validates and builds payload (no guessing here)
+		$this->normalizer->validate($chunk);
+		$collection = $this->normalizer->getBackendCollectionName($chunk->collectionKey);
+
+		$url = "{$this->endpoint}/collections/{$collection}/points?wait=true";
 
 		$uuid = $this->generateUuid();
-		$payload = $this->normalizer->normalize($text, $hash, $metadata);
+		$payload = $this->normalizer->buildPayload($chunk);
 
 		$body = [
 			"points" => [
 				[
-					"id"      => $uuid,
-					"vector"  => $vector,
+					"id" => $uuid,
+					"vector" => $chunk->vector,
 					"payload" => $payload
 				]
 			]
 		];
 
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			"Content-Type: application/json",
-			"api-key: {$this->apikey}"
-		]);
-		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
-		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+		$r = $this->curlJson('PUT', $url, $body);
 
-		$r = curl_exec($ch);
-		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		$err = curl_error($ch);
-
-		curl_close($ch);
-
-		if ($r === false || $http < 200 || $http >= 300) {
-			throw new \RuntimeException("upsert failed HTTP $http: $err $r");
+		$http = (int)($r['http'] ?? 0);
+		if ($http < 200 || $http >= 300) {
+			throw new \RuntimeException("Qdrant upsert failed HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
 		}
 	}
 
@@ -106,76 +129,115 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 	// EXISTS BY HASH
 	// ---------------------------------------------------------
 
-	public function existsByHash(string $hash): bool {
-		$url = "{$this->endpoint}/collections/{$this->collection}/points/scroll";
+	public function existsByHash(string $collectionKey, string $hash): bool {
+		$hash = trim($hash);
+		if ($hash === '') {
+			return false;
+		}
+		return $this->existsByFilter($collectionKey, ['hash' => $hash]);
+	}
+
+	// ---------------------------------------------------------
+	// EXISTS BY FILTER
+	// ---------------------------------------------------------
+
+	public function existsByFilter(string $collectionKey, array $filter): bool {
+		$this->assertReady();
+
+		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
+		$url = "{$this->endpoint}/collections/{$collection}/points/scroll";
 
 		$body = [
-			"filter" => [
-				"must" => [
-					["key" => "hash", "match" => ["value" => $hash]]
-				]
-			],
+			"filter" => $this->buildQdrantFilter($filter),
 			"limit" => 1,
-			"with_payload" => true,
-			"with_vector"  => false
+			"with_payload" => false,
+			"with_vector" => false
 		];
 
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			"Content-Type: application/json",
-			"api-key: {$this->apikey}"
-		]);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+		$r = $this->curlJson('POST', $url, $body);
 
-		$r = curl_exec($ch);
-		curl_close($ch);
+		$data = json_decode((string)($r['raw'] ?? ''), true);
+		return isset($data['result']['points']) && is_array($data['result']['points']) && count($data['result']['points']) > 0;
+	}
 
-		$data = json_decode($r, true);
-		return isset($data['result']['points']) && count($data['result']['points']) > 0;
+	// ---------------------------------------------------------
+	// DELETE BY FILTER
+	// ---------------------------------------------------------
+
+	public function deleteByFilter(string $collectionKey, array $filter): int {
+		$this->assertReady();
+
+		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
+		$url = "{$this->endpoint}/collections/{$collection}/points/delete?wait=true";
+
+		$body = [
+			"filter" => $this->buildQdrantFilter($filter)
+		];
+
+		$r = $this->curlJson('POST', $url, $body);
+
+		$http = (int)($r['http'] ?? 0);
+		if ($http < 200 || $http >= 300) {
+			throw new \RuntimeException("Qdrant deleteByFilter failed HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
+		}
+
+		$data = json_decode((string)($r['raw'] ?? ''), true);
+
+		$deleted = $data['result']['deleted'] ?? null;
+		if (is_int($deleted)) {
+			return $deleted;
+		}
+
+		$points = $data['result']['points'] ?? null;
+		if (is_array($points)) {
+			return count($points);
+		}
+
+		return 0;
 	}
 
 	// ---------------------------------------------------------
 	// SEARCH
 	// ---------------------------------------------------------
 
-	public function search(array $vector, int $limit = 3, ?float $minScore = null): array {
-		$url = "{$this->endpoint}/collections/{$this->collection}/points/search";
+	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null): array {
+		$this->assertReady();
+
+		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
+		$url = "{$this->endpoint}/collections/{$collection}/points/search";
 
 		$body = [
-			"vector"      => $vector,
-			"limit"       => $limit,
-			"with_payload"=> true,
+			"vector" => $vector,
+			"limit" => $limit,
+			"with_payload" => true,
 			"with_vector" => false
 		];
 
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			"Content-Type: application/json",
-			"api-key: {$this->apikey}"
-		]);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+		$r = $this->curlJson('POST', $url, $body);
 
-		$r = curl_exec($ch);
-		curl_close($ch);
-
-		$data = json_decode($r, true);
-		if (!isset($data['result'])) return [];
+		$data = json_decode((string)($r['raw'] ?? ''), true);
+		if (!isset($data['result']) || !is_array($data['result'])) {
+			return [];
+		}
 
 		$out = [];
 		foreach ($data['result'] as $hit) {
 			$score = $hit['score'] ?? null;
-			if ($minScore !== null && $score < $minScore) continue;
+			if (!is_numeric($score)) {
+				continue;
+			}
+			$score = (float)$score;
+			if ($minScore !== null && $score < $minScore) {
+				continue;
+			}
 
 			$out[] = [
-				'id'      => $hit['id'] ?? null,
-				'score'   => $score,
+				'id' => $hit['id'] ?? null,
+				'score' => $score,
 				'payload' => $hit['payload'] ?? []
 			];
 		}
+
 		return $out;
 	}
 
@@ -183,94 +245,50 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 	// CREATE COLLECTION
 	// ---------------------------------------------------------
 
-	public function createCollection(): void {
-		$url = "{$this->endpoint}/collections/{$this->collection}";
+	public function createCollection(string $collectionKey): void {
+		$this->assertReady();
+
+		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
+
+		$vectorSize = $this->normalizer->getVectorSize($collectionKey);
+		$distance = $this->normalizer->getDistance($collectionKey);
+
+		$url = "{$this->endpoint}/collections/{$collection}";
 
 		$body = [
 			"vectors" => [
-				"size"     => $this->vectorSize,
-				"distance" => $this->distance
+				"size" => $vectorSize,
+				"distance" => $distance
 			]
 		];
 
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			"Content-Type: application/json",
-			"api-key: {$this->apikey}"
-		]);
-		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
-		curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+		$r = $this->curlJson('PUT', $url, $body);
 
-		$r = curl_exec($ch);
-		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		$err = curl_error($ch);
-
-		curl_close($ch);
-
-		if ($r === false || $http < 200 || $http >= 300) {
-			throw new \RuntimeException("createCollection HTTP $http: $err $r");
+		$http = (int)($r['http'] ?? 0);
+		if ($http < 200 || $http >= 300) {
+			throw new \RuntimeException("Qdrant createCollection HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
 		}
 
-		$this->createPayloadIndexes();
+		if ($this->createPayloadIndexes) {
+			$this->createPayloadIndexes($collectionKey);
+		}
 	}
 
 	// ---------------------------------------------------------
 	// DELETE COLLECTION
 	// ---------------------------------------------------------
 
-	public function deleteCollection(): void {
-		$url = "{$this->endpoint}/collections/{$this->collection}";
+	public function deleteCollection(string $collectionKey): void {
+		$this->assertReady();
 
-		$ch = curl_init($url);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			"Content-Type: application/json",
-			"api-key: {$this->apikey}"
-		]);
-		curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
+		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
+		$url = "{$this->endpoint}/collections/{$collection}";
 
-		$r = curl_exec($ch);
-		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		curl_close($ch);
+		$r = $this->curlJson('DELETE', $url, null);
 
-		if ($r === false || $http < 200 || $http >= 300) {
-			throw new \RuntimeException("deleteCollection HTTP $http: $r");
-		}
-	}
-
-	// ---------------------------------------------------------
-	// PAYLOAD INDEX CREATION
-	// ---------------------------------------------------------
-
-	protected function createPayloadIndexes(): void {
-		$schema = $this->normalizer->getSchema();
-		if (empty($schema)) return;
-
-		foreach ($schema as $field => $def) {
-			$url = "{$this->endpoint}/collections/{$this->collection}/index";
-
-			$body = [
-				"field_name"   => $field,
-				"field_schema" => $def
-			];
-
-			$ch = curl_init($url);
-			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-			curl_setopt($ch, CURLOPT_HTTPHEADER, [
-				"Content-Type: application/json",
-				"api-key: {$this->apikey}"
-			]);
-			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
-			curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
-
-			$r = curl_exec($ch);
-			$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-			curl_close($ch);
-
-			if ($http < 200 || $http >= 300) {
-				throw new \RuntimeException("createPayloadIndex($field) HTTP $http: $r");
-			}
+		$http = (int)($r['http'] ?? 0);
+		if ($http < 200 || $http >= 300) {
+			throw new \RuntimeException("Qdrant deleteCollection HTTP $http: " . ($r['raw'] ?? ''));
 		}
 	}
 
@@ -278,26 +296,143 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 	// GET COLLECTION INFO
 	// ---------------------------------------------------------
 
-	public function getInfo(): array {
-		$url = "{$this->endpoint}/collections/{$this->collection}";
+	public function getInfo(string $collectionKey): array {
+		$this->assertReady();
 
+		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
+		$url = "{$this->endpoint}/collections/{$collection}";
+
+		$r = $this->curlJson('GET', $url, null);
+		$data = json_decode((string)($r['raw'] ?? ''), true);
+
+		return [
+			'collection_key' => $collectionKey,
+			'collection' => $collection,
+			'vector_size' => $this->normalizer->getVectorSize($collectionKey),
+			'distance' => $this->normalizer->getDistance($collectionKey),
+			'payload_schema' => $data['result']['payload_schema'] ?? [],
+			'qdrant_raw' => $data
+		];
+	}
+
+	// ---------------------------------------------------------
+	// PAYLOAD INDEX CREATION (optional)
+	// ---------------------------------------------------------
+
+	protected function createPayloadIndexes(string $collectionKey): void {
+		$schema = $this->normalizer->getSchema($collectionKey);
+		if (empty($schema) || !is_array($schema)) {
+			return;
+		}
+
+		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
+
+		foreach ($schema as $field => $def) {
+			$url = "{$this->endpoint}/collections/{$collection}/index";
+
+			$body = [
+				"field_name" => (string)$field,
+				"field_schema" => $def
+			];
+
+			$r = $this->curlJson('PUT', $url, $body);
+
+			$http = (int)($r['http'] ?? 0);
+			if ($http < 200 || $http >= 300) {
+				// intentionally non-fatal (index creation can vary by Qdrant version)
+				return;
+			}
+		}
+	}
+
+	// ---------------------------------------------------------
+	// FILTER BUILDER
+	// ---------------------------------------------------------
+
+	/**
+	 * Builds a simple Qdrant filter from a flat associative array.
+	 *
+	 * Supported:
+	 * - ['key' => 'value']            => must match
+	 * - ['key' => ['a','b','c']]      => should match any (OR)
+	 *
+	 * @param array<string,mixed> $filter
+	 * @return array<string,mixed>
+	 */
+	protected function buildQdrantFilter(array $filter): array {
+		$must = [];
+		$should = [];
+
+		foreach ($filter as $key => $value) {
+			if (is_array($value)) {
+				foreach ($value as $v) {
+					$should[] = [
+						"key" => (string)$key,
+						"match" => ["value" => $v]
+					];
+				}
+				continue;
+			}
+
+			$must[] = [
+				"key" => (string)$key,
+				"match" => ["value" => $value]
+			];
+		}
+
+		$out = [];
+		if ($must) {
+			$out['must'] = $must;
+		}
+		if ($should) {
+			$out['should'] = $should;
+		}
+		if (!$out) {
+			$out['must'] = [];
+		}
+
+		return $out;
+	}
+
+	// ---------------------------------------------------------
+	// CURL HELPER
+	// ---------------------------------------------------------
+
+	/**
+	 * @param string $method GET|POST|PUT|DELETE
+	 * @param string $url
+	 * @param array<string,mixed>|null $body
+	 * @return array<string,mixed>
+	 */
+	protected function curlJson(string $method, string $url, ?array $body): array {
 		$ch = curl_init($url);
+
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, [
 			"Content-Type: application/json",
 			"api-key: {$this->apikey}"
 		]);
-		$r = curl_exec($ch);
+
+		if ($method === 'POST') {
+			curl_setopt($ch, CURLOPT_POST, true);
+		} else if ($method !== 'GET') {
+			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+		}
+
+		if ($body !== null) {
+			curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
+		}
+
+		$raw = curl_exec($ch);
+		$http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$error = curl_error($ch);
+
 		curl_close($ch);
 
-		$data = json_decode($r, true);
-
 		return [
-			'collection'     => $this->collection,
-			'vector_size'    => $this->vectorSize,
-			'distance'       => $this->distance,
-			'payload_schema' => $data['result']['payload_schema'] ?? [],
-			'qdrant_raw'     => $data
+			'raw' => $raw,
+			'http' => $http,
+			'error' => $error
 		];
 	}
 
@@ -314,5 +449,14 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 			mt_rand(0, 0x3fff) | 0x8000,
 			mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
 		);
+	}
+
+	private function assertReady(): void {
+		if (!$this->endpoint || trim($this->endpoint) === '') {
+			throw new \RuntimeException('QdrantVectorStore not configured: endpoint missing.');
+		}
+		if (!$this->apikey || trim($this->apikey) === '') {
+			throw new \RuntimeException('QdrantVectorStore not configured: apikey missing.');
+		}
 	}
 }

@@ -8,11 +8,25 @@ use MissionBay\Dto\AgentParsedContent;
 /**
  * XrmChunkerAgentResource
  *
- * Hybrid chunker for structured XRM entities:
- * - Metadata fields consolidated into single meta section.
- * - Large text fields chunked by sentences up to maxLength, no paragraph splitting.
- * - Robust long-chunk generation for RAG (max possible length).
- * - Inline metadata injected into every chunk.
+ * Hybrid chunker for structured XRM entities.
+ *
+ * Supported input shapes:
+ * A) New queue extractor shape:
+ *    {
+ *      "sysentry": {...},
+ *      "type": {...},
+ *      "payload": {...}
+ *    }
+ *
+ * B) Legacy shape:
+ *    {
+ *      "id": ...,
+ *      "data": {...}
+ *    }
+ *
+ * Notes:
+ * - chunk_index is NOT set here to avoid redundancy; AiEmbeddingNode enforces it.
+ * - Inline meta "type" resolves to type.alias if available.
  */
 class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChunker {
 
@@ -49,22 +63,43 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 
 	public function supports(AgentParsedContent $parsed): bool {
 		if (!is_array($parsed->structured) && !is_object($parsed->structured)) {
-            return false;
-        }
+			return false;
+		}
 
 		$root = (array)$parsed->structured;
+
+		// New shape (queue extractor)
+		if (isset($root['payload']) && (is_array($root['payload']) || is_object($root['payload']))) {
+			return true;
+		}
+
+		// Legacy shape
 		return isset($root['id'], $root['data']);
 	}
 
 	public function chunk(AgentParsedContent $parsed): array {
 		$root = (array)$parsed->structured;
-		$data = (array)$root['data'] ?? [];
 		$meta = $parsed->metadata;
 
+		// New shape
+		if (isset($root['payload'])) {
+			$data = (array)$root['payload'];
+			return $this->chunkStructured($root, $data, $meta, true);
+		}
+
+		// Legacy shape fallback
+		$data = (array)($root['data'] ?? []);
+		return $this->chunkStructured($root, $data, $meta, false);
+	}
+
+	// ---------------------------------------------------------
+	// Core chunking for both shapes
+	// ---------------------------------------------------------
+
+	protected function chunkStructured(array $root, array $data, array $meta, bool $isNewShape): array {
 		$chunks = [];
 		$index = 0;
 
-		// Build metadata footer line for every chunk
 		$inlineMeta = $this->buildInlineMetadata($root, $data);
 
 		// -------------------------------------------------------
@@ -81,17 +116,17 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 			}
 
 			if (is_numeric($value) || is_bool($value)) {
-				$metaLines[] = ucfirst($key) . ": " . json_encode($value);
+				$metaLines[] = ucfirst((string)$key) . ": " . json_encode($value);
 				continue;
 			}
 
 			if (is_string($value) && mb_strlen($value) <= 50) {
-				$metaLines[] = ucfirst($key) . ": " . trim($value);
+				$metaLines[] = ucfirst((string)$key) . ": " . trim($value);
 				continue;
 			}
 
 			if (is_string($value)) {
-				$textSections[$key] = $this->normalizeNewlines($value);
+				$textSections[(string)$key] = $this->normalizeNewlines($value);
 				continue;
 			}
 
@@ -100,12 +135,12 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 					$value,
 					JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
 				);
-				$json = $this->normalizeNewlines($json);
+				$json = $this->normalizeNewlines((string)$json);
 
 				if (mb_strlen($json) <= 100) {
-					$metaLines[] = ucfirst($key) . ": " . trim($json);
+					$metaLines[] = ucfirst((string)$key) . ": " . trim($json);
 				} else {
-					$textSections[$key] = $json;
+					$textSections[(string)$key] = $json;
 				}
 
 				continue;
@@ -116,7 +151,7 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 		// CHUNK 0: Header + Metadata
 		// -------------------------------------------------------
 
-		$name = isset($root['name']) ? trim((string)$root['name']) : 'Entity';
+		$name = $this->pickName($root, $data, $isNewShape);
 
 		$text =
 			$inlineMeta . "\n" .
@@ -132,7 +167,7 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 
 		foreach ($textSections as $key => $content) {
 
-			$sectionTitle = "## " . ucfirst($key) . "\n\n" . trim($content);
+			$sectionTitle = "## " . ucfirst((string)$key) . "\n\n" . trim((string)$content);
 
 			foreach ($this->chunkSentencesMaxFit($sectionTitle) as $body) {
 				$finalText = $inlineMeta . "\n" . $body;
@@ -144,6 +179,38 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 	}
 
 	// ======================================================================
+	// NAME PICKER
+	// ======================================================================
+
+	protected function pickName(array $root, array $data, bool $isNewShape): string {
+		if (isset($data['name']) && is_string($data['name']) && trim($data['name']) !== '') {
+			return trim($data['name']);
+		}
+
+		if (isset($root['name']) && is_string($root['name']) && trim($root['name']) !== '') {
+			return trim($root['name']);
+		}
+
+		if ($isNewShape) {
+			$alias = $root['type']['alias'] ?? null;
+			if (is_string($alias) && $alias !== '') {
+				return 'Entity (' . $alias . ')';
+			}
+
+			$id = $root['sysentry']['id'] ?? null;
+			if (is_numeric($id)) {
+				return 'Entity #' . (int)$id;
+			}
+		}
+
+		if (isset($root['id']) && is_numeric($root['id'])) {
+			return 'Entity #' . (int)$root['id'];
+		}
+
+		return 'Entity';
+	}
+
+	// ======================================================================
 	// INLINE META
 	// ======================================================================
 
@@ -152,11 +219,25 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 
 		foreach ($this->inlineMetaFields as $field) {
 
-			$val = $root[$field] ?? $data[$field] ?? null;
-			if ($val === null) continue;
+			$val = null;
+
+			// Special-case: "type" should resolve to type alias if present
+			if ($field === 'type') {
+				$val = $root['type']['alias'] ?? $data['type'] ?? null;
+			} else {
+				$val = $root[$field] ?? $data[$field] ?? null;
+			}
+
+			if ($val === null) {
+				continue;
+			}
 
 			if (is_array($val)) {
-				$val = implode(',', array_map('trim', $val));
+				$val = implode(',', array_map('trim', array_map('strval', $val)));
+			}
+
+			if (is_object($val)) {
+				$val = json_encode($val, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 			}
 
 			$v = str_replace('"', "'", (string)$val);
@@ -303,13 +384,12 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 	}
 
 	private function makeChunk(string $text, array $meta, int $index): array {
-		$cmeta = $meta;
-		$cmeta['chunk_index'] = $index;
-
+		// Do NOT set chunk_index here (avoid redundancy).
+		// AiEmbeddingNode enforces chunk_index at store time.
 		return [
 			'id'   => uniqid('chunk_', true),
 			'text' => trim($text),
-			'meta' => $cmeta
+			'meta' => $meta
 		];
 	}
 }

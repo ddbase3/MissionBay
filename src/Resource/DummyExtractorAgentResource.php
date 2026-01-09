@@ -13,40 +13,56 @@ use MissionBay\Dto\AgentContentItem;
  */
 class DummyExtractorAgentResource extends AbstractAgentResource implements IAgentContentExtractor {
 
-        public static function getName(): string {
-                return 'dummyextractoragentresource';
-        }
+	public static function getName(): string {
+		return 'dummyextractoragentresource';
+	}
 
-        public function getDescription(): string {
-                return 'Returns a fixed list of plain-text content items for testing.';
-        }
+	public function getDescription(): string {
+		return 'Returns a fixed list of plain-text content items for testing.';
+	}
 
-        /**
-         * @return AgentContentItem[]
-         */
-        public function extract(IAgentContext $context): array {
-                $items = [];
+	/**
+	 * @return AgentContentItem[]
+	 */
+	public function extract(IAgentContext $context): array {
+		$items = [];
 
-                $texts = [
-                        "Hello world, this is a test.",
-                        "Second test content block."
-                ];
+		$texts = [
+			"Hello world, this is a test.",
+			"Second test content block."
+		];
 
-                foreach ($texts as $text) {
+		foreach ($texts as $text) {
+			$hash = hash('sha256', $text);
 
-                        $hash = hash('sha256', $text);
+			$items[] = new AgentContentItem(
+				id: $hash,
+				hash: $hash,
+				contentType: 'text/plain',
+				content: $text,
+				isBinary: false,
+				size: strlen($text),
+				metadata: []
+			);
+		}
 
-                        $items[] = new AgentContentItem(
-                                id: $hash,
-                                hash: $hash,
-                                contentType: 'text/plain',
-                                content: $text,
-                                isBinary: false,
-                                size: strlen($text),
-                                metadata: []
-                        );
-                }
+		return $items;
+	}
 
-                return $items;
-        }
+	/**
+	 * Ack hook (dummy).
+	 *
+	 * @param AgentContentItem $item
+	 * @param array<string,mixed> $result
+	 */
+	public function ack(AgentContentItem $item, array $result = []): void {
+		// no-op
+	}
+
+	/**
+	 * Fail hook (dummy).
+	 */
+	public function fail(AgentContentItem $item, string $errorMessage, bool $retryHint = true): void {
+		// no-op
+	}
 }

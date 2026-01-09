@@ -46,7 +46,7 @@ class CrmProductXrmExtractorAgentResource extends AbstractAgentResource implemen
 	protected function loadEntries(): array {
 		$options = [
 			'type'       => 'product',
-			'tag'        => [ 'crm' ],
+			'tag'        => ['crm'],
 			'loadname'   => true,
 			'loaddata'   => true,
 			'loadaccess' => false,
@@ -66,13 +66,9 @@ class CrmProductXrmExtractorAgentResource extends AbstractAgentResource implemen
 		$items = [];
 
 		foreach ($entries as $entry) {
-
 			// tidy up
 			unset($entry['data']['price']);
 			unset($entry['data']['weight']);
-
-			// debug
-			// echo json_encode($entry, JSON_PRETTY_PRINT);exit;
 
 			$raw = [
 				'id'   => $entry['id'] ?? null,
@@ -81,7 +77,7 @@ class CrmProductXrmExtractorAgentResource extends AbstractAgentResource implemen
 			];
 
 			$json = json_encode($raw, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-			$hash = hash('sha256', $json);
+			$hash = hash('sha256', (string)$json);
 
 			$items[] = new AgentContentItem(
 				id: $hash,
@@ -89,16 +85,29 @@ class CrmProductXrmExtractorAgentResource extends AbstractAgentResource implemen
 				contentType: 'application/x-crm-json',
 				content: $raw,
 				isBinary: false,
-				size: strlen($json),
+				size: strlen((string)$json),
 				metadata: [
-					'source_id' => 'crm-product',
-					'content_id' => $entry['id'] ?? null,
+					'content_id'   => $entry['id'] ?? null,
 					'content_uuid' => $entry['uuid'] ?? null,
-					'name' => $entry['name'] ?? '',
+					'name'         => $entry['name'] ?? '',
 				]
 			);
 		}
 
 		return $items;
+	}
+
+	/**
+	 * Ack hook (dummy for legacy extractor).
+	 */
+	public function ack(AgentContentItem $item, array $result = []): void {
+		// no-op (legacy extractor has no queue)
+	}
+
+	/**
+	 * Fail hook (dummy for legacy extractor).
+	 */
+	public function fail(AgentContentItem $item, string $errorMessage, bool $retryHint = true): void {
+		// no-op (legacy extractor has no queue)
 	}
 }
