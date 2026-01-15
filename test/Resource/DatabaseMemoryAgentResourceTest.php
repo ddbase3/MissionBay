@@ -393,7 +393,7 @@ class DbMemoryConfigResolverStub implements IAgentConfigValueResolver {
 	/** @var array<mixed,mixed> */
 	public array $returnMap = [];
 
-	public function resolveValue(array|string|null $config): mixed {
+	public function resolveValue(array|string|int|float|bool|null $config): mixed {
 		$key = $config;
 		if (is_array($key)) {
 			$key = json_encode($key);

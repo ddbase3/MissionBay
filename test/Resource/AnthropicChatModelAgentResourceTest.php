@@ -388,7 +388,7 @@ class ConfigResolverStub implements IAgentConfigValueResolver {
 		private bool $returnNull = false
 	) {}
 
-	public function resolveValue(array|string|null $config): mixed {
+	public function resolveValue(array|string|int|float|bool|null $config): mixed {
 		return $this->returnNull ? null : $config;
 	}
 }

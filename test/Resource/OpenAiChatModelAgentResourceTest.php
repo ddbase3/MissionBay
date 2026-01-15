@@ -23,7 +23,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 				$this->map = $map;
 			}
 
-			public function resolveValue(array|string|null $config): mixed {
+			public function resolveValue(array|string|int|float|bool|null $config): mixed {
 				$key = is_array($config) ? json_encode($config) : (string)$config;
 
 				if (array_key_exists($key, $this->map)) {

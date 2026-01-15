@@ -20,7 +20,7 @@ class LoggerResourceTest extends TestCase {
 				$this->resolvedScope = $resolvedScope;
 			}
 
-			public function resolveValue(array|string|null $config): mixed {
+			public function resolveValue(array|string|int|float|bool|null $config): mixed {
 				// For tests we return the injected resolved scope (or null),
 				// independent from $config shape.
 				return $this->resolvedScope;
