@@ -8,30 +8,25 @@ use MissionBay\Dto\AgentEmbeddingChunk;
 /**
  * AgentRagPayloadNormalizer
  *
- * XRM-specific normalizer for Qdrant payloads.
+ * XRM normalizer for Qdrant payloads.
  *
- * This implementation follows the NEW multi-collection normalizer interface:
- * - It is the schema owner for all collections it supports.
- * - It validates strictly (no best-effort, no guessing).
- * - It builds the final payload that will be stored.
+ * Contract goals:
+ * - Strict validation (no guessing, no best-effort).
+ * - Multi-collection contract, but XRM currently collapses all incoming domain keys
+ *   (file/contact/address/...) into ONE logical collection: "xrm".
+ * - VectorStore stays dumb: it calls normalizer to validate/build payload and asks for backend collection name.
  *
- * XRM scope:
- * - We currently support exactly one logical collectionKey: "xrm"
- * - Backend collection name is fixed here (can be changed later in ONE place).
- *
- * Required lifecycle fields (strict):
- * - metadata["content_uuid"] (string, non-empty)
- *
- * Payload rules:
- * - workflow control fields MUST NOT be persisted
- * - includes deterministic "chunktoken" derived from (hash + chunkIndex)
+ * XRM current routing:
+ * - Any incoming chunk.collectionKey is accepted (non-empty)
+ * - It is mapped to canonical "xrm" for storage semantics
+ * - Backend collection is fixed: "xrm_content_v1"
  */
 final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 
-	/** @var string */
-	private const COLLECTION_KEY = 'xrm';
+	/** @var string canonical logical collection key for XRM */
+	private const CANONICAL_COLLECTION_KEY = 'xrm';
 
-	/** @var string physical collection name in Qdrant */
+	/** @var string physical backend collection name in Qdrant */
 	private const BACKEND_COLLECTION = 'xrm_content_v1';
 
 	/** @var int embedding vector size */
@@ -40,30 +35,39 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 	/** @var string Qdrant distance */
 	private const DISTANCE = 'Cosine';
 
+	/**
+	 * IMPORTANT:
+	 * - Default OFF: don't spam CLI output unless explicitly enabled.
+	 * - Can be flipped via setDebug(true) from your CLI runner/bootstrap if you want.
+	 */
+	private bool $debug = false;
+
+	public function setDebug(bool $debug): void {
+		$this->debug = $debug;
+	}
+
 	public function getCollectionKeys(): array {
-		return [self::COLLECTION_KEY];
+		// Canonical keys owned by this normalizer.
+		return [self::CANONICAL_COLLECTION_KEY];
 	}
 
 	public function getBackendCollectionName(string $collectionKey): string {
-		$collectionKey = strtolower(trim($collectionKey));
-		if ($collectionKey !== self::COLLECTION_KEY) {
-			throw new \InvalidArgumentException("Unknown collectionKey '$collectionKey' for AgentRagPayloadNormalizer.");
-		}
+		$this->mapToCanonicalCollectionKey($collectionKey);
 		return self::BACKEND_COLLECTION;
 	}
 
 	public function getVectorSize(string $collectionKey): int {
-		$this->assertKnownCollection($collectionKey);
+		$this->mapToCanonicalCollectionKey($collectionKey);
 		return self::VECTOR_SIZE;
 	}
 
 	public function getDistance(string $collectionKey): string {
-		$this->assertKnownCollection($collectionKey);
+		$this->mapToCanonicalCollectionKey($collectionKey);
 		return self::DISTANCE;
 	}
 
 	public function getSchema(string $collectionKey): array {
-		$this->assertKnownCollection($collectionKey);
+		$this->mapToCanonicalCollectionKey($collectionKey);
 
 		return [
 			// always present
@@ -88,13 +92,13 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 	}
 
 	public function validate(AgentEmbeddingChunk $chunk): void {
-		$collectionKey = strtolower(trim((string)$chunk->collectionKey));
-		if ($collectionKey === '') {
+		$incomingKey = trim((string)$chunk->collectionKey);
+		if ($incomingKey === '') {
 			throw new \RuntimeException('AgentEmbeddingChunk.collectionKey is required.');
 		}
-		if ($collectionKey !== self::COLLECTION_KEY) {
-			throw new \RuntimeException("Unsupported collectionKey '$collectionKey' for XRM normalizer.");
-		}
+
+		// XRM: accept any incoming key, but enforce canonical storage semantics.
+		$canonical = $this->mapToCanonicalCollectionKey($incomingKey);
 
 		if (!is_int($chunk->chunkIndex) || $chunk->chunkIndex < 0) {
 			throw new \RuntimeException('AgentEmbeddingChunk.chunkIndex must be >= 0.');
@@ -118,9 +122,14 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 		if (!is_string($contentUuid) || trim($contentUuid) === '') {
 			throw new \RuntimeException("Missing required metadata field 'content_uuid' for XRM.");
 		}
+
+		// Normalize the DTO for downstream consistency (store/delete/exists).
+		// This ensures the VectorStore "sees" the canonical key even if upstream used "file", "contact", etc.
+		$chunk->collectionKey = $canonical;
 	}
 
 	public function buildPayload(AgentEmbeddingChunk $chunk): array {
+		// validate() canonicalizes $chunk->collectionKey for us.
 		$this->validate($chunk);
 
 		$meta = is_array($chunk->metadata) ? $chunk->metadata : [];
@@ -128,10 +137,10 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 		$payload = [
 			'text'           => trim((string)$chunk->text),
 			'hash'           => trim((string)$chunk->hash),
-			'collection_key' => self::COLLECTION_KEY,
+			'collection_key' => self::CANONICAL_COLLECTION_KEY,
 			'content_uuid'   => $this->asUpperHex($meta['content_uuid'] ?? null),
-			'chunktoken'     => $this->buildChunkToken($chunk->hash, $chunk->chunkIndex),
-			'chunk_index'    => $chunk->chunkIndex,
+			'chunktoken'     => $this->buildChunkToken((string)$chunk->hash, (int)$chunk->chunkIndex),
+			'chunk_index'    => (int)$chunk->chunkIndex,
 		];
 
 		// Optional fields (kept minimal)
@@ -172,20 +181,37 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 	}
 
 	// ---------------------------------------------------------
-	// Helpers
+	// Routing
 	// ---------------------------------------------------------
 
-	private function assertKnownCollection(string $collectionKey): void {
-		$collectionKey = strtolower(trim($collectionKey));
-		if ($collectionKey !== self::COLLECTION_KEY) {
-			throw new \InvalidArgumentException("Unknown collectionKey '$collectionKey'.");
+	private function mapToCanonicalCollectionKey(string $incomingKey): string {
+		$incomingKey = strtolower(trim($incomingKey));
+		if ($incomingKey === '') {
+			throw new \InvalidArgumentException("collectionKey must be non-empty for XRM normalizer.");
 		}
+
+		// XRM current mode: everything goes into the single canonical collection.
+		if ($incomingKey !== self::CANONICAL_COLLECTION_KEY) {
+			$this->debugLog("Mapping incoming collectionKey '{$incomingKey}' -> '" . self::CANONICAL_COLLECTION_KEY . "'");
+		}
+
+		return self::CANONICAL_COLLECTION_KEY;
 	}
+
+	private function debugLog(string $msg): void {
+		if (!$this->debug) {
+			return;
+		}
+		echo "[AgentRagPayloadNormalizer] {$msg}\n";
+	}
+
+	// ---------------------------------------------------------
+	// Helpers
+	// ---------------------------------------------------------
 
 	private function buildChunkToken(string $hash, int $chunkIndex): string {
 		$hash = trim($hash);
 		if ($hash === '') {
-			// validate() already enforces non-empty hash, so this is defensive only.
 			throw new \RuntimeException('Cannot build chunktoken: hash is empty.');
 		}
 		return $chunkIndex > 0 ? ($hash . '-' . $chunkIndex) : $hash;

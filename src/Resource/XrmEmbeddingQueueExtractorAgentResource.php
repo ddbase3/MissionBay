@@ -1,10 +1,11 @@
 <?php declare(strict_types=1);
 
-namespace Base3XrmWebsite\Resource;
+namespace MissionBay\Resource;
 
 use Base3\Database\Api\IDatabase;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentContentExtractor;
+use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Resource\AbstractAgentResource;
 
@@ -18,12 +19,15 @@ use MissionBay\Resource\AbstractAgentResource;
  */
 final class XrmEmbeddingQueueExtractorAgentResource extends AbstractAgentResource implements IAgentContentExtractor {
 
-	private const CLAIM_LIMIT = 5;
+	private const DEFAULT_CLAIM_LIMIT = 5;
 	private const LOCK_MINUTES = 10;
 	private const MAX_ATTEMPTS = 5;
 
+	private int $claimLimit = self::DEFAULT_CLAIM_LIMIT;
+
 	public function __construct(
 		private readonly IDatabase $db,
+		private readonly IAgentConfigValueResolver $resolver,
 		?string $id = null
 	) {
 		parent::__construct($id);
@@ -37,13 +41,26 @@ final class XrmEmbeddingQueueExtractorAgentResource extends AbstractAgentResourc
 		return 'Claims embedding jobs from base3_embedding_job and returns AgentContentItem work units.';
 	}
 
+	public function setConfig(array $config): void {
+		parent::setConfig($config);
+
+		$value = $this->resolver->resolveValue($config['claim_limit'] ?? self::DEFAULT_CLAIM_LIMIT);
+
+		$limit = (int)$value;
+		if ($limit <= 0) {
+			$limit = self::DEFAULT_CLAIM_LIMIT;
+		}
+
+		$this->claimLimit = $limit;
+	}
+
 	public function extract(IAgentContext $context): array {
 		$this->db->connect();
 		if (!$this->db->connected()) {
 			return [];
 		}
 
-		$ids = $this->claimJobIds(self::CLAIM_LIMIT);
+		$ids = $this->claimJobIds($this->claimLimit);
 		if (!$ids) {
 			return [];
 		}

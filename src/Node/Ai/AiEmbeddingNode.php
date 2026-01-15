@@ -18,7 +18,13 @@ use MissionBay\Node\AbstractAgentNode;
 
 final class AiEmbeddingNode extends AbstractAgentNode {
 
+	private const META_CONTENT_UUID = 'content_uuid';
+
 	protected ?ILogger $logger = null;
+
+	private bool $debugEnabled = false;
+	private int $debugMaxTextPreview = 180;
+	private int $debugMaxMetaKeys = 60;
 
 	public static function getName(): string {
 		return 'aiembeddingnode';
@@ -35,6 +41,20 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				description: 'Upsert policy for action=upsert: skip | append | replace. Delete is driven by item.action=delete.',
 				type: 'string',
 				default: 'skip',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'debug',
+				description: 'Enable verbose CLI output (echo inside log()).',
+				type: 'bool',
+				default: false,
+				required: false
+			),
+			new AgentNodePort(
+				name: 'debug_preview_len',
+				description: 'Max characters for text previews in debug output.',
+				type: 'int',
+				default: 180,
 				required: false
 			)
 		];
@@ -109,6 +129,9 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$this->logger = $resources['logger'][0] ?? null;
 
+		$this->debugEnabled = (bool)($inputs['debug'] ?? false);
+		$this->debugMaxTextPreview = max(20, (int)($inputs['debug_preview_len'] ?? $this->debugMaxTextPreview));
+
 		$extractors = $resources['extractor'] ?? [];
 		$parsers = $resources['parser'] ?? [];
 		$chunkers = $resources['chunker'] ?? [];
@@ -120,11 +143,13 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 		$store = $resources['vectordb'][0] ?? null;
 
 		if (!$embedder || !$store) {
+			$this->log('ERROR Missing embedder or vector store.');
 			return ['error' => 'Missing embedder or vector store.'];
 		}
 
 		$mode = strtolower((string)($inputs['mode'] ?? 'skip'));
 		if (!in_array($mode, ['skip', 'append', 'replace'], true)) {
+			$this->log('ERROR Unsupported mode: ' . $mode);
 			return ['error' => "Unsupported mode: $mode"];
 		}
 
@@ -157,25 +182,74 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			'num_fail_errors' => 0
 		];
 
+		$this->log('Start mode=' . $mode . ' extractors=' . count($extractors) . ' parsers=' . count($parsers) . ' chunkers=' . count($chunkers));
+
 		$itemsWithOwner = $this->stepExtractWithOwners($extractors, $context, $stats);
 		$stats['num_items'] = count($itemsWithOwner);
 
+		$this->log('Extract items=' . $stats['num_items']);
+
+		$idx = 0;
 		foreach ($itemsWithOwner as $bundle) {
+			$idx++;
 			$item = $bundle['item'];
 			$owner = $bundle['owner'];
 
+			$this->log('Item #' . $idx . ' id=' . (string)$item->id . ' action=' . (string)$item->action . ' col=' . (string)$item->collectionKey . ' hash=' . (string)$item->hash);
+
 			try {
 				$resultMeta = $this->processItem($item, $mode, $parsers, $chunkers, $embedder, $store, $stats);
+
+				$this->assertItemSuccessOrThrow($item, $resultMeta);
+
 				$this->safeAck($owner, $item, $resultMeta, $stats);
 				$stats['num_items_done']++;
+
+				$this->log('Item #' . $idx . ' ok action=' . (string)($resultMeta['action'] ?? '') . ' stored=' . (string)($resultMeta['stored'] ?? '') . ' deleted=' . (string)($resultMeta['deleted'] ?? '') . ' status=' . (string)($resultMeta['status'] ?? ''));
 			} catch (\Throwable $e) {
 				$stats['num_items_failed']++;
-				$this->log('Item failed: ' . $e->getMessage());
+				$this->log('Item #' . $idx . ' FAIL ' . $e->getMessage());
 				$this->safeFail($owner, $item, $e->getMessage(), true, $stats);
 			}
 		}
 
+		$this->log('Done ' . $this->safeJson($stats));
+
 		return ['stats' => $stats];
+	}
+
+	/**
+	 * Hard rule:
+	 * - Only ACK if the item was actually processed successfully.
+	 * - For upsert, success means stored > 0.
+	 * - For delete, success means the delete call did not throw.
+	 * - For skip, success means it was intentionally skipped.
+	 *
+	 * @param array<string,mixed> $resultMeta
+	 */
+	private function assertItemSuccessOrThrow(AgentContentItem $item, array $resultMeta): void {
+		$action = (string)($resultMeta['action'] ?? '');
+		if ($action === 'delete' || $action === 'skip') {
+			return;
+		}
+
+		$stored = (int)($resultMeta['stored'] ?? 0);
+		if ($stored > 0) {
+			return;
+		}
+
+		$status = (string)($resultMeta['status'] ?? '');
+		$id = (string)($item->id ?? '(no-id)');
+		$col = (string)($item->collectionKey ?? '');
+		$hash = (string)($item->hash ?? '');
+
+		$msg = 'Upsert failed (stored=0)';
+		if ($status !== '') {
+			$msg .= ' status=' . $status;
+		}
+		$msg .= ' id=' . $id . ' col=' . $col . ' hash=' . $hash;
+
+		throw new \RuntimeException($msg);
 	}
 
 	/**
@@ -183,22 +257,25 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 	 */
 	protected function stepExtractWithOwners(array $extractors, IAgentContext $ctx, array &$stats): array {
 		$out = [];
+		$extIdx = 0;
 
 		foreach ($extractors as $ext) {
+			$extIdx++;
+
 			try {
 				$list = $ext->extract($ctx);
-				if (!is_array($list)) {
-					continue;
-				}
+				$count = is_array($list) ? count($list) : 0;
 
-				foreach ($list as $item) {
-					if ($item instanceof AgentContentItem) {
-						$out[] = ['owner' => $ext, 'item' => $item];
+				$this->log('Extractor #' . $extIdx . ' ' . get_class($ext) . ' items=' . $count);
+
+				foreach ($list as $it) {
+					if ($it instanceof AgentContentItem) {
+						$out[] = ['owner' => $ext, 'item' => $it];
 					}
 				}
 			} catch (\Throwable $e) {
 				$stats['num_extractor_errors']++;
-				$this->log('Extractor failed: ' . $e->getMessage());
+				$this->log('Extractor #' . $extIdx . ' ERROR ' . $e->getMessage());
 			}
 		}
 
@@ -228,31 +305,59 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			throw new \RuntimeException("Missing required item.collectionKey for item $id");
 		}
 
-		$hash = trim((string)$item->hash);
-
-		// DELETE: collection scoped by API, so filter only needs domain keys
 		if ($action === 'delete') {
-			$uuid = $this->requireMetadataString($item, 'content_uuid');
-
-			$deleted = $store->deleteByFilter($collectionKey, [
-				'content_uuid' => $uuid
-			]);
-
-			$stats['num_deleted'] += (int)$deleted;
-			$this->log("Deleted: collection=$collectionKey content_uuid=$uuid (deleted=$deleted)");
-
-			return [
-				'action' => 'delete',
-				'collection_key' => $collectionKey,
-				'deleted' => (int)$deleted
-			];
+			return $this->processDeleteItem($item, $collectionKey, $store, $stats);
 		}
 
-		// SKIP: duplicate detection by hash inside the same collection
-		if ($mode === 'skip') {
-			if ($hash !== '' && $store->existsByHash($collectionKey, $hash)) {
+		return $this->processUpsertItem($item, $collectionKey, $mode, $parsers, $chunkers, $embedder, $store, $stats);
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	protected function processDeleteItem(
+		AgentContentItem $item,
+		string $collectionKey,
+		IAgentVectorStore $store,
+		array &$stats
+	): array {
+		$uuid = $this->requireMetadataString($item, self::META_CONTENT_UUID);
+
+		$deleted = $store->deleteByFilter($collectionKey, [
+			self::META_CONTENT_UUID => $uuid
+		]);
+
+		$stats['num_deleted'] += (int)$deleted;
+
+		$this->log('Delete ok col=' . $collectionKey . ' content_uuid=' . $uuid . ' deleted=' . (string)$deleted);
+
+		return [
+			'action' => 'delete',
+			'collection_key' => $collectionKey,
+			'deleted' => (int)$deleted
+		];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	protected function processUpsertItem(
+		AgentContentItem $item,
+		string $collectionKey,
+		string $mode,
+		array $parsers,
+		array $chunkers,
+		IAiEmbeddingModel $embedder,
+		IAgentVectorStore $store,
+		array &$stats
+	): array {
+		$hash = trim((string)$item->hash);
+
+		if ($mode === 'skip' && $hash !== '') {
+			if ($store->existsByHash($collectionKey, $hash)) {
 				$stats['num_skipped']++;
-				$this->log("Skipped duplicate: collection=$collectionKey hash=$hash");
+				$this->log('Skip duplicate col=' . $collectionKey . ' hash=' . $hash);
+
 				return [
 					'action' => 'skip',
 					'collection_key' => $collectionKey,
@@ -261,32 +366,30 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			}
 		}
 
-		// REPLACE: delete by stable key inside the same collection
 		if ($mode === 'replace') {
-			$uuid = $this->requireMetadataString($item, 'content_uuid');
+			$uuid = $this->requireMetadataString($item, self::META_CONTENT_UUID);
 
 			$deleted = $store->deleteByFilter($collectionKey, [
-				'content_uuid' => $uuid
+				self::META_CONTENT_UUID => $uuid
 			]);
 
 			$stats['num_deleted'] += (int)$deleted;
-			$this->log("Replace: deleted collection=$collectionKey content_uuid=$uuid (deleted=$deleted)");
+			$this->log('Replace delete ok col=' . $collectionKey . ' content_uuid=' . $uuid . ' deleted=' . (string)$deleted);
 		}
 
 		$parsed = $this->stepParse($parsers, $item, $stats);
 		if (!$parsed) {
-			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'status' => 'no-parse'];
+			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'stored' => 0, 'status' => 'no-parse'];
 		}
 
-		// Chunkers may return arrays. Node will create AgentEmbeddingChunk objects.
 		$rawChunks = $this->stepChunk($chunkers, $parsed, $stats);
 		if (!$rawChunks) {
-			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'status' => 'no-chunks'];
+			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'stored' => 0, 'status' => 'no-chunks'];
 		}
 
-		$chunks = $this->buildEmbeddingChunks($item, $parsed, $rawChunks, $collectionKey, $hash, $stats);
+		$chunks = $this->buildEmbeddingChunks($item, $parsed, $rawChunks, $collectionKey, $hash);
 		if (!$chunks) {
-			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'status' => 'no-chunks'];
+			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'stored' => 0, 'status' => 'no-chunks'];
 		}
 
 		$this->stepEmbedAssign($embedder, $chunks, $stats);
@@ -297,7 +400,8 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			'action' => 'upsert',
 			'collection_key' => $collectionKey,
 			'chunks' => count($chunks),
-			'stored' => $stored
+			'stored' => $stored,
+			'status' => $stored > 0 ? 'ok' : 'store-failed'
 		];
 	}
 
@@ -307,74 +411,78 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			$id = $item->id ?? '(no-id)';
 			throw new \RuntimeException("Missing required item metadata '$key' for item $id");
 		}
+
 		$value = trim($value);
 		if ($value === '') {
 			$id = $item->id ?? '(no-id)';
 			throw new \RuntimeException("Empty required item metadata '$key' for item $id");
 		}
+
 		return $value;
 	}
 
 	protected function stepParse(array $parsers, AgentContentItem $item, array &$stats): ?AgentParsedContent {
 		foreach ($parsers as $parser) {
-			if ($parser->supports($item)) {
-				try {
-					$parsed = $parser->parse($item);
-					$stats['num_parsed']++;
-					return $parsed;
-				} catch (\Throwable $e) {
-					$stats['num_parser_errors']++;
-					$this->log('Parser failed: ' . $e->getMessage());
-					return null;
+			try {
+				if (!$parser->supports($item)) {
+					continue;
 				}
+			} catch (\Throwable $e) {
+				$stats['num_parser_errors']++;
+				$this->log('Parse supports ERROR ' . get_class($parser) . ' ' . $e->getMessage());
+				continue;
+			}
+
+			try {
+				$parsed = $parser->parse($item);
+				$stats['num_parsed']++;
+				$this->log('Parse ok parser=' . get_class($parser));
+				return $parsed;
+			} catch (\Throwable $e) {
+				$stats['num_parser_errors']++;
+				$this->log('Parse ERROR ' . get_class($parser) . ' ' . $e->getMessage());
+				return null;
 			}
 		}
 
-		$this->log('No parser supports this content.');
+		$this->log('Parse none');
 		return null;
 	}
 
 	/**
-	 * Chunkers are allowed to return array chunks (legacy).
-	 * Node will map them into AgentEmbeddingChunk.
-	 *
-	 * Expected chunk array format (minimum):
-	 * - ['text' => '...']
-	 * Optional:
-	 * - ['meta' => [...]]
+	 * @return array<int,array<string,mixed>>
 	 */
 	protected function stepChunk(array $chunkers, AgentParsedContent $parsed, array &$stats): array {
 		foreach ($chunkers as $chunker) {
-			if ($chunker->supports($parsed)) {
-				try {
-					$chunks = $chunker->chunk($parsed);
-					$chunks = is_array($chunks) ? $chunks : [];
-					$stats['num_chunks'] += count($chunks);
-					return $chunks;
-				} catch (\Throwable $e) {
-					$stats['num_chunker_errors']++;
-					$this->log('Chunker failed: ' . $e->getMessage());
-					return [];
+			try {
+				if (!$chunker->supports($parsed)) {
+					continue;
 				}
+			} catch (\Throwable $e) {
+				$stats['num_chunker_errors']++;
+				$this->log('Chunk supports ERROR ' . get_class($chunker) . ' ' . $e->getMessage());
+				continue;
+			}
+
+			try {
+				$chunks = $chunker->chunk($parsed);
+				$chunks = is_array($chunks) ? $chunks : [];
+				$stats['num_chunks'] += count($chunks);
+
+				$this->log('Chunk ok chunker=' . get_class($chunker) . ' chunks=' . count($chunks));
+				return $chunks;
+			} catch (\Throwable $e) {
+				$stats['num_chunker_errors']++;
+				$this->log('Chunk ERROR ' . get_class($chunker) . ' ' . $e->getMessage());
+				return [];
 			}
 		}
 
-		$this->log('No chunker supports parsed content.');
+		$this->log('Chunk none');
 		return [];
 	}
 
 	/**
-	 * Builds AgentEmbeddingChunk objects from raw chunk arrays.
-	 *
-	 * Merge order (later wins):
-	 * - item.metadata (extractor)
-	 * - parsed.metadata (parser)
-	 * - rawChunk.meta (chunker)
-	 *
-	 * Enforced:
-	 * - collectionKey and hash copied from item (hash may be empty; normalizer can enforce later)
-	 * - chunkIndex is deterministic by position here (0..n)
-	 *
 	 * @param array<int,array<string,mixed>> $rawChunks
 	 * @return AgentEmbeddingChunk[]
 	 */
@@ -383,58 +491,47 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 		AgentParsedContent $parsed,
 		array $rawChunks,
 		string $collectionKey,
-		string $hash,
-		array &$stats
+		string $hash
 	): array {
+		$baseMeta = is_array($item->metadata) ? $item->metadata : [];
+		$parsedMeta = is_array($parsed->metadata ?? null) ? $parsed->metadata : [];
+		if ($parsedMeta) {
+			$baseMeta = array_merge($baseMeta, $parsedMeta);
+		}
+
 		$out = [];
+		$chunkIndex = 0;
 
-		$baseMeta = [];
-		if (is_array($item->metadata) && !empty($item->metadata)) {
-			$baseMeta = $item->metadata;
-		}
-		if (is_array($parsed->metadata) && !empty($parsed->metadata)) {
-			$baseMeta = array_merge($baseMeta, $parsed->metadata);
-		}
-
-		$idx = 0;
 		foreach ($rawChunks as $raw) {
-			if (!is_array($raw)) {
-				continue;
-			}
-
 			$text = trim((string)($raw['text'] ?? ''));
 			if ($text === '') {
 				continue;
 			}
 
 			$meta = $baseMeta;
-
 			$chunkMeta = $raw['meta'] ?? null;
-			if (is_array($chunkMeta) && !empty($chunkMeta)) {
+			if (is_array($chunkMeta) && $chunkMeta) {
 				$meta = array_merge($meta, $chunkMeta);
 			}
 
 			$out[] = new AgentEmbeddingChunk(
 				collectionKey: $collectionKey,
-				chunkIndex: $idx,
+				chunkIndex: $chunkIndex,
 				text: $text,
 				hash: $hash,
 				metadata: $meta,
 				vector: []
 			);
 
-			$idx++;
+			$chunkIndex++;
 		}
 
-		// num_chunks already counted as raw chunk count; keep it as-is.
-		// If you want "effective chunks", add a new stat later. For now: keep stable.
+		$this->log('Chunks built=' . count($out));
 
 		return $out;
 	}
 
 	/**
-	 * Embeds in batch and assigns vectors back to the AgentEmbeddingChunk objects.
-	 *
 	 * @param AgentEmbeddingChunk[] $chunks
 	 */
 	protected function stepEmbedAssign(IAiEmbeddingModel $embedder, array &$chunks, array &$stats): void {
@@ -454,13 +551,17 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			return;
 		}
 
+		$this->log('Embed texts=' . count($texts));
+
 		try {
 			$embeddings = $embedder->embed($texts);
 		} catch (\Throwable $e) {
 			$stats['num_embed_errors']++;
-			$this->log('Embedding failed (batch): ' . $e->getMessage());
+			$this->log('Embed ERROR ' . $e->getMessage());
 			return;
 		}
+
+		$this->log('Embed vectors=' . (is_array($embeddings) ? count($embeddings) : 0));
 
 		foreach ($posToChunkIndex as $pos => $chunkIndex) {
 			$vec = $embeddings[$pos] ?? null;
@@ -468,22 +569,20 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				$chunks[$chunkIndex]->vector = [];
 				continue;
 			}
+
 			$chunks[$chunkIndex]->vector = $vec;
 			$stats['num_vectors']++;
 		}
 	}
 
 	/**
-	 * Stores all chunks. Returns number of successful upserts.
-	 *
 	 * @param AgentEmbeddingChunk[] $chunks
 	 */
 	protected function stepStoreChunks(IAgentVectorStore $store, array $chunks, array &$stats): int {
 		$stored = 0;
 
 		foreach ($chunks as $chunk) {
-			$text = trim($chunk->text);
-			if ($text === '') {
+			if (trim($chunk->text) === '') {
 				continue;
 			}
 
@@ -498,9 +597,11 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				$stored++;
 			} catch (\Throwable $e) {
 				$stats['num_store_errors']++;
-				$this->log('Vector store upsert failed: ' . $e->getMessage());
+				$this->log('Store ERROR ' . $e->getMessage());
 			}
 		}
+
+		$this->log('Store stored=' . $stored . ' errors=' . (int)$stats['num_store_errors']);
 
 		return $stored;
 	}
@@ -510,7 +611,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			$ext->ack($item, $resultMeta);
 		} catch (\Throwable $e) {
 			$stats['num_ack_errors']++;
-			$this->log('ack() failed: ' . $e->getMessage());
+			$this->log('ACK ERROR ' . $e->getMessage());
 		}
 	}
 
@@ -519,13 +620,26 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			$ext->fail($item, $msg, $retryHint);
 		} catch (\Throwable $e) {
 			$stats['num_fail_errors']++;
-			$this->log('fail() failed: ' . $e->getMessage());
+			$this->log('FAIL ERROR ' . $e->getMessage());
 		}
 	}
 
 	protected function log(string $msg): void {
 		if ($this->logger) {
 			$this->logger->log('AiEmbeddingNode', '[' . $this->getName() . '|' . $this->getId() . '] ' . $msg);
+		}
+
+		if ($this->debugEnabled) {
+			echo '- ' . $msg . "\n";
+		}
+	}
+
+	private function safeJson($value): string {
+		try {
+			$json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR);
+			return is_string($json) ? $json : '(json-encode-failed)';
+		} catch (\Throwable) {
+			return '(json-encode-error)';
 		}
 	}
 }

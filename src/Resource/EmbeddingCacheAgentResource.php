@@ -5,10 +5,11 @@ namespace MissionBay\Resource;
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContext;
 
-class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
+final class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
 
 	private IDatabase $db;
 	private IAgentConfigValueResolver $resolver;
@@ -16,12 +17,15 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	private ?IAiEmbeddingModel $embedding = null;
 	private ?ILogger $logger = null;
 
-	private array|string|null $tableConfig = null;
-
-	private string $table = 'mb_embedding_cache';
+	private string $table = 'base3_embedding_cache';
 	private bool $tableReady = false;
 
-	private array $resolvedOptions = [];
+	private array|string|null $tableConfig = null;
+	private array|string|null $saltConfig = null;
+	private array|string|null $modelConfig = null;
+
+	private ?string $cacheSalt = null;
+	private ?string $cacheModel = null;
 
 	public function __construct(IDatabase $db, IAgentConfigValueResolver $resolver, ?string $id = null) {
 		parent::__construct($id);
@@ -37,19 +41,45 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 		return 'DB-backed embedding cache proxy. Docks a real embedding model (dock: embedding).';
 	}
 
+	public function getDockDefinitions(): array {
+		return [
+			new AgentNodeDock(
+				name: 'embedding',
+				description: 'The real embedding model behind the cache.',
+				interface: IAiEmbeddingModel::class,
+				maxConnections: 1,
+				required: true
+			),
+			new AgentNodeDock(
+				name: 'logger',
+				description: 'Optional logger.',
+				interface: ILogger::class,
+				maxConnections: 1,
+				required: false
+			)
+		];
+	}
+
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
 		$this->tableConfig = $config['table'] ?? null;
+		$this->saltConfig = $config['salt'] ?? null;   // cache-only hash namespace
+		$this->modelConfig = $config['model'] ?? null; // optional hash override
 
 		$table = $this->resolver->resolveValue($this->tableConfig);
-		if (is_string($table) && $table !== '') {
-			$this->table = $table;
+		if (is_string($table) && trim($table) !== '') {
+			$this->table = trim($table);
 		}
 
-		// Optional: allow passing IAiEmbeddingModel options via config
-		if (isset($config['options']) && is_array($config['options'])) {
-			$this->setOptions($config['options']);
+		$salt = $this->resolver->resolveValue($this->saltConfig);
+		if (is_string($salt) && trim($salt) !== '') {
+			$this->cacheSalt = trim($salt);
+		}
+
+		$model = $this->resolver->resolveValue($this->modelConfig);
+		if (is_string($model) && trim($model) !== '') {
+			$this->cacheModel = trim($model);
 		}
 	}
 
@@ -69,23 +99,19 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	// ---------------------------------------------------------
 
 	public function embed(array $texts): array {
-		if (empty($texts)) return [];
+		if (empty($texts)) {
+			return [];
+		}
 		if (!$this->embedding) {
 			throw new \RuntimeException('EmbeddingCacheAgentResource: Missing dock "embedding".');
 		}
 
-		// Forward cache-level options to the real embedder
-		if (!empty($this->resolvedOptions)) {
-			$this->embedding->setOptions($this->resolvedOptions);
-		}
-
 		$this->ensureTable();
 
-		$model = $this->getEffectiveModelName();
-		$salt = $this->getEffectiveSalt();
+		$model = $this->getModelScope();
+		$salt = $this->getSaltScope();
 
 		$hashes = $this->buildHashes($texts, $model, $salt);
-
 		$cached = $this->loadCachedVectors($hashes, $model);
 
 		$result = array_fill(0, count($texts), []);
@@ -111,12 +137,12 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 				$vector = $embedded[$k] ?? [];
 				$result[$originalIndex] = $vector;
 
-				if (empty($vector)) continue;
+				if (!is_array($vector) || empty($vector)) {
+					continue;
+				}
 
 				$hash = $hashes[$originalIndex];
-				$dim = count($vector);
-
-				$this->storeVector($hash, $model, $dim, $vector);
+				$this->storeVector($hash, $model, count($vector), $vector);
 			}
 		} else {
 			$this->log('Cache hit: ' . count($texts) . ' / ' . count($texts));
@@ -128,25 +154,20 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	}
 
 	public function setOptions(array $options): void {
-		// Merge and keep options at cache-level
-		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
-
-		// Forward immediately if embedder is already available
+		// Cache does not own embedder options. Forward directly.
 		if ($this->embedding) {
 			$this->embedding->setOptions($options);
 		}
 	}
 
 	public function getOptions(): array {
-		// Expose combined options for introspection/debugging
-		$base = [];
+		// Introspection: show embedder options + cache scope
+		$base = $this->embedding ? $this->embedding->getOptions() : [];
 
-		if ($this->embedding) {
-			$base = $this->embedding->getOptions();
-		}
-
-		return array_merge($base, $this->resolvedOptions, [
-			'table' => $this->table
+		return array_merge($base, [
+			'cache_table' => $this->table,
+			'cache_model_scope' => $this->cacheModel,
+			'cache_salt_scope' => $this->cacheSalt
 		]);
 	}
 
@@ -154,8 +175,30 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	// Internals
 	// ---------------------------------------------------------
 
+	private function getModelScope(): string {
+		if (is_string($this->cacheModel) && $this->cacheModel !== '') {
+			return $this->cacheModel;
+		}
+
+		$opts = $this->embedding ? $this->embedding->getOptions() : [];
+		$model = $opts['model'] ?? null;
+
+		return (is_string($model) && $model !== '') ? $model : 'unknown';
+	}
+
+	private function getSaltScope(): string {
+		if (is_string($this->cacheSalt) && $this->cacheSalt !== '') {
+			return $this->cacheSalt;
+		}
+
+		// Default is stable; you can set salt explicitly if you have multiple providers.
+		return 'default';
+	}
+
 	private function ensureTable(): void {
-		if ($this->tableReady) return;
+		if ($this->tableReady) {
+			return;
+		}
 
 		$this->db->connect();
 
@@ -200,11 +243,13 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	private function loadCachedVectors(array $hashes, string $model): array {
 		$this->db->connect();
 
+		$in = $this->buildInList($hashes);
+		if ($in === '') {
+			return [];
+		}
+
 		$table = $this->escapeIdent($this->table);
 		$modelEsc = $this->db->escape($model);
-
-		$in = $this->buildInList($hashes);
-		if ($in === '') return [];
 
 		$sql = "SELECT hash, vector_json
 			FROM {$table}
@@ -229,14 +274,16 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	private function storeVector(string $hash, string $model, int $dimension, array $vector): void {
 		$this->db->connect();
 
+		$json = $this->safeJson($vector);
+		if ($json === '') {
+			return;
+		}
+
 		$table = $this->escapeIdent($this->table);
 
 		$hashEsc = $this->db->escape($hash);
 		$modelEsc = $this->db->escape($model);
 		$dim = (int)$dimension;
-
-		$json = json_encode($vector);
-		if (!is_string($json) || $json === '') return;
 		$jsonEsc = $this->db->escape($json);
 
 		$sql = "INSERT INTO {$table} (hash, model, dimension, vector_json, created_at)
@@ -251,11 +298,13 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	private function touchRows(array $hashes, string $model): void {
 		$this->db->connect();
 
+		$in = $this->buildInList($hashes);
+		if ($in === '') {
+			return;
+		}
+
 		$table = $this->escapeIdent($this->table);
 		$modelEsc = $this->db->escape($model);
-
-		$in = $this->buildInList($hashes);
-		if ($in === '') return;
 
 		$sql = "UPDATE {$table}
 			SET last_accessed_at = NOW(), hit_count = hit_count + 1
@@ -269,7 +318,9 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 
 		foreach ($hashes as $h) {
 			$h = (string)$h;
-			if ($h === '') continue;
+			if ($h === '') {
+				continue;
+			}
 			$parts[] = "'" . $this->db->escape($h) . "'";
 		}
 
@@ -277,45 +328,26 @@ class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEm
 	}
 
 	private function escapeIdent(string $name): string {
-		// Basic identifier escaping for MySQL: allow only [a-zA-Z0-9_]
 		$clean = preg_replace('/[^a-zA-Z0-9_]/', '', $name) ?? '';
-		if ($clean === '') $clean = 'mb_embedding_cache';
+		if ($clean === '') {
+			$clean = 'mb_embedding_cache';
+		}
 		return '`' . $clean . '`';
 	}
 
-	private function getEffectiveModelName(): string {
-		// Prefer explicit options on cache
-		if (isset($this->resolvedOptions['model']) && is_string($this->resolvedOptions['model']) && $this->resolvedOptions['model'] !== '') {
-			return $this->resolvedOptions['model'];
+	private function safeJson(array $vector): string {
+		try {
+			$json = json_encode($vector, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR);
+			return is_string($json) ? $json : '';
+		} catch (\Throwable) {
+			return '';
 		}
-
-		// Otherwise use embedder options
-		$opts = $this->embedding ? $this->embedding->getOptions() : [];
-		if (isset($opts['model']) && is_string($opts['model']) && $opts['model'] !== '') {
-			return $opts['model'];
-		}
-
-		return 'unknown';
-	}
-
-	private function getEffectiveSalt(): string {
-		// Optional: add endpoint/provider to avoid collisions across vendors
-		$endpoint = null;
-
-		if (isset($this->resolvedOptions['endpoint']) && is_string($this->resolvedOptions['endpoint']) && $this->resolvedOptions['endpoint'] !== '') {
-			$endpoint = $this->resolvedOptions['endpoint'];
-		} else {
-			$opts = $this->embedding ? $this->embedding->getOptions() : [];
-			if (isset($opts['endpoint']) && is_string($opts['endpoint']) && $opts['endpoint'] !== '') {
-				$endpoint = $opts['endpoint'];
-			}
-		}
-
-		return $endpoint ? $endpoint : 'default';
 	}
 
 	private function log(string $msg): void {
-		if (!$this->logger) return;
+		if (!$this->logger) {
+			return;
+		}
 		$this->logger->log('EmbeddingCacheAgentResource', '[' . $this->getName() . '|' . $this->getId() . '] ' . $msg);
 	}
 }

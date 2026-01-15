@@ -14,15 +14,29 @@ namespace MissionBay\Dto;
  * - Parser normalizes raw inputs (text/binary/structured) into a consistent representation.
  * - Chunkers decide how to turn this representation into semantic chunks.
  *
- * Typical usage:
- * - For structured DB entities: parser may set structured to an array/object and leave text empty.
- * - For documents: parser may set text to extracted content and optionally structured to a richer form.
- *
  * Metadata rules:
  * - metadata remains domain metadata (not workflow control).
  * - Any workflow control (action/collectionKey) stays on AgentContentItem, not here.
  */
 class AgentParsedContent {
+
+	/**
+	 * Optional content type (mime / logical type) of the parsed representation.
+	 * Examples: "text/plain", "text/html", "application/json", "application/x-xrm-sysentry-json"
+	 */
+	public ?string $contentType = null;
+
+	/**
+	 * Optional short source type hint (e.g. "xrm", "ilias", "filesystem").
+	 * Purely informational for chunkers/parsers; routing stays on AgentContentItem.collectionKey.
+	 */
+	public ?string $sourceType = null;
+
+	/**
+	 * Optional source id (e.g. sysentry id, file id).
+	 * Purely informational; lifecycle keys must live in metadata (e.g. content_uuid).
+	 */
+	public ?string $sourceId = null;
 
 	/**
 	 * Plain text extracted from the source.
@@ -55,11 +69,18 @@ class AgentParsedContent {
 		?string $text,
 		array $metadata = [],
 		mixed $structured = null,
-		array $attachments = []
+		array $attachments = [],
+		?string $contentType = null,
+		?string $sourceType = null,
+		?string $sourceId = null
 	) {
 		$this->text = $text;
 		$this->metadata = $metadata;
 		$this->structured = $structured;
 		$this->attachments = $attachments;
+
+		$this->contentType = $contentType !== null ? trim($contentType) : null;
+		$this->sourceType = $sourceType !== null ? trim($sourceType) : null;
+		$this->sourceId = $sourceId !== null ? trim($sourceId) : null;
 	}
 }

@@ -7,27 +7,32 @@ use Base3\Configuration\Api\IConfiguration;
 
 /**
  * Resolves configuration values at runtime from various sources:
- * - fixed: static value
- * - default: fallback if no other value
- * - env: from environment variables
- * - config: from BASE3 application configuration
- * - inherit: returns null (caller decides)
- * - random: picks a random value from a provided list
- * - uuid: generates a new UUIDv4
+ * - fixed
+ * - default
+ * - env
+ * - config
+ * - inherit
+ * - random
+ * - uuid
  */
 class AgentConfigValueResolver implements IAgentConfigValueResolver {
 
-	public function __construct(private readonly IConfiguration $configuration) {}
+	public function __construct(
+		private readonly IConfiguration $configuration
+	) {}
 
 	/**
 	 * Resolves a config entry into a final runtime value.
 	 *
-	 * @param array|string|null $config Configuration fragment (array or scalar)
-	 * @return mixed Resolved value (or null)
+	 * Scalars are returned unchanged.
+	 *
+	 * @param array|string|int|float|bool|null $config
+	 * @return mixed
 	 */
-	public function resolveValue(array|string|null $config): mixed {
-		if (is_string($config)) return $config;
-		if (!is_array($config)) return null;
+	public function resolveValue(array|string|int|float|bool|null $config): mixed {
+		if (!is_array($config)) {
+			return $config;
+		}
 
 		$mode = $config['mode'] ?? 'inherit';
 
@@ -44,16 +49,22 @@ class AgentConfigValueResolver implements IAgentConfigValueResolver {
 				$key = $config['key'] ?? null;
 
 				if (!$section || !$key) {
-					throw new \RuntimeException("AgentConfigValueResolver: 'config' mode requires both 'section' and 'key'.");
+					throw new \RuntimeException(
+						"AgentConfigValueResolver: 'config' mode requires both 'section' and 'key'."
+					);
 				}
 
 				$sectionData = $this->configuration->get($section);
 				if (!is_array($sectionData)) {
-					throw new \RuntimeException("AgentConfigValueResolver: Section '$section' not found or invalid.");
+					throw new \RuntimeException(
+						"AgentConfigValueResolver: Section '$section' not found or invalid."
+					);
 				}
 
 				if (!array_key_exists($key, $sectionData)) {
-					throw new \RuntimeException("AgentConfigValueResolver: Key '$key' not found in section '$section'.");
+					throw new \RuntimeException(
+						"AgentConfigValueResolver: Key '$key' not found in section '$section'."
+					);
 				}
 
 				return $sectionData[$key];
@@ -76,14 +87,12 @@ class AgentConfigValueResolver implements IAgentConfigValueResolver {
 
 	/**
 	 * Generates a UUID v4 string.
-	 *
-	 * @return string
 	 */
 	protected function generateUuidV4(): string {
 		$data = random_bytes(16);
-		$data[6] = chr((ord($data[6]) & 0x0f) | 0x40); // version 4
-		$data[8] = chr((ord($data[8]) & 0x3f) | 0x80); // variant RFC 4122
+		$data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+		$data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+
 		return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 	}
 }
-

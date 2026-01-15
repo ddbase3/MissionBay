@@ -11,9 +11,10 @@ interface IAgentConfigValueResolver {
 	/**
 	 * Resolve a value from a config specification.
 	 *
-	 * @param array|string|null $config The configuration entry to resolve (can be raw or structured)
-	 * @return mixed The resolved value (string, int, array, etc.)
+	 * Scalars are returned as-is.
+	 *
+	 * @param array|string|int|float|bool|null $config
+	 * @return mixed
 	 */
-	public function resolveValue(array|string|null $config): mixed;
+	public function resolveValue(array|string|int|float|bool|null $config): mixed;
 }
-

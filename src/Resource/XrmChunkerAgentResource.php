@@ -3,46 +3,32 @@
 namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentChunker;
+use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Dto\AgentParsedContent;
 
-/**
- * XrmChunkerAgentResource
- *
- * Hybrid chunker for structured XRM entities.
- *
- * Supported input shapes:
- * A) New queue extractor shape:
- *    {
- *      "sysentry": {...},
- *      "type": {...},
- *      "payload": {...}
- *    }
- *
- * B) Legacy shape:
- *    {
- *      "id": ...,
- *      "data": {...}
- *    }
- *
- * Notes:
- * - chunk_index is NOT set here to avoid redundancy; AiEmbeddingNode enforces it.
- * - Inline meta "type" resolves to type.alias if available.
- */
 class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChunker {
+
+	protected IAgentConfigValueResolver $resolver;
 
 	protected int $maxLength = 800;
 	protected int $minLength = 200;
-	protected int $overlap   = 50;
+	protected int $overlap = 50;
 
-	/** Inline meta fields to inject into every chunk */
 	protected array $inlineMetaFields = ['name', 'tags', 'type'];
+
+	protected array $resolvedOptions = [];
 
 	public static function getName(): string {
 		return 'xrmchunkeragentresource';
 	}
 
+	public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
+		parent::__construct($id);
+		$this->resolver = $resolver;
+	}
+
 	public function getDescription(): string {
-		return 'Hybrid RAG chunker for XRM entities with sentence-based max-length chunking.';
+		return 'RAG chunker for XRM entities: merge all fields, sticky headings, meta in every chunk.';
 	}
 
 	public function getPriority(): int {
@@ -52,13 +38,22 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->maxLength = $config['max_length'] ?? 800;
-		$this->minLength = $config['min_length'] ?? 200;
-		$this->overlap   = $config['overlap'] ?? 50;
+		$this->maxLength = $this->resolveInt($config, 'max_length', 800);
+		$this->minLength = $this->resolveInt($config, 'min_length', 200);
+		$this->overlap = $this->resolveInt($config, 'overlap', 50);
 
-		if (isset($config['inline_meta_fields']) && is_array($config['inline_meta_fields'])) {
-			$this->inlineMetaFields = $config['inline_meta_fields'];
-		}
+		$this->inlineMetaFields = $this->resolveInlineMetaFields($config);
+
+		$this->resolvedOptions = [
+			'max_length' => $this->maxLength,
+			'min_length' => $this->minLength,
+			'overlap' => $this->overlap,
+			'inline_meta_fields' => $this->inlineMetaFields
+		];
+	}
+
+	public function getOptions(): array {
+		return $this->resolvedOptions;
 	}
 
 	public function supports(AgentParsedContent $parsed): bool {
@@ -68,12 +63,10 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 
 		$root = (array)$parsed->structured;
 
-		// New shape (queue extractor)
 		if (isset($root['payload']) && (is_array($root['payload']) || is_object($root['payload']))) {
 			return true;
 		}
 
-		// Legacy shape
 		return isset($root['id'], $root['data']);
 	}
 
@@ -81,36 +74,29 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 		$root = (array)$parsed->structured;
 		$meta = $parsed->metadata;
 
-		// New shape
 		if (isset($root['payload'])) {
 			$data = (array)$root['payload'];
 			return $this->chunkStructured($root, $data, $meta, true);
 		}
 
-		// Legacy shape fallback
 		$data = (array)($root['data'] ?? []);
 		return $this->chunkStructured($root, $data, $meta, false);
 	}
 
-	// ---------------------------------------------------------
-	// Core chunking for both shapes
-	// ---------------------------------------------------------
-
 	protected function chunkStructured(array $root, array $data, array $meta, bool $isNewShape): array {
-		$chunks = [];
-		$index = 0;
-
 		$inlineMeta = $this->buildInlineMetadata($root, $data);
-
-		// -------------------------------------------------------
-		// Classify fields
-		// -------------------------------------------------------
 
 		$metaLines = [];
 		$textSections = [];
 
-		foreach ($data as $key => $value) {
+		/*
+		 * Key fix:
+		 * Treat short strings as metadata lines (not as their own "## <Key>" text sections).
+		 * This prevents tiny "## Name" chunks and keeps the first chunk useful.
+		 */
+		$shortTextThreshold = max(100, (int)floor($this->minLength / 2)); // e.g. minLength=500 => 250
 
+		foreach ($data as $key => $value) {
 			if ($value === null || $value === '' || $value === '0' || $value === 0) {
 				continue;
 			}
@@ -120,21 +106,26 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 				continue;
 			}
 
-			if (is_string($value) && mb_strlen($value) <= 50) {
-				$metaLines[] = ucfirst((string)$key) . ": " . trim($value);
-				continue;
-			}
-
 			if (is_string($value)) {
-				$textSections[(string)$key] = $this->normalizeNewlines($value);
+				$val = trim($value);
+
+				if ($val === '') {
+					continue;
+				}
+
+				$len = mb_strlen($val);
+
+				if ($len <= $shortTextThreshold) {
+					$metaLines[] = ucfirst((string)$key) . ": " . $val;
+					continue;
+				}
+
+				$textSections[(string)$key] = $this->normalizeNewlines($val);
 				continue;
 			}
 
 			if (is_array($value) || is_object($value)) {
-				$json = json_encode(
-					$value,
-					JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
-				);
+				$json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 				$json = $this->normalizeNewlines((string)$json);
 
 				if (mb_strlen($json) <= 100) {
@@ -142,45 +133,46 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 				} else {
 					$textSections[(string)$key] = $json;
 				}
-
 				continue;
 			}
 		}
 
-		// -------------------------------------------------------
-		// CHUNK 0: Header + Metadata
-		// -------------------------------------------------------
-
 		$name = $this->pickName($root, $data, $isNewShape);
+		$fullText = $this->buildFullText($name, $metaLines, $textSections);
 
-		$text =
-			$inlineMeta . "\n" .
-			"# " . $name . "\n\n" .
-			"## Metadata\n" .
-			implode("\n", $metaLines);
+		$rawChunks = $this->chunkTextMaxFit($fullText);
 
-		$chunks[] = $this->makeChunk($text, $meta, $index++);
-
-		// -------------------------------------------------------
-		// CHUNK long text fields
-		// -------------------------------------------------------
-
-		foreach ($textSections as $key => $content) {
-
-			$sectionTitle = "## " . ucfirst((string)$key) . "\n\n" . trim((string)$content);
-
-			foreach ($this->chunkSentencesMaxFit($sectionTitle) as $body) {
-				$finalText = $inlineMeta . "\n" . $body;
-				$chunks[] = $this->makeChunk($finalText, $meta, $index++);
-			}
+		if ($this->overlap > 0 && count($rawChunks) > 1) {
+			$rawChunks = $this->applyOverlapRaw($rawChunks);
 		}
 
-		return $chunks;
+		$out = [];
+		foreach ($rawChunks as $raw) {
+			$out[] = $this->makeChunk($this->prefixMeta($inlineMeta, $raw), $meta);
+		}
+
+		return $out;
 	}
 
-	// ======================================================================
-	// NAME PICKER
-	// ======================================================================
+	protected function buildFullText(string $name, array $metaLines, array $textSections): string {
+		$parts = [];
+
+		$parts[] = "# " . $name;
+		$parts[] = "";
+		$parts[] = "## Metadata";
+		if ($metaLines) {
+			$parts[] = implode("\n", $metaLines);
+		}
+
+		foreach ($textSections as $key => $content) {
+			$parts[] = "";
+			$parts[] = "## " . ucfirst((string)$key);
+			$parts[] = "";
+			$parts[] = trim((string)$content);
+		}
+
+		return trim(implode("\n", $parts));
+	}
 
 	protected function pickName(array $root, array $data, bool $isNewShape): string {
 		if (isset($data['name']) && is_string($data['name']) && trim($data['name']) !== '') {
@@ -210,18 +202,12 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 		return 'Entity';
 	}
 
-	// ======================================================================
-	// INLINE META
-	// ======================================================================
-
 	protected function buildInlineMetadata(array $root, array $data): string {
 		$pairs = [];
 
 		foreach ($this->inlineMetaFields as $field) {
-
 			$val = null;
 
-			// Special-case: "type" should resolve to type alias if present
 			if ($field === 'type') {
 				$val = $root['type']['alias'] ?? $data['type'] ?? null;
 			} else {
@@ -244,98 +230,199 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 			$pairs[] = "{$field}=\"{$v}\"";
 		}
 
-		if (empty($pairs)) {
+		if (!$pairs) {
 			return "<!-- meta: -->";
 		}
 
 		return "<!-- meta: " . implode("; ", $pairs) . " -->";
 	}
 
-	// ======================================================================
-	// SENTENCE-BASED MAX-FIT CHUNKING (NO PARAGRAPHS)
-	// ======================================================================
+	private function resolveInt(array $config, string $key, int $default): int {
+		$value = $this->resolver->resolveValue($config[$key] ?? $default);
+		return (int)$value;
+	}
+
+	private function resolveInlineMetaFields(array $config): array {
+		$value = $this->resolver->resolveValue($config['inline_meta_fields'] ?? $this->inlineMetaFields);
+
+		if (is_string($value)) {
+			$items = array_map('trim', explode(',', $value));
+			$items = array_values(array_filter($items, fn($v) => $v !== ''));
+			return $items ?: $this->inlineMetaFields;
+		}
+
+		if (is_array($value)) {
+			$out = [];
+			foreach ($value as $v) {
+				$s = trim((string)$v);
+				if ($s !== '') {
+					$out[] = $s;
+				}
+			}
+			return $out ?: $this->inlineMetaFields;
+		}
+
+		return $this->inlineMetaFields;
+	}
 
 	private function normalizeNewlines(string $text): string {
 		return preg_replace('/\R/u', "\n", $text);
 	}
 
-	/**
-	 * Robust max-length chunking:
-	 * - Split into sentences
-	 * - Pack sentences until maxLength is reached
-	 * - If a sentence is too long, split it hard
-	 */
-	private function chunkSentencesMaxFit(string $text): array {
+	private function prefixMeta(string $inlineMeta, string $text): string {
+		return trim($inlineMeta . "\n" . trim($text));
+	}
+
+	private function chunkTextMaxFit(string $text): array {
 		$text = $this->normalizeNewlines($text);
 
-		$sentences = $this->splitIntoSentencesFallback($text);
+		if (mb_strlen($text) <= $this->maxLength) {
+			return [$text];
+		}
+
+		$paras = $this->splitParagraphs($text);
+		$paras = $this->mergeStickyHeadings($paras);
 
 		$out = [];
 		$current = '';
 
-		foreach ($sentences as $s) {
-
-			$s = trim($s);
-			$lenS = mb_strlen($s);
-
-			// If sentence is longer than allowed: hard split
-			if ($lenS > $this->maxLength) {
-				if ($current !== '') {
-					$out[] = trim($current);
-					$current = '';
-				}
-
-				$offset = 0;
-				while ($offset < $lenS) {
-					$chunkPart = mb_substr($s, $offset, $this->maxLength);
-					$out[] = trim($chunkPart);
-					$offset += $this->maxLength;
-				}
+		foreach ($paras as $p) {
+			$p = trim($p);
+			if ($p === '') {
 				continue;
 			}
 
-			// Normal case: fit into current chunk?
-			$currentLen = mb_strlen($current);
+			$candidate = ($current === '' ? $p : $current . "\n\n" . $p);
 
-			if ($currentLen + $lenS + 1 <= $this->maxLength) {
-				$current .= ($current === '' ? '' : ' ') . $s;
+			if (mb_strlen($candidate) <= $this->maxLength) {
+				$current = $candidate;
 				continue;
 			}
 
-			// chunk full → commit
 			if ($current !== '') {
 				$out[] = trim($current);
+				$current = '';
 			}
-			$current = $s;
+
+			if (mb_strlen($p) <= $this->maxLength) {
+				$current = $p;
+				continue;
+			}
+
+			foreach ($this->splitByLinesMaxFit($p) as $part) {
+				$out[] = $part;
+			}
 		}
 
 		if ($current !== '') {
 			$out[] = trim($current);
 		}
 
-		// minLength enforcement
-		$out = $this->enforceMinSize($out);
+		return $this->enforceMinSizeRaw($out);
+	}
 
-		// overlap logic
-		if ($this->overlap > 0) {
-			$out = $this->applyOverlap($out);
+	private function splitParagraphs(string $text): array {
+		$parts = preg_split("/\n{2,}/u", trim($text));
+		if (!$parts || count($parts) === 0) {
+			return [trim($text)];
+		}
+		return array_values(array_filter(array_map('trim', $parts), fn($p) => $p !== ''));
+	}
+
+	private function mergeStickyHeadings(array $paras): array {
+		$out = [];
+		$count = count($paras);
+
+		for ($i = 0; $i < $count; $i++) {
+			$p = trim((string)$paras[$i]);
+			if ($p === '') {
+				continue;
+			}
+
+			if ($this->isHeadingOnly($p) && $i + 1 < $count) {
+				$next = trim((string)$paras[$i + 1]);
+				if ($next !== '') {
+					$out[] = $p . "\n\n" . $next;
+					$i++;
+					continue;
+				}
+			}
+
+			$out[] = $p;
 		}
 
 		return $out;
 	}
 
-	/**
-	 * More tolerant sentence splitting. If regex fails, fallback is whole text.
-	 */
-	private function splitIntoSentencesFallback(string $text): array {
-		$parts = preg_split('/(?<=[.!?])\s+(?=[A-ZÄÖÜ])/u', $text);
-		if (!$parts || count($parts) === 0) {
-			return [$text];
+	private function isHeadingOnly(string $para): bool {
+		$para = trim($para);
+		if ($para === '') {
+			return false;
 		}
-		return array_filter(array_map('trim', $parts));
+		if (!preg_match('/^#{1,6}\s+/u', $para)) {
+			return false;
+		}
+		return (substr_count($para, "\n") === 0);
 	}
 
-	private function enforceMinSize(array $chunks): array {
+	private function splitByLinesMaxFit(string $text): array {
+		$text = $this->normalizeNewlines($text);
+		$lines = explode("\n", $text);
+
+		$out = [];
+		$current = '';
+
+		foreach ($lines as $line) {
+			$line = rtrim($line);
+
+			$candidate = ($current === '' ? $line : $current . "\n" . $line);
+
+			if (mb_strlen($candidate) <= $this->maxLength) {
+				$current = $candidate;
+				continue;
+			}
+
+			if ($current !== '') {
+				$out[] = trim($current);
+				$current = '';
+			}
+
+			if (mb_strlen($line) <= $this->maxLength) {
+				$current = $line;
+				continue;
+			}
+
+			foreach ($this->hardSplit($line, $this->maxLength) as $part) {
+				$out[] = $part;
+			}
+		}
+
+		if ($current !== '') {
+			$out[] = trim($current);
+		}
+
+		return $out;
+	}
+
+	private function hardSplit(string $text, int $max): array {
+		$text = trim($text);
+		if ($max < 50) {
+			$max = 50;
+		}
+
+		$out = [];
+		$len = mb_strlen($text);
+		$offset = 0;
+
+		while ($offset < $len) {
+			$out[] = trim(mb_substr($text, $offset, $max));
+			$offset += $max;
+		}
+
+		return $out;
+	}
+
+	private function enforceMinSizeRaw(array $chunks): array {
 		if (count($chunks) < 2) {
 			return $chunks;
 		}
@@ -345,7 +432,7 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 
 		foreach ($chunks as $c) {
 			if (mb_strlen($c) < $this->minLength) {
-				$buffer .= ($buffer === '' ? '' : "\n") . $c;
+				$buffer .= ($buffer === '' ? '' : "\n\n") . $c;
 				continue;
 			}
 
@@ -354,7 +441,7 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 				$buffer = '';
 			}
 
-			$out[] = $c;
+			$out[] = trim($c);
 		}
 
 		if ($buffer !== '') {
@@ -364,11 +451,11 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 		return $out;
 	}
 
-	private function applyOverlap(array $chunks): array {
+	private function applyOverlapRaw(array $chunks): array {
 		$out = [];
+		$count = count($chunks);
 
-		for ($i = 0; $i < count($chunks); $i++) {
-
+		for ($i = 0; $i < $count; $i++) {
 			$current = $chunks[$i];
 
 			if ($i > 0) {
@@ -383,11 +470,9 @@ class XrmChunkerAgentResource extends AbstractAgentResource implements IAgentChu
 		return $out;
 	}
 
-	private function makeChunk(string $text, array $meta, int $index): array {
-		// Do NOT set chunk_index here (avoid redundancy).
-		// AiEmbeddingNode enforces chunk_index at store time.
+	private function makeChunk(string $text, array $meta): array {
 		return [
-			'id'   => uniqid('chunk_', true),
+			'id' => uniqid('chunk_', true),
 			'text' => trim($text),
 			'meta' => $meta
 		];
