@@ -521,53 +521,89 @@ class DbMemoryDatabaseStub implements IDatabase {
 	/** @var string[] */
 	public array $nonQueries = [];
 
+	/** @var array */
 	public array $multiQueryResult = [];
+
 	public mixed $singleQueryResult = null;
 
 	public int $affectedRowsValue = 1;
 	public int|string $insertIdValue = 1;
 
-	public function connect() { $this->connectCalled++; }
-	public function connected() { return true; }
-	public function disconnect() {}
+	public function connect(): void {
+		$this->connectCalled++;
+	}
 
-	public function nonQuery($query) { $this->nonQueries[] = (string)$query; }
-	public function scalarQuery($query) { return null; }
+	public function connected(): bool {
+		return true;
+	}
 
-	public function singleQuery($query) {
-		$this->nonQueries[] = (string)$query;
+	public function disconnect(): void {
+	}
+
+	public function nonQuery(string $query): void {
+		$this->nonQueries[] = $query;
+	}
+
+	public function scalarQuery(string $query): mixed {
+		return null;
+	}
+
+	public function singleQuery(string $query): ?array {
+		$this->nonQueries[] = $query;
 		return $this->singleQueryResult;
 	}
 
-	public function &listQuery($query) { $out = []; return $out; }
+	public function &listQuery(string $query): array {
+		$out = [];
+		return $out;
+	}
 
-	public function &multiQuery($query) {
-		$this->nonQueries[] = (string)$query;
+	public function &multiQuery(string $query): array {
+		$this->nonQueries[] = $query;
 		$out = $this->multiQueryResult;
 		return $out;
 	}
 
-	public function affectedRows() { return $this->affectedRowsValue; }
-	public function insertId() { return $this->insertIdValue; }
-	public function escape($str) { return addslashes((string)$str); }
+	public function affectedRows(): int {
+		return $this->affectedRowsValue;
+	}
 
-	public function isError() { return false; }
-	public function errorNumber() { return null; }
-	public function errorMessage() { return null; }
+	public function insertId(): int|string {
+		return $this->insertIdValue;
+	}
+
+	public function escape(string $str): string {
+		return addslashes($str);
+	}
+
+	public function isError(): bool {
+		return false;
+	}
+
+	public function errorNumber(): int {
+		return 0;
+	}
+
+	public function errorMessage(): string {
+		return '';
+	}
 
 	public function nonQueriesCountMatching(string $needle): int {
 		$c = 0;
 		foreach ($this->nonQueries as $q) {
-			if (str_contains($q, $needle)) $c++;
+			if (str_contains($q, $needle)) {
+				$c++;
+			}
 		}
 		return $c;
 	}
 
 	public function lastNonQueryContaining(string $needle): ?string {
 		for ($i = count($this->nonQueries) - 1; $i >= 0; $i--) {
-			if (str_contains($this->nonQueries[$i], $needle)) return $this->nonQueries[$i];
+			if (str_contains($this->nonQueries[$i], $needle)) {
+				return $this->nonQueries[$i];
+			}
 		}
 		return null;
 	}
-
 }
