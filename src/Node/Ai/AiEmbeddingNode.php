@@ -499,8 +499,8 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			$baseMeta = array_merge($baseMeta, $parsedMeta);
 		}
 
-		$out = [];
-		$chunkIndex = 0;
+		// Build a normalized list first (skip empty texts) so num_chunks is correct.
+		$normalized = [];
 
 		foreach ($rawChunks as $raw) {
 			$text = trim((string)($raw['text'] ?? ''));
@@ -508,16 +508,36 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				continue;
 			}
 
-			$meta = $baseMeta;
 			$chunkMeta = $raw['meta'] ?? null;
-			if (is_array($chunkMeta) && $chunkMeta) {
-				$meta = array_merge($meta, $chunkMeta);
+			$normalized[] = [
+				'text' => $text,
+				'meta' => is_array($chunkMeta) ? $chunkMeta : []
+			];
+		}
+
+		$numChunks = count($normalized);
+		if ($numChunks === 0) {
+			$this->log('Chunks built=0');
+			return [];
+		}
+
+		$out = [];
+		$chunkIndex = 0;
+
+		foreach ($normalized as $n) {
+			$meta = $baseMeta;
+
+			if (!empty($n['meta'])) {
+				$meta = array_merge($meta, $n['meta']);
 			}
+
+			// NEW: neighbor-aware meta
+			$meta['num_chunks'] = $numChunks;
 
 			$out[] = new AgentEmbeddingChunk(
 				collectionKey: $collectionKey,
 				chunkIndex: $chunkIndex,
-				text: $text,
+				text: $n['text'],
 				hash: $hash,
 				metadata: $meta,
 				vector: []

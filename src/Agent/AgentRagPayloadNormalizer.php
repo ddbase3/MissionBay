@@ -10,16 +10,12 @@ use MissionBay\Dto\AgentEmbeddingChunk;
  *
  * XRM normalizer for Qdrant payloads.
  *
- * Contract goals:
- * - Strict validation (no guessing, no best-effort).
- * - Multi-collection contract, but XRM currently collapses all incoming domain keys
- *   (file/contact/address/...) into ONE logical collection: "xrm".
- * - VectorStore stays dumb: it calls normalizer to validate/build payload and asks for backend collection name.
- *
- * XRM current routing:
- * - Any incoming chunk.collectionKey is accepted (non-empty)
- * - It is mapped to canonical "xrm" for storage semantics
- * - Backend collection is fixed: "xrm_content_v1"
+ * Adds filterable fields:
+ * - tags: array<string>
+ * - ref_uuids: array<string> (normalized to upper hex, like content_uuid)
+ * - num_chunks: int (same value for all chunks of one content item)
+ * - archive: int (0|1) to filter archived entries
+ * - public: int (0|1) to filter public entries
  */
 final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 
@@ -47,7 +43,6 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 	}
 
 	public function getCollectionKeys(): array {
-		// Canonical keys owned by this normalizer.
 		return [self::CANONICAL_COLLECTION_KEY];
 	}
 
@@ -88,6 +83,15 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			'lang'           => ['type' => 'keyword'],
 			'created_at'     => ['type' => 'keyword'],
 			'updated_at'     => ['type' => 'keyword'],
+
+			// optional convenience metadata
+			'num_chunks'     => ['type' => 'integer'],
+			'archive'        => ['type' => 'integer'],
+			'public'         => ['type' => 'integer'],
+
+			// filterable arrays
+			'tags'           => ['type' => 'keyword'],
+			'ref_uuids'      => ['type' => 'keyword'],
 		];
 	}
 
@@ -97,7 +101,6 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			throw new \RuntimeException('AgentEmbeddingChunk.collectionKey is required.');
 		}
 
-		// XRM: accept any incoming key, but enforce canonical storage semantics.
 		$canonical = $this->mapToCanonicalCollectionKey($incomingKey);
 
 		if (!is_int($chunk->chunkIndex) || $chunk->chunkIndex < 0) {
@@ -123,13 +126,37 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			throw new \RuntimeException("Missing required metadata field 'content_uuid' for XRM.");
 		}
 
-		// Normalize the DTO for downstream consistency (store/delete/exists).
-		// This ensures the VectorStore "sees" the canonical key even if upstream used "file", "contact", etc.
+		// Strict optional arrays
+		if (array_key_exists('tags', $chunk->metadata) && !is_array($chunk->metadata['tags'])) {
+			throw new \RuntimeException("metadata field 'tags' must be an array if provided.");
+		}
+		if (array_key_exists('ref_uuids', $chunk->metadata) && !is_array($chunk->metadata['ref_uuids'])) {
+			throw new \RuntimeException("metadata field 'ref_uuids' must be an array if provided.");
+		}
+
+		// Strict optional int
+		if (array_key_exists('num_chunks', $chunk->metadata)) {
+			$n = $chunk->metadata['num_chunks'];
+
+			if (!(is_int($n) || (is_string($n) && ctype_digit($n)))) {
+				throw new \RuntimeException("metadata field 'num_chunks' must be an integer if provided.");
+			}
+
+			$n = (int)$n;
+			if ($n <= 0) {
+				throw new \RuntimeException("metadata field 'num_chunks' must be > 0 if provided.");
+			}
+		}
+
+		// Strict optional boolean-int (0|1)
+		$this->assertBoolIntMeta($chunk->metadata, 'archive');
+		$this->assertBoolIntMeta($chunk->metadata, 'public');
+
+		// Canonicalize key for downstream consistency (store/delete/exists).
 		$chunk->collectionKey = $canonical;
 	}
 
 	public function buildPayload(AgentEmbeddingChunk $chunk): array {
-		// validate() canonicalizes $chunk->collectionKey for us.
 		$this->validate($chunk);
 
 		$meta = is_array($chunk->metadata) ? $chunk->metadata : [];
@@ -143,7 +170,7 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			'chunk_index'    => (int)$chunk->chunkIndex,
 		];
 
-		// Optional fields (kept minimal)
+		// Optional scalar fields
 		$this->addIfString($payload, 'source_id', $meta['source_id'] ?? null);
 		$this->addIfString($payload, 'name', $meta['name'] ?? null);
 		$this->addIfString($payload, 'type_alias', $meta['type_alias'] ?? null);
@@ -153,6 +180,22 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 		$this->addIfString($payload, 'lang', $meta['lang'] ?? null);
 		$this->addIfString($payload, 'created_at', $meta['created_at'] ?? null);
 		$this->addIfString($payload, 'updated_at', $meta['updated_at'] ?? null);
+
+		// Optional ints
+		$this->addIfInt($payload, 'num_chunks', $meta['num_chunks'] ?? null);
+		$this->addIfBoolInt($payload, 'archive', $meta['archive'] ?? null);
+		$this->addIfBoolInt($payload, 'public', $meta['public'] ?? null);
+
+		// Optional arrays (filterable)
+		$tags = $this->normalizeStringArray($meta['tags'] ?? null, false, true);
+		if (!empty($tags)) {
+			$payload['tags'] = $tags;
+		}
+
+		$refUuids = $this->normalizeStringArray($meta['ref_uuids'] ?? null, true, false);
+		if (!empty($refUuids)) {
+			$payload['ref_uuids'] = $refUuids;
+		}
 
 		// Unknown domain metadata is preserved as extra (but operational keys are filtered out)
 		$extra = $this->collectExtra($meta, [
@@ -170,7 +213,14 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			'filename',
 			'lang',
 			'created_at',
-			'updated_at'
+			'updated_at',
+
+			'num_chunks',
+			'archive',
+			'public',
+
+			'tags',
+			'ref_uuids',
 		]);
 
 		if (!empty($extra)) {
@@ -190,7 +240,6 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 			throw new \InvalidArgumentException("collectionKey must be non-empty for XRM normalizer.");
 		}
 
-		// XRM current mode: everything goes into the single canonical collection.
 		if ($incomingKey !== self::CANONICAL_COLLECTION_KEY) {
 			$this->debugLog("Mapping incoming collectionKey '{$incomingKey}' -> '" . self::CANONICAL_COLLECTION_KEY . "'");
 		}
@@ -253,6 +302,126 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 		$payload[$key] = $s;
 	}
 
+	private function addIfInt(array &$payload, string $key, mixed $value): void {
+		if ($value === null) {
+			return;
+		}
+
+		if (is_int($value)) {
+			if ($value > 0) {
+				$payload[$key] = $value;
+			}
+			return;
+		}
+
+		if (is_string($value) && ctype_digit($value)) {
+			$i = (int)$value;
+			if ($i > 0) {
+				$payload[$key] = $i;
+			}
+		}
+	}
+
+	private function addIfBoolInt(array &$payload, string $key, mixed $value): void {
+		if ($value === null) {
+			return;
+		}
+
+		if (is_bool($value)) {
+			$payload[$key] = $value ? 1 : 0;
+			return;
+		}
+
+		if (is_int($value)) {
+			if ($value === 0 || $value === 1) {
+				$payload[$key] = $value;
+			}
+			return;
+		}
+
+		if (is_string($value) && ctype_digit($value)) {
+			$i = (int)$value;
+			if ($i === 0 || $i === 1) {
+				$payload[$key] = $i;
+			}
+		}
+	}
+
+	private function assertBoolIntMeta(array $meta, string $key): void {
+		if (!array_key_exists($key, $meta)) {
+			return;
+		}
+
+		$v = $meta[$key];
+
+		if (is_bool($v)) {
+			return;
+		}
+
+		if (is_int($v)) {
+			if ($v === 0 || $v === 1) {
+				return;
+			}
+			throw new \RuntimeException("metadata field '{$key}' must be 0 or 1 if provided.");
+		}
+
+		if (is_string($v) && ctype_digit($v)) {
+			$i = (int)$v;
+			if ($i === 0 || $i === 1) {
+				return;
+			}
+		}
+
+		throw new \RuntimeException("metadata field '{$key}' must be 0 or 1 if provided.");
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function normalizeStringArray(mixed $value, bool $upperHex, bool $lowercase): array {
+		if ($value === null) {
+			return [];
+		}
+		if (!is_array($value)) {
+			throw new \RuntimeException('Expected array for payload field.');
+		}
+
+		$out = [];
+		$seen = [];
+
+		foreach ($value as $v) {
+			$s = $this->asString($v);
+			if ($s === null) {
+				continue;
+			}
+
+			$s = trim($s);
+			if ($s === '') {
+				continue;
+			}
+
+			if ($upperHex) {
+				$s = $this->asUpperHex($s);
+				if ($s === '') {
+					continue;
+				}
+			}
+
+			if ($lowercase) {
+				$s = strtolower($s);
+			}
+
+			if (isset($seen[$s])) {
+				continue;
+			}
+
+			$seen[$s] = true;
+			$out[] = $s;
+		}
+
+		return $out;
+	}
+
 	private function collectExtra(array $metadata, array $knownKeys): array {
 		$extra = [];
 
@@ -261,12 +430,10 @@ final class AgentRagPayloadNormalizer implements IAgentRagPayloadNormalizer {
 				continue;
 			}
 
-			// Never persist workflow/queue control fields (strict rule)
 			if (in_array($k, ['job_id', 'attempts', 'locked_until', 'claim_token', 'claimed_at', 'state', 'error_message'], true)) {
 				continue;
 			}
 
-			// Also never persist routing/control fields (they are first-class elsewhere)
 			if (in_array($k, ['action', 'collectionKey', 'collection_key'], true)) {
 				continue;
 			}

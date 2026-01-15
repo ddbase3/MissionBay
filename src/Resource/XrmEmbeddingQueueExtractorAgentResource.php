@@ -9,19 +9,14 @@ use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Resource\AbstractAgentResource;
 
-/**
- * XrmEmbeddingQueueExtractorAgentResource
- *
- * - Reads queue jobs from base3_embedding_job
- * - Produces AgentContentItem with explicit action + collectionKey
- * - metadata is domain-only (no job_id, attempts, locks, etc.)
- * - id is the queue job_id (extractor-local identifier)
- */
 final class XrmEmbeddingQueueExtractorAgentResource extends AbstractAgentResource implements IAgentContentExtractor {
 
 	private const DEFAULT_CLAIM_LIMIT = 5;
 	private const LOCK_MINUTES = 10;
 	private const MAX_ATTEMPTS = 5;
+
+	private const PUBLIC_USER_ID = 1;
+	private const PUBLIC_MODE = 'visitor';
 
 	private int $claimLimit = self::DEFAULT_CLAIM_LIMIT;
 
@@ -312,6 +307,28 @@ final class XrmEmbeddingQueueExtractorAgentResource extends AbstractAgentResourc
 			$domainMeta['type_alias'] = $alias;
 		}
 
+		$archive = (int)($entry['archive'] ?? 0);
+		$domainMeta['archive'] = ($archive === 1) ? 1 : 0;
+
+		// NEW: public flag (user_id=1 has visitor access)
+		$entryId = (int)($entry['id'] ?? 0);
+		if ($entryId > 0) {
+			$domainMeta['public'] = $this->isEntryPublic($entryId) ? 1 : 0;
+
+			// tags + ref_uuids
+			$tags = $this->loadTagsByEntryId($entryId);
+			if (!empty($tags)) {
+				$domainMeta['tags'] = $tags;
+			}
+
+			$refUuids = $this->loadRefUuidsByEntryId($entryId);
+			if (!empty($refUuids)) {
+				$domainMeta['ref_uuids'] = $refUuids;
+			}
+		} else {
+			$domainMeta['public'] = 0;
+		}
+
 		$content = [
 			'sysentry' => [
 				'id' => (int)$entry['id'],
@@ -356,6 +373,7 @@ final class XrmEmbeddingQueueExtractorAgentResource extends AbstractAgentResourc
 				e.id,
 				HEX(e.uuid) AS uuid_hex,
 				e.type_id,
+				e.archive,
 				HEX(e.etag) AS etag_hex,
 				e.created,
 				e.changed,
@@ -383,6 +401,111 @@ final class XrmEmbeddingQueueExtractorAgentResource extends AbstractAgentResourc
 
 	private function isSafeTableName(string $table): bool {
 		return (bool)preg_match('/^[a-zA-Z0-9_]+$/', $table);
+	}
+
+	// ---------------------------------------------------------
+	// NEW: tags + refs + public
+	// ---------------------------------------------------------
+
+	/**
+	 * Public rule:
+	 * - entry is public if base3system_sysuseraccess has (entry_id=<id>, user_id=1, mode='visitor')
+	 */
+	private function isEntryPublic(int $entryId): bool {
+		if ($entryId <= 0) {
+			return false;
+		}
+
+		$row = $this->queryOne(
+			"SELECT 1 AS ok
+			FROM base3system_sysuseraccess
+			WHERE entry_id = " . (int)$entryId . "
+				AND user_id = " . (int)self::PUBLIC_USER_ID . "
+				AND mode = '" . $this->esc(self::PUBLIC_MODE) . "'
+			LIMIT 1"
+		);
+
+		return !empty($row);
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function loadTagsByEntryId(int $entryId): array {
+		if ($entryId <= 0) {
+			return [];
+		}
+
+		$rows = $this->queryAll(
+			"SELECT tag
+			FROM base3system_systag
+			WHERE entry_id = " . (int)$entryId . "
+			ORDER BY tag ASC"
+		);
+
+		$out = [];
+		$seen = [];
+
+		foreach ($rows as $r) {
+			$tag = trim((string)($r['tag'] ?? ''));
+			if ($tag === '') {
+				continue;
+			}
+
+			$tag = strtolower($tag);
+
+			if (isset($seen[$tag])) {
+				continue;
+			}
+
+			$seen[$tag] = true;
+			$out[] = $tag;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Loads connected entry UUIDs (peers) via sysallocview.
+	 *
+	 * @return array<int,string> UUID hex (upper, 32 chars)
+	 */
+	private function loadRefUuidsByEntryId(int $entryId): array {
+		if ($entryId <= 0) {
+			return [];
+		}
+
+		$rows = $this->queryAll(
+			"SELECT DISTINCT HEX(e.uuid) AS uuid_hex
+			FROM base3system_sysallocview v
+			JOIN base3system_sysentry e ON e.id = v.peer_id
+			WHERE v.entry_id = " . (int)$entryId . "
+			ORDER BY e.id ASC"
+		);
+
+		$out = [];
+		$seen = [];
+
+		foreach ($rows as $r) {
+			$hex = strtoupper(trim((string)($r['uuid_hex'] ?? '')));
+			if ($hex === '') {
+				continue;
+			}
+
+			$hex = preg_replace('/[^0-9A-F]/', '', $hex) ?? '';
+			if ($hex === '' || strlen($hex) !== 32) {
+				continue;
+			}
+
+			if (isset($seen[$hex])) {
+				continue;
+			}
+
+			$seen[$hex] = true;
+			$out[] = $hex;
+		}
+
+		return $out;
 	}
 
 	// ---------------------------------------------------------
