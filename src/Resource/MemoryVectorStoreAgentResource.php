@@ -91,7 +91,7 @@ final class MemoryVectorStoreAgentResource extends AbstractAgentResource impleme
 
 		foreach ($points as $item) {
 			$payload = $item['payload'] ?? [];
-			if ($this->matchesFilter($payload, $filter)) {
+			if ($this->matchesFlatFilter($payload, $filter)) {
 				return true;
 			}
 		}
@@ -111,7 +111,7 @@ final class MemoryVectorStoreAgentResource extends AbstractAgentResource impleme
 
 		foreach ($points as $id => $item) {
 			$payload = $item['payload'] ?? [];
-			if ($this->matchesFilter($payload, $filter)) {
+			if ($this->matchesFlatFilter($payload, $filter)) {
 				unset($bucket['points'][$id]);
 				$deleted++;
 			}
@@ -124,13 +124,19 @@ final class MemoryVectorStoreAgentResource extends AbstractAgentResource impleme
 	// SEARCH
 	// ---------------------------------------------------------
 
-	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null): array {
+	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null, ?array $filterSpec = null): array {
 		$bucket = $this->getBucket($collectionKey);
 		$points = $bucket['points'] ?? [];
 
 		$results = [];
 
 		foreach ($points as $id => $item) {
+			$payload = $item['payload'] ?? [];
+
+			if ($filterSpec !== null && !$this->matchesFilterSpec($payload, $filterSpec)) {
+				continue;
+			}
+
 			$score = $this->cosineSimilarity($vector, $item['vector'] ?? []);
 			if ($minScore !== null && $score < $minScore) {
 				continue;
@@ -139,7 +145,7 @@ final class MemoryVectorStoreAgentResource extends AbstractAgentResource impleme
 			$results[] = [
 				'id' => $id,
 				'score' => $score,
-				'payload' => $item['payload'] ?? []
+				'payload' => $payload
 			];
 		}
 
@@ -216,18 +222,18 @@ final class MemoryVectorStoreAgentResource extends AbstractAgentResource impleme
 	}
 
 	// ---------------------------------------------------------
-	// FILTER MATCHER
+	// FILTER MATCHER (flat + FilterSpec)
 	// ---------------------------------------------------------
 
 	/**
-	 * Filter:
+	 * Flat filter:
 	 * - ['key' => 'value']       => must match
 	 * - ['key' => ['a','b']]     => must match any value (OR on same key)
 	 *
 	 * @param array<string,mixed> $payload
 	 * @param array<string,mixed> $filter
 	 */
-	protected function matchesFilter(array $payload, array $filter): bool {
+	protected function matchesFlatFilter(array $payload, array $filter): bool {
 		foreach ($filter as $key => $value) {
 			$actual = $payload[$key] ?? null;
 
@@ -251,6 +257,98 @@ final class MemoryVectorStoreAgentResource extends AbstractAgentResource impleme
 		}
 
 		return true;
+	}
+
+	/**
+	 * FilterSpec (internal format):
+	 * - must:     key => scalar|array (AND; array = OR on same key)
+	 * - any:      key => scalar|array (OR-group; at least one condition must match)
+	 * - must_not: key => scalar|array (AND; none must match)
+	 *
+	 * For payload arrays:
+	 * - if payload value is an array, scalar match checks "contains".
+	 *
+	 * @param array<string,mixed> $payload
+	 * @param array<string,mixed> $spec
+	 */
+	protected function matchesFilterSpec(array $payload, array $spec): bool {
+		$must = $spec['must'] ?? null;
+		if (is_array($must) && !$this->matchesSpecGroupAll($payload, $must)) {
+			return false;
+		}
+
+		$mustNot = $spec['must_not'] ?? null;
+		if (is_array($mustNot) && $this->matchesSpecGroupAny($payload, $mustNot)) {
+			return false;
+		}
+
+		$any = $spec['any'] ?? null;
+		if (is_array($any) && !empty($any)) {
+			if (!$this->matchesSpecGroupAny($payload, $any)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param array<string,mixed> $payload
+	 * @param array<string,mixed> $group
+	 */
+	private function matchesSpecGroupAll(array $payload, array $group): bool {
+		foreach ($group as $key => $expected) {
+			if (!$this->matchesPayloadField($payload, (string)$key, $expected)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * @param array<string,mixed> $payload
+	 * @param array<string,mixed> $group
+	 */
+	private function matchesSpecGroupAny(array $payload, array $group): bool {
+		foreach ($group as $key => $expected) {
+			if ($this->matchesPayloadField($payload, (string)$key, $expected)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private function matchesPayloadField(array $payload, string $key, mixed $expected): bool {
+		$key = trim($key);
+		if ($key === '') {
+			return false;
+		}
+
+		$actual = $payload[$key] ?? null;
+
+		if (is_array($expected)) {
+			foreach ($expected as $v) {
+				if ($this->matchesPayloadValue($actual, $v)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		return $this->matchesPayloadValue($actual, $expected);
+	}
+
+	private function matchesPayloadValue(mixed $actual, mixed $expected): bool {
+		if (is_array($actual)) {
+			foreach ($actual as $item) {
+				if ($item === $expected) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		return $actual === $expected;
 	}
 
 	/**

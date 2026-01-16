@@ -39,7 +39,13 @@ final class NoVectorStoreAgentResource extends AbstractAgentResource implements 
 		return 0;
 	}
 
-	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null): array {
+	public function search(
+		string $collectionKey,
+		array $vector,
+		int $limit = 3,
+		?float $minScore = null,
+		?array $filterSpec = null
+	): array {
 		return [];
 	}
 

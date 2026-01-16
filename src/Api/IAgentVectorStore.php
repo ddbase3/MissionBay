@@ -86,13 +86,27 @@ interface IAgentVectorStore {
 	 * - 'score'
 	 * - 'payload'
 	 *
+	 * FilterSpec (internal format, backend-agnostic):
+	 * - null => no filtering
+	 * - associative array describing constraints, e.g.:
+	 *   [
+	 *     'must' => ['public' => 1, 'type_alias' => 'text'],
+	 *     'any' => ['tags' => ['dancephotography'], 'ref_uuids' => ['ABC...']],
+	 *     'must_not' => ['archive' => 1]
+	 *   ]
+	 *
+	 * Notes:
+	 * - The VectorStore must translate this FilterSpec to its backend query/filter language.
+	 * - Callers are responsible for merging multiple FilterSpec sources upstream.
+	 *
 	 * @param string $collectionKey
 	 * @param array<float> $vector
 	 * @param int $limit
 	 * @param float|null $minScore
+	 * @param array<string,mixed>|null $filterSpec
 	 * @return array<int,array<string,mixed>>
 	 */
-	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null): array;
+	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null, ?array $filterSpec = null): array;
 
 	/**
 	 * Creates the underlying collection / index for the given collectionKey if needed.

@@ -206,7 +206,7 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 	// SEARCH
 	// ---------------------------------------------------------
 
-	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null): array {
+	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null, ?array $filterSpec = null): array {
 		$this->assertReady();
 
 		$this->ensureCollection($collectionKey);
@@ -220,6 +220,11 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 			"with_payload" => true,
 			"with_vector" => false
 		];
+
+		$qdrantFilter = $this->buildQdrantFilterFromSpec($filterSpec);
+		if ($qdrantFilter !== null) {
+			$body['filter'] = $qdrantFilter;
+		}
 
 		$r = $this->curlJson('POST', $url, $body);
 
@@ -282,7 +287,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 			throw new \RuntimeException("Qdrant createCollection HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
 		}
 
-		// NOTE: indexes are ensured by ensureCollection() afterwards as well.
 		if ($this->createPayloadIndexes) {
 			$this->createPayloadIndexes($collectionKey);
 		}
@@ -337,7 +341,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 				continue;
 			}
 
-			// Explicit control: only create indexes for fields marked index=true
 			$index = $this->extractIndexFlagFromSchemaDef($def);
 			if (!$index) {
 				continue;
@@ -356,7 +359,7 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 	}
 
 	// ---------------------------------------------------------
-	// FILTER BUILDER (simple exact match only; no text DSL here)
+	// FILTER BUILDER (legacy simple exact match; kept for exists/delete)
 	// ---------------------------------------------------------
 
 	protected function buildQdrantFilter(array $filter): array {
@@ -389,6 +392,73 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		}
 		if (!$out) {
 			$out['must'] = [];
+		}
+
+		return $out;
+	}
+
+	private function buildQdrantFilterFromSpec(?array $spec): ?array {
+		if ($spec === null) {
+			return null;
+		}
+		if (!is_array($spec) || empty($spec)) {
+			return null;
+		}
+
+		$must = $this->buildQdrantConditionsFromMap($spec['must'] ?? null);
+		$should = $this->buildQdrantConditionsFromMap($spec['any'] ?? null);
+		$mustNot = $this->buildQdrantConditionsFromMap($spec['must_not'] ?? null);
+
+		$out = [];
+		if (!empty($must)) {
+			$out['must'] = $must;
+		}
+		if (!empty($should)) {
+			$out['should'] = $should;
+		}
+		if (!empty($mustNot)) {
+			$out['must_not'] = $mustNot;
+		}
+
+		if (empty($out)) {
+			return null;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function buildQdrantConditionsFromMap(mixed $map): array {
+		if ($map === null) {
+			return [];
+		}
+		if (!is_array($map)) {
+			return [];
+		}
+
+		$out = [];
+		foreach ($map as $key => $value) {
+			$key = trim((string)$key);
+			if ($key === '') {
+				continue;
+			}
+
+			if (is_array($value)) {
+				foreach ($value as $v) {
+					$out[] = [
+						'key' => $key,
+						'match' => ['value' => $v]
+					];
+				}
+				continue;
+			}
+
+			$out[] = [
+				'key' => $key,
+				'match' => ['value' => $value]
+			];
 		}
 
 		return $out;
@@ -428,8 +498,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 
 		$this->ensuredCollections[$cacheKey] = true;
 
-		// Important: ensure indexes even when collection already existed
-		// so schema updates in the normalizer can be applied automatically.
 		if ($this->createPayloadIndexes) {
 			$this->createPayloadIndexes($collectionKey);
 		}
@@ -470,7 +538,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		$http = (int)($r['http'] ?? 0);
 		$raw = (string)($r['raw'] ?? '');
 
-		// Treat "already exists" responses as success to keep idempotency.
 		if ($http >= 200 && $http < 300) {
 			$this->ensuredIndexes[$cacheKey][$field] = true;
 			return;
