@@ -19,6 +19,14 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 	protected ?string $endpoint = null;
 	protected ?string $apikey = null;
 
+	/**
+	 * If true, payload indexes are ensured based on the normalizer schema.
+	 *
+	 * Notes:
+	 * - Ensuring happens after collection creation AND also when an existing collection is encountered.
+	 * - No auto-indexing based on runtime filters is performed.
+	 * - Which fields get an index is decided solely by the normalizer schema (index=true).
+	 */
 	protected bool $createPayloadIndexes = false;
 
 	/** @var array<string,bool> cache by BACKEND collection name */
@@ -50,7 +58,7 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 
 		$this->endpointConfig = $config['endpoint'] ?? null;
 		$this->apikeyConfig = $config['apikey'] ?? null;
-		$this->createPayloadIndexesConfig = $config['create_payload_indexes'] ?? null;
+		$this->createPayloadIndexesConfig = $config['create_payload_indexes'] ?? true;
 
 		$endpoint = (string)$this->resolver->resolveValue($this->endpointConfig);
 		$apikey = (string)$this->resolver->resolveValue($this->apikeyConfig);
@@ -94,8 +102,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 
 		$payload = $this->normalizer->buildPayload($chunk);
 
-		// Deterministic point id: prevents duplicates and enables true upsert behavior.
-		// IMPORTANT: Qdrant point id must be UUID or unsigned integer.
 		$pointId = $this->buildPointId($chunk, $payload);
 
 		$body = [
@@ -136,7 +142,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		$this->assertReady();
 
 		$this->ensureCollection($collectionKey);
-		$this->ensureIndexesForFilter($collectionKey, $filter);
 
 		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
 		$url = "{$this->endpoint}/collections/{$collection}/points/scroll";
@@ -151,9 +156,8 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		$r = $this->curlJson('POST', $url, $body);
 
 		$http = (int)($r['http'] ?? 0);
-		if ($http === 400 && $this->looksLikeMissingIndexError((string)($r['raw'] ?? ''))) {
-			$this->ensureIndexesForFilter($collectionKey, $filter, true);
-			$r = $this->curlJson('POST', $url, $body);
+		if ($http < 200 || $http >= 300) {
+			throw new \RuntimeException("Qdrant existsByFilter failed HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
 		}
 
 		$data = json_decode((string)($r['raw'] ?? ''), true);
@@ -168,7 +172,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		$this->assertReady();
 
 		$this->ensureCollection($collectionKey);
-		$this->ensureIndexesForFilter($collectionKey, $filter);
 
 		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
 		$url = "{$this->endpoint}/collections/{$collection}/points/delete?wait=true";
@@ -180,12 +183,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		$r = $this->curlJson('POST', $url, $body);
 
 		$http = (int)($r['http'] ?? 0);
-		if ($http === 400 && $this->looksLikeMissingIndexError((string)($r['raw'] ?? ''))) {
-			$this->ensureIndexesForFilter($collectionKey, $filter, true);
-			$r = $this->curlJson('POST', $url, $body);
-			$http = (int)($r['http'] ?? 0);
-		}
-
 		if ($http < 200 || $http >= 300) {
 			throw new \RuntimeException("Qdrant deleteByFilter failed HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
 		}
@@ -225,6 +222,11 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		];
 
 		$r = $this->curlJson('POST', $url, $body);
+
+		$http = (int)($r['http'] ?? 0);
+		if ($http < 200 || $http >= 300) {
+			throw new \RuntimeException("Qdrant search failed HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
+		}
 
 		$data = json_decode((string)($r['raw'] ?? ''), true);
 		if (!isset($data['result']) || !is_array($data['result'])) {
@@ -280,6 +282,7 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 			throw new \RuntimeException("Qdrant createCollection HTTP $http: " . ($r['error'] ?? '') . ' ' . ($r['raw'] ?? ''));
 		}
 
+		// NOTE: indexes are ensured by ensureCollection() afterwards as well.
 		if ($this->createPayloadIndexes) {
 			$this->createPayloadIndexes($collectionKey);
 		}
@@ -319,7 +322,7 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 	}
 
 	// ---------------------------------------------------------
-	// PAYLOAD INDEX CREATION (legacy best-effort)
+	// PAYLOAD INDEX CREATION (schema-driven, explicit)
 	// ---------------------------------------------------------
 
 	protected function createPayloadIndexes(string $collectionKey): void {
@@ -333,12 +336,27 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 			if ($type === null) {
 				continue;
 			}
+
+			// Explicit control: only create indexes for fields marked index=true
+			$index = $this->extractIndexFlagFromSchemaDef($def);
+			if (!$index) {
+				continue;
+			}
+
 			$this->ensureIndex($collectionKey, (string)$field, $type);
 		}
 	}
 
+	private function extractIndexFlagFromSchemaDef(mixed $def): bool {
+		if (!is_array($def)) {
+			return false;
+		}
+		$flag = $def['index'] ?? false;
+		return $flag === true;
+	}
+
 	// ---------------------------------------------------------
-	// FILTER BUILDER
+	// FILTER BUILDER (simple exact match only; no text DSL here)
 	// ---------------------------------------------------------
 
 	protected function buildQdrantFilter(array $filter): array {
@@ -377,7 +395,7 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 	}
 
 	// ---------------------------------------------------------
-	// ENSURE COLLECTION + INDEXES
+	// ENSURE COLLECTION (schema-driven index ensure; no filter-driven indexing)
 	// ---------------------------------------------------------
 
 	private function ensureCollection(string $collectionKey): void {
@@ -410,24 +428,18 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 
 		$this->ensuredCollections[$cacheKey] = true;
 
-		// Always ensure indexes that our node uses for filtering.
-		$this->ensureIndex($collectionKey, 'content_uuid', 'keyword');
-		$this->ensureIndex($collectionKey, 'hash', 'keyword');
-		$this->ensureIndex($collectionKey, 'chunktoken', 'keyword');
-		$this->ensureIndex($collectionKey, 'collection_key', 'keyword');
-	}
-
-	private function ensureIndexesForFilter(string $collectionKey, array $filter, bool $forceRetry = false): void {
-		foreach ($filter as $field => $value) {
-			$type = $this->qdrantIndexTypeFromValue($value);
-			if ($type === null) {
-				continue;
-			}
-			$this->ensureIndex($collectionKey, (string)$field, $type, $forceRetry);
+		// Important: ensure indexes even when collection already existed
+		// so schema updates in the normalizer can be applied automatically.
+		if ($this->createPayloadIndexes) {
+			$this->createPayloadIndexes($collectionKey);
 		}
 	}
 
-	private function ensureIndex(string $collectionKey, string $field, string $type, bool $force = false): void {
+	// ---------------------------------------------------------
+	// INDEX CREATION (explicit only)
+	// ---------------------------------------------------------
+
+	private function ensureIndex(string $collectionKey, string $field, string $type): void {
 		$collectionKey = trim($collectionKey);
 		$field = trim($field);
 		$type = trim($type);
@@ -443,7 +455,7 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 			return;
 		}
 
-		if (!$force && isset($this->ensuredIndexes[$cacheKey][$field])) {
+		if (isset($this->ensuredIndexes[$cacheKey][$field])) {
 			return;
 		}
 
@@ -456,27 +468,20 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 
 		$r = $this->curlJson('PUT', $url, $body);
 		$http = (int)($r['http'] ?? 0);
+		$raw = (string)($r['raw'] ?? '');
 
+		// Treat "already exists" responses as success to keep idempotency.
 		if ($http >= 200 && $http < 300) {
 			$this->ensuredIndexes[$cacheKey][$field] = true;
-		}
-	}
-
-	private function qdrantIndexTypeFromValue(mixed $value): ?string {
-		if (is_array($value)) {
-			$first = $value[0] ?? null;
-			return $this->qdrantIndexTypeFromValue($first);
+			return;
 		}
 
-		if (is_int($value)) return 'integer';
-		if (is_float($value)) return 'float';
-		if (is_bool($value)) return 'bool';
-
-		if (is_string($value)) {
-			return 'keyword';
+		if ($http === 409 || stripos($raw, 'already exists') !== false) {
+			$this->ensuredIndexes[$cacheKey][$field] = true;
+			return;
 		}
 
-		return null;
+		throw new \RuntimeException("Qdrant ensureIndex '{$field}' failed HTTP $http: " . ($r['error'] ?? '') . ' ' . $raw);
 	}
 
 	private function extractIndexTypeFromSchemaDef(mixed $def): ?string {
@@ -500,48 +505,22 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 		return null;
 	}
 
-	private function looksLikeMissingIndexError(string $raw): bool {
-		$raw = strtolower($raw);
-		return str_contains($raw, 'index required') && str_contains($raw, 'not found');
-	}
-
 	// ---------------------------------------------------------
 	// POINT ID (deterministic, Qdrant-valid UUID)
 	// ---------------------------------------------------------
 
-	/**
-	 * Builds a deterministic point id so repeated runs do not create duplicates.
-	 *
-	 * IMPORTANT:
-	 * - Qdrant point id must be UUID or unsigned integer.
-	 * - Do NOT use hash/chunktoken directly as point id (Qdrant rejects arbitrary strings).
-	 *
-	 * Strategy:
-	 * - If we have a stable hash, derive UUIDv5 from "hash:chunkIndex".
-	 * - Otherwise fall back to random UUID (should not happen when normalizer is strict).
-	 *
-	 * @param array<string,mixed> $payload
-	 */
 	private function buildPointId(AgentEmbeddingChunk $chunk, array $payload): string {
 		$hash = trim((string)$chunk->hash);
 		$idx = (int)$chunk->chunkIndex;
 
 		if ($hash !== '') {
 			$base = $hash . ':' . $idx;
-
-			// DNS namespace UUID (RFC 4122) as stable seed namespace.
 			return $this->uuidV5('6ba7b810-9dad-11d1-80b4-00c04fd430c8', $base);
 		}
 
 		return $this->generateUuid();
 	}
 
-	/**
-	 * Deterministic UUIDv5 (SHA-1) generator.
-	 *
-	 * @param string $namespaceUuid UUID string
-	 * @param string $name Name to hash within the namespace
-	 */
 	private function uuidV5(string $namespaceUuid, string $name): string {
 		$nsHex = str_replace('-', '', strtolower(trim($namespaceUuid)));
 		if (strlen($nsHex) !== 32 || !ctype_xdigit($nsHex)) {
@@ -578,12 +557,6 @@ final class QdrantVectorStoreAgentResource extends AbstractAgentResource impleme
 	// CURL HELPER
 	// ---------------------------------------------------------
 
-	/**
-	 * @param string $method GET|POST|PUT|DELETE
-	 * @param string $url
-	 * @param array<string,mixed>|null $body
-	 * @return array<string,mixed>
-	 */
 	protected function curlJson(string $method, string $url, ?array $body): array {
 		$ch = curl_init($url);
 
