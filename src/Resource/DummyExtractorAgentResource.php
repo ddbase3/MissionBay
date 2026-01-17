@@ -36,6 +36,8 @@ class DummyExtractorAgentResource extends AbstractAgentResource implements IAgen
 			$hash = hash('sha256', $text);
 
 			$items[] = new AgentContentItem(
+				action: 'upsert',
+				collectionKey: 'dummy_text',
 				id: $hash,
 				hash: $hash,
 				contentType: 'text/plain',
@@ -51,9 +53,6 @@ class DummyExtractorAgentResource extends AbstractAgentResource implements IAgen
 
 	/**
 	 * Ack hook (dummy).
-	 *
-	 * @param AgentContentItem $item
-	 * @param array<string,mixed> $result
 	 */
 	public function ack(AgentContentItem $item, array $result = []): void {
 		// no-op

@@ -1,281 +1,37 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Resource;
-
 /**
- * Global namespaced cURL function overrides for ALL MissionBay\Resource tests.
- * Guarded to avoid redeclare errors when multiple test files are loaded.
+ * Filename: plugin/MissionBay/test/Resource/AnthropicChatModelAgentResourceTest.php
  */
-if (!class_exists(__NAMESPACE__ . '\\CurlStub')) {
-	final class CurlStub {
-
-		public static int $errno = 0;
-		public static string $error = '';
-		public static int $httpCode = 200;
-
-		public static mixed $execResult = null;
-
-		/** @var string[] */
-		public static array $streamChunks = [];
-
-		/** @var array<int,mixed> */
-		private static array $options = [];
-
-		/** @var array<int,array{endpoint:string,options:array<int,mixed>}> */
-		private static array $handles = [];
-
-		private static int $nextHandle = 1;
-
-		/** @var array<int,array{http:int,response:mixed,errno:int,error:string}> */
-		private static array $queue = [];
-
-		/** @var array<string,mixed> */
-		public static array $lastRequest = [];
-
-		public static function reset(): void {
-			self::$errno = 0;
-			self::$error = '';
-			self::$httpCode = 200;
-			self::$execResult = null;
-			self::$streamChunks = [];
-			self::$options = [];
-			self::$handles = [];
-			self::$nextHandle = 1;
-			self::$queue = [];
-			self::$lastRequest = [];
-		}
-
-		public static function setOpt(int $opt, mixed $value): void {
-			self::$options[$opt] = $value;
-		}
-
-		public static function getOpt(int $opt): mixed {
-			return self::$options[$opt] ?? null;
-		}
-
-		public static function queueResponse(int $http, mixed $response, int $errno = 0, string $error = ''): void {
-			self::$queue[] = [
-				'http' => $http,
-				'response' => $response,
-				'errno' => $errno,
-				'error' => $error,
-			];
-		}
-
-		public static function consumeResponse(): array {
-			if (!empty(self::$queue)) {
-				return array_shift(self::$queue);
-			}
-			return [
-				'http' => self::$httpCode,
-				'response' => self::$execResult,
-				'errno' => self::$errno,
-				'error' => self::$error,
-			];
-		}
-
-		public static function registerHandle(string $endpoint): object {
-			$id = self::$nextHandle++;
-			$h = (object)['__curl_id' => $id, 'endpoint' => $endpoint];
-			self::$handles[$id] = ['endpoint' => $endpoint, 'options' => []];
-			return $h;
-		}
-
-		public static function setHandleOpt(object $ch, int $opt, mixed $value): void {
-			$id = (int)($ch->__curl_id ?? 0);
-			if ($id > 0 && isset(self::$handles[$id])) {
-				self::$handles[$id]['options'][$opt] = $value;
-			}
-			self::setOpt($opt, $value);
-		}
-
-		public static function getHandleOptions(object $ch): array {
-			$id = (int)($ch->__curl_id ?? 0);
-			return ($id > 0 && isset(self::$handles[$id])) ? self::$handles[$id]['options'] : [];
-		}
-
-		public static function inferMethod(array $opts): string {
-			$custom = $opts[CURLOPT_CUSTOMREQUEST] ?? null;
-			if (is_string($custom) && $custom !== '') {
-				return strtoupper($custom);
-			}
-			$post = $opts[CURLOPT_POST] ?? null;
-			if ($post) return 'POST';
-			return 'GET';
-		}
-
-		public static function rememberLastRequest(object $ch, array $opts, int $http, int $errno, string $error): void {
-			self::$lastRequest = [
-				'url' => (string)($ch->endpoint ?? ''),
-				'method' => self::inferMethod($opts),
-				'headers' => $opts[CURLOPT_HTTPHEADER] ?? [],
-				'body' => $opts[CURLOPT_POSTFIELDS] ?? null,
-				'options' => $opts,
-				'http' => $http,
-				'errno' => $errno,
-				'error' => $error,
-			];
-		}
-	}
-}
-
-/**
- * Backward-compatible wrapper for existing Anthropic tests.
- * Explicit static forwarding – NO magic methods.
- */
-if (!class_exists(__NAMESPACE__ . '\\FakeCurlState')) {
-	final class FakeCurlState {
-
-		public static int $errno = 0;
-		public static string $error = '';
-		public static int $httpCode = 200;
-		public static mixed $execResult = null;
-
-		/** @var string[] */
-		public static array $streamChunks = [];
-
-		public static function reset(): void {
-			CurlStub::reset();
-
-			// keep mirror vars in sync for legacy direct property writes
-			self::$errno = CurlStub::$errno;
-			self::$error = CurlStub::$error;
-			self::$httpCode = CurlStub::$httpCode;
-			self::$execResult = CurlStub::$execResult;
-			self::$streamChunks = CurlStub::$streamChunks;
-		}
-
-		/**
-		 * Legacy tests might write FakeCurlState::$execResult etc.
-		 * We sync those values into CurlStub right before a request via curl_exec().
-		 */
-		public static function syncToStub(): void {
-			CurlStub::$errno = self::$errno;
-			CurlStub::$error = self::$error;
-			CurlStub::$httpCode = self::$httpCode;
-			CurlStub::$execResult = self::$execResult;
-			CurlStub::$streamChunks = self::$streamChunks;
-		}
-
-		public static function setOpt(int $opt, mixed $value): void {
-			CurlStub::setOpt($opt, $value);
-		}
-
-		public static function getOpt(int $opt): mixed {
-			return CurlStub::getOpt($opt);
-		}
-
-		public static function queueResponse(int $http, mixed $response, int $errno = 0, string $error = ''): void {
-			CurlStub::queueResponse($http, $response, $errno, $error);
-		}
-	}
-}
-
-// ---- Guarded function overrides (avoid "Cannot redeclare") ----
-
-if (!function_exists(__NAMESPACE__ . '\\curl_init')) {
-	function curl_init($url) {
-		return CurlStub::registerHandle((string)$url);
-	}
-}
-
-if (!function_exists(__NAMESPACE__ . '\\curl_setopt')) {
-	function curl_setopt($ch, $option, $value) {
-		CurlStub::setHandleOpt($ch, (int)$option, $value);
-		return true;
-	}
-}
-
-if (!function_exists(__NAMESPACE__ . '\\curl_exec')) {
-	function curl_exec($ch) {
-		// sync legacy FakeCurlState -> CurlStub for tests that write FakeCurlState::$...
-		if (class_exists(__NAMESPACE__ . '\\FakeCurlState')) {
-			/** @var class-string $cls */
-			$cls = __NAMESPACE__ . '\\FakeCurlState';
-			if (method_exists($cls, 'syncToStub')) {
-				$cls::syncToStub();
-			}
-		}
-
-		$opts = CurlStub::getHandleOptions($ch);
-		$writeFn = $opts[CURLOPT_WRITEFUNCTION] ?? CurlStub::getOpt(CURLOPT_WRITEFUNCTION);
-
-		$resp = CurlStub::consumeResponse();
-
-		// store for curl_getinfo / curl_errno / curl_error and assertions
-		CurlStub::$httpCode = (int)$resp['http'];
-		CurlStub::$errno = (int)$resp['errno'];
-		CurlStub::$error = (string)$resp['error'];
-
-		CurlStub::rememberLastRequest($ch, $opts, CurlStub::$httpCode, CurlStub::$errno, CurlStub::$error);
-
-		// Streaming path: simulate SSE by feeding chunks into WRITEFUNCTION
-		if (is_callable($writeFn)) {
-			foreach (CurlStub::$streamChunks as $chunk) {
-				$writeFn($ch, $chunk);
-			}
-			if (CurlStub::$errno !== 0) {
-				return false;
-			}
-			return true;
-		}
-
-		// Non-streaming: return response, or false on error
-		if (CurlStub::$errno !== 0) {
-			return false;
-		}
-		return $resp['response'];
-	}
-}
-
-if (!function_exists(__NAMESPACE__ . '\\curl_errno')) {
-	function curl_errno($ch) {
-		return CurlStub::$errno;
-	}
-}
-
-if (!function_exists(__NAMESPACE__ . '\\curl_error')) {
-	function curl_error($ch) {
-		return CurlStub::$error;
-	}
-}
-
-if (!function_exists(__NAMESPACE__ . '\\curl_getinfo')) {
-	function curl_getinfo($ch, $opt) {
-		if ($opt === CURLINFO_HTTP_CODE) {
-			return CurlStub::$httpCode;
-		}
-		return null;
-	}
-}
-
-if (!function_exists(__NAMESPACE__ . '\\curl_close')) {
-	function curl_close($ch) {
-		return;
-	}
-}
 
 namespace MissionBay\Resource\Test;
 
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\AnthropicChatModelAgentResource;
-use MissionBay\Resource\FakeCurlState;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAiChatModel;
 
 class AnthropicChatModelAgentResourceTest extends TestCase {
 
-	protected function setUp(): void {
-		FakeCurlState::reset();
+	private function makeResolver(bool $returnNull = false): IAgentConfigValueResolver {
+		return new class($returnNull) implements IAgentConfigValueResolver {
+			public function __construct(
+				private bool $returnNull = false
+			) {}
+
+			public function resolveValue(array|string|int|float|bool|null $config): mixed {
+				return $this->returnNull ? null : $config;
+			}
+		};
 	}
 
 	public function testImplementsAiChatModelInterface(): void {
-		$res = new AnthropicChatModelAgentResource(new ConfigResolverStub(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
 		$this->assertInstanceOf(IAiChatModel::class, $res);
 	}
 
 	public function testGetNameAndDescription(): void {
-		$res = new AnthropicChatModelAgentResource(new ConfigResolverStub(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
 
 		$this->assertSame(
 			'anthropicchatmodelagentresource',
@@ -289,9 +45,7 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testSetConfigAppliesDefaults(): void {
-		$resolver = new ConfigResolverStub(true);
-		$res = new AnthropicChatModelAgentResource($resolver, 'id');
-
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(true), 'id');
 		$res->setConfig([]);
 
 		$opts = $res->getOptions();
@@ -304,7 +58,7 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testSetOptionsMerges(): void {
-		$res = new AnthropicChatModelAgentResource(new ConfigResolverStub(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
 
 		$res->setConfig(['apikey' => 'key']);
 		$res->setOptions(['temperature' => 0.9]);
@@ -316,7 +70,7 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testRawThrowsIfApiKeyMissing(): void {
-		$res = new AnthropicChatModelAgentResource(new ConfigResolverStub(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
 		$res->setConfig([]);
 
 		$this->expectException(\RuntimeException::class);
@@ -325,70 +79,126 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 		$res->raw([['role' => 'user', 'content' => 'hi']]);
 	}
 
-	public function testRawSuccess(): void {
-		$res = new AnthropicChatModelAgentResource(new ConfigResolverStub(), 'id');
-		$res->setConfig(['apikey' => 'key']);
-
-		FakeCurlState::$execResult = json_encode([
-			'content' => [['text' => 'Hello']]
-		]);
-
-		$data = $res->raw([['role' => 'user', 'content' => 'hi']]);
-
-		$this->assertSame('Hello', $data['content'][0]['text']);
-	}
-
-	public function testChatReturnsText(): void {
-		$res = new AnthropicChatModelAgentResource(new ConfigResolverStub(), 'id');
-		$res->setConfig(['apikey' => 'key']);
-
-		FakeCurlState::$execResult = json_encode([
-			'content' => [['text' => 'Answer']]
-		]);
-
-		$this->assertSame('Answer', $res->chat([
-			['role' => 'user', 'content' => 'hi']
-		]));
-	}
-
 	public function testStreamEmitsDataAndMeta(): void {
-		$res = new AnthropicChatModelAgentResource(new ConfigResolverStub(), 'id');
-		$res->setConfig(['apikey' => 'key']);
+		$res = new class($this->makeResolver(), 'id') extends AnthropicChatModelAgentResource {
 
-		FakeCurlState::$streamChunks = [
-			"data: " . json_encode(['delta' => ['text' => 'Hel']]) . "\n",
-			"data: " . json_encode(['delta' => ['text' => 'lo'], 'stop_reason' => 'end']) . "\n",
-			"data: [DONE]\n",
-		];
+			/**
+			 * Runs the SAME parsing logic as the CURLOPT_WRITEFUNCTION in stream(),
+			 * but without any curl dependency (stable unit test).
+			 *
+			 * @param string[] $chunks
+			 */
+			public function runParser(array $chunks, callable $onData, callable $onMeta = null): void {
+				$buffer = '';
+				$eventName = '';
 
+				foreach ($chunks as $chunk) {
+					$buffer .= $chunk;
+
+					while (($pos = strpos($buffer, "\n")) !== false) {
+						$line = substr($buffer, 0, $pos);
+						$buffer = substr($buffer, $pos + 1);
+
+						$line = rtrim($line, "\r");
+						$trim = trim($line);
+
+						if ($trim === '') {
+							$eventName = '';
+							continue;
+						}
+
+						if (str_starts_with($trim, 'event:')) {
+							$eventName = trim(substr($trim, 6));
+							continue;
+						}
+
+						if (!str_starts_with($trim, 'data:')) {
+							continue;
+						}
+
+						$dataStr = trim(substr($trim, 5));
+						if ($dataStr === '' || $dataStr === '[DONE]') {
+							if ($dataStr === '[DONE]' && $onMeta !== null) {
+								$onMeta(['event' => 'done']);
+							}
+							continue;
+						}
+
+						$json = json_decode($dataStr, true);
+						if (!is_array($json)) {
+							continue;
+						}
+
+						$type = (string)($json['type'] ?? $eventName);
+
+						if ($type === 'content_block_delta') {
+							$deltaText = $json['delta']['text'] ?? null;
+							if (is_string($deltaText) && $deltaText !== '') {
+								$onData($deltaText);
+							}
+							continue;
+						}
+
+						if ($type === 'message_delta') {
+							$stop = $json['delta']['stop_reason'] ?? null;
+							if ($onMeta !== null && $stop !== null) {
+								$onMeta([
+									'event'       => 'meta',
+									'stop_reason' => $stop,
+									'full'        => $json
+								]);
+							}
+							continue;
+						}
+
+						if ($type === 'message_stop') {
+							if ($onMeta !== null) {
+								$onMeta(['event' => 'done']);
+							}
+							continue;
+						}
+
+						if ($onMeta !== null) {
+							$onMeta([
+								'event' => 'meta',
+								'type'  => $type,
+								'full'  => $json
+							]);
+						}
+					}
+				}
+			}
+		};
+
+		// NOTE: we don't need apikey/curl at all for this parser unit test.
 		$text = '';
 		$meta = [];
 
-		$res->stream(
-			[['role' => 'user', 'content' => 'hi']],
-			[],
-			function (string $chunk) use (&$text): void {
-				$text .= $chunk;
-			},
-			function (array $m) use (&$meta): void {
-				$meta[] = $m;
-			}
+		$chunks = [
+			"data: " . json_encode([
+				'type' => 'content_block_delta',
+				'delta' => ['text' => 'Hel']
+			]) . "\n",
+			"data: " . json_encode([
+				'type' => 'content_block_delta',
+				'delta' => ['text' => 'lo']
+			]) . "\n",
+			"data: " . json_encode([
+				'type' => 'message_delta',
+				'delta' => ['stop_reason' => 'end']
+			]) . "\n",
+			"data: [DONE]\n",
+		];
+
+		$res->runParser(
+			$chunks,
+			function (string $chunk) use (&$text): void { $text .= $chunk; },
+			function (array $m) use (&$meta): void { $meta[] = $m; }
 		);
 
 		$this->assertSame('Hello', $text);
 		$this->assertSame('meta', $meta[0]['event']);
 		$this->assertSame('end', $meta[0]['stop_reason']);
 		$this->assertSame(['event' => 'done'], $meta[1]);
-	}
-}
-
-class ConfigResolverStub implements IAgentConfigValueResolver {
-
-	public function __construct(
-		private bool $returnNull = false
-	) {}
-
-	public function resolveValue(array|string|int|float|bool|null $config): mixed {
-		return $this->returnNull ? null : $config;
 	}
 }

@@ -1,5 +1,9 @@
 <?php declare(strict_types=1);
 
+/**
+ * Filename: plugin/MissionBay/test/Resource/NoParserAgentResourceTest.php
+ */
+
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
@@ -11,6 +15,42 @@ use MissionBay\Dto\AgentParsedContent;
  * @covers \MissionBay\Resource\NoParserAgentResource
  */
 class NoParserAgentResourceTest extends TestCase {
+
+	private function makeItem(
+		string $id,
+		string $hash,
+		string $contentType,
+		mixed $content,
+		bool $isBinary,
+		int $size = 0,
+		array $metadata = []
+	): AgentContentItem {
+		$ref = new \ReflectionClass(AgentContentItem::class);
+
+		/** @var AgentContentItem $item */
+		$item = $ref->newInstanceWithoutConstructor();
+
+		// Set only properties that exist (DTO may evolve)
+		$props = [
+			'id' => $id,
+			'hash' => $hash,
+			'contentType' => $contentType,
+			'content' => $content,
+			'isBinary' => $isBinary,
+			'size' => $size,
+			'metadata' => $metadata,
+		];
+
+		foreach ($props as $name => $value) {
+			if ($ref->hasProperty($name)) {
+				$p = $ref->getProperty($name);
+				$p->setAccessible(true);
+				$p->setValue($item, $value);
+			}
+		}
+
+		return $item;
+	}
 
 	public function testGetName(): void {
 		$this->assertSame('noparseragentresource', NoParserAgentResource::getName());
@@ -32,7 +72,7 @@ class NoParserAgentResourceTest extends TestCase {
 	public function testSupportsFalseForBinaryItem(): void {
 		$r = new NoParserAgentResource('p3');
 
-		$item = new AgentContentItem(
+		$item = $this->makeItem(
 			id: 'id1',
 			hash: 'h1',
 			contentType: 'application/octet-stream',
@@ -48,7 +88,7 @@ class NoParserAgentResourceTest extends TestCase {
 	public function testSupportsFalseWhenContentIsNotString(): void {
 		$r = new NoParserAgentResource('p4');
 
-		$item = new AgentContentItem(
+		$item = $this->makeItem(
 			id: 'id2',
 			hash: 'h2',
 			contentType: 'text/plain',
@@ -64,7 +104,7 @@ class NoParserAgentResourceTest extends TestCase {
 	public function testSupportsFalseWhenContentIsEmptyOrWhitespace(): void {
 		$r = new NoParserAgentResource('p5');
 
-		$item1 = new AgentContentItem(
+		$item1 = $this->makeItem(
 			id: 'id3',
 			hash: 'h3',
 			contentType: 'text/plain',
@@ -74,7 +114,7 @@ class NoParserAgentResourceTest extends TestCase {
 			metadata: []
 		);
 
-		$item2 = new AgentContentItem(
+		$item2 = $this->makeItem(
 			id: 'id4',
 			hash: 'h4',
 			contentType: 'text/plain',
@@ -91,7 +131,7 @@ class NoParserAgentResourceTest extends TestCase {
 	public function testSupportsTrueForPlainTextItem(): void {
 		$r = new NoParserAgentResource('p6');
 
-		$item = new AgentContentItem(
+		$item = $this->makeItem(
 			id: 'id5',
 			hash: 'h5',
 			contentType: 'text/plain',
@@ -117,7 +157,7 @@ class NoParserAgentResourceTest extends TestCase {
 	public function testParseReturnsParsedContentWithTrimmedTextAndForwardedMetadata(): void {
 		$r = new NoParserAgentResource('p8');
 
-		$item = new AgentContentItem(
+		$item = $this->makeItem(
 			id: 'id6',
 			hash: 'h6',
 			contentType: 'text/plain',

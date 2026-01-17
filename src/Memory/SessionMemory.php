@@ -15,8 +15,18 @@ class SessionMemory implements IAgentMemory {
 		return 'sessionmemory';
 	}
 
-	private function ensure(): void {
-		if (!$this->session->started()) return;
+	/**
+	 * Ensures the mb_memory structure exists in $_SESSION.
+	 *
+	 * IMPORTANT:
+	 * We must not touch $_SESSION at all if the session is not started,
+	 * because PHP would implicitly create session arrays otherwise.
+	 */
+	private function ensure(): bool {
+		if (!$this->session->started()) {
+			return false;
+		}
+
 		if (!isset($_SESSION['mb_memory'])) {
 			$_SESSION['mb_memory'] = ['nodes' => [], 'data' => []];
 		}
@@ -26,15 +36,22 @@ class SessionMemory implements IAgentMemory {
 		if (!isset($_SESSION['mb_memory']['data'])) {
 			$_SESSION['mb_memory']['data'] = [];
 		}
+
+		return true;
 	}
 
 	public function loadNodeHistory(string $nodeId): array {
-		$this->ensure();
+		if (!$this->ensure()) {
+			return [];
+		}
 		return $_SESSION['mb_memory']['nodes'][$nodeId] ?? [];
 	}
 
 	public function appendNodeHistory(string $nodeId, array $message): void {
-		$this->ensure();
+		if (!$this->ensure()) {
+			return;
+		}
+
 		$_SESSION['mb_memory']['nodes'][$nodeId][] = $message;
 
 		if (count($_SESSION['mb_memory']['nodes'][$nodeId]) > $this->max) {
@@ -46,21 +63,29 @@ class SessionMemory implements IAgentMemory {
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		$this->ensure();
+		if (!$this->ensure()) {
+			return false;
+		}
+
 		if (!isset($_SESSION['mb_memory']['nodes'][$nodeId])) {
 			return false;
 		}
+
 		foreach ($_SESSION['mb_memory']['nodes'][$nodeId] as &$entry) {
 			if (($entry['id'] ?? null) === $messageId) {
 				$entry['feedback'] = $feedback;
 				return true;
 			}
 		}
+
 		return false;
 	}
 
 	public function resetNodeHistory(string $nodeId): void {
-		$this->ensure();
+		if (!$this->ensure()) {
+			return;
+		}
+
 		unset($_SESSION['mb_memory']['nodes'][$nodeId]);
 	}
 
@@ -68,4 +93,3 @@ class SessionMemory implements IAgentMemory {
 		return 0;
 	}
 }
-

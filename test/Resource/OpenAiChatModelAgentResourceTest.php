@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 
 /**
- * Filename: test/Resource/OpenAiChatModelAgentResourceTest.php
+ * Filename: plugin/MissionBay/test/Resource/OpenAiChatModelAgentResourceTest.php
  */
 
 namespace Test\Resource;
@@ -30,10 +30,18 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 					return $this->map[$key];
 				}
 
-				// For tests: return raw value if not mapped.
 				return $config;
 			}
 		};
+	}
+
+	private function callNormalize(OpenAiChatModelAgentResource $r, array $messages): array {
+		$ref = new \ReflectionClass(OpenAiChatModelAgentResource::class);
+		$m = $ref->getMethod('normalizeMessages');
+		$m->setAccessible(true);
+		/** @var array $out */
+		$out = $m->invoke($r, $messages);
+		return $out;
 	}
 
 	public function testGetName(): void {
@@ -132,7 +140,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
 		$r = new OpenAiChatModelAgentResource($resolver, 'r6');
-		$r->setConfig([]); // apikey resolves to null
+		$r->setConfig([]);
 
 		$this->expectException(\RuntimeException::class);
 		$this->expectExceptionMessage('Missing API key for OpenAI chat model.');
@@ -144,11 +152,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new OpenAiChatModelAgentResource($resolver, 'r7');
 
-		$ref = new \ReflectionClass(OpenAiChatModelAgentResource::class);
-		$m = $ref->getMethod('normalizeMessages');
-		$m->setAccessible(true);
-
-		$normalized = $m->invoke($r, [
+		$normalized = $this->callNormalize($r, [
 			'not-an-array',
 			['content' => 'missing role'],
 			['role' => 'user', 'content' => 'ok'],
@@ -161,11 +165,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new OpenAiChatModelAgentResource($resolver, 'r8');
 
-		$ref = new \ReflectionClass(OpenAiChatModelAgentResource::class);
-		$m = $ref->getMethod('normalizeMessages');
-		$m->setAccessible(true);
-
-		$normalized = $m->invoke($r, [[
+		$normalized = $this->callNormalize($r, [[
 			'role' => 'user',
 			'content' => 'Hi',
 			'feedback' => '  Please be concise.  ',
@@ -181,11 +181,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new OpenAiChatModelAgentResource($resolver, 'r9');
 
-		$ref = new \ReflectionClass(OpenAiChatModelAgentResource::class);
-		$m = $ref->getMethod('normalizeMessages');
-		$m->setAccessible(true);
-
-		$normalized = $m->invoke($r, [[
+		$normalized = $this->callNormalize($r, [[
 			'role' => 'user',
 			'content' => 'Hi',
 			'feedback' => '   ',
@@ -200,11 +196,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new OpenAiChatModelAgentResource($resolver, 'r10');
 
-		$ref = new \ReflectionClass(OpenAiChatModelAgentResource::class);
-		$m = $ref->getMethod('normalizeMessages');
-		$m->setAccessible(true);
-
-		$normalized = $m->invoke($r, [[
+		$normalized = $this->callNormalize($r, [[
 			'role' => 'user',
 			'content' => ['a' => 1, 'b' => true],
 		]]);
@@ -218,16 +210,44 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new OpenAiChatModelAgentResource($resolver, 'r11');
 
-		$ref = new \ReflectionClass(OpenAiChatModelAgentResource::class);
-		$m = $ref->getMethod('normalizeMessages');
-		$m->setAccessible(true);
-
-		$normalized = $m->invoke($r, [
+		// IMPORTANT:
+		// Prod code deliberately drops orphaned tool messages unless a matching assistant tool_calls
+		// exists in the SAME payload. So we must include the assistant tool_calls first.
+		$normalized = $this->callNormalize($r, [
+			[
+				'role' => 'assistant',
+				'content' => '',
+				'tool_calls' => [
+					[
+						'id' => '123',
+						'function' => [
+							'name' => 'noop',
+							'arguments' => '{}',
+						],
+					],
+				],
+			],
 			['role' => 'tool', 'content' => 'x'], // missing tool_call_id -> skipped
 			['role' => 'tool', 'tool_call_id' => 123, 'content' => ['ok' => 1]],
 		]);
 
+		// We only assert the tool message is preserved and normalized (stringified id + json content).
+		// Assistant tool_calls normalization is already covered by the next test.
 		$this->assertSame([
+			[
+				'role' => 'assistant',
+				'content' => '',
+				'tool_calls' => [
+					[
+						'id' => '123',
+						'type' => 'function',
+						'function' => [
+							'name' => 'noop',
+							'arguments' => '{}',
+						],
+					],
+				],
+			],
 			[
 				'role' => 'tool',
 				'tool_call_id' => '123',
@@ -240,11 +260,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new OpenAiChatModelAgentResource($resolver, 'r12');
 
-		$ref = new \ReflectionClass(OpenAiChatModelAgentResource::class);
-		$m = $ref->getMethod('normalizeMessages');
-		$m->setAccessible(true);
-
-		$normalized = $m->invoke($r, [[
+		$normalized = $this->callNormalize($r, [[
 			'role' => 'assistant',
 			'content' => 'Calling tools...',
 			'tool_calls' => [

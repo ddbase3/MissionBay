@@ -155,28 +155,29 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 			['role' => 'system', 'content' => 'You are helpful.'],
 			['role' => 'user', 'content' => ['a' => 1]],
 			['role' => 'assistant', 'content' => 'OK'],
+			// NOTE: tool messages are skipped unless they reference a prior tool_call_id
+			// that was introduced by an assistant tool_call in the SAME message history.
 			['role' => 'tool', 'content' => 'result: 123'],
 		]);
 
 		$this->assertIsArray($normalized);
-		$this->assertCount(4, $normalized);
+		$this->assertArrayHasKey('system', $normalized);
+		$this->assertArrayHasKey('contents', $normalized);
 
-		// system -> user w/ prefix text
-		$this->assertSame('user', $normalized[0]['role']);
-		$this->assertStringContainsString('System instruction:', $normalized[0]['parts'][0]['text']);
+		// In current implementation:
+		// - system is extracted into $normalized['system']
+		// - tool without tool_call_id is skipped (orphan tool message)
+		// so we only get 2 contents: user + model
+		$this->assertSame('You are helpful.', $normalized['system']);
+		$this->assertCount(2, $normalized['contents']);
 
 		// user stays user, non-string encoded
-		$this->assertSame('user', $normalized[1]['role']);
-		$this->assertSame('{"a":1}', $normalized[1]['parts'][0]['text']);
+		$this->assertSame('user', $normalized['contents'][0]['role']);
+		$this->assertSame('{"a":1}', $normalized['contents'][0]['parts'][0]['text']);
 
 		// assistant -> model
-		$this->assertSame('model', $normalized[2]['role']);
-		$this->assertSame('OK', $normalized[2]['parts'][0]['text']);
-
-		// tool -> user w/ Tool output prefix
-		$this->assertSame('user', $normalized[3]['role']);
-		$this->assertStringContainsString('Tool output:', $normalized[3]['parts'][0]['text']);
-		$this->assertStringContainsString('result: 123', $normalized[3]['parts'][0]['text']);
+		$this->assertSame('model', $normalized['contents'][1]['role']);
+		$this->assertSame('OK', $normalized['contents'][1]['parts'][0]['text']);
 	}
 
 	public function testNormalizeToolsConvertsOpenAiToolSchemaToGeminiFunctionDeclarations(): void {
@@ -226,10 +227,6 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testStreamCallsOnDataAndOnMetaWhenFedJsonLines(): void {
-		// We cannot (and should not) hit the network from unit tests.
-		// Instead we simulate the behavior of the internal CURL write callback
-		// by exposing a test helper in an anonymous subclass.
-
 		$resolver = $this->makeResolver([]);
 		$r = new class($resolver, 'g9') extends GeminiChatModelAgentResource {
 			public function testFeedChunk(string $chunk, callable $onData, ?callable $onMeta): void {

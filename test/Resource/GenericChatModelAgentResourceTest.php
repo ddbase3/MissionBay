@@ -218,15 +218,36 @@ class GenericChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new GenericChatModelAgentResource($resolver, 'g12');
 
+		// IMPORTANT:
+		// Tool messages are only allowed if there was a preceding assistant tool_calls message
+		// declaring the same tool_call_id in THIS outgoing payload.
 		$out = $this->callNormalize($r, [
+			[
+				'role' => 'assistant',
+				'content' => '',
+				'tool_calls' => [
+					[
+						'id' => '123',
+						'function' => [
+							'name' => 'my_tool',
+							'arguments' => ['x' => 1],
+						]
+					]
+				]
+			],
 			['role' => 'tool', 'content' => 'x'], // skipped (missing tool_call_id)
-			['role' => 'tool', 'tool_call_id' => 123, 'content' => ['ok' => true]],
+			['role' => 'tool', 'tool_call_id' => 123, 'content' => ['ok' => true]], // kept
 		]);
 
-		$this->assertCount(1, $out);
-		$this->assertSame('tool', $out[0]['role']);
-		$this->assertSame('123', $out[0]['tool_call_id']);
-		$this->assertSame('{"ok":true}', $out[0]['content']);
+		$this->assertCount(2, $out);
+
+		$this->assertSame('assistant', $out[0]['role']);
+		$this->assertArrayHasKey('tool_calls', $out[0]);
+		$this->assertSame('123', $out[0]['tool_calls'][0]['id']);
+
+		$this->assertSame('tool', $out[1]['role']);
+		$this->assertSame('123', $out[1]['tool_call_id']);
+		$this->assertSame('{"ok":true}', $out[1]['content']);
 	}
 
 	public function testNormalizeAssistantToolCallsAreNormalizedAndArgumentsJsonEncoded(): void {
@@ -267,7 +288,6 @@ class GenericChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new GenericChatModelAgentResource($resolver, 'g14');
 
-		// Important: we override stream() to reuse the SAME writefunction logic without doing curl.
 		$r2 = new class($resolver, 'g14x') extends GenericChatModelAgentResource {
 			public function runWriteFunction(string $chunk, callable $onData, callable $onMeta = null): int {
 				$fn = function ($ch, $chunk) use ($onData, $onMeta) {

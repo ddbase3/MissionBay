@@ -148,15 +148,41 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 		$method = (new \ReflectionClass(OpenRouterChatModelAgentResource::class))->getMethod('normalizeMessages');
 		$method->setAccessible(true);
 
+		// IMPORTANT: A tool message is ONLY valid if a preceding assistant message
+		// declared a matching tool_call id in THIS same outgoing payload.
+		// Therefore this test must include the assistant tool_calls first.
 		$normalized = $method->invoke($r, [
-			['role' => 'tool', 'content' => 'result without id'],
-			['role' => 'tool', 'tool_call_id' => 'call_1', 'content' => ['ok' => true]],
+			[
+				'role' => 'assistant',
+				'content' => 'calling tool',
+				'tool_calls' => [
+					[
+						'id' => 'call_1',
+						'function' => [
+							'name' => 'my_tool',
+							'arguments' => ['x' => 1],
+						],
+					],
+				],
+			],
+			['role' => 'tool', 'content' => 'result without id'], // orphan -> must be skipped
+			['role' => 'tool', 'tool_call_id' => 'call_1', 'content' => ['ok' => true]], // valid -> kept
 		]);
 
-		$this->assertCount(1, $normalized);
-		$this->assertSame('tool', $normalized[0]['role']);
-		$this->assertSame('call_1', $normalized[0]['tool_call_id']);
-		$this->assertSame('{"ok":true}', $normalized[0]['content']);
+		// Expected:
+		// 0: assistant with tool_calls
+		// 1: tool response for call_1
+		$this->assertCount(2, $normalized);
+
+		$this->assertSame('assistant', $normalized[0]['role']);
+		$this->assertSame('calling tool', $normalized[0]['content']);
+		$this->assertArrayHasKey('tool_calls', $normalized[0]);
+		$this->assertCount(1, $normalized[0]['tool_calls']);
+		$this->assertSame('call_1', $normalized[0]['tool_calls'][0]['id']);
+
+		$this->assertSame('tool', $normalized[1]['role']);
+		$this->assertSame('call_1', $normalized[1]['tool_call_id']);
+		$this->assertSame('{"ok":true}', $normalized[1]['content']);
 	}
 
 	public function testNormalizeMessagesAssistantToolCallsAreMapped(): void {

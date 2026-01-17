@@ -80,6 +80,8 @@ class CrmProductXrmExtractorAgentResource extends AbstractAgentResource implemen
 			$hash = hash('sha256', (string)$json);
 
 			$items[] = new AgentContentItem(
+				action: 'upsert',
+				collectionKey: 'crm_product',
 				id: $hash,
 				hash: $hash,
 				contentType: 'application/x-crm-json',

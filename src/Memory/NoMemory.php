@@ -19,7 +19,7 @@ class NoMemory implements IAgentMemory
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		// nothing to clear
+		return false;
 	}
 
 	public function resetNodeHistory(string $nodeId): void {

@@ -159,11 +159,14 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new PerplexityChatModelAgentResource($resolver, 'p8');
 
-		$normalized = $this->invokePrivate($r, 'normalizeMessages', [[[
+		$messages = [[
 			'role' => 'user',
 			'content' => ['a' => 1, 'b' => true],
 			'feedback' => 'Please be brief.'
-		]]]);
+		]];
+
+		// IMPORTANT: invokePrivate expects "args" = [ $messages ]
+		$normalized = $this->invokePrivate($r, 'normalizeMessages', [$messages]);
 
 		$this->assertCount(2, $normalized);
 		$this->assertSame('user', $normalized[0]['role']);
@@ -176,7 +179,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new PerplexityChatModelAgentResource($resolver, 'p9');
 
-		$normalized = $this->invokePrivate($r, 'normalizeMessages', [[[
+		$messages = [[
 			'role' => 'assistant',
 			'content' => 'Calling tools',
 			'tool_calls' => [
@@ -188,7 +191,9 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 					]
 				],
 			],
-		]]]);
+		]];
+
+		$normalized = $this->invokePrivate($r, 'normalizeMessages', [$messages]);
 
 		$this->assertCount(1, $normalized);
 		$this->assertSame('assistant', $normalized[0]['role']);
@@ -207,24 +212,43 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new PerplexityChatModelAgentResource($resolver, 'p10');
 
-		$normalized = $this->invokePrivate($r, 'normalizeMessages', [[[
-			'role' => 'tool',
-			'tool_call_id' => 'call_1',
-			'content' => ['ok' => true],
-		], [
-			'role' => 'tool',
-			'content' => 'no id provided',
-		]]]);
+		// Tool messages are only kept if a preceding assistant message declared matching tool_calls
+		$messages = [
+			[
+				'role' => 'assistant',
+				'content' => 'Calling tools',
+				'tool_calls' => [
+					[
+						'id' => 'call_1',
+						'function' => [
+							'name' => 'my_tool',
+							'arguments' => ['x' => 1],
+						]
+					]
+				]
+			],
+			[
+				'role' => 'tool',
+				'tool_call_id' => 'call_1',
+				'content' => ['ok' => true],
+			],
+			[
+				'role' => 'tool',
+				'content' => 'no id provided',
+			],
+		];
+
+		$normalized = $this->invokePrivate($r, 'normalizeMessages', [$messages]);
 
 		$this->assertCount(2, $normalized);
 
-		$this->assertSame('tool', $normalized[0]['role']);
-		$this->assertSame('call_1', $normalized[0]['tool_call_id']);
-		$this->assertSame('{"ok":true}', $normalized[0]['content']);
+		$this->assertSame('assistant', $normalized[0]['role']);
+		$this->assertArrayHasKey('tool_calls', $normalized[0]);
+		$this->assertSame('call_1', $normalized[0]['tool_calls'][0]['id']);
 
 		$this->assertSame('tool', $normalized[1]['role']);
-		$this->assertSame('', $normalized[1]['tool_call_id']);
-		$this->assertSame('no id provided', $normalized[1]['content']);
+		$this->assertSame('call_1', $normalized[1]['tool_call_id']);
+		$this->assertSame('{"ok":true}', $normalized[1]['content']);
 	}
 
 	public function testExtractToolCallFromTextCase1JsonObject(): void {
@@ -293,7 +317,6 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 		$r = new class($resolver, 'p16') extends PerplexityChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
-				// emulate parent::raw end-stage behavior: tool call extraction from text
 				$data = [
 					'choices' => [
 						['message' => ['content' => 'Tool call: notify("hello")']]
@@ -327,7 +350,6 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 
 		$r = new class($resolver, 'p17') extends PerplexityChatModelAgentResource {
-			/** helper to run the exact writefunction logic against a chunk */
 			public function simulateWrite(string $chunk, callable $onData, ?callable $onMeta): void {
 				$lines = preg_split("/\r\n|\n|\r/", $chunk);
 
@@ -386,9 +408,6 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		$deltas = [];
 		$metaEvents = [];
 
-		// IMPORTANT:
-		// The PHP string must NOT contain backslashes.
-		// json_encode will escape quotes for JSON, json_decode returns a clean string again.
 		$chunk =
 			"data: " . json_encode(['choices' => [['delta' => ['content' => 'Tool call: notify("hello")']]]]) . "\n" .
 			"data: " . json_encode(['choices' => [['finish_reason' => 'stop']]]) . "\n" .

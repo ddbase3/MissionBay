@@ -7,7 +7,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Dto\AgentEmbeddingChunk;
 
-final class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
+class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IAgentVectorStore {
 
 	protected IAgentConfigValueResolver $resolver;
 	protected IAgentRagPayloadNormalizer $normalizer;
