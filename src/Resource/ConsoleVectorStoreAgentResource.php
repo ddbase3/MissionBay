@@ -100,6 +100,11 @@ final class ConsoleVectorStoreAgentResource extends AbstractAgentResource implem
 		$this->println("hash: " . (string)$chunk->hash);
 		$this->println("chunkIndex: " . (string)$chunk->chunkIndex);
 
+		// canonical truth
+		if (isset($payload['content_uuid'])) {
+			$this->println("content_uuid: " . (string)$payload['content_uuid']);
+		}
+
 		$text = (string)$chunk->text;
 		if ($this->textPreviewChars > 0) {
 			$this->println("text(" . strlen($text) . "): " . $this->previewText($text, $this->textPreviewChars));
@@ -193,14 +198,12 @@ final class ConsoleVectorStoreAgentResource extends AbstractAgentResource implem
 		$this->println("collectionKey: {$collectionKey}");
 		$this->println("collection: {$collection}");
 
-		$vectorSize = $this->normalizer->getVectorSize($collectionKey);
-		$distance = $this->normalizer->getDistance($collectionKey);
-
-		$this->println("vector_size: " . (string)$vectorSize);
-		$this->println("distance: " . (string)$distance);
-
-		$schema = $this->normalizer->getSchema($collectionKey);
-		$this->println("payload_schema_preview: " . $this->previewJson($schema, $this->payloadPreviewBytes));
+		$this->println("vector_size: " . $this->normalizer->getVectorSize($collectionKey));
+		$this->println("distance: " . $this->normalizer->getDistance($collectionKey));
+		$this->println("payload_schema_preview: " . $this->previewJson(
+			$this->normalizer->getSchema($collectionKey),
+			$this->payloadPreviewBytes
+		));
 	}
 
 	public function deleteCollection(string $collectionKey): void {
@@ -250,33 +253,16 @@ final class ConsoleVectorStoreAgentResource extends AbstractAgentResource implem
 
 	private function uuidV5(string $namespaceUuid, string $name): string {
 		$nsHex = str_replace('-', '', strtolower(trim($namespaceUuid)));
-		if (strlen($nsHex) !== 32 || !ctype_xdigit($nsHex)) {
-			throw new \InvalidArgumentException('uuidV5: invalid namespace UUID.');
-		}
-
 		$nsBin = hex2bin($nsHex);
-		if ($nsBin === false) {
-			throw new \InvalidArgumentException('uuidV5: cannot decode namespace UUID.');
-		}
-
 		$hash = sha1($nsBin . $name);
-
-		$timeLow = substr($hash, 0, 8);
-		$timeMid = substr($hash, 8, 4);
-		$timeHi = substr($hash, 12, 4);
-		$clkSeq = substr($hash, 16, 4);
-		$node = substr($hash, 20, 12);
-
-		$timeHiVal = (hexdec($timeHi) & 0x0fff) | 0x5000;
-		$clkSeqVal = (hexdec($clkSeq) & 0x3fff) | 0x8000;
 
 		return sprintf(
 			'%s-%s-%04x-%04x-%s',
-			$timeLow,
-			$timeMid,
-			$timeHiVal,
-			$clkSeqVal,
-			$node
+			substr($hash, 0, 8),
+			substr($hash, 8, 4),
+			(hexdec(substr($hash, 12, 4)) & 0x0fff) | 0x5000,
+			(hexdec(substr($hash, 16, 4)) & 0x3fff) | 0x8000,
+			substr($hash, 20, 12)
 		);
 	}
 
@@ -292,56 +278,27 @@ final class ConsoleVectorStoreAgentResource extends AbstractAgentResource implem
 	}
 
 	private function previewVector(array $vector): string {
-		$max = $this->vectorPreviewDims;
-
+		$take = min($this->vectorPreviewDims, count($vector));
 		$out = [];
-		$n = count($vector);
-		$take = min($max, $n);
 
 		for ($i = 0; $i < $take; $i++) {
-			$v = $vector[$i] ?? null;
-			if (!is_numeric($v)) {
-				$out[] = 'NaN';
-				continue;
-			}
-			$out[] = number_format((float)$v, $this->vectorPreviewDecimals, '.', '');
+			$out[] = is_numeric($vector[$i])
+				? number_format((float)$vector[$i], $this->vectorPreviewDecimals, '.', '')
+				: 'NaN';
 		}
 
-		$tail = ($n > $take) ? " … +" . ($n - $take) : '';
+		$tail = count($vector) > $take ? ' … +' . (count($vector) - $take) : '';
 		return '[' . implode(', ', $out) . ']' . $tail;
 	}
 
 	private function previewText(string $text, int $maxChars): string {
-		$text = str_replace(["\r\n", "\r"], "\n", $text);
-		$text = preg_replace("/[ \t]+\n/", "\n", $text) ?? $text;
-		$text = trim($text);
-
-		if ($maxChars <= 0) {
-			return '';
-		}
-
-		if (mb_strlen($text) <= $maxChars) {
-			return $text;
-		}
-
-		return mb_substr($text, 0, $maxChars) . ' …';
+		$text = trim(preg_replace("/[ \t]+\n/", "\n", str_replace(["\r\n", "\r"], "\n", $text)) ?? $text);
+		return mb_strlen($text) <= $maxChars ? $text : mb_substr($text, 0, $maxChars) . ' …';
 	}
 
 	private function previewJson(mixed $value, int $maxBytes): string {
 		$json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-		if (!is_string($json)) {
-			return '[unserializable]';
-		}
-
-		if ($maxBytes <= 0) {
-			return $json;
-		}
-
-		if (strlen($json) <= $maxBytes) {
-			return $json;
-		}
-
-		return substr($json, 0, $maxBytes) . '…';
+		return strlen($json) <= $maxBytes ? $json : substr($json, 0, $maxBytes) . '…';
 	}
 
 	private function println(string $line): void {
@@ -349,22 +306,10 @@ final class ConsoleVectorStoreAgentResource extends AbstractAgentResource implem
 	}
 
 	private function line(string $op, ?int $n): string {
-		if ($n === null) {
-			return "=== {$op} ===";
-		}
-		return "=== {$op} #{$n} ===";
+		return $n === null ? "=== {$op} ===" : "=== {$op} #{$n} ===";
 	}
 
 	private function asInt(mixed $value, int $fallback): int {
-		if (is_int($value)) {
-			return $value;
-		}
-		if (is_bool($value)) {
-			return $value ? 1 : 0;
-		}
-		if (is_numeric($value)) {
-			return (int)$value;
-		}
-		return $fallback;
+		return is_numeric($value) ? (int)$value : $fallback;
 	}
 }
