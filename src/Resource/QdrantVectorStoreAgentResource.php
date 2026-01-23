@@ -364,37 +364,43 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 
 	protected function buildQdrantFilter(array $filter): array {
 		$must = [];
-		$should = [];
 
 		foreach ($filter as $key => $value) {
+			$key = trim((string)$key);
+			if ($key === '') {
+				continue;
+			}
+
+			// array value means OR on same key => use Qdrant match.any (single condition)
 			if (is_array($value)) {
+				$vals = [];
 				foreach ($value as $v) {
-					$should[] = [
-						"key" => (string)$key,
-						"match" => ["value" => $v]
+					if ($v === null) {
+						continue;
+					}
+					if (is_array($v) || is_object($v)) {
+						continue;
+					}
+					$vals[] = $v;
+				}
+
+				$vals = array_values(array_unique($vals, SORT_REGULAR));
+				if ($vals) {
+					$must[] = [
+						"key" => $key,
+						"match" => ["any" => $vals]
 					];
 				}
 				continue;
 			}
 
 			$must[] = [
-				"key" => (string)$key,
+				"key" => $key,
 				"match" => ["value" => $value]
 			];
 		}
 
-		$out = [];
-		if ($must) {
-			$out['must'] = $must;
-		}
-		if ($should) {
-			$out['should'] = $should;
-		}
-		if (!$out) {
-			$out['must'] = [];
-		}
-
-		return $out;
+		return ["must" => $must];
 	}
 
 	private function buildQdrantFilterFromSpec(?array $spec): ?array {
@@ -445,13 +451,28 @@ class QdrantVectorStoreAgentResource extends AbstractAgentResource implements IA
 				continue;
 			}
 
+			// array value means OR on same key => use Qdrant match.any (single condition)
 			if (is_array($value)) {
+				$vals = [];
 				foreach ($value as $v) {
-					$out[] = [
-						'key' => $key,
-						'match' => ['value' => $v]
-					];
+					if ($v === null) {
+						continue;
+					}
+					if (is_array($v) || is_object($v)) {
+						continue;
+					}
+					$vals[] = $v;
 				}
+
+				$vals = array_values(array_unique($vals, SORT_REGULAR));
+				if (!$vals) {
+					continue;
+				}
+
+				$out[] = [
+					'key' => $key,
+					'match' => ['any' => $vals]
+				];
 				continue;
 			}
 
