@@ -5,6 +5,7 @@ namespace MissionBay\Test\Agent;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use Base3\Api\IClassMap;
+use Base3\Test\Core\ClassMapStub;
 use MissionBay\Agent\AgentFlowFactory;
 use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentNodeFactory;
@@ -154,31 +155,16 @@ final class AgentFlowFactoryTest extends TestCase {
 	}
 
 	private function makeClassMapReturning(mixed $instance): IClassMap {
-		return new class($instance) implements IClassMap {
+		$cm = new ClassMapStub();
 
-			private mixed $instance;
+		if (is_object($instance)) {
+			$cm->registerInstance(
+				$instance,
+				'someflow',
+				[\MissionBay\Api\IAgentFlow::class]
+			);
+		}
 
-			public function __construct(mixed $instance) {
-				$this->instance = $instance;
-			}
-
-			public function instantiate(string $class) {
-				return null;
-			}
-
-			public function &getInstances(array $criteria = []) {
-				$out = [];
-				return $out;
-			}
-
-			public function getPlugins() {
-				return [];
-			}
-
-			// Not part of IClassMap in the snippet you pasted, but exists in your runtime.
-			public function getInstanceByInterfaceName(string $interface, string $name) {
-				return $this->instance;
-			}
-		};
+		return $cm;
 	}
 }

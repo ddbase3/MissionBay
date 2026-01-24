@@ -6,6 +6,7 @@ use PHPUnit\Framework\TestCase;
 use MissionBay\Agent\AgentMemoryFactory;
 use MissionBay\Api\IAgentMemory;
 use Base3\Api\IClassMap;
+use Base3\Test\Core\ClassMapStub;
 
 final class AgentMemoryFactoryTest extends TestCase {
 
@@ -51,44 +52,16 @@ final class AgentMemoryFactoryTest extends TestCase {
 	}
 
 	private function makeClassMapReturning(mixed $instance): IClassMap {
-		return new class($instance) implements IClassMap {
+		$cm = new ClassMapStub();
 
-			private mixed $instance;
+		if (is_object($instance)) {
+			$cm->registerInstance(
+				$instance,
+				'nomemory',
+				[\MissionBay\Api\IAgentMemory::class]
+			);
+		}
 
-			public function __construct(mixed $instance) {
-				$this->instance = $instance;
-			}
-
-			public function instantiate(string $class) {
-				return null;
-			}
-
-			public function &getInstances(array $criteria = []) {
-				$out = [];
-
-				$iface = (string)($criteria['interface'] ?? '');
-				$name = (string)($criteria['name'] ?? '');
-
-				// AgentMemoryFactory ruft: getInstanceByInterfaceName(IAgentMemory::class, $type)
-				// In deinem Projekt scheint das über getInstances(criteria) zu laufen.
-				// Wir emulieren das minimal: wenn interface passt, liefern wir die eine Instanz.
-				if ($iface === IAgentMemory::class && $name !== '') {
-					if ($this->instance !== null) {
-						$out[] = $this->instance;
-					}
-				}
-
-				return $out;
-			}
-
-			public function getPlugins() {
-				return [];
-			}
-
-			// Convenience: falls deine echte ClassMap das als Methode hat und der Factory es nutzt.
-			public function getInstanceByInterfaceName(string $interface, string $name) {
-				return $this->instance;
-			}
-		};
+		return $cm;
 	}
 }

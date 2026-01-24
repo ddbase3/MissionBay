@@ -7,6 +7,7 @@ use MissionBay\Agent\AgentContextFactory;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentMemory;
 use Base3\Api\IClassMap;
+use Base3\Test\Core\ClassMapStub;
 
 final class AgentContextFactoryTest extends TestCase {
 
@@ -146,31 +147,16 @@ final class AgentContextFactoryTest extends TestCase {
 	}
 
 	private function makeClassMapReturning(mixed $instance): IClassMap {
-		return new class($instance) implements IClassMap {
+		$cm = new ClassMapStub();
 
-			private mixed $instance;
+		if (is_object($instance)) {
+			$cm->registerInstance(
+				$instance,
+				'agentcontext',
+				[\MissionBay\Api\IAgentContext::class]
+			);
+		}
 
-			public function __construct(mixed $instance) {
-				$this->instance = $instance;
-			}
-
-			public function instantiate(string $class) {
-				return null;
-			}
-
-			public function &getInstances(array $criteria = []) {
-				$out = [];
-				return $out;
-			}
-
-			public function getPlugins() {
-				return [];
-			}
-
-			// Wichtig: Factory nutzt diese Methode, auch wenn sie nicht im Interface steht.
-			public function getInstanceByInterfaceName(string $interface, string $name) {
-				return $this->instance;
-			}
-		};
+		return $cm;
 	}
 }

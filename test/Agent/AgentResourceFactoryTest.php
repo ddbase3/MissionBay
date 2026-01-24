@@ -7,6 +7,7 @@ use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Api\IAgentResource;
 use Base3\Api\IClassMap;
+use Base3\Test\Core\ClassMapStub;
 
 #[AllowMockObjectsWithoutExpectations]
 final class AgentResourceFactoryTest extends TestCase {
@@ -42,32 +43,19 @@ final class AgentResourceFactoryTest extends TestCase {
 	}
 
 	private function makeClassMapReturning(mixed $instance): IClassMap {
-		return new class($instance) implements IClassMap {
+		$cm = new ClassMapStub();
 
-			private mixed $instance;
+		if ($instance instanceof IAgentResource) {
+			$cm->registerInstance($instance, 'x', [IAgentResource::class]);
+			return $cm;
+		}
 
-			public function __construct(mixed $instance) {
-				$this->instance = $instance;
-			}
+		if ($instance instanceof \stdClass) {
+			$cm->registerInstance($instance, 'x', [IAgentResource::class]);
+			return $cm;
+		}
 
-			public function instantiate(string $class) {
-				return null;
-			}
-
-			public function &getInstances(array $criteria = []) {
-				$out = [];
-				return $out;
-			}
-
-			public function getPlugins() {
-				return [];
-			}
-
-			// Factory nutzt diese Methode (ist in deiner ClassMap-Implementierung vorhanden,
-			// aber nicht im IClassMap-Interface deklariert).
-			public function getInstanceByInterfaceName(string $interface, string $name) {
-				return $this->instance;
-			}
-		};
+		// null -> leave unregistered so lookup returns null
+		return $cm;
 	}
 }

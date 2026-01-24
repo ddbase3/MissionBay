@@ -5,37 +5,12 @@ namespace MissionBay\Test\Agent;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Agent\AgentConfigValueResolver;
 use Base3\Configuration\Api\IConfiguration;
+use Base3\Test\Configuration\ConfigurationStub;
 
 final class AgentConfigValueResolverTest extends TestCase {
 
 	private function makeConfig(array $root = []): IConfiguration {
-		return new class($root) implements IConfiguration {
-
-			private array $root;
-
-			public function __construct(array $root) {
-				$this->root = $root;
-			}
-
-			public function get($configuration = "") {
-				if ($configuration === "" || $configuration === null) {
-					return $this->root;
-				}
-				return $this->root[$configuration] ?? null;
-			}
-
-			public function set($data, $configuration = "") {
-				if ($configuration === "" || $configuration === null) {
-					$this->root = is_array($data) ? $data : [];
-					return;
-				}
-				$this->root[$configuration] = $data;
-			}
-
-			public function save() {
-				// no-op
-			}
-		};
+		return new ConfigurationStub($root);
 	}
 
 	public function testResolveValueReturnsScalarUnchanged(): void {

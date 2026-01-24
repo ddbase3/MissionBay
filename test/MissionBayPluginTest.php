@@ -7,6 +7,7 @@ use MissionBay\MissionBayPlugin;
 use Base3\Api\IContainer;
 use Base3\Api\IClassMap;
 use Base3\Configuration\Api\IConfiguration;
+use Base3\Test\Core\ClassMapStub;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentMemoryFactory;
@@ -188,30 +189,6 @@ class FakeContainer implements IContainer {
 
 	public function getFlags(string $name): ?int {
 		return $this->flags[$name] ?? null;
-	}
-
-}
-
-/**
- * Simple IClassMap stub for tests.
- */
-class ClassMapStub implements IClassMap {
-
-	public function instantiate(string $class) {
-		if (!class_exists($class)) {
-			return null;
-		}
-
-		return new $class();
-	}
-
-	public function &getInstances(array $criteria = []) {
-		$instances = [];
-		return $instances;
-	}
-
-	public function getPlugins() {
-		return [];
 	}
 
 }
