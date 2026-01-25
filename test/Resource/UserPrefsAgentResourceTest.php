@@ -97,8 +97,8 @@ class UserPrefsAgentResourceTest extends TestCase {
 			->method('nonQuery')
 			->with($this->callback(function (string $sql): bool {
 				$s = strtolower($sql);
-				return str_contains($s, 'create table if not exists missionbay_userpref_def')
-					|| str_contains($s, 'create table if not exists missionbay_userpref_value');
+				return str_contains($s, 'create table if not exists base3_missionbay_userpref_def')
+					|| str_contains($s, 'create table if not exists base3_missionbay_userpref_value');
 			}));
 
 		new UserPrefsAgentResource(

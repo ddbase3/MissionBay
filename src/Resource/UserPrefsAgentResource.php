@@ -534,7 +534,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$this->database->connect();
 
 		$this->database->nonQuery("
-			CREATE TABLE IF NOT EXISTS missionbay_userpref_def (
+			CREATE TABLE IF NOT EXISTS base3_missionbay_userpref_def (
 				id BIGINT AUTO_INCREMENT PRIMARY KEY,
 				pref_key VARCHAR(100) NOT NULL,
 				description VARCHAR(255) NULL,
@@ -552,7 +552,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		");
 
 		$this->database->nonQuery("
-			CREATE TABLE IF NOT EXISTS missionbay_userpref_value (
+			CREATE TABLE IF NOT EXISTS base3_missionbay_userpref_value (
 				id BIGINT AUTO_INCREMENT PRIMARY KEY,
 				scope VARCHAR(20) NOT NULL,
 				ident VARCHAR(128) NOT NULL,
@@ -576,7 +576,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 
 		$where = $enabledOnly ? 'WHERE enabled=1' : '';
 		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled
-			  FROM missionbay_userpref_def
+			  FROM base3_missionbay_userpref_def
 			  $where
 			  ORDER BY sort_order ASC, pref_key ASC";
 
@@ -587,7 +587,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$this->database->connect();
 
 		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled
-			  FROM missionbay_userpref_def
+			  FROM base3_missionbay_userpref_def
 			  WHERE pref_key='" . $this->database->escape($key) . "'
 			  LIMIT 1";
 
@@ -601,7 +601,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$useridSql = $userid !== null ? "'" . $this->database->escape($userid) . "'" : 'NULL';
 		$sessionSql = $sessionKey !== null ? "'" . $this->database->escape($sessionKey) . "'" : 'NULL';
 
-		$q = "INSERT INTO missionbay_userpref_value (scope, ident, userid, session, pref_key, pref_value)
+		$q = "INSERT INTO base3_missionbay_userpref_value (scope, ident, userid, session, pref_key, pref_value)
 			  VALUES (
 				'" . $this->database->escape($scope) . "',
 				'" . $this->database->escape($ident) . "',
@@ -622,7 +622,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 	private function deletePrefValue(string $scope, string $key, string $ident): bool {
 		$this->database->connect();
 
-		$q = "DELETE FROM missionbay_userpref_value
+		$q = "DELETE FROM base3_missionbay_userpref_value
 			  WHERE scope='" . $this->database->escape($scope) . "'
 				AND pref_key='" . $this->database->escape($key) . "'
 				AND ident='" . $this->database->escape($ident) . "'";
@@ -640,7 +640,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 
 		$ident = $this->buildIdent('session', null, $sessionKey);
 
-		$q = "DELETE FROM missionbay_userpref_value
+		$q = "DELETE FROM base3_missionbay_userpref_value
 			  WHERE scope='session'
 				AND pref_key='" . $this->database->escape($key) . "'
 				AND ident='" . $this->database->escape($ident) . "'";
@@ -684,7 +684,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$conds[] = 'ident IN (' . implode(',', $idents) . ')';
 
 		$q = "SELECT scope, pref_key, pref_value, updated
-			  FROM missionbay_userpref_value
+			  FROM base3_missionbay_userpref_value
 			  WHERE " . implode(' AND ', $conds) . "
 			  ORDER BY scope ASC, pref_key ASC";
 
@@ -741,7 +741,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 /*
 # Example prefs
 
-INSERT INTO missionbay_userpref_def (pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled)
+INSERT INTO base3_missionbay_userpref_def (pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled)
 VALUES
 	( "address_form", "Anredeform des Nutzers (Du/Sie).", "Sprich den Nutzer konsequent mit „{{value}}“ an.", "enum", "[\"Du\",\"Sie\"]", "user", 10, 1),
 	( "answer_style", "Antwortstil (kurz, normal, ausführlich).", "Antworte im Stil: {{value}}.", "enum", "[\"kurz\",\"normal\",\"ausführlich\"]", "user", 20, 1),
