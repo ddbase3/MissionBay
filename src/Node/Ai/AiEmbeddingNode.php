@@ -440,8 +440,9 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				return $parsed;
 			} catch (\Throwable $e) {
 				$stats['num_parser_errors']++;
-				$this->log('Parse ERROR ' . get_class($parser) . ' ' . $e->getMessage());
-				return null;
+				$msg = 'Parse ERROR ' . get_class($parser) . ': ' . $e->getMessage();
+				$this->log($msg);
+				throw new \RuntimeException($msg, 0, $e);
 			}
 		}
 
@@ -473,8 +474,9 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				return $chunks;
 			} catch (\Throwable $e) {
 				$stats['num_chunker_errors']++;
-				$this->log('Chunk ERROR ' . get_class($chunker) . ' ' . $e->getMessage());
-				return [];
+				$msg = 'Chunk ERROR ' . get_class($chunker) . ': ' . $e->getMessage();
+				$this->log($msg);
+				throw new \RuntimeException($msg, 0, $e);
 			}
 		}
 
@@ -499,7 +501,6 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			$baseMeta = array_merge($baseMeta, $parsedMeta);
 		}
 
-		// Build a normalized list first (skip empty texts) so num_chunks is correct.
 		$normalized = [];
 
 		foreach ($rawChunks as $raw) {
@@ -531,7 +532,6 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				$meta = array_merge($meta, $n['meta']);
 			}
 
-			// NEW: neighbor-aware meta
 			$meta['num_chunks'] = $numChunks;
 
 			$out[] = new AgentEmbeddingChunk(
