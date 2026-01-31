@@ -39,7 +39,7 @@ class MissionBayMcp implements IOutput {
 		return false;
 	}
 
-	public function getOutput($out = "json") {
+	public function getOutput(string $out = 'json', bool $final = false): string {
 		if ($out !== "json") return 'This endpoint only supports JSON output.';
 
 		$context = $this->request->getContext();
@@ -146,4 +146,3 @@ class MissionBayMcp implements IOutput {
 		return "Returns OpenAPI 3.1 spec or executes agent function for GPT function calling integration.";
 	}
 }
-

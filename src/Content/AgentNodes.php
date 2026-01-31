@@ -19,7 +19,7 @@ class AgentNodes implements IOutput {
 
 	// Implementation of IOutput
 
-	public function getOutput($out = 'html') {
+	public function getOutput(string $out = 'html', bool $final = false): string {
 		if ($out != 'json') return '';
 
 		$agentNodes = $this->classmap->getInstancesByInterface(IAgentNode::class);
@@ -59,8 +59,7 @@ class AgentNodes implements IOutput {
 		return $ports;
 	}
 
-	public function getHelp() {
+	public function getHelp(): string {
 		return 'Help of AgentNodes' . "\n";
 	}
 }
-

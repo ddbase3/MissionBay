@@ -17,7 +17,7 @@ class McpServerTest implements IOutput {
 		return 'mcpservertest';
 	}
 
-	public function getOutput($out = "html") {
+	public function getOutput(string $out = 'html', bool $final = false): string {
 		$text = $this->request->post('text') ?? '';
 		$function = $this->request->post('function') ?? '';
 		$response = null;
@@ -96,4 +96,3 @@ class McpServerTest implements IOutput {
 		return 'Testet den MCP-Endpunkt missionbaymcp.json mit Eingabeformular und dynamischer Funktionsauswahl.';
 	}
 }
-
