@@ -8,9 +8,13 @@ use EventTransport\Api\IEventStreamFactory;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentMemory;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Api\IAgentSkillSelector;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
+use MissionBay\Skill\SkillPlan;
+use MissionBay\Skill\ToolDefFilter;
+use MissionBay\Skill\ToolGuardAgentTool;
 
 /**
  * StreamingAiAssistantNode
@@ -114,6 +118,13 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				interface: IAgentTool::class,
 				maxConnections: 99,
 				required: false
+			),
+			new AgentNodeDock(
+				name: 'skillselector',
+				description: 'Optional skill selector that returns SkillPlans (supports multi-skill).',
+				interface: IAgentSkillSelector::class,
+				maxConnections: 1,
+				required: false
 			)
 		];
 	}
@@ -167,6 +178,47 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			$stream->push('msgid', ['id' => $assistantId]);
 
 			// ----------------------------------------------------
+			// APPLY SKILLS (OPTIONAL)
+			// ----------------------------------------------------
+
+			$skillSelector = $resources['skillselector'][0] ?? null;
+			$effectivePlan = $this->buildEffectiveSkillPlan($skillSelector, $prompt, $system, $context);
+
+			$filter = new ToolDefFilter();
+			$filtered = $filter->filter($tools, $effectivePlan);
+
+			$toolDefs = $filtered['toolDefs'];
+			$report = $filtered['report'];
+			$allowedToolNames = $filtered['allowedToolNames'];
+
+			if (!$report->isFeasible()) {
+				$stream->push('skill.unavailable', [
+					'message' => 'Requested skills cannot be fulfilled due to missing tools. Falling back to default behavior.',
+					'missing_required_tools' => $report->getMissingRequiredTools()
+				]);
+
+				$effectivePlan = new SkillPlan('default');
+				$filtered = $filter->filter($tools, $effectivePlan);
+
+				$toolDefs = $filtered['toolDefs'];
+				$allowedToolNames = $filtered['allowedToolNames'];
+			}
+
+			$systemAppend = $effectivePlan->getSystemAppend();
+			if ($systemAppend !== null && trim($systemAppend) !== '') {
+				$system = rtrim($system) . "\n\n" . trim($systemAppend);
+			}
+
+			if (is_array($allowedToolNames) && count($allowedToolNames) > 0) {
+				$tools = array_map(
+					fn($t) => new ToolGuardAgentTool($t, $allowedToolNames),
+					$tools
+				);
+			}
+
+			$this->log('Number of Tools: ' . count($toolDefs) . '.');
+
+			// ----------------------------------------------------
 			// BUILD MESSAGE CONTEXT
 			// ----------------------------------------------------
 
@@ -201,19 +253,6 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			foreach ($memories as $memory) {
 				$this->safeAppendHistory($memory, $nodeId, $userMessage);
 			}
-
-			// ----------------------------------------------------
-			// TOOL DEFINITIONS
-			// ----------------------------------------------------
-
-			$toolDefs = [];
-			foreach ($tools as $tool) {
-				foreach ($tool->getToolDefinitions() as $def) {
-					$toolDefs[] = $def;
-				}
-			}
-
-			$this->log('Number of Tools: ' . count($toolDefs) . '.');
 
 			// ----------------------------------------------------
 			// PHASE 1 — TOOL CALLING
@@ -416,6 +455,71 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				'error' => $e->getMessage()
 			];
 		}
+	}
+
+	// ----------------------------------------------------
+	// SKILLS
+	// ----------------------------------------------------
+
+	private function buildEffectiveSkillPlan(mixed $skillSelector, string $prompt, string $system, IAgentContext $context): SkillPlan {
+		if (!$skillSelector instanceof IAgentSkillSelector) {
+			return new SkillPlan('default');
+		}
+
+		$plans = $skillSelector->selectPlans($prompt, $system, $context);
+		if (count($plans) === 0) {
+			return new SkillPlan('default');
+		}
+
+		$mergedSystemAppend = [];
+		$mergedAllowed = null; // null => legacy (no filtering)
+		$mergedRequired = [];
+
+		foreach ($plans as $plan) {
+			if (!$plan instanceof SkillPlan) {
+				continue;
+			}
+
+			$append = $plan->getSystemAppend();
+			if ($append !== null && trim($append) !== '') {
+				$mergedSystemAppend[] = trim($append);
+			}
+
+			$allowed = $plan->getAllowedTools();
+			if (is_array($allowed)) {
+				if ($mergedAllowed === null) {
+					$mergedAllowed = [];
+				}
+				foreach ($allowed as $name) {
+					$name = (string)$name;
+					if ($name !== '') {
+						$mergedAllowed[$name] = true;
+					}
+				}
+			}
+
+			foreach ($plan->getRequiredTools() as $req) {
+				$req = (string)$req;
+				if ($req !== '') {
+					$mergedRequired[$req] = true;
+				}
+			}
+		}
+
+		$effectiveAllowedTools = $mergedAllowed === null ? null : array_keys($mergedAllowed);
+		if (is_array($effectiveAllowedTools)) {
+			sort($effectiveAllowedTools);
+		}
+
+		$effectiveRequiredTools = array_keys($mergedRequired);
+		sort($effectiveRequiredTools);
+
+		return new SkillPlan(
+			skillName: 'effective',
+			systemAppend: count($mergedSystemAppend) > 0 ? implode("\n\n", $mergedSystemAppend) : null,
+			allowedTools: $effectiveAllowedTools,
+			requiredTools: $effectiveRequiredTools
+		);
 	}
 
 	// ----------------------------------------------------
