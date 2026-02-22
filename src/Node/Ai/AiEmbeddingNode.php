@@ -44,6 +44,13 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				required: false
 			),
 			new AgentNodePort(
+				name: 'on_empty_chunks',
+				description: 'Policy when chunking yields 0 chunks: skip | fail.',
+				type: 'string',
+				default: 'skip',
+				required: false
+			),
+			new AgentNodePort(
 				name: 'debug',
 				description: 'Enable verbose CLI output (echo inside log()).',
 				type: 'bool',
@@ -153,8 +160,15 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			return ['error' => "Unsupported mode: $mode"];
 		}
 
+		$onEmptyChunks = strtolower((string)($inputs['on_empty_chunks'] ?? 'skip'));
+		if (!in_array($onEmptyChunks, ['skip', 'fail'], true)) {
+			$this->log('ERROR Unsupported on_empty_chunks: ' . $onEmptyChunks);
+			return ['error' => "Unsupported on_empty_chunks: $onEmptyChunks"];
+		}
+
 		$stats = [
 			'mode' => $mode,
+			'on_empty_chunks' => $onEmptyChunks,
 			'num_extractors' => count($extractors),
 
 			'num_items' => 0,
@@ -182,7 +196,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			'num_fail_errors' => 0
 		];
 
-		$this->log('Start mode=' . $mode . ' extractors=' . count($extractors) . ' parsers=' . count($parsers) . ' chunkers=' . count($chunkers));
+		$this->log('Start mode=' . $mode . ' on_empty_chunks=' . $onEmptyChunks . ' extractors=' . count($extractors) . ' parsers=' . count($parsers) . ' chunkers=' . count($chunkers));
 
 		$itemsWithOwner = $this->stepExtractWithOwners($extractors, $context, $stats);
 		$stats['num_items'] = count($itemsWithOwner);
@@ -198,7 +212,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			$this->log('Item #' . $idx . ' id=' . (string)$item->id . ' action=' . (string)$item->action . ' col=' . (string)$item->collectionKey . ' hash=' . (string)$item->hash);
 
 			try {
-				$resultMeta = $this->processItem($item, $mode, $parsers, $chunkers, $embedder, $store, $stats);
+				$resultMeta = $this->processItem($item, $mode, $onEmptyChunks, $parsers, $chunkers, $embedder, $store, $stats);
 
 				$this->assertItemSuccessOrThrow($item, $resultMeta);
 
@@ -288,6 +302,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 	protected function processItem(
 		AgentContentItem $item,
 		string $mode,
+		string $onEmptyChunks,
 		array $parsers,
 		array $chunkers,
 		IAiEmbeddingModel $embedder,
@@ -309,7 +324,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			return $this->processDeleteItem($item, $collectionKey, $store, $stats);
 		}
 
-		return $this->processUpsertItem($item, $collectionKey, $mode, $parsers, $chunkers, $embedder, $store, $stats);
+		return $this->processUpsertItem($item, $collectionKey, $mode, $onEmptyChunks, $parsers, $chunkers, $embedder, $store, $stats);
 	}
 
 	/**
@@ -345,6 +360,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 		AgentContentItem $item,
 		string $collectionKey,
 		string $mode,
+		string $onEmptyChunks,
 		array $parsers,
 		array $chunkers,
 		IAiEmbeddingModel $embedder,
@@ -384,6 +400,17 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 
 		$rawChunks = $this->stepChunk($chunkers, $parsed, $stats);
 		if (!$rawChunks) {
+			if ($onEmptyChunks === 'skip') {
+				$stats['num_skipped']++;
+				$this->log('Skip empty chunks col=' . $collectionKey . ' reason=no-chunks');
+
+				return [
+					'action' => 'skip',
+					'collection_key' => $collectionKey,
+					'status' => 'no-chunks'
+				];
+			}
+
 			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'stored' => 0, 'status' => 'no-chunks'];
 		}
 
