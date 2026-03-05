@@ -540,6 +540,15 @@ class DbMemoryDatabaseStub implements IDatabase {
 	public function disconnect(): void {
 	}
 
+	public function beginTransaction(): void {
+	}
+
+	public function commit(): void {
+	}
+
+	public function rollback(): void {
+	}
+
 	public function nonQuery(string $query): void {
 		$this->nonQueries[] = $query;
 	}
