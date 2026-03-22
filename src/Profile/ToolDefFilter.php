@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Skill;
+namespace MissionBay\Profile;
 
 use MissionBay\Api\IAgentTool;
 
@@ -10,7 +10,7 @@ final class ToolDefFilter {
 	 * @param IAgentTool[] $tools
 	 * @return array{toolDefs: array, report: ToolFilterReport, allowedToolNames: ?array}
 	 */
-	public function filter(array $tools, SkillPlan $plan): array {
+	public function filter(array $tools, ProfilePlan $plan): array {
 		$available = $this->collectAvailableToolNames($tools);
 
 		$allowed = $plan->getAllowedTools();

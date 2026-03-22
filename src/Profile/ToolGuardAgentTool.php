@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Skill;
+namespace MissionBay\Profile;
 
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;

@@ -3,15 +3,15 @@
 namespace MissionBay\Api;
 
 /**
- * IAgentSkillSelector
+ * IAgentProfileSelector
  *
- * Returns skill plans for the current request.
- * Multi-skill: return multiple plans if multiple skills should be active at the same time
+ * Returns profile plans for the current request.
+ * Multi-profile: return multiple plans if multiple profiles should be active at the same time
  * (e.g. RAG + sendmail). The host will merge them into one effective plan.
  *
- * @return \MissionBay\Skill\SkillPlan[]
+ * @return \MissionBay\Profile\ProfilePlan[]
  */
-interface IAgentSkillSelector {
+interface IAgentProfileSelector {
 
 	public function selectPlans(string $userPrompt, string $systemPrompt, IAgentContext $context): array;
 }

@@ -1,20 +1,20 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Skill;
+namespace MissionBay\Profile;
 
 use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentSkillSelector;
+use MissionBay\Api\IAgentProfileSelector;
 
-final class NoOpSkillSelector implements IAgentSkillSelector {
+final class NoOpProfileSelector implements IAgentProfileSelector {
 
 	public static function getName(): string {
-		return 'noopskillselector';
+		return 'noopprofileselector';
 	}
 
 	public function selectPlans(string $userPrompt, string $systemPrompt, IAgentContext $context): array {
 		return [
-			new SkillPlan(
-				skillName: 'default',
+			new ProfilePlan(
+				profileName: 'default',
 				systemAppend: null,
 				allowedTools: null,
 				requiredTools: []

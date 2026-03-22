@@ -8,13 +8,13 @@ use EventTransport\Api\IEventStreamFactory;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentMemory;
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentSkillSelector;
+use MissionBay\Api\IAgentProfileSelector;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
-use MissionBay\Skill\SkillPlan;
-use MissionBay\Skill\ToolDefFilter;
-use MissionBay\Skill\ToolGuardAgentTool;
+use MissionBay\Profile\ProfilePlan;
+use MissionBay\Profile\ToolDefFilter;
+use MissionBay\Profile\ToolGuardAgentTool;
 
 /**
  * StreamingAiAssistantNode
@@ -120,9 +120,9 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				required: false
 			),
 			new AgentNodeDock(
-				name: 'skillselector',
-				description: 'Optional skill selector that returns SkillPlans (supports multi-skill).',
-				interface: IAgentSkillSelector::class,
+				name: 'profileselector',
+				description: 'Optional profile selector that returns ProfilePlans (supports multi-profile).',
+				interface: IAgentProfileSelector::class,
 				maxConnections: 1,
 				required: false
 			)
@@ -178,11 +178,11 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			$stream->push('msgid', ['id' => $assistantId]);
 
 			// ----------------------------------------------------
-			// APPLY SKILLS (OPTIONAL)
+			// APPLY PROFILES (OPTIONAL)
 			// ----------------------------------------------------
 
-			$skillSelector = $resources['skillselector'][0] ?? null;
-			$effectivePlan = $this->buildEffectiveSkillPlan($skillSelector, $prompt, $system, $context);
+			$profileSelector = $resources['profileselector'][0] ?? null;
+			$effectivePlan = $this->buildEffectiveProfilePlan($profileSelector, $prompt, $system, $context);
 
 			$filter = new ToolDefFilter();
 			$filtered = $filter->filter($tools, $effectivePlan);
@@ -192,12 +192,12 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			$allowedToolNames = $filtered['allowedToolNames'];
 
 			if (!$report->isFeasible()) {
-				$stream->push('skill.unavailable', [
-					'message' => 'Requested skills cannot be fulfilled due to missing tools. Falling back to default behavior.',
+				$stream->push('profile.unavailable', [
+					'message' => 'Requested profiles cannot be fulfilled due to missing tools. Falling back to default behavior.',
 					'missing_required_tools' => $report->getMissingRequiredTools()
 				]);
 
-				$effectivePlan = new SkillPlan('default');
+				$effectivePlan = new ProfilePlan('default');
 				$filtered = $filter->filter($tools, $effectivePlan);
 
 				$toolDefs = $filtered['toolDefs'];
@@ -458,17 +458,17 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 	}
 
 	// ----------------------------------------------------
-	// SKILLS
+	// PROFILES
 	// ----------------------------------------------------
 
-	private function buildEffectiveSkillPlan(mixed $skillSelector, string $prompt, string $system, IAgentContext $context): SkillPlan {
-		if (!$skillSelector instanceof IAgentSkillSelector) {
-			return new SkillPlan('default');
+	private function buildEffectiveProfilePlan(mixed $profileSelector, string $prompt, string $system, IAgentContext $context): ProfilePlan {
+		if (!$profileSelector instanceof IAgentProfileSelector) {
+			return new ProfilePlan('default');
 		}
 
-		$plans = $skillSelector->selectPlans($prompt, $system, $context);
+		$plans = $profileSelector->selectPlans($prompt, $system, $context);
 		if (count($plans) === 0) {
-			return new SkillPlan('default');
+			return new ProfilePlan('default');
 		}
 
 		$mergedSystemAppend = [];
@@ -476,7 +476,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		$mergedRequired = [];
 
 		foreach ($plans as $plan) {
-			if (!$plan instanceof SkillPlan) {
+			if (!$plan instanceof ProfilePlan) {
 				continue;
 			}
 
@@ -514,8 +514,8 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		$effectiveRequiredTools = array_keys($mergedRequired);
 		sort($effectiveRequiredTools);
 
-		return new SkillPlan(
-			skillName: 'effective',
+		return new ProfilePlan(
+			profileName: 'effective',
 			systemAppend: count($mergedSystemAppend) > 0 ? implode("\n\n", $mergedSystemAppend) : null,
 			allowedTools: $effectiveAllowedTools,
 			requiredTools: $effectiveRequiredTools

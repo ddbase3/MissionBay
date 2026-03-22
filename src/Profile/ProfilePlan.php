@@ -1,23 +1,23 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Skill;
+namespace MissionBay\Profile;
 
-final class SkillPlan {
+final class ProfilePlan {
 
 	/**
 	 * @param string[]|null $allowedTools If null, no filtering is applied.
 	 * @param string[] $requiredTools Tools that must be available, otherwise plan is not feasible.
 	 */
 	public function __construct(
-		private string $skillName,
+		private string $profileName,
 		private ?string $systemAppend = null,
 		private ?array $allowedTools = null,
 		private array $requiredTools = []
 	) {
 	}
 
-	public function getSkillName(): string {
-		return $this->skillName;
+	public function getProfileName(): string {
+		return $this->profileName;
 	}
 
 	public function getSystemAppend(): ?string {
