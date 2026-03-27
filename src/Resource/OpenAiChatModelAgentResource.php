@@ -86,10 +86,10 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		$result = $this->raw($messages);
 
 		if (!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException("Malformed OpenAI chat response: " . json_encode($result));
+			throw new \RuntimeException('Malformed OpenAI chat response: ' . json_encode($result));
 		}
 
-		return $result['choices'][0]['message']['content'];
+		return (string)$result['choices'][0]['message']['content'];
 	}
 
 	public function raw(array $messages, array $tools = []): mixed {
@@ -99,7 +99,7 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		$temp = $this->resolvedOptions['temperature'] ?? 0.7;
 
 		if (!$apikey) {
-			throw new \RuntimeException("Missing API key for OpenAI chat model.");
+			throw new \RuntimeException('Missing API key for OpenAI chat model.');
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -141,9 +141,9 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 			throw new \RuntimeException("API request failed with status $httpCode: $result");
 		}
 
-		$data = json_decode($result, true);
+		$data = json_decode((string)$result, true);
 		if (!is_array($data)) {
-			throw new \RuntimeException("Invalid JSON response from OpenAI: " . substr($result ?? '', 0, 200));
+			throw new \RuntimeException('Invalid JSON response from OpenAI: ' . substr((string)$result, 0, 200));
 		}
 
 		return $data;
@@ -155,14 +155,13 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		callable $onData,
 		callable $onMeta = null
 	): void {
-
 		$model = $this->resolvedOptions['model'] ?? 'gpt-4o-mini';
 		$apikey = $this->resolvedOptions['apikey'] ?? null;
 		$endpoint = $this->resolvedOptions['endpoint'] ?? '';
 		$temp = $this->resolvedOptions['temperature'] ?? 0.7;
 
 		if (!$apikey) {
-			throw new \RuntimeException("Missing API key for OpenAI chat model.");
+			throw new \RuntimeException('Missing API key for OpenAI chat model.');
 		}
 
 		$normalized = $this->normalizeMessages($messages);
@@ -337,6 +336,11 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 	 * Critical invariant:
 	 * - A tool message can only be sent if we have seen a preceding assistant tool_calls
 	 *   message that declared the same tool_call_id in THIS outgoing payload.
+	 *
+	 * Important normalization rules:
+	 * - null content must become an empty string, not the literal string "null"
+	 * - assistant tool-call planning messages must be preserved cleanly
+	 * - orphaned tool messages must still be skipped
 	 */
 	private function normalizeMessages(array $messages): array {
 		$out = [];
@@ -350,7 +354,6 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 			$role = (string)$m['role'];
 			$content = $m['content'] ?? '';
 
-			// Assistant message that includes tool calls
 			if ($role === 'assistant' && !empty($m['tool_calls']) && is_array($m['tool_calls'])) {
 				$toolCalls = [];
 
@@ -360,11 +363,7 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 					}
 
 					$callId = (string)$call['id'];
-					$args = $call['function']['arguments'] ?? '{}';
-
-					if (!is_string($args)) {
-						$args = json_encode($args);
-					}
+					$args = $this->normalizeToolArguments($call['function']['arguments'] ?? '{}');
 
 					$toolCalls[] = [
 						'id' => $callId,
@@ -375,47 +374,43 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 						]
 					];
 
-					// Mark this tool_call_id as valid for upcoming tool responses
 					$validToolCallIds[$callId] = true;
 				}
 
-				$out[] = [
-					'role' => 'assistant',
-					'content' => is_string($content) ? $content : json_encode($content),
-					'tool_calls' => $toolCalls
-				];
+				if (count($toolCalls) > 0) {
+					$out[] = [
+						'role' => 'assistant',
+						'content' => $this->normalizeMessageContent($content),
+						'tool_calls' => $toolCalls
+					];
 
-				continue;
+					continue;
+				}
 			}
 
-			// Tool execution feedback (must match a preceding assistant tool_call_id)
 			if ($role === 'tool') {
 				$toolCallId = (string)($m['tool_call_id'] ?? '');
 
 				if ($toolCallId === '' || empty($validToolCallIds[$toolCallId])) {
-					// Skip orphaned tool messages to avoid OpenAI 400 errors.
 					continue;
 				}
 
 				$out[] = [
 					'role' => 'tool',
 					'tool_call_id' => $toolCallId,
-					'content' => is_string($content) ? $content : json_encode($content)
+					'content' => $this->normalizeMessageContent($content)
 				];
 
-				// Optional: consume id to avoid accidental duplicates
 				unset($validToolCallIds[$toolCallId]);
 
 				continue;
 			}
 
-			// Standard message
 			$out[] = [
 				'role' => $role,
-				'content' => is_string($content) ? $content : json_encode($content)
+				'content' => $this->normalizeMessageContent($content)
 			];
 
-			// Inject feedback as extra user message
 			if (!empty($m['feedback']) && is_string($m['feedback'])) {
 				$fb = trim($m['feedback']);
 				if ($fb !== '') {
@@ -428,5 +423,43 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		}
 
 		return $out;
+	}
+
+	private function normalizeToolArguments(mixed $args): string {
+		if (is_string($args)) {
+			return $args;
+		}
+
+		$json = json_encode($args, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		if ($json === false) {
+			return '{}';
+		}
+
+		return $json;
+	}
+
+	private function normalizeMessageContent(mixed $content): string {
+		if ($content === null) {
+			return '';
+		}
+
+		if (is_string($content)) {
+			return $content;
+		}
+
+		if (is_bool($content)) {
+			return $content ? 'true' : 'false';
+		}
+
+		if (is_int($content) || is_float($content)) {
+			return (string)$content;
+		}
+
+		$json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		if ($json === false || $json === 'null') {
+			return '';
+		}
+
+		return $json;
 	}
 }

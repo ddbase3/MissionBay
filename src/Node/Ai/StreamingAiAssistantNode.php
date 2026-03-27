@@ -19,14 +19,17 @@ namespace MissionBay\Node\Ai;
 
 use AssistantFoundation\Api\IAiChatModel;
 use Base3\Logger\Api\ILogger;
+use EventTransport\Api\IEventStream;
 use EventTransport\Api\IEventStreamFactory;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentMemory;
-use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IAgentProfileSelector;
+use MissionBay\Api\IAgentTool;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;
+use MissionBay\Orchestrator\AgentToolOrchestrator;
+use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 use MissionBay\Profile\ProfilePlan;
 use MissionBay\Profile\ToolDefFilter;
 use MissionBay\Profile\ToolGuardAgentTool;
@@ -35,18 +38,15 @@ use MissionBay\Profile\ToolGuardAgentTool;
  * StreamingAiAssistantNode
  *
  * Two-phase logic:
- * Phase 1: tool-calling (non-stream) — stream is already opened and emits tool events.
- * Phase 2: final assistant answer via token streaming (same stream).
+ * Phase 1: non-stream tool orchestration
+ * Phase 2: final assistant answer via token streaming
  *
- * Robust error behavior:
- * - Any throwable after stream start is pushed as SSE event "error" and then "done".
- * - Tool call errors are pushed as "tool.error" (and returned to the model as tool message).
- *
- * Memory updates:
- * - user messages immediately
- * - assistant tool-call messages
- * - tool results
- * - final streamed assistant output
+ * Important:
+ * - phase 1 keeps one consistent working message stack
+ * - every tool result stays in the current turn working set
+ * - follow-up tool calls can therefore depend on previous tool results
+ * - phase 2 receives the exact phase-1 working messages, but without tools
+ * - persistent memory stores only visible dialogue messages
  */
 class StreamingAiAssistantNode extends AbstractAgentNode {
 
@@ -63,7 +63,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 	}
 
 	public function getDescription(): string {
-		return 'Assistant node with early opened stream, tool-calling events and final streaming.';
+		return 'Assistant node with non-stream tool orchestration and final streaming response.';
 	}
 
 	public function getInputDefinitions(): array {
@@ -145,20 +145,19 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 	}
 
 	public function execute(array $inputs, array $resources, IAgentContext $context): array {
-
 		$stream = null;
 		$assistantId = uniqid('msg_', true);
 
 		try {
-			$model    = $resources['chatmodel'][0] ?? null;
+			$model = $resources['chatmodel'][0] ?? null;
 			$memories = $resources['memory'] ?? [];
-			$tools    = $resources['tools'] ?? [];
+			$tools = $resources['tools'] ?? [];
 
 			if (isset($resources['logger'][0]) && $resources['logger'][0] instanceof ILogger) {
 				$this->logger = $resources['logger'][0];
 			}
 
-			if (!$model) {
+			if (!$model instanceof IAiChatModel) {
 				$err = 'Missing chat model.';
 				$this->logError($err);
 				return ['error' => $err];
@@ -166,18 +165,14 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 			usort($memories, fn(IAgentMemory $a, IAgentMemory $b) => $a->getPriority() <=> $b->getPriority());
 
-			$prompt = trim($inputs['prompt'] ?? '');
-			$system = trim($inputs['system'] ?? 'You are a helpful assistant.');
+			$prompt = trim((string)($inputs['prompt'] ?? ''));
+			$system = trim((string)($inputs['system'] ?? 'You are a helpful assistant.'));
 
 			if ($prompt === '') {
 				$err = 'Prompt is required.';
 				$this->logError($err);
 				return ['error' => $err];
 			}
-
-			// ----------------------------------------------------
-			// OPEN STREAM IMMEDIATELY (PHASE 1 + PHASE 2)
-			// ----------------------------------------------------
 
 			$stream = $this->streamFactory->createStream(
 				'streamingaiassistant',
@@ -186,15 +181,8 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 			$stream->start();
 
-			// Put stream into context so tools can push UI events directly (canvas.open/render/close/etc.)
 			$context->setVar('eventstream', $stream);
-
-			// Let UI know the final message id before any tool events
 			$stream->push('msgid', ['id' => $assistantId]);
-
-			// ----------------------------------------------------
-			// APPLY PROFILES (OPTIONAL)
-			// ----------------------------------------------------
 
 			$profileSelector = $resources['profileselector'][0] ?? null;
 			$effectivePlan = $this->buildEffectiveProfilePlan($profileSelector, $prompt, $system, $context);
@@ -226,241 +214,72 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 			if (is_array($allowedToolNames) && count($allowedToolNames) > 0) {
 				$tools = array_map(
-					fn($t) => new ToolGuardAgentTool($t, $allowedToolNames),
+					fn($tool) => new ToolGuardAgentTool($tool, $allowedToolNames),
 					$tools
 				);
 			}
 
 			$this->log('Number of Tools: ' . count($toolDefs) . '.');
 
-			// ----------------------------------------------------
-			// BUILD MESSAGE CONTEXT
-			// ----------------------------------------------------
+			$messages = $this->buildInitialMessages($system, $memories);
 
-			$messages = [
-				['role' => 'system', 'content' => $system]
-			];
-
-			$nodeId = $this->getId();
-
-			// Load memory history
-			foreach ($memories as $memory) {
-				foreach ($this->safeLoadHistory($memory, $nodeId) as $entry) {
-					if (!isset($entry['role'])) {
-						continue;
-					}
-					$messages[] = $entry;
-				}
-			}
-
-			// Create user message
-			$userMessage = [
-				'id'        => uniqid('msg_', true),
-				'role'      => 'user',
-				'content'   => $prompt,
-				'timestamp' => (new \DateTimeImmutable())->format('c'),
-				'feedback'  => null
-			];
-
+			$userMessage = $this->createUserMessage($prompt);
 			$messages[] = $userMessage;
 
-			// Store user message immediately
-			foreach ($memories as $memory) {
-				$this->safeAppendHistory($memory, $nodeId, $userMessage);
-			}
+			$this->appendVisibleMessageToMemories($memories, $this->getId(), $userMessage);
 
-			// ----------------------------------------------------
-			// PHASE 1 — TOOL CALLING
-			// ----------------------------------------------------
-
-			$loopGuard = 0;
-			$maxLoops  = 5;
-
-			while ($loopGuard++ < $maxLoops) {
-
-				$result = $model->raw($messages, $toolDefs);
-
-				if (!isset($result['choices'][0]['message'])) {
-					throw new \RuntimeException('Malformed model response.');
-				}
-
-				$assistant = $result['choices'][0]['message'];
-
-				foreach ($memories as $memory) {
-					$this->safeAppendHistory($memory, $nodeId, $assistant);
-				}
-
-				if (!empty($assistant['tool_calls'])) {
-
-					$messages[] = $assistant;
-
-					foreach ($assistant['tool_calls'] as $call) {
-
-						$toolName = $call['function']['name'] ?? '';
-						$args     = json_decode($call['function']['arguments'] ?? '{}', true) ?? [];
-
-						$label = $toolName;
-						$toolObj = $this->findTool($tools, $toolName);
-						if ($toolObj) {
-							foreach ($toolObj->getToolDefinitions() as $def) {
-								if (($def['function']['name'] ?? '') === $toolName) {
-									$label = $def['label'] ?? $toolName;
-									break;
-								}
-							}
-						}
-
-						$stream->push('tool.started', [
-							'tool'  => $toolName,
-							'label' => $label,
-							'args'  => $args
-						]);
-
-						if (!$toolObj) {
-							$warn = "Tool not found: $toolName";
-							$this->log('[WARN] ' . $warn);
-
-							$stream->push('tool.error', [
-								'tool'  => $toolName,
-								'label' => $label,
-								'error' => $warn
-							]);
-
-							// Return tool error back into the model conversation
-							$toolMsg = [
-								'role'         => 'tool',
-								'tool_call_id' => $call['id'] ?? '',
-								'content'      => json_encode(['error' => $warn], JSON_UNESCAPED_UNICODE)
-							];
-
-							$messages[] = $toolMsg;
-
-							foreach ($memories as $memory) {
-								$this->safeAppendHistory($memory, $nodeId, $toolMsg);
-							}
-
-							continue;
-						}
-
-						// Call tool safely
-						try {
-							$res = $toolObj->callTool($toolName, $args, $context);
-
-							$stream->push('tool.finished', [
-								'tool'  => $toolName,
-								'label' => $label
-							]);
-
-							$toolMsg = [
-								'role'         => 'tool',
-								'tool_call_id' => $call['id'] ?? '',
-								'content'      => json_encode($res, JSON_UNESCAPED_UNICODE)
-							];
-
-							$messages[] = $toolMsg;
-
-							foreach ($memories as $memory) {
-								$this->safeAppendHistory($memory, $nodeId, $toolMsg);
-							}
-
-						} catch (\Throwable $e) {
-
-							$errMsg = "Tool failed ($toolName): " . $e->getMessage();
-							$this->logError($errMsg);
-
-							$stream->push('tool.error', [
-								'tool'    => $toolName,
-								'label'   => $label,
-								'error'   => $e->getMessage(),
-								'type'    => get_class($e),
-								'code'    => $e->getCode(),
-							]);
-
-							// Return tool error back into the model conversation so it can recover
-							$toolMsg = [
-								'role'         => 'tool',
-								'tool_call_id' => $call['id'] ?? '',
-								'content'      => json_encode([
-									'error' => $e->getMessage(),
-									'type'  => get_class($e),
-								], JSON_UNESCAPED_UNICODE)
-							];
-
-							$messages[] = $toolMsg;
-
-							foreach ($memories as $memory) {
-								$this->safeAppendHistory($memory, $nodeId, $toolMsg);
-							}
-						}
-					}
-
-					continue;
-				}
-
-				break;
-			}
-
-			// ----------------------------------------------------
-			// PHASE 2 — FINAL STREAMING RESPONSE
-			// ----------------------------------------------------
-
-			$finalContent = '';
-
-			$model->stream(
+			$orchestrator = new AgentToolOrchestrator($this->logger);
+			$orchestrationResult = $orchestrator->run(
+				$model,
 				$messages,
-				[],
-				function (string $delta) use ($stream, &$finalContent) {
+				$toolDefs,
+				$tools,
+				$context,
+				function (string $event, array $payload) use ($stream) {
 					if ($stream->isDisconnected()) {
 						return;
 					}
-					$finalContent .= $delta;
-					$stream->push('token', ['text' => $delta]);
+
+					$stream->push($event, $payload);
 				},
-				function (array $meta) use ($stream) {
-					if ($stream->isDisconnected()) {
-						return;
-					}
-					$stream->push('meta', $meta);
-				}
+				8
 			);
 
-			if (!$stream->isDisconnected()) {
-				$stream->push('done', ['status' => 'complete']);
+			if (!$orchestrationResult->isCompleted()) {
+				throw new \RuntimeException('Phase 1 did not complete within the allowed tool-call loop limit.');
 			}
 
-			// ----------------------------------------------------
-			// SAVE FINAL ASSISTANT MESSAGE
-			// ----------------------------------------------------
+			$context->setVar('orchestrator_messages', $orchestrationResult->getMessages());
+			$context->setVar('orchestrator_final_assistant', $orchestrationResult->getFinalAssistantMessage());
+			$context->setVar('orchestrator_iterations', $orchestrationResult->getIterations());
+
+			$finalContent = $this->runStreamingPhase($model, $orchestrationResult, $stream);
 
 			$assistantMessage = [
-				'id'        => $assistantId,
-				'role'      => 'assistant',
-				'content'   => $finalContent,
+				'id' => $assistantId,
+				'role' => 'assistant',
+				'content' => $finalContent,
 				'timestamp' => (new \DateTimeImmutable())->format('c'),
-				'feedback'  => null
+				'feedback' => null
 			];
 
-			foreach ($memories as $memory) {
-				$this->safeAppendHistory($memory, $nodeId, $assistantMessage);
-			}
+			$this->appendVisibleMessageToMemories($memories, $this->getId(), $assistantMessage);
 
 			return [
 				'stream_ready' => true
 			];
 
 		} catch (\Throwable $e) {
-
 			$this->logError($e->getMessage());
 
-			// If the stream is open, report error to client instead of going silent
 			if ($stream !== null && !$stream->isDisconnected()) {
 				$stream->push('error', [
-					'message'      => $e->getMessage(),
+					'message' => $e->getMessage(),
 					'user_message' => 'Fehler: ' . $e->getMessage(),
-					'type'         => get_class($e),
-					'code'         => $e->getCode(),
-					'file'         => $e->getFile(),
-					'line'         => $e->getLine(),
+					'type' => get_class($e),
+					'code' => $e->getCode(),
+					'file' => $e->getFile(),
+					'line' => $e->getLine(),
 				]);
 
 				$stream->push('done', ['status' => 'error']);
@@ -472,9 +291,134 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		}
 	}
 
-	// ----------------------------------------------------
-	// PROFILES
-	// ----------------------------------------------------
+	/**
+	 * Builds the initial working messages for the current turn.
+	 *
+	 * Memory is treated as visible dialogue memory only.
+	 * Older tool traces are intentionally filtered out here.
+	 *
+	 * @param array<int,IAgentMemory> $memories
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function buildInitialMessages(string $system, array $memories): array {
+		$messages = [
+			['role' => 'system', 'content' => $system]
+		];
+
+		$nodeId = $this->getId();
+
+		foreach ($memories as $memory) {
+			foreach ($this->safeLoadHistory($memory, $nodeId) as $entry) {
+				if (!$this->isVisibleHistoryEntry($entry)) {
+					continue;
+				}
+
+				$messages[] = $entry;
+			}
+		}
+
+		return $messages;
+	}
+
+	/**
+	 * Runs the final streaming phase.
+	 *
+	 * Phase 2 receives the exact phase-1 working messages.
+	 * No tools are passed into the streaming call.
+	 */
+	private function runStreamingPhase(
+		IAiChatModel $model,
+		AgentToolOrchestratorResult $orchestrationResult,
+		IEventStream $stream
+	): string {
+		$finalContent = '';
+		$streamMessages = $orchestrationResult->getMessages();
+
+		$model->stream(
+			$streamMessages,
+			[],
+			function (string $delta) use ($stream, &$finalContent) {
+				if ($stream->isDisconnected()) {
+					return;
+				}
+
+				$finalContent .= $delta;
+				$stream->push('token', ['text' => $delta]);
+			},
+			function (array $meta) use ($stream) {
+				if ($stream->isDisconnected()) {
+					return;
+				}
+
+				$stream->push('meta', $meta);
+			}
+		);
+
+		if (!$stream->isDisconnected()) {
+			$stream->push('done', ['status' => 'complete']);
+		}
+
+		return $finalContent;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function createUserMessage(string $prompt): array {
+		return [
+			'id' => uniqid('msg_', true),
+			'role' => 'user',
+			'content' => $prompt,
+			'timestamp' => (new \DateTimeImmutable())->format('c'),
+			'feedback' => null
+		];
+	}
+
+	/**
+	 * Only visible dialogue entries should be reloaded from persistent memory.
+	 *
+	 * Allowed:
+	 * - system
+	 * - user
+	 * - assistant without tool_calls
+	 *
+	 * Rejected:
+	 * - tool messages
+	 * - assistant planning messages with tool_calls
+	 *
+	 * @param mixed $entry
+	 */
+	private function isVisibleHistoryEntry(mixed $entry): bool {
+		if (!is_array($entry) || !isset($entry['role'])) {
+			return false;
+		}
+
+		$role = (string)$entry['role'];
+
+		if ($role === 'system' || $role === 'user') {
+			return true;
+		}
+
+		if ($role !== 'assistant') {
+			return false;
+		}
+
+		if (!empty($entry['tool_calls']) && is_array($entry['tool_calls'])) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * @param array<int,IAgentMemory> $memories
+	 * @param array<string,mixed> $message
+	 */
+	private function appendVisibleMessageToMemories(array $memories, string $nodeId, array $message): void {
+		foreach ($memories as $memory) {
+			$this->safeAppendHistory($memory, $nodeId, $message);
+		}
+	}
 
 	private function buildEffectiveProfilePlan(mixed $profileSelector, string $prompt, string $system, IAgentContext $context): ProfilePlan {
 		if (!$profileSelector instanceof IAgentProfileSelector) {
@@ -487,7 +431,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		}
 
 		$mergedSystemAppend = [];
-		$mergedAllowed = null; // null => legacy (no filtering)
+		$mergedAllowed = null;
 		$mergedRequired = [];
 
 		foreach ($plans as $plan) {
@@ -505,6 +449,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				if ($mergedAllowed === null) {
 					$mergedAllowed = [];
 				}
+
 				foreach ($allowed as $name) {
 					$name = (string)$name;
 					if ($name !== '') {
@@ -535,21 +480,6 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			allowedTools: $effectiveAllowedTools,
 			requiredTools: $effectiveRequiredTools
 		);
-	}
-
-	// ----------------------------------------------------
-	// UTILITIES
-	// ----------------------------------------------------
-
-	private function findTool(array $tools, string $name): ?IAgentTool {
-		foreach ($tools as $tool) {
-			foreach ($tool->getToolDefinitions() as $def) {
-				if (($def['function']['name'] ?? '') === $name) {
-					return $tool;
-				}
-			}
-		}
-		return null;
 	}
 
 	private function safeLoadHistory(IAgentMemory $memory, string $nodeId): array {
