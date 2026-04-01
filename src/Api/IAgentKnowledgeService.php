@@ -17,8 +17,6 @@
 
 namespace MissionBay\Api;
 
-use Base3\Api\IBase;
-
 /**
  * Interface for persistent agent knowledge storage.
  *
@@ -31,7 +29,7 @@ use Base3\Api\IBase;
  * In contrast to IAgentMemory, which is intended for runtime/dialog memory,
  * this interface is intended for persistent, queryable knowledge records.
  */
-interface IAgentKnowledgeService extends IBase {
+interface IAgentKnowledgeService {
 
 	/**
 	 * Returns the supported top-level memory types.
