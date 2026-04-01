@@ -414,6 +414,9 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			return ['error' => 'Missing parameter: content'];
 		}
 
+		$writeToken = bin2hex(random_bytes(16));
+		$arguments = $this->injectWriteToken($arguments, $writeToken);
+
 		$data = $this->buildEntryDataFromArguments($arguments, true, null);
 		$data['memory_type'] = $memoryType;
 
@@ -422,16 +425,74 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		}
 
 		$id = $this->knowledge->createEntry($data);
-		$entry = $this->knowledge->getEntryById($id, false);
 
-		$this->log('tool ' . $memoryType . '_memory_create id=' . $id);
+		$entry = null;
+
+		if($id > 0) {
+			$entry = $this->knowledge->getEntryById($id, false);
+		}
+
+		if($entry === null) {
+			$entry = $this->findCreatedEntryByWriteToken($memoryType, $writeToken);
+		}
+
+		$resolvedId = null;
+
+		if(is_array($entry) && !empty($entry['id'])) {
+			$resolvedId = (int)$entry['id'];
+		}
+		else if($id > 0) {
+			$resolvedId = $id;
+		}
+
+		$this->log(
+			'tool ' . $memoryType . '_memory_create'
+			. ' insert_id=' . $id
+			. ' resolved_id=' . ($resolvedId ?? 0)
+			. ' entry_found=' . ($entry !== null ? 'yes' : 'no')
+		);
 
 		return [
 			'ok' => true,
+			'persisted' => true,
 			'action' => 'created',
-			'id' => $id,
+			'id' => $resolvedId,
 			'entry' => $entry
 		];
+	}
+
+	private function injectWriteToken(array $arguments, string $writeToken): array {
+		$meta = [];
+
+		if(isset($arguments['meta']) && is_array($arguments['meta'])) {
+			$meta = $arguments['meta'];
+		}
+
+		$meta['_write_token'] = $writeToken;
+		$arguments['meta'] = $meta;
+
+		return $arguments;
+	}
+
+	private function findCreatedEntryByWriteToken(string $memoryType, string $writeToken): ?array {
+		$entries = $this->knowledge->searchEntries(
+			$writeToken,
+			[
+				'memory_type' => $memoryType
+			],
+			5,
+			0
+		);
+
+		foreach($entries as $entry) {
+			$meta = is_array($entry['meta_json'] ?? null) ? $entry['meta_json'] : [];
+
+			if(($meta['_write_token'] ?? null) === $writeToken) {
+				return $entry;
+			}
+		}
+
+		return null;
 	}
 
 	private function toolUpdateMemory(string $memoryType, array $arguments): array {
