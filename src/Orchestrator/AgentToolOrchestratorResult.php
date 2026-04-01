@@ -23,19 +23,21 @@ namespace MissionBay\Orchestrator;
  * Important:
  * - messages contains the exact working message stack after the last tool result
  * - finalAssistantMessage stores the terminal assistant stop message from phase 1
- * - phase 2 should usually use messages, not finalAssistantMessage
+ * - non-stream callers can directly use finalAssistantMessage as output
  */
 class AgentToolOrchestratorResult {
 
 	/**
 	 * @param array<int,array<string,mixed>> $messages
 	 * @param ?array<string,mixed> $finalAssistantMessage
+	 * @param array<int,array<string,mixed>> $toolCalls
 	 */
 	public function __construct(
 		private array $messages,
 		private ?array $finalAssistantMessage,
 		private bool $completed,
-		private int $iterations
+		private int $iterations,
+		private array $toolCalls = []
 	) {
 	}
 
@@ -71,5 +73,14 @@ class AgentToolOrchestratorResult {
 
 	public function getIterations(): int {
 		return $this->iterations;
+	}
+
+	/**
+	 * Returns the executed tool calls in a simple debug-friendly structure.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function getToolCalls(): array {
+		return $this->toolCalls;
 	}
 }
