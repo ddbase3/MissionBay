@@ -408,32 +408,18 @@ class AgentKnowledgeService implements IAgentKnowledgeService {
 		return $rows;
 	}
 
-	public function searchEntries(string $query, array $options = [], int $limit = 20, int $offset = 0): array {
+	public function loadCuratedEntries(array $options = [], int $limit = 20, int $offset = 0): array {
 		$this->ensure();
 
-		$trimmedQuery = trim($query);
-		$where = [];
-
-		if(!(bool)($options['include_deleted'] ?? false)) {
-			$where[] = '`is_deleted` = 0';
-		}
+		$where = [
+			'`is_deleted` = 0',
+		];
 
 		$where = array_merge($where, $this->buildIdentityConditions(true));
 		$where = array_merge($where, $this->buildFilterConditions($options));
 
-		if($trimmedQuery !== '') {
-			$escaped = $this->db->escape($trimmedQuery);
-			$like = "'%" . $escaped . "%'";
-
-			$where[] = '('
-				. '`title` LIKE ' . $like
-				. ' OR `content` LIKE ' . $like
-				. ' OR `summary` LIKE ' . $like
-				. ' OR `tags_json` LIKE ' . $like
-				. ' OR `entity_refs_json` LIKE ' . $like
-				. ' OR `meta_json` LIKE ' . $like
-				. ' OR `memory_key` LIKE ' . $like
-				. ')';
+		if(array_key_exists('always_inject', $options)) {
+			$where[] = $this->buildInjectFlagSqlCondition($this->toSqlBool($options['always_inject']));
 		}
 
 		$sql = 'SELECT * FROM `' . $this->table . '`';
@@ -442,7 +428,7 @@ class AgentKnowledgeService implements IAgentKnowledgeService {
 			$sql .= ' WHERE ' . implode(' AND ', $where);
 		}
 
-		$sql .= ' ORDER BY `priority` DESC, `updated_at` DESC, `id` DESC';
+		$sql .= ' ORDER BY ' . $this->buildCuratedOrderSql();
 		$sql .= ' LIMIT ' . max(0, $offset) . ', ' . max(1, $limit * 3);
 
 		$this->db->connect();
@@ -450,8 +436,37 @@ class AgentKnowledgeService implements IAgentKnowledgeService {
 
 		$entries = $this->hydrateRows($rows);
 		$entries = $this->mergeIdentityRows($entries);
+		$entries = $this->sortCuratedEntries($entries);
 
 		return array_slice($entries, 0, $limit);
+	}
+
+	public function searchEntries(string $query, array $options = [], int $limit = 20, int $offset = 0): array {
+		$this->ensure();
+
+		$limit = max(1, $limit);
+		$offset = max(0, $offset);
+		$includeDeleted = (bool)($options['include_deleted'] ?? false);
+
+		$filters = $this->buildSearchCandidateFilters($options);
+		$candidateLimit = $this->resolveSearchCandidateLimit($limit, $offset);
+		$candidates = [];
+
+		foreach($this->buildSearchFallbackProfiles($filters) as $profile) {
+			$candidates = $this->loadSearchCandidates($profile, $candidateLimit, 0, $includeDeleted);
+
+			if($candidates !== []) {
+				break;
+			}
+		}
+
+		if($candidates === []) {
+			return [];
+		}
+
+		$ranked = $this->rankSearchEntries($candidates, $query);
+
+		return array_slice($ranked, $offset, $limit);
 	}
 
 	public function buildPromptExtract(string $query, array $options = [], int $limit = 10): string {
@@ -665,6 +680,460 @@ class AgentKnowledgeService implements IAgentKnowledgeService {
 	}
 
 	/**
+	 * Loads broad search candidates before any PHP-side ranking reduction happens.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function loadSearchCandidates(array $filters, int $limit, int $offset = 0, bool $includeDeleted = false): array {
+		$queryFilters = $filters;
+
+		if($includeDeleted) {
+			$queryFilters['include_deleted'] = true;
+		}
+
+		$query = 'SELECT * FROM `' . $this->table . '`'
+			. $this->buildWhereClause($queryFilters, true)
+			. ' ORDER BY `priority` DESC, `updated_at` DESC, `id` DESC'
+			. ' LIMIT ' . max(0, $offset) . ', ' . max(1, $limit * 3);
+
+		$this->db->connect();
+		$rows = $this->db->multiQuery($query);
+
+		$entries = $this->hydrateRows($rows);
+		$entries = $this->mergeIdentityRows($entries);
+		$entries = $this->sortBaseSearchEntries($entries);
+
+		return array_slice($entries, 0, $limit);
+	}
+
+	/**
+	 * Builds the broad candidate filter set used by searchEntries().
+	 *
+	 * The natural-language query is intentionally not part of the SQL WHERE clause.
+	 */
+	protected function buildSearchCandidateFilters(array $options): array {
+		$filters = [];
+
+		if(array_key_exists('memory_type', $options) && $options['memory_type'] !== null && $options['memory_type'] !== '') {
+			$filters['memory_type'] = $options['memory_type'];
+		}
+
+		if(array_key_exists('status', $options) && $options['status'] !== null && $options['status'] !== '') {
+			$filters['status'] = $options['status'];
+		}
+
+		if(array_key_exists('scope_ref', $options)) {
+			$filters['scope_ref'] = $options['scope_ref'];
+		}
+
+		if(!empty($options['tags']) && is_array($options['tags'])) {
+			$tags = [];
+
+			foreach($options['tags'] as $tag) {
+				$tag = trim((string)$tag);
+
+				if($tag === '') {
+					continue;
+				}
+
+				$tags[] = $tag;
+			}
+
+			if($tags !== []) {
+				$filters['tags'] = array_values(array_unique($tags));
+			}
+		}
+
+		if(!empty($options['entity_refs']) && is_array($options['entity_refs'])) {
+			$entityRefs = [];
+
+			foreach($options['entity_refs'] as $entityRef) {
+				$entityRef = trim((string)$entityRef);
+
+				if($entityRef === '') {
+					continue;
+				}
+
+				$entityRefs[] = $entityRef;
+			}
+
+			if($entityRefs !== []) {
+				$filters['entity_refs'] = array_values(array_unique($entityRefs));
+			}
+		}
+
+		if((bool)($options['not_expired'] ?? false)) {
+			$filters['not_expired'] = true;
+		}
+
+		return $filters;
+	}
+
+	/**
+	 * Builds fallback profiles that progressively relax non-identity filters.
+	 *
+	 * The goal is to prefer broad delivery over empty results.
+	 *
+	 * @param array<string,mixed> $filters
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function buildSearchFallbackProfiles(array $filters): array {
+		$profiles = [];
+
+		$this->addSearchFallbackProfile($profiles, $filters);
+
+		$withoutSoftRefs = $filters;
+		unset($withoutSoftRefs['tags'], $withoutSoftRefs['entity_refs']);
+		$this->addSearchFallbackProfile($profiles, $withoutSoftRefs);
+
+		$withoutScope = $withoutSoftRefs;
+		unset($withoutScope['scope_ref']);
+		$this->addSearchFallbackProfile($profiles, $withoutScope);
+
+		$withoutStatus = $withoutScope;
+		unset($withoutStatus['status']);
+		$this->addSearchFallbackProfile($profiles, $withoutStatus);
+
+		if(array_key_exists('memory_type', $filters)) {
+			$typeOnly = [
+				'memory_type' => $filters['memory_type'],
+			];
+
+			if(array_key_exists('not_expired', $filters)) {
+				$typeOnly['not_expired'] = $filters['not_expired'];
+			}
+
+			$this->addSearchFallbackProfile($profiles, $typeOnly);
+		}
+
+		$identityOnly = [];
+
+		if(array_key_exists('not_expired', $filters)) {
+			$identityOnly['not_expired'] = $filters['not_expired'];
+		}
+
+		$this->addSearchFallbackProfile($profiles, $identityOnly);
+
+		return $profiles;
+	}
+
+	/**
+	 * Adds one fallback profile if it is not already present.
+	 *
+	 * @param array<int,array<string,mixed>> $profiles
+	 * @param array<string,mixed> $candidate
+	 */
+	protected function addSearchFallbackProfile(array &$profiles, array $candidate): void {
+		foreach($profiles as $existing) {
+			if($existing == $candidate) {
+				return;
+			}
+		}
+
+		$profiles[] = $candidate;
+	}
+
+	/**
+	 * Returns the number of broad candidates loaded before PHP ranking.
+	 */
+	protected function resolveSearchCandidateLimit(int $limit, int $offset): int {
+		$requested = max(1, ($limit + $offset) * 5);
+
+		return max(50, min(100, $requested));
+	}
+
+	/**
+	 * Ranks search entries in PHP and uses the query only as a weak signal.
+	 *
+	 * If the query does not yield any soft matches, the broad top candidates stay intact.
+	 *
+	 * @param array<int,array<string,mixed>> $entries
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function rankSearchEntries(array $entries, string $query): array {
+		if($entries === []) {
+			return [];
+		}
+
+		$entries = $this->sortBaseSearchEntries($entries);
+		$tokens = $this->tokenizeSearchQuery($query);
+
+		if($tokens === []) {
+			return $entries;
+		}
+
+		$preferred = [];
+		$fallback = [];
+
+		foreach($entries as $entry) {
+			$entry['_search_score'] = $this->getSearchQueryScore($entry, $tokens);
+
+			if((int)$entry['_search_score'] > 0) {
+				$preferred[] = $entry;
+				continue;
+			}
+
+			$fallback[] = $entry;
+		}
+
+		if($preferred !== []) {
+			usort($preferred, function(array $a, array $b): int {
+				return $this->compareMatchedSearchEntries($a, $b);
+			});
+
+			$entries = array_merge($preferred, $fallback);
+		}
+
+		foreach($entries as &$entry) {
+			unset($entry['_search_score']);
+		}
+		unset($entry);
+
+		return $entries;
+	}
+
+	/**
+	 * Sorts entries by the default broad search order.
+	 *
+	 * @param array<int,array<string,mixed>> $entries
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function sortBaseSearchEntries(array $entries): array {
+		usort($entries, function(array $a, array $b): int {
+			return $this->compareBaseSearchEntries($a, $b);
+		});
+
+		return $entries;
+	}
+
+	/**
+	 * Comparator for broad candidate ordering.
+	 */
+	protected function compareBaseSearchEntries(array $a, array $b): int {
+		$aPriority = (int)($a['priority'] ?? 0);
+		$bPriority = (int)($b['priority'] ?? 0);
+
+		if($aPriority !== $bPriority) {
+			return $bPriority <=> $aPriority;
+		}
+
+		$aUpdated = strtotime((string)($a['updated_at'] ?? '')) ?: 0;
+		$bUpdated = strtotime((string)($b['updated_at'] ?? '')) ?: 0;
+
+		if($aUpdated !== $bUpdated) {
+			return $bUpdated <=> $aUpdated;
+		}
+
+		$aOrder = $this->getInjectOrder($a);
+		$bOrder = $this->getInjectOrder($b);
+
+		if($aOrder !== $bOrder) {
+			return $aOrder <=> $bOrder;
+		}
+
+		return (int)($b['id'] ?? 0) <=> (int)($a['id'] ?? 0);
+	}
+
+	/**
+	 * Comparator for query-matched candidates.
+	 */
+	protected function compareMatchedSearchEntries(array $a, array $b): int {
+		$aPriority = (int)($a['priority'] ?? 0);
+		$bPriority = (int)($b['priority'] ?? 0);
+
+		if($aPriority !== $bPriority) {
+			return $bPriority <=> $aPriority;
+		}
+
+		$aScore = (int)($a['_search_score'] ?? 0);
+		$bScore = (int)($b['_search_score'] ?? 0);
+
+		if($aScore !== $bScore) {
+			return $bScore <=> $aScore;
+		}
+
+		$aUpdated = strtotime((string)($a['updated_at'] ?? '')) ?: 0;
+		$bUpdated = strtotime((string)($b['updated_at'] ?? '')) ?: 0;
+
+		if($aUpdated !== $bUpdated) {
+			return $bUpdated <=> $aUpdated;
+		}
+
+		$aOrder = $this->getInjectOrder($a);
+		$bOrder = $this->getInjectOrder($b);
+
+		if($aOrder !== $bOrder) {
+			return $aOrder <=> $bOrder;
+		}
+
+		return (int)($b['id'] ?? 0) <=> (int)($a['id'] ?? 0);
+	}
+
+	/**
+	 * Returns a weak text score for one entry.
+	 *
+	 * The score is only used for soft ranking and never for hard filtering.
+	 *
+	 * @param array<int,string> $tokens
+	 */
+	protected function getSearchQueryScore(array $entry, array $tokens): int {
+		$fieldTexts = [
+			'memory_key' => $this->stringifySearchValue($entry['memory_key'] ?? null),
+			'title' => $this->stringifySearchValue($entry['title'] ?? null),
+			'summary' => $this->stringifySearchValue($entry['summary'] ?? null),
+			'tags' => $this->stringifySearchValue($entry['tags_json'] ?? null),
+			'entity_refs' => $this->stringifySearchValue($entry['entity_refs_json'] ?? null),
+			'memory_subtype' => $this->stringifySearchValue($entry['memory_subtype'] ?? null),
+			'scope_ref' => $this->stringifySearchValue($entry['scope_ref'] ?? null),
+			'content' => $this->stringifySearchValue($entry['content'] ?? null),
+		];
+
+		$weights = [
+			'memory_key' => 10,
+			'title' => 7,
+			'summary' => 5,
+			'tags' => 5,
+			'entity_refs' => 5,
+			'memory_subtype' => 4,
+			'scope_ref' => 3,
+			'content' => 1,
+		];
+
+		$score = 0;
+
+		foreach($tokens as $token) {
+			foreach($weights as $field => $weight) {
+				$text = $fieldTexts[$field] ?? '';
+
+				if($text === '' || strpos($text, $token) === false) {
+					continue;
+				}
+
+				$score += $weight;
+			}
+		}
+
+		$phrase = trim($this->normalizeSearchText(implode(' ', $tokens)));
+
+		if($phrase !== '') {
+			if($fieldTexts['memory_key'] !== '' && strpos($fieldTexts['memory_key'], $phrase) !== false) {
+				$score += 8;
+			}
+			if($fieldTexts['title'] !== '' && strpos($fieldTexts['title'], $phrase) !== false) {
+				$score += 6;
+			}
+			if($fieldTexts['summary'] !== '' && strpos($fieldTexts['summary'], $phrase) !== false) {
+				$score += 4;
+			}
+			if($fieldTexts['content'] !== '' && strpos($fieldTexts['content'], $phrase) !== false) {
+				$score += 2;
+			}
+		}
+
+		return $score;
+	}
+
+	/**
+	 * Tokenizes a natural-language query for soft PHP ranking.
+	 *
+	 * @return array<int,string>
+	 */
+	protected function tokenizeSearchQuery(string $query): array {
+		$query = $this->normalizeSearchText($query);
+
+		if($query === '') {
+			return [];
+		}
+
+		$parts = preg_split('/\s+/u', $query) ?: [];
+		$tokens = [];
+
+		foreach($parts as $part) {
+			$part = trim((string)$part);
+
+			if($part === '') {
+				continue;
+			}
+
+			$length = function_exists('mb_strlen') ? mb_strlen($part) : strlen($part);
+
+			if($length < 2 && !ctype_digit($part)) {
+				continue;
+			}
+
+			$tokens[$part] = $part;
+		}
+
+		return array_values($tokens);
+	}
+
+	/**
+	 * Converts mixed field values into normalized search text.
+	 */
+	protected function stringifySearchValue(mixed $value): string {
+		if($value === null || $value === '') {
+			return '';
+		}
+
+		if(is_array($value)) {
+			$parts = [];
+
+			array_walk_recursive($value, function(mixed $item) use (&$parts): void {
+				if(!is_scalar($item) && $item !== null) {
+					return;
+				}
+
+				$item = trim((string)$item);
+
+				if($item === '') {
+					return;
+				}
+
+				$parts[] = $item;
+			});
+
+			return $this->normalizeSearchText(implode(' ', $parts));
+		}
+
+		return $this->normalizeSearchText((string)$value);
+	}
+
+	/**
+	 * Normalizes natural-language search text for weak PHP ranking.
+	 */
+	protected function normalizeSearchText(string $value): string {
+		$value = trim($value);
+
+		if($value === '') {
+			return '';
+		}
+
+		$normalized = preg_replace('/[^\p{L}\p{N}\-_]+/u', ' ', $value);
+
+		if(is_string($normalized)) {
+			$value = $normalized;
+		}
+
+		$normalized = preg_replace('/\s+/u', ' ', $value);
+
+		if(is_string($normalized)) {
+			$value = $normalized;
+		}
+
+		$value = trim($value);
+
+		if($value === '') {
+			return '';
+		}
+
+		if(function_exists('mb_strtolower')) {
+			return mb_strtolower($value);
+		}
+
+		return strtolower($value);
+	}
+
+	/**
 	 * Builds a generic WHERE clause from supported filters.
 	 */
 	protected function buildWhereClause(array $filters, bool $withIdentity = true): string {
@@ -714,8 +1183,26 @@ class AgentKnowledgeService implements IAgentKnowledgeService {
 	protected function buildFilterConditions(array $filters): array {
 		$conditions = [];
 
-		if(isset($filters['memory_type']) && $filters['memory_type'] !== '') {
-			$conditions[] = '`memory_type` = ' . $this->quote((string)$filters['memory_type']);
+		if(array_key_exists('memory_type', $filters) && $filters['memory_type'] !== null && $filters['memory_type'] !== '') {
+			$memoryTypes = is_array($filters['memory_type']) ? $filters['memory_type'] : [$filters['memory_type']];
+			$quoted = [];
+
+			foreach($memoryTypes as $memoryType) {
+				$memoryType = trim((string)$memoryType);
+
+				if($memoryType === '') {
+					continue;
+				}
+
+				$this->assertValidMemoryType($memoryType);
+				$quoted[] = $this->quote($memoryType);
+			}
+
+			if($quoted !== []) {
+				$conditions[] = count($quoted) === 1
+					? '`memory_type` = ' . $quoted[0]
+					: '`memory_type` IN (' . implode(',', $quoted) . ')';
+			}
 		}
 
 		if(array_key_exists('memory_key', $filters)) {
@@ -727,12 +1214,46 @@ class AgentKnowledgeService implements IAgentKnowledgeService {
 			}
 		}
 
-		if(isset($filters['memory_subtype']) && $filters['memory_subtype'] !== '') {
-			$conditions[] = '`memory_subtype` = ' . $this->quote((string)$filters['memory_subtype']);
+		if(array_key_exists('memory_subtype', $filters) && $filters['memory_subtype'] !== null && $filters['memory_subtype'] !== '') {
+			$subtypes = is_array($filters['memory_subtype']) ? $filters['memory_subtype'] : [$filters['memory_subtype']];
+			$quoted = [];
+
+			foreach($subtypes as $subtype) {
+				$subtype = trim((string)$subtype);
+
+				if($subtype === '') {
+					continue;
+				}
+
+				$quoted[] = $this->quote($subtype);
+			}
+
+			if($quoted !== []) {
+				$conditions[] = count($quoted) === 1
+					? '`memory_subtype` = ' . $quoted[0]
+					: '`memory_subtype` IN (' . implode(',', $quoted) . ')';
+			}
 		}
 
-		if(isset($filters['status']) && $filters['status'] !== '') {
-			$conditions[] = '`status` = ' . $this->quote((string)$filters['status']);
+		if(array_key_exists('status', $filters) && $filters['status'] !== null && $filters['status'] !== '') {
+			$statuses = is_array($filters['status']) ? $filters['status'] : [$filters['status']];
+			$quoted = [];
+
+			foreach($statuses as $status) {
+				$status = trim((string)$status);
+
+				if($status === '') {
+					continue;
+				}
+
+				$quoted[] = $this->quote($status);
+			}
+
+			if($quoted !== []) {
+				$conditions[] = count($quoted) === 1
+					? '`status` = ' . $quoted[0]
+					: '`status` IN (' . implode(',', $quoted) . ')';
+			}
 		}
 
 		if(isset($filters['source']) && $filters['source'] !== '') {
@@ -1272,5 +1793,103 @@ class AgentKnowledgeService implements IAgentKnowledgeService {
 		}
 
 		return strtolower($value);
+	}
+
+	/**
+	 * Builds the SQL expression for injectable flag filtering.
+	 */
+	protected function buildInjectFlagSqlCondition(bool $mustBeInjectable): string {
+		$alwaysInject = $this->buildJsonBoolTrueCondition('always_inject');
+		$pinned = $this->buildJsonBoolTrueCondition('pinned');
+		$injectable = '(' . $alwaysInject . ' OR ' . $pinned . ')';
+
+		if($mustBeInjectable) {
+			return $injectable;
+		}
+
+		return '(NOT ' . $injectable . ')';
+	}
+
+	/**
+	 * Builds an SQL condition that checks whether a JSON boolean-like field is true.
+	 */
+	protected function buildJsonBoolTrueCondition(string $field): string {
+		$expr = 'JSON_UNQUOTE(JSON_EXTRACT(`meta_json`, ' . $this->quote('$.' . $field) . '))';
+
+		return '(' . $expr . ' IN (\'1\',\'true\',\'TRUE\'))';
+	}
+
+	/**
+	 * Builds SQL ORDER BY fragment for curated injection loading.
+	 */
+	protected function buildCuratedOrderSql(): string {
+		$injectOrderExpr = 'COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(`meta_json`, ' . $this->quote('$.inject_order') . ')) AS SIGNED), 100)';
+
+		return $injectOrderExpr . ' ASC, `priority` DESC, `updated_at` DESC, `id` DESC';
+	}
+
+	/**
+	 * Sorts hydrated entries using curated injection ordering.
+	 *
+	 * @param array<int,array<string,mixed>> $entries
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function sortCuratedEntries(array $entries): array {
+		usort($entries, function(array $a, array $b): int {
+			$aOrder = $this->getInjectOrder($a);
+			$bOrder = $this->getInjectOrder($b);
+
+			if($aOrder !== $bOrder) {
+				return $aOrder <=> $bOrder;
+			}
+
+			$aPriority = (int)($a['priority'] ?? 0);
+			$bPriority = (int)($b['priority'] ?? 0);
+
+			if($aPriority !== $bPriority) {
+				return $bPriority <=> $aPriority;
+			}
+
+			$aUpdated = strtotime((string)($a['updated_at'] ?? '')) ?: 0;
+			$bUpdated = strtotime((string)($b['updated_at'] ?? '')) ?: 0;
+
+			if($aUpdated !== $bUpdated) {
+				return $bUpdated <=> $aUpdated;
+			}
+
+			return (int)($b['id'] ?? 0) <=> (int)($a['id'] ?? 0);
+		});
+
+		return $entries;
+	}
+
+	/**
+	 * Returns the numeric inject order for one entry.
+	 */
+	protected function getInjectOrder(array $entry): int {
+		$meta = is_array($entry['meta_json'] ?? null) ? $entry['meta_json'] : [];
+
+		if(!array_key_exists('inject_order', $meta)) {
+			return 100;
+		}
+
+		return (int)$meta['inject_order'];
+	}
+
+	/**
+	 * Converts a mixed value into a strict SQL-bool style flag.
+	 */
+	protected function toSqlBool(mixed $value): bool {
+		if(is_bool($value)) {
+			return $value;
+		}
+
+		if(is_int($value)) {
+			return $value !== 0;
+		}
+
+		$value = strtolower(trim((string)$value));
+
+		return in_array($value, ['1', 'true', 'yes', 'on'], true);
 	}
 }

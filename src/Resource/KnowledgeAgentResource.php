@@ -187,7 +187,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			$this->buildCreateDefinition(
 				'semantic_memory_create',
 				'Create Semantic Memory',
-				'Create a semantic memory entry for stable facts, rules, definitions, mappings, or domain truths. Use this to store reliable general knowledge rather than a one-off case.'
+				'Create a semantic memory entry for stable facts, rules, definitions, mappings, or domain truths. Use this to store reliable general knowledge rather than a one-off case. For user preferences, response style, and persistent personal rules, prefer memory_subtype user_preference, always_inject true, and a stable memory_key.'
 			),
 			$this->buildUpdateDefinition(
 				'semantic_memory_update',
@@ -197,7 +197,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			$this->buildUpsertDefinition(
 				'semantic_memory_upsert',
 				'Upsert Semantic Memory',
-				'Create or update a semantic memory entry. Use this when stable knowledge should remain consolidated under one reusable canonical record.'
+				'Create or update a semantic memory entry. Use this when stable knowledge should remain consolidated under one reusable canonical record. For user preferences, response style, and persistent rules, prefer upsert with memory_subtype user_preference, always_inject true, and a stable memory_key.'
 			),
 			$this->buildTypedSearchDefinition(
 				'semantic_memory_search',
@@ -356,12 +356,6 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		if($memoryType !== '') {
 			$options['memory_type'] = $memoryType;
 		}
-		if(array_key_exists('memory_key', $arguments)) {
-			$options['memory_key'] = $arguments['memory_key'] !== null ? trim((string)$arguments['memory_key']) : null;
-		}
-		if(!empty($arguments['memory_subtype'])) {
-			$options['memory_subtype'] = trim((string)$arguments['memory_subtype']);
-		}
 		if(!empty($arguments['status'])) {
 			$options['status'] = trim((string)$arguments['status']);
 		}
@@ -373,9 +367,6 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		}
 		if(!empty($arguments['entity_refs'])) {
 			$options['entity_refs'] = $this->normalizeStringArray($arguments['entity_refs']);
-		}
-		if(!empty($arguments['min_confidence'])) {
-			$options['min_confidence'] = (float)$arguments['min_confidence'];
 		}
 		if(array_key_exists('not_expired', $arguments)) {
 			$options['not_expired'] = $this->toBool($arguments['not_expired']);
@@ -407,58 +398,45 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		$title = trim((string)($arguments['title'] ?? ''));
 		$content = trim((string)($arguments['content'] ?? ''));
 
+		$this->log('tool ' . $memoryType . '_memory_create start title=' . $title);
+
 		if($title === '') {
+			$this->log('tool ' . $memoryType . '_memory_create error missing title');
 			return ['error' => 'Missing parameter: title'];
 		}
 		if($content === '') {
+			$this->log('tool ' . $memoryType . '_memory_create error missing content');
 			return ['error' => 'Missing parameter: content'];
 		}
 
-		$writeToken = bin2hex(random_bytes(16));
-		$arguments = $this->injectWriteToken($arguments, $writeToken);
+		try {
+			$data = $this->buildEntryDataFromArguments($arguments, true, null);
+			$data['memory_type'] = $memoryType;
 
-		$data = $this->buildEntryDataFromArguments($arguments, true, null);
-		$data['memory_type'] = $memoryType;
+			if(empty($data['status'])) {
+				$data['status'] = $this->getDefaultStatusForType($memoryType);
+			}
 
-		if(empty($data['status'])) {
-			$data['status'] = $this->getDefaultStatusForType($memoryType);
+			$id = $this->knowledge->createEntry($data);
+			$entry = $id > 0 ? $this->knowledge->getEntryById($id, false) : null;
+
+			$this->log('tool ' . $memoryType . '_memory_create success id=' . $id);
+
+			return [
+				'ok' => true,
+				'action' => 'created',
+				'id' => $id > 0 ? $id : null,
+				'entry' => $entry
+			];
 		}
+		catch(\Throwable $e) {
+			$this->log('tool ' . $memoryType . '_memory_create exception=' . $e->getMessage());
 
-		$id = $this->knowledge->createEntry($data);
-
-		$entry = null;
-
-		if($id > 0) {
-			$entry = $this->knowledge->getEntryById($id, false);
+			return [
+				'error' => 'Failed to create knowledge entry',
+				'details' => $e->getMessage()
+			];
 		}
-
-		if($entry === null) {
-			$entry = $this->findCreatedEntryByWriteToken($memoryType, $writeToken);
-		}
-
-		$resolvedId = null;
-
-		if(is_array($entry) && !empty($entry['id'])) {
-			$resolvedId = (int)$entry['id'];
-		}
-		else if($id > 0) {
-			$resolvedId = $id;
-		}
-
-		$this->log(
-			'tool ' . $memoryType . '_memory_create'
-			. ' insert_id=' . $id
-			. ' resolved_id=' . ($resolvedId ?? 0)
-			. ' entry_found=' . ($entry !== null ? 'yes' : 'no')
-		);
-
-		return [
-			'ok' => true,
-			'persisted' => true,
-			'action' => 'created',
-			'id' => $resolvedId,
-			'entry' => $entry
-		];
 	}
 
 	private function injectWriteToken(array $arguments, string $writeToken): array {
@@ -475,12 +453,11 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 	}
 
 	private function findCreatedEntryByWriteToken(string $memoryType, string $writeToken): ?array {
-		$entries = $this->knowledge->searchEntries(
-			$writeToken,
+		$entries = $this->knowledge->findEntries(
 			[
 				'memory_type' => $memoryType
 			],
-			5,
+			50,
 			0
 		);
 
@@ -578,12 +555,6 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			'not_expired' => true
 		];
 
-		if(array_key_exists('memory_key', $arguments)) {
-			$options['memory_key'] = $arguments['memory_key'] !== null ? trim((string)$arguments['memory_key']) : null;
-		}
-		if(!empty($arguments['memory_subtype'])) {
-			$options['memory_subtype'] = trim((string)$arguments['memory_subtype']);
-		}
 		if(array_key_exists('scope_ref', $arguments)) {
 			$options['scope_ref'] = $arguments['scope_ref'];
 		}
@@ -617,7 +588,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 	// ----------------------------------------------------
 
 	private function buildSystemLines(): array {
-		$entries = $this->knowledge->searchEntries('', ['not_expired' => true], $this->injectFetchLimit, 0);
+		$entries = $this->loadCuratedInjectEntries();
 
 		if(!$entries) {
 			return [];
@@ -689,6 +660,25 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		}
 
 		return $lines;
+	}
+
+	private function loadCuratedInjectEntries(): array {
+		$options = [
+			'memory_type' => $this->injectTypes,
+			'not_expired' => true,
+		];
+
+		if($this->injectOnlyAlways) {
+			$options['always_inject'] = true;
+		}
+
+		if(method_exists($this->knowledge, 'loadCuratedEntries')) {
+			/** @var array<int,array<string,mixed>> $entries */
+			$entries = $this->knowledge->loadCuratedEntries($options, $this->injectFetchLimit, 0);
+			return $entries;
+		}
+
+		return $this->knowledge->searchEntries('', ['not_expired' => true], $this->injectFetchLimit, 0);
 	}
 
 	private function renderSystemLine(array $entry): string {
@@ -966,15 +956,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 					'properties' => [
 						'query' => [
 							'type' => 'string',
-							'description' => 'Describe what should be done, fixed, diagnosed, or executed.'
-						],
-						'memory_key' => [
-							'type' => 'string',
-							'description' => 'Optional stable logical key if you want to target one specific canonical procedure.'
-						],
-						'memory_subtype' => [
-							'type' => 'string',
-							'description' => 'Optional subtype filter such as workflow, checklist, sop, skill, or playbook.'
+							'description' => 'Describe what should be done, fixed, diagnosed, or executed. This is used only as a soft ranking hint, not as a hard filter.'
 						],
 						'scope_ref' => [
 							'type' => 'string',
@@ -1009,15 +991,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		$properties = [
 			'query' => [
 				'type' => 'string',
-				'description' => 'Free-text search query. Describe what you want to remember or retrieve. This may be empty if you mainly filter by metadata.'
-			],
-			'memory_key' => [
-				'type' => 'string',
-				'description' => 'Optional stable logical key for exact canonical record lookup.'
-			],
-			'memory_subtype' => [
-				'type' => 'string',
-				'description' => 'Optional subtype filter such as case, incident, fact, rule, workflow, checklist, or skill.'
+				'description' => 'Optional natural-language hint for soft ranking. It never acts as a hard SQL text filter.'
 			],
 			'status' => [
 				'type' => 'string',
@@ -1040,10 +1014,6 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 				'items' => [
 					'type' => 'string'
 				]
-			],
-			'min_confidence' => [
-				'type' => 'number',
-				'description' => 'Optional minimum confidence value.'
 			],
 			'not_expired' => [
 				'type' => 'boolean',
@@ -1073,7 +1043,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			],
 			'memory_key' => [
 				'type' => 'string',
-				'description' => 'Optional stable logical key for this memory entry. Use this when later upserts should target the same canonical record safely.'
+				'description' => 'Optional stable logical key for this memory entry. Use this when later upserts should target the same canonical record safely. For user preferences, use a stable key whenever possible.'
 			],
 			'content' => [
 				'type' => 'string',
@@ -1085,7 +1055,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			],
 			'memory_subtype' => [
 				'type' => 'string',
-				'description' => 'Optional subtype such as case, incident, lesson_learned, fact, rule, workflow, checklist, skill, or playbook.'
+				'description' => 'Optional subtype such as case, incident, lesson_learned, fact, rule, workflow, checklist, skill, playbook, or user_preference.'
 			],
 			'status' => [
 				'type' => 'string',
@@ -1139,7 +1109,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			],
 			'always_inject' => [
 				'type' => 'boolean',
-				'description' => 'If true, the entry may be considered for automatic system prompt injection.'
+				'description' => 'If true, the entry may be considered for automatic system prompt injection. Use this for persistent user preferences, answer style, and fixed behavioral rules.'
 			],
 			'inject_order' => [
 				'type' => 'integer',
