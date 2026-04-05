@@ -153,13 +153,19 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 	}
 
 	public function callTool(string $name, array $arguments, IAgentContext $context): array {
-		return match ($name) {
+		$this->log('tool call ' . $name . ' args=' . $this->encodeForLog($this->summarizeArguments($name, $arguments)));
+
+		$result = match ($name) {
 			'list_supported_mermaid_types' => $this->toolListSupportedMermaidTypes(),
 			'detect_existing_mermaid_type' => $this->toolDetectExistingMermaidType($arguments),
 			'get_mermaid_type_guide' => $this->toolGetMermaidTypeGuide($arguments),
 			'get_mermaid_template' => $this->toolGetMermaidTemplate($arguments),
 			default => throw new \InvalidArgumentException("Unsupported tool: $name")
 		};
+
+		$this->log('tool result ' . $name . ' summary=' . $this->encodeForLog($this->summarizeResult($name, $result)));
+
+		return $result;
 	}
 
 	private function toolListSupportedMermaidTypes(): array {
@@ -174,8 +180,6 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 			];
 		}
 
-		$this->log('tool list_supported_mermaid_types => ' . count($types) . ' types');
-
 		return [
 			'count' => count($types),
 			'types' => array_values($types)
@@ -189,8 +193,6 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 		}
 
 		$type = $this->detectTypeFromCode($code);
-
-		$this->log('tool detect_existing_mermaid_type => ' . ($type ?? 'unknown'));
 
 		return [
 			'type' => $type,
@@ -208,8 +210,6 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 		}
 
 		$definition = $this->getTypeDefinitions()[$type];
-
-		$this->log('tool get_mermaid_type_guide type=' . $type);
 
 		return [
 			'type' => $type,
@@ -237,8 +237,6 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 		$showData = (bool)($arguments['show_data'] ?? false);
 
 		$template = $this->buildTemplate($type, $title, $direction, $orientation, $showData);
-
-		$this->log('tool get_mermaid_template type=' . $type);
 
 		return [
 			'type' => $type,
@@ -445,6 +443,75 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 
 	private function escapeQuotedValue(string $value): string {
 		return str_replace(['\\', '"'], ['\\\\', '\"'], $value);
+	}
+
+	private function summarizeArguments(string $name, array $arguments): array {
+		return match ($name) {
+			'list_supported_mermaid_types' => [],
+			'detect_existing_mermaid_type' => [
+				'code_len' => strlen((string)($arguments['code'] ?? '')),
+				'code_preview' => $this->shortenForLog((string)($arguments['code'] ?? ''), 160)
+			],
+			'get_mermaid_type_guide' => [
+				'type' => (string)($arguments['type'] ?? '')
+			],
+			'get_mermaid_template' => [
+				'type' => (string)($arguments['type'] ?? ''),
+				'title' => $this->shortenForLog((string)($arguments['title'] ?? ''), 120),
+				'direction' => (string)($arguments['direction'] ?? ''),
+				'orientation' => (string)($arguments['orientation'] ?? ''),
+				'show_data' => (bool)($arguments['show_data'] ?? false)
+			],
+			default => $arguments
+		};
+	}
+
+	private function summarizeResult(string $name, array $result): array {
+		if (isset($result['error'])) {
+			return [
+				'error' => (string)$result['error']
+			];
+		}
+
+		return match ($name) {
+			'list_supported_mermaid_types' => [
+				'count' => (int)($result['count'] ?? 0)
+			],
+			'detect_existing_mermaid_type' => [
+				'type' => $result['type'] ?? null,
+				'detected' => (bool)($result['detected'] ?? false)
+			],
+			'get_mermaid_type_guide' => [
+				'type' => (string)($result['type'] ?? ''),
+				'start_keyword' => (string)($result['start_keyword'] ?? '')
+			],
+			'get_mermaid_template' => [
+				'type' => (string)($result['type'] ?? ''),
+				'template_len' => strlen((string)($result['template'] ?? '')),
+				'template_preview' => $this->shortenForLog((string)($result['template'] ?? ''), 160)
+			],
+			default => []
+		};
+	}
+
+	private function shortenForLog(string $value, int $maxLength): string {
+		$value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+
+		if ($value === '') {
+			return '';
+		}
+
+		if (mb_strlen($value) <= $maxLength) {
+			return $value;
+		}
+
+		return mb_substr($value, 0, $maxLength - 3) . '...';
+	}
+
+	private function encodeForLog(array $data): string {
+		$json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+		return $json !== false ? $json : '{"error":"log_encoding_failed"}';
 	}
 
 	private function getTypeDefinitions(): array {
