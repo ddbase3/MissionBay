@@ -21,6 +21,7 @@ use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
+use stdClass;
 
 class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool {
 
@@ -65,7 +66,8 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 				'description' => 'Lists the Mermaid diagram types supported by this helper tool.',
 				'parameters' => [
 					'type' => 'object',
-					'properties' => []
+					'properties' => new stdClass(),
+					'additionalProperties' => false
 				]
 			]
 		], [
@@ -85,7 +87,8 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 							'description' => 'Existing Mermaid code to inspect.'
 						]
 					],
-					'required' => ['code']
+					'required' => ['code'],
+					'additionalProperties' => false
 				]
 			]
 		], [
@@ -105,7 +108,8 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 							'description' => 'Supported Mermaid type, for example flowchart, sequenceDiagram, pie, or xychart.'
 						]
 					],
-					'required' => ['type']
+					'required' => ['type'],
+					'additionalProperties' => false
 				]
 			]
 		], [
@@ -141,7 +145,8 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 							'description' => 'Optional pie chart flag. If true, uses pie showData.'
 						]
 					],
-					'required' => ['type']
+					'required' => ['type'],
+					'additionalProperties' => false
 				]
 			]
 		]];
@@ -158,22 +163,22 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 	}
 
 	private function toolListSupportedMermaidTypes(): array {
-		$defs = $this->getTypeDefinitions();
-		$out = [];
+		$definitions = $this->getTypeDefinitions();
+		$types = [];
 
-		foreach ($defs as $type => $def) {
-			$out[] = [
+		foreach ($definitions as $type => $definition) {
+			$types[] = [
 				'type' => $type,
-				'start_keyword' => $def['start_keyword'],
-				'summary' => $def['summary']
+				'start_keyword' => $definition['start_keyword'],
+				'summary' => $definition['summary']
 			];
 		}
 
-		$this->log('tool list_supported_mermaid_types => ' . count($out) . ' types');
+		$this->log('tool list_supported_mermaid_types => ' . count($types) . ' types');
 
 		return [
-			'count' => count($out),
-			'types' => array_values($out)
+			'count' => count($types),
+			'types' => array_values($types)
 		];
 	}
 
@@ -202,18 +207,18 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 			];
 		}
 
-		$def = $this->getTypeDefinitions()[$type];
+		$definition = $this->getTypeDefinitions()[$type];
 
 		$this->log('tool get_mermaid_type_guide type=' . $type);
 
 		return [
 			'type' => $type,
-			'start_keyword' => $def['start_keyword'],
-			'summary' => $def['summary'],
-			'required_elements' => $def['required_elements'],
-			'recommended_elements' => $def['recommended_elements'],
-			'forbidden_patterns' => $def['forbidden_patterns'],
-			'example' => $def['example']
+			'start_keyword' => $definition['start_keyword'],
+			'summary' => $definition['summary'],
+			'required_elements' => $definition['required_elements'],
+			'recommended_elements' => $definition['recommended_elements'],
+			'forbidden_patterns' => $definition['forbidden_patterns'],
+			'example' => $definition['example']
 		];
 	}
 
@@ -310,8 +315,8 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 	}
 
 	private function buildFlowchartTemplate(string $direction): string {
-		$allowed = ['TD', 'LR', 'RL', 'BT'];
-		if (!in_array($direction, $allowed, true)) {
+		$allowedDirections = ['TD', 'LR', 'RL', 'BT'];
+		if (!in_array($direction, $allowedDirections, true)) {
 			$direction = 'TD';
 		}
 
