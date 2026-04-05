@@ -64,6 +64,7 @@ class AgentToolOrchestrator {
 	): AgentToolOrchestratorResult {
 		$iterations = 0;
 		$finalAssistantMessage = null;
+		$executedToolCalls = [];
 
 		while ($iterations < $maxLoops) {
 			$iterations++;
@@ -91,7 +92,8 @@ class AgentToolOrchestrator {
 					$messages,
 					$finalAssistantMessage,
 					true,
-					$iterations
+					$iterations,
+					$executedToolCalls
 				);
 			}
 
@@ -104,7 +106,8 @@ class AgentToolOrchestrator {
 					$messages,
 					$context,
 					$eventCallback,
-					$iterations
+					$iterations,
+					$executedToolCalls
 				);
 			}
 		}
@@ -115,7 +118,8 @@ class AgentToolOrchestrator {
 			$messages,
 			$finalAssistantMessage,
 			false,
-			$iterations
+			$iterations,
+			$executedToolCalls
 		);
 	}
 
@@ -123,6 +127,7 @@ class AgentToolOrchestrator {
 	 * @param array<string,mixed> $call
 	 * @param array<int,mixed> $tools
 	 * @param array<int,array<string,mixed>> $messages
+	 * @param array<int,array<string,mixed>> $executedToolCalls
 	 * @param ?callable $eventCallback
 	 */
 	private function handleToolCall(
@@ -131,7 +136,8 @@ class AgentToolOrchestrator {
 		array &$messages,
 		IAgentContext $context,
 		?callable $eventCallback,
-		int $iteration
+		int $iteration,
+		array &$executedToolCalls
 	): void {
 		$callId = (string)($call['id'] ?? uniqid('toolcall_', true));
 		$toolName = (string)($call['function']['name'] ?? '');
@@ -163,10 +169,17 @@ class AgentToolOrchestrator {
 			$warn = 'Tool not found: ' . $toolName;
 			$this->logError($warn);
 
+			$executedToolCalls[] = [
+				'tool' => $toolName,
+				'arguments' => $args,
+				'error' => $warn
+			];
+
 			$this->emitEvent($eventCallback, 'tool.error', [
 				'call_id' => $callId,
 				'tool' => $toolName,
 				'label' => $label,
+				'args' => $args,
 				'error' => $warn,
 				'iteration' => $iteration
 			]);
@@ -183,10 +196,18 @@ class AgentToolOrchestrator {
 		try {
 			$result = $toolObj->callTool($toolName, $args, $context);
 
+			$executedToolCalls[] = [
+				'tool' => $toolName,
+				'arguments' => $args,
+				'result' => $result
+			];
+
 			$this->emitEvent($eventCallback, 'tool.finished', [
 				'call_id' => $callId,
 				'tool' => $toolName,
 				'label' => $label,
+				'args' => $args,
+				'result' => $result,
 				'iteration' => $iteration
 			]);
 
@@ -201,10 +222,19 @@ class AgentToolOrchestrator {
 		} catch (\Throwable $e) {
 			$this->logError('Tool failed (' . $toolName . '): ' . $e->getMessage());
 
+			$executedToolCalls[] = [
+				'tool' => $toolName,
+				'arguments' => $args,
+				'error' => $e->getMessage(),
+				'type' => get_class($e),
+				'code' => $e->getCode()
+			];
+
 			$this->emitEvent($eventCallback, 'tool.error', [
 				'call_id' => $callId,
 				'tool' => $toolName,
 				'label' => $label,
+				'args' => $args,
 				'error' => $e->getMessage(),
 				'type' => get_class($e),
 				'code' => $e->getCode(),
