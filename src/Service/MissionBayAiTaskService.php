@@ -20,7 +20,7 @@ namespace MissionBay\Service;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Api\IAiTaskService;
+use AssistantFoundation\Api\IAiTaskService;
 
 class MissionBayAiTaskService implements IAiTaskService {
 
