@@ -18,19 +18,21 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
-use MissionBay\Agent\AgentConfigValueResolver;
-use MissionBay\Agent\AgentNodeDock;
+use AssistantFoundation\Api\IAiProvider;
+use Base3\Api\IClassMap;
+use MissionBay\AiProvider\OpenAiProvider;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
  * OpenAiEmbeddingModelAgentResource
  *
  * Provides access to OpenAI's embedding models via a dockable resource.
- * Configuration is dynamic and supports resolver modes (e.g. fixed/apikey/model).
+ * Configuration is dynamic and supports resolver modes.
  */
 class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
 
 	protected IAgentConfigValueResolver $resolver;
+	protected IClassMap $classMap;
 
 	protected array|string|null $modelConfig = null;
 	protected array|string|null $apikeyConfig = null;
@@ -38,9 +40,12 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 
 	protected array $resolvedOptions = [];
 
-	public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
+	protected ?OpenAiProvider $provider = null;
+
+	public function __construct(IAgentConfigValueResolver $resolver, IClassMap $classMap, ?string $id = null) {
 		parent::__construct($id);
 		$this->resolver = $resolver;
+		$this->classMap = $classMap;
 	}
 
 	public static function getName(): string {
@@ -53,16 +58,18 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
+
 		$this->modelConfig = $config['model'] ?? null;
 		$this->apikeyConfig = $config['apikey'] ?? null;
 		$this->endpointConfig = $config['endpoint'] ?? null;
 
-		// resolve once and cache
 		$this->resolvedOptions = [
-			'model' => $this->resolver->resolveValue($this->modelConfig),
+			'model' => $this->resolver->resolveValue($this->modelConfig) ?? 'text-embedding-3-small',
 			'apikey' => $this->resolver->resolveValue($this->apikeyConfig),
 			'endpoint' => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.openai.com/v1/embeddings',
 		];
+
+		$this->configureProvider();
 	}
 
 	public function getOptions(): array {
@@ -70,55 +77,62 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 	}
 
 	public function setOptions(array $options): void {
-		// Optional override, e.g. from dynamic context
 		$this->resolvedOptions = array_merge($this->resolvedOptions, $options);
+		$this->configureProvider();
 	}
 
 	public function embed(array $texts): array {
-		if (empty($texts)) return [];
+		if(empty($texts)) {
+			return [];
+		}
 
 		$model = $this->resolvedOptions['model'] ?? 'text-embedding-3-small';
-		$apikey = $this->resolvedOptions['apikey'] ?? null;
-		$endpoint = $this->resolvedOptions['endpoint'] ?? 'https://api.openai.com/v1/embeddings';
 
-		if (!$apikey) {
-			throw new \RuntimeException("Missing API key for OpenAI embedding model.");
-		}
-
-		$payload = json_encode([
+		$result = $this->getProvider()->request('/v1/embeddings', [
 			'model' => $model,
-			'input' => $texts
+			'input' => $texts,
 		]);
 
-		$headers = [
-			'Content-Type: application/json',
-			'Authorization: Bearer ' . $apikey
-		];
-
-		$ch = curl_init($endpoint);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-
-		$result = curl_exec($ch);
-		if (curl_errno($ch)) {
-			throw new \RuntimeException('OpenAI API request failed: ' . curl_error($ch));
+		if(!isset($result['data']) || !is_array($result['data'])) {
+			throw new \RuntimeException('Malformed OpenAI embedding response.');
 		}
 
-		$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		curl_close($ch);
+		return array_map(function($item): array {
+			if(!is_array($item)) {
+				return [];
+			}
 
-		if ($httpCode !== 200) {
-			throw new \RuntimeException("API request failed with status $httpCode: $result");
+			return is_array($item['embedding'] ?? null) ? $item['embedding'] : [];
+		}, $result['data']);
+	}
+
+	private function getProvider(): OpenAiProvider {
+		if($this->provider instanceof OpenAiProvider) {
+			return $this->provider;
 		}
 
-		$data = json_decode($result, true);
-		if (!isset($data['data']) || !is_array($data['data'])) {
-			throw new \RuntimeException("Malformed OpenAI embedding response.");
+		$provider = $this->classMap->getInstanceByInterfaceName(IAiProvider::class, OpenAiProvider::getName());
+
+		if(!$provider instanceof OpenAiProvider) {
+			throw new \RuntimeException(
+				'Unable to resolve provider "' . OpenAiProvider::getName() . '" for interface ' . IAiProvider::class . '.'
+			);
 		}
 
-		return array_map(fn($item) => $item['embedding'] ?? [], $data['data']);
+		$this->provider = $provider;
+		$this->configureProvider();
+
+		return $this->provider;
+	}
+
+	private function configureProvider(): void {
+		if(!$this->provider instanceof OpenAiProvider) {
+			return;
+		}
+
+		$this->provider->setOptions([
+			'endpoint' => $this->resolvedOptions['endpoint'] ?? 'https://api.openai.com/v1/embeddings',
+			'apikey' => $this->resolvedOptions['apikey'] ?? null,
+		]);
 	}
 }
-
