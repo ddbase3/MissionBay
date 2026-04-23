@@ -18,6 +18,7 @@
 namespace MissionBay\Node\Ai;
 
 use AssistantFoundation\Api\IAiChatModel;
+use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use EventTransport\Api\IEventStream;
 use EventTransport\Api\IEventStreamFactory;
@@ -52,10 +53,12 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 	private ?ILogger $logger = null;
 	private IEventStreamFactory $streamFactory;
+	private IEventManager $eventManager;
 
-	public function __construct(IEventStreamFactory $streamFactory, ?string $id = null) {
+	public function __construct(IEventStreamFactory $streamFactory, IEventManager $eventManager, ?string $id = null) {
 		parent::__construct($id);
 		$this->streamFactory = $streamFactory;
+		$this->eventManager = $eventManager;
 	}
 
 	public static function getName(): string {
@@ -228,7 +231,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 			$this->appendVisibleMessageToMemories($memories, $this->getId(), $userMessage);
 
-			$orchestrator = new AgentToolOrchestrator($this->logger);
+			$orchestrator = new AgentToolOrchestrator($this->logger, $this->eventManager);
 			$orchestrationResult = $orchestrator->run(
 				$model,
 				$messages,
@@ -242,7 +245,8 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 					$stream->push($event, $payload);
 				},
-				8
+				8,
+				$this->getId()
 			);
 
 			if (!$orchestrationResult->isCompleted()) {

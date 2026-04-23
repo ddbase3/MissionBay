@@ -18,9 +18,13 @@
 namespace MissionBay\Orchestrator;
 
 use AssistantFoundation\Api\IAiChatModel;
+use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Event\MissionBayToolFailedEvent;
+use MissionBay\Event\MissionBayToolFinishedEvent;
+use MissionBay\Event\MissionBayToolStartedEvent;
 
 /**
  * AgentToolOrchestrator
@@ -40,9 +44,11 @@ use MissionBay\Api\IAgentTool;
 class AgentToolOrchestrator {
 
 	private ?ILogger $logger = null;
+	private ?IEventManager $eventManager = null;
 
-	public function __construct(?ILogger $logger = null) {
+	public function __construct(?ILogger $logger = null, ?IEventManager $eventManager = null) {
 		$this->logger = $logger;
+		$this->eventManager = $eventManager;
 	}
 
 	/**
@@ -60,7 +66,8 @@ class AgentToolOrchestrator {
 		array $tools,
 		IAgentContext $context,
 		?callable $eventCallback = null,
-		int $maxLoops = 8
+		int $maxLoops = 8,
+		string $nodeId = ''
 	): AgentToolOrchestratorResult {
 		$iterations = 0;
 		$finalAssistantMessage = null;
@@ -107,7 +114,8 @@ class AgentToolOrchestrator {
 					$context,
 					$eventCallback,
 					$iterations,
-					$executedToolCalls
+					$executedToolCalls,
+					$nodeId
 				);
 			}
 		}
@@ -137,7 +145,8 @@ class AgentToolOrchestrator {
 		IAgentContext $context,
 		?callable $eventCallback,
 		int $iteration,
-		array &$executedToolCalls
+		array &$executedToolCalls,
+		string $nodeId
 	): void {
 		$callId = (string)($call['id'] ?? uniqid('toolcall_', true));
 		$toolName = (string)($call['function']['name'] ?? '');
@@ -163,6 +172,15 @@ class AgentToolOrchestrator {
 			'iteration' => $iteration
 		]);
 
+		$this->fireToolStartedEvent(
+			$nodeId,
+			$callId,
+			$toolName,
+			$label,
+			$args,
+			$iteration
+		);
+
 		$this->log('Tool started: ' . $toolName . ' [' . $callId . ']');
 
 		if (!$toolObj instanceof IAgentTool) {
@@ -183,6 +201,18 @@ class AgentToolOrchestrator {
 				'error' => $warn,
 				'iteration' => $iteration
 			]);
+
+			$this->fireToolFailedEvent(
+				$nodeId,
+				$callId,
+				$toolName,
+				$label,
+				$args,
+				$warn,
+				\RuntimeException::class,
+				0,
+				$iteration
+			);
 
 			$messages[] = [
 				'role' => 'tool',
@@ -210,6 +240,16 @@ class AgentToolOrchestrator {
 				'result' => $result,
 				'iteration' => $iteration
 			]);
+
+			$this->fireToolFinishedEvent(
+				$nodeId,
+				$callId,
+				$toolName,
+				$label,
+				$args,
+				$result,
+				$iteration
+			);
 
 			$this->log('Tool finished: ' . $toolName . ' [' . $callId . ']');
 
@@ -240,6 +280,18 @@ class AgentToolOrchestrator {
 				'code' => $e->getCode(),
 				'iteration' => $iteration
 			]);
+
+			$this->fireToolFailedEvent(
+				$nodeId,
+				$callId,
+				$toolName,
+				$label,
+				$args,
+				$e->getMessage(),
+				get_class($e),
+				$e->getCode(),
+				$iteration
+			);
 
 			$messages[] = [
 				'role' => 'tool',
@@ -307,6 +359,95 @@ class AgentToolOrchestrator {
 		}
 
 		$eventCallback($event, $payload);
+	}
+
+	/**
+	 * @param array<string,mixed> $arguments
+	 */
+	private function fireToolStartedEvent(
+		string $nodeId,
+		string $callId,
+		string $toolName,
+		string $label,
+		array $arguments,
+		int $iteration
+	): void {
+		if ($this->eventManager === null) {
+			return;
+		}
+
+		$this->eventManager->fire(
+			new MissionBayToolStartedEvent(
+				$nodeId,
+				$callId,
+				$toolName,
+				$label,
+				$arguments,
+				$iteration
+			)
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $arguments
+	 */
+	private function fireToolFinishedEvent(
+		string $nodeId,
+		string $callId,
+		string $toolName,
+		string $label,
+		array $arguments,
+		mixed $result,
+		int $iteration
+	): void {
+		if ($this->eventManager === null) {
+			return;
+		}
+
+		$this->eventManager->fire(
+			new MissionBayToolFinishedEvent(
+				$nodeId,
+				$callId,
+				$toolName,
+				$label,
+				$arguments,
+				$result,
+				$iteration
+			)
+		);
+	}
+
+	/**
+	 * @param array<string,mixed> $arguments
+	 */
+	private function fireToolFailedEvent(
+		string $nodeId,
+		string $callId,
+		string $toolName,
+		string $label,
+		array $arguments,
+		string $errorMessage,
+		string $errorType,
+		int|string $errorCode,
+		int $iteration
+	): void {
+		if ($this->eventManager === null) {
+			return;
+		}
+
+		$this->eventManager->fire(
+			new MissionBayToolFailedEvent(
+				$nodeId,
+				$callId,
+				$toolName,
+				$label,
+				$arguments,
+				$errorMessage,
+				$errorType,
+				$errorCode,
+				$iteration
+			)
+		);
 	}
 
 	private function log(string $msg): void {
