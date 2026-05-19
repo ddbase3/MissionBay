@@ -35,8 +35,8 @@ use MissionBay\Agent\AgentContextFactory;
 // use MissionBay\Agent\AgentRouterFactory;
 use MissionBay\Agent\AgentMemoryFactory;
 use MissionBay\Agent\AgentFlowFactory;
-use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Agent\AgentNodeFactory;
+use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Agent\AgentRagPayloadNormalizer;
 
 class MissionBayPlugin implements IPlugin, ICheck {
