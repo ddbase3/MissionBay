@@ -20,7 +20,6 @@ namespace MissionBay\Flow;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentResource;
-use MissionBay\Agent\AgentNodePort;
 
 class StrictFlow extends AbstractFlow {
 
@@ -232,6 +231,8 @@ class StrictFlow extends AbstractFlow {
 				if (!$this->isReady($nodeId, $nodeInputs[$nodeId] ?? [])) continue;
 
 				$inputDefs = $this->normalizePortDefs($node->getInputDefinitions());
+
+				$this->applyNodeConfigInputs($node, $nodeInputs[$nodeId]);
 
 				$hasActive = false;
 				foreach ($inputDefs as $port) {

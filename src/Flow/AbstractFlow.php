@@ -17,35 +17,38 @@
 
 namespace MissionBay\Flow;
 
-use MissionBay\Api\IAgentFlow;
+use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentResourceFactory;
+use MissionBay\Agent\AgentNodePort;
 
 abstract class AbstractFlow implements IAgentFlow {
 
-        protected array $nodes = [];
-        protected array $resources = [];
+	protected array $nodes = [];
+	protected array $resources = [];
 	protected bool $allowReentrant = false;
 	protected ?IAgentContext $context = null;
 
 	public function __construct(
 		protected readonly IAgentNodeFactory $agentnodefactory,
-		protected readonly IAgentResourceFactory $agentresourcefactory
+		protected readonly IAgentResourceFactory $agentresourcefactory,
+		protected readonly IAgentConfigValueResolver $configvalueresolver
 	) {}
 
-        public function setContext(IAgentContext $context): void {
-                $this->context = $context;
-        }
+	public function setContext(IAgentContext $context): void {
+		$this->context = $context;
+	}
 
-        public function addNode(IAgentNode $node): void {
-                $this->nodes[$node->getId()] = $node;
-        }
+	public function addNode(IAgentNode $node): void {
+		$this->nodes[$node->getId()] = $node;
+	}
 
-        public function getNodes(): array {
-                return $this->nodes;
-        }
+	public function getNodes(): array {
+		return $this->nodes;
+	}
 
 	protected function normalizePortDefs(array $defs): array {
 		$ports = [];
@@ -59,7 +62,30 @@ abstract class AbstractFlow implements IAgentFlow {
 		return $ports;
 	}
 
-	abstract public function fromArray(array $data): self;
-        abstract public function run(array $inputs): array;
-}
+	protected function applyNodeConfigInputs(IAgentNode $node, array &$inputs): void {
+		foreach ($node->getConfig() as $key => $value) {
+			if (array_key_exists($key, $inputs)) {
+				continue;
+			}
 
+			if ($this->isInheritedConfigValue($value)) {
+				continue;
+			}
+
+			$inputs[$key] = $this->configvalueresolver->resolveValue($value);
+		}
+	}
+
+	private function isInheritedConfigValue(mixed $value): bool {
+		if (!is_array($value)) {
+			return false;
+		}
+
+		$mode = (string)($value['mode'] ?? 'inherit');
+
+		return $mode === 'inherit';
+	}
+
+	abstract public function fromArray(array $data): self;
+	abstract public function run(array $inputs): array;
+}

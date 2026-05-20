@@ -84,6 +84,13 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				type: 'string',
 				default: 'You are a helpful assistant.',
 				required: false
+			),
+			new AgentNodePort(
+				name: 'maxtoolloops',
+				description: 'Maximum number of tool orchestration loops.',
+				type: 'int',
+				default: 8,
+				required: false
 			)
 		];
 	}
@@ -170,6 +177,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 			$prompt = trim((string)($inputs['prompt'] ?? ''));
 			$system = trim((string)($inputs['system'] ?? 'You are a helpful assistant.'));
+			$maxToolLoops = $this->readMaxToolLoops($inputs);
 
 			if ($prompt === '') {
 				$err = 'Prompt is required.';
@@ -223,6 +231,7 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			}
 
 			$this->log('Number of Tools: ' . count($toolDefs) . '.');
+			$this->log('Max tool loops: ' . $maxToolLoops . '.');
 
 			$messages = $this->buildInitialMessages($system, $memories);
 
@@ -245,12 +254,12 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 
 					$stream->push($event, $payload);
 				},
-				8,
+				$maxToolLoops,
 				$this->getId()
 			);
 
 			if (!$orchestrationResult->isCompleted()) {
-				throw new \RuntimeException('Phase 1 did not complete within the allowed tool-call loop limit.');
+				throw new \RuntimeException('Phase 1 did not complete within the allowed tool-call loop limit of ' . $maxToolLoops . '.');
 			}
 
 			$context->setVar('orchestrator_messages', $orchestrationResult->getMessages());
@@ -484,6 +493,30 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			allowedTools: $effectiveAllowedTools,
 			requiredTools: $effectiveRequiredTools
 		);
+	}
+
+	private function readMaxToolLoops(array $inputs): int {
+		$value = $inputs['maxtoolloops'] ?? 8;
+
+		if ($value === null || $value === '') {
+			return 8;
+		}
+
+		if (!is_int($value) && !is_float($value) && !is_string($value)) {
+			throw new \RuntimeException('Input maxtoolloops must be numeric.');
+		}
+
+		if (!is_numeric($value)) {
+			throw new \RuntimeException('Input maxtoolloops must be numeric.');
+		}
+
+		$maxToolLoops = (int)$value;
+
+		if ($maxToolLoops < 1) {
+			throw new \RuntimeException('Input maxtoolloops must be greater than zero.');
+		}
+
+		return $maxToolLoops;
 	}
 
 	private function safeLoadHistory(IAgentMemory $memory, string $nodeId): array {
