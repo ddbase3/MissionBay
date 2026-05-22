@@ -48,6 +48,7 @@ use MissionBay\Profile\ToolGuardAgentTool;
  * - follow-up tool calls can therefore depend on previous tool results
  * - phase 2 receives the exact phase-1 working messages, but without tools
  * - persistent memory stores only visible dialogue messages
+ * - incomplete tool phases are converted into a useful fallback response when possible
  */
 class StreamingAiAssistantNode extends AbstractAgentNode {
 
@@ -258,15 +259,42 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				$this->getId()
 			);
 
-			if (!$orchestrationResult->isCompleted()) {
-				throw new \RuntimeException('Phase 1 did not complete within the allowed tool-call loop limit of ' . $maxToolLoops . '.');
-			}
-
 			$context->setVar('orchestrator_messages', $orchestrationResult->getMessages());
 			$context->setVar('orchestrator_final_assistant', $orchestrationResult->getFinalAssistantMessage());
 			$context->setVar('orchestrator_iterations', $orchestrationResult->getIterations());
+			$context->setVar('orchestrator_completed', $orchestrationResult->isCompleted());
+			$context->setVar('orchestrator_failure_code', $orchestrationResult->getFailureCode());
 
-			$finalContent = $this->runStreamingPhase($model, $orchestrationResult, $stream);
+			if (!$orchestrationResult->isCompleted()) {
+				$this->logError('Phase 1 did not complete: ' . $orchestrationResult->getFailureCode() . ' ' . $orchestrationResult->getFailureMessage());
+
+				$finalContent = $this->buildFallbackAssistantMessage($orchestrationResult);
+				$this->pushTextAndDone($stream, $finalContent, 'fallback');
+
+				$assistantMessage = [
+					'id' => $assistantId,
+					'role' => 'assistant',
+					'content' => $finalContent,
+					'timestamp' => (new \DateTimeImmutable())->format('c'),
+					'feedback' => null
+				];
+
+				$this->appendVisibleMessageToMemories($memories, $this->getId(), $assistantMessage);
+
+				return [
+					'stream_ready' => true,
+					'warning' => $orchestrationResult->getFailureCode() !== '' ? $orchestrationResult->getFailureCode() : 'tool_phase_incomplete'
+				];
+			}
+
+			try {
+				$finalContent = $this->runStreamingPhase($model, $orchestrationResult, $stream);
+			} catch (\Throwable $e) {
+				$this->logError('Streaming phase failed: ' . $e->getMessage());
+
+				$finalContent = $this->buildFallbackAssistantMessage($orchestrationResult);
+				$this->pushTextAndDone($stream, $finalContent, 'fallback_stream_error');
+			}
 
 			$assistantMessage = [
 				'id' => $assistantId,
@@ -286,9 +314,11 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 			$this->logError($e->getMessage());
 
 			if ($stream !== null && !$stream->isDisconnected()) {
+				$userMessage = 'Es ist ein technischer Fehler aufgetreten. Die Anfrage konnte nicht vollständig abgeschlossen werden.';
+				$stream->push('token', ['text' => $userMessage]);
 				$stream->push('error', [
 					'message' => $e->getMessage(),
-					'user_message' => 'Fehler: ' . $e->getMessage(),
+					'user_message' => $userMessage,
 					'type' => get_class($e),
 					'code' => $e->getCode(),
 					'file' => $e->getFile(),
@@ -534,6 +564,92 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		} catch (\Throwable $e) {
 			$this->logError('Memory appendNodeHistory failed: ' . $e->getMessage());
 		}
+	}
+
+	private function buildFallbackAssistantMessage(AgentToolOrchestratorResult $orchestrationResult): string {
+		$finalAssistant = $orchestrationResult->getFinalAssistantMessage();
+		if (is_array($finalAssistant) && trim((string)($finalAssistant['content'] ?? '')) !== '') {
+			return trim((string)$finalAssistant['content']);
+		}
+
+		$lastUrl = $this->findLastSuccessfulUrl($orchestrationResult);
+		if ($lastUrl !== '') {
+			return "Ich konnte die Tool-Phase nicht vollständig abschließen, aber der zuletzt erfolgreich erzeugte Link ist:\n" . $lastUrl;
+		}
+
+		$lastError = $this->findLastToolError($orchestrationResult);
+		if ($lastError !== '') {
+			return 'Ich konnte die Anfrage nicht vollständig abschließen. Letzter Tool-Hinweis: ' . $lastError;
+		}
+
+		if ($orchestrationResult->hasFailure()) {
+			$message = $orchestrationResult->getFailureMessage();
+			if ($message === '') {
+				$message = $orchestrationResult->getFailureCode();
+			}
+
+			return 'Ich konnte die Anfrage nicht vollständig abschließen. Grund: ' . $message;
+		}
+
+		return 'Ich konnte die Anfrage nicht vollständig abschließen. Bitte versuche es erneut oder grenze die Anfrage etwas ein.';
+	}
+
+	private function findLastSuccessfulUrl(AgentToolOrchestratorResult $orchestrationResult): string {
+		$toolCalls = array_reverse($orchestrationResult->getToolCalls());
+		foreach ($toolCalls as $call) {
+			$result = $call['result'] ?? null;
+			if (!is_array($result)) {
+				continue;
+			}
+
+			if (($result['ok'] ?? false) === true && trim((string)($result['url'] ?? '')) !== '') {
+				return trim((string)$result['url']);
+			}
+		}
+
+		return '';
+	}
+
+	private function findLastToolError(AgentToolOrchestratorResult $orchestrationResult): string {
+		$toolCalls = array_reverse($orchestrationResult->getToolCalls());
+		foreach ($toolCalls as $call) {
+			if (trim((string)($call['error'] ?? '')) !== '') {
+				return trim((string)$call['error']);
+			}
+
+			$result = $call['result'] ?? null;
+			if (!is_array($result)) {
+				continue;
+			}
+
+			if (($result['ok'] ?? true) === false) {
+				$errors = is_array($result['errors'] ?? null) ? $result['errors'] : [];
+				foreach ($errors as $error) {
+					if (is_array($error) && trim((string)($error['message'] ?? '')) !== '') {
+						return trim((string)$error['message']);
+					}
+				}
+
+				if (trim((string)($result['message'] ?? '')) !== '') {
+					return trim((string)$result['message']);
+				}
+
+				if (trim((string)($result['error'] ?? '')) !== '') {
+					return trim((string)$result['error']);
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private function pushTextAndDone(IEventStream $stream, string $text, string $status): void {
+		if ($stream->isDisconnected()) {
+			return;
+		}
+
+		$stream->push('token', ['text' => $text]);
+		$stream->push('done', ['status' => $status]);
 	}
 
 	private function log(string $msg): void {

@@ -37,6 +37,7 @@ use MissionBay\Event\MissionBayToolStartedEvent;
  * - append every tool result back into the stack
  * - stop when the model no longer returns tool calls
  * - keep the terminal assistant stop message separate for debugging
+ * - return incomplete results instead of throwing on recoverable model/tool-loop failures
  *
  * This class is intentionally transport-neutral.
  * UI events can be emitted through an optional callback.
@@ -78,14 +79,44 @@ class AgentToolOrchestrator {
 
 			$this->log('Tool phase iteration ' . $iterations . ' started.');
 
-			$result = $model->raw($messages, $toolDefs);
+			try {
+				$result = $model->raw($messages, $toolDefs);
+			} catch (\Throwable $e) {
+				$this->logError('Model raw call failed: ' . $e->getMessage());
+
+				return new AgentToolOrchestratorResult(
+					$messages,
+					$finalAssistantMessage,
+					false,
+					$iterations,
+					$executedToolCalls,
+					'model_raw_error',
+					'Model call failed during tool orchestration.',
+					[
+						'type' => get_class($e),
+						'message' => $e->getMessage(),
+						'code' => $e->getCode()
+					]
+				);
+			}
 
 			if (
 				!is_array($result) ||
 				!isset($result['choices'][0]['message']) ||
 				!is_array($result['choices'][0]['message'])
 			) {
-				throw new \RuntimeException('Malformed model response.');
+				$this->logError('Malformed model response during tool orchestration.');
+
+				return new AgentToolOrchestratorResult(
+					$messages,
+					$finalAssistantMessage,
+					false,
+					$iterations,
+					$executedToolCalls,
+					'malformed_model_response',
+					'Model returned a malformed response during tool orchestration.',
+					[]
+				);
 			}
 
 			$assistant = $result['choices'][0]['message'];
@@ -127,7 +158,12 @@ class AgentToolOrchestrator {
 			$finalAssistantMessage,
 			false,
 			$iterations,
-			$executedToolCalls
+			$executedToolCalls,
+			'max_tool_loops',
+			'Tool phase did not complete within the allowed tool-call loop limit.',
+			[
+				'max_loops' => $maxLoops
+			]
 		);
 	}
 
@@ -156,11 +192,15 @@ class AgentToolOrchestrator {
 		$toolObj = $this->findTool($tools, $toolName);
 
 		if ($toolObj instanceof IAgentTool) {
-			foreach ($toolObj->getToolDefinitions() as $def) {
-				if (($def['function']['name'] ?? '') === $toolName) {
-					$label = $def['label'] ?? $toolName;
-					break;
+			try {
+				foreach ($toolObj->getToolDefinitions() as $def) {
+					if (($def['function']['name'] ?? '') === $toolName) {
+						$label = $def['label'] ?? $toolName;
+						break;
+					}
 				}
+			} catch (\Throwable $e) {
+				$this->logError('Reading tool definitions failed (' . $toolName . '): ' . $e->getMessage());
 			}
 		}
 
@@ -217,7 +257,11 @@ class AgentToolOrchestrator {
 			$messages[] = [
 				'role' => 'tool',
 				'tool_call_id' => $callId,
-				'content' => $this->encodeContent(['error' => $warn])
+				'content' => $this->encodeContent([
+					'ok' => false,
+					'error_code' => 'tool_not_found',
+					'error' => $warn
+				])
 			];
 
 			return;
@@ -262,6 +306,14 @@ class AgentToolOrchestrator {
 		} catch (\Throwable $e) {
 			$this->logError('Tool failed (' . $toolName . '): ' . $e->getMessage());
 
+			$errorResult = [
+				'ok' => false,
+				'error_code' => 'tool_exception',
+				'error' => $e->getMessage(),
+				'type' => get_class($e),
+				'code' => $e->getCode()
+			];
+
 			$executedToolCalls[] = [
 				'tool' => $toolName,
 				'arguments' => $args,
@@ -296,11 +348,7 @@ class AgentToolOrchestrator {
 			$messages[] = [
 				'role' => 'tool',
 				'tool_call_id' => $callId,
-				'content' => $this->encodeContent([
-					'error' => $e->getMessage(),
-					'type' => get_class($e),
-					'code' => $e->getCode()
-				])
+				'content' => $this->encodeContent($errorResult)
 			];
 		}
 	}
@@ -314,10 +362,14 @@ class AgentToolOrchestrator {
 				continue;
 			}
 
-			foreach ($tool->getToolDefinitions() as $def) {
-				if (($def['function']['name'] ?? '') === $name) {
-					return $tool;
+			try {
+				foreach ($tool->getToolDefinitions() as $def) {
+					if (($def['function']['name'] ?? '') === $name) {
+						return $tool;
+					}
 				}
+			} catch (\Throwable $e) {
+				$this->logError('findTool failed while reading tool definitions: ' . $e->getMessage());
 			}
 		}
 
@@ -358,7 +410,11 @@ class AgentToolOrchestrator {
 			return;
 		}
 
-		$eventCallback($event, $payload);
+		try {
+			$eventCallback($event, $payload);
+		} catch (\Throwable $e) {
+			$this->logError('Tool UI event callback failed (' . $event . '): ' . $e->getMessage());
+		}
 	}
 
 	/**
@@ -376,16 +432,20 @@ class AgentToolOrchestrator {
 			return;
 		}
 
-		$this->eventManager->fire(
-			new MissionBayToolStartedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$arguments,
-				$iteration
-			)
-		);
+		try {
+			$this->eventManager->fire(
+				new MissionBayToolStartedEvent(
+					$nodeId,
+					$callId,
+					$toolName,
+					$label,
+					$arguments,
+					$iteration
+				)
+			);
+		} catch (\Throwable $e) {
+			$this->logError('Tool started event failed (' . $toolName . '): ' . $e->getMessage());
+		}
 	}
 
 	/**
@@ -404,17 +464,21 @@ class AgentToolOrchestrator {
 			return;
 		}
 
-		$this->eventManager->fire(
-			new MissionBayToolFinishedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$arguments,
-				$result,
-				$iteration
-			)
-		);
+		try {
+			$this->eventManager->fire(
+				new MissionBayToolFinishedEvent(
+					$nodeId,
+					$callId,
+					$toolName,
+					$label,
+					$arguments,
+					$result,
+					$iteration
+				)
+			);
+		} catch (\Throwable $e) {
+			$this->logError('Tool finished event failed (' . $toolName . '): ' . $e->getMessage());
+		}
 	}
 
 	/**
@@ -435,19 +499,23 @@ class AgentToolOrchestrator {
 			return;
 		}
 
-		$this->eventManager->fire(
-			new MissionBayToolFailedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$arguments,
-				$errorMessage,
-				$errorType,
-				$errorCode,
-				$iteration
-			)
-		);
+		try {
+			$this->eventManager->fire(
+				new MissionBayToolFailedEvent(
+					$nodeId,
+					$callId,
+					$toolName,
+					$label,
+					$arguments,
+					$errorMessage,
+					$errorType,
+					$errorCode,
+					$iteration
+				)
+			);
+		} catch (\Throwable $e) {
+			$this->logError('Tool failed event failed (' . $toolName . '): ' . $e->getMessage());
+		}
 	}
 
 	private function log(string $msg): void {
