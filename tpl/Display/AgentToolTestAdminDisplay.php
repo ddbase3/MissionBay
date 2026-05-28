@@ -535,7 +535,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		for (const url of attempts) {
 			try {
-				return await import(url);
+				return await import(new URL(url, document.baseURI).href);
 			} catch (error) {
 				errors.push(url + ' => ' + (error && error.message ? error.message : String(error)));
 			}

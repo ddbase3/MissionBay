@@ -631,8 +631,9 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 </div>
 
 <script type="module">
-	import {
-		AjaxAdapter,
+	const modularGridModule = await import(new URL(<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
+
+	const {                AjaxAdapter,
 		BulkActionsPlugin,
 		ColumnVisibilityPlugin,
 		FiltersPlugin,
@@ -646,24 +647,24 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		SearchPlugin,
 		SelectionPlugin,
 		SessionStoragePlugin
-	} from <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	} = modularGridModule;
+	const chronoPickerModule = await import(new URL(<?php echo json_encode($chronoPickerJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
 
-	import {
-		ChronoPicker,
+	const {                ChronoPicker,
 		DatePickerPlugin,
 		DateTimePlugin,
 		KeyboardPlugin
-	} from <?php echo json_encode($chronoPickerJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	} = chronoPickerModule;
+	const jsonLensModule = await import(new URL(<?php echo json_encode($jsonLensJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
 
-	import {
-		JsonLens,
+	const {                JsonLens,
 		TreeViewPlugin,
 		SyntaxHighlightPlugin,
 		ClipboardPlugin,
-		SearchPlugin as JsonLensSearchPlugin,
+		SearchPlugin: JsonLensSearchPlugin,
 		PathPlugin,
 		RawViewPlugin
-	} from <?php echo json_encode($jsonLensJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	} = jsonLensModule;
 
 	const ENDPOINT_URL = <?php echo json_encode((string) $this->_['service'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const GRID_SELECTOR = '#knowledge-agent-memory-grid';
