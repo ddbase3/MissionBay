@@ -1,10 +1,13 @@
 <?php
-$modulargridCssUrls = is_array($this->_['modulargridCssUrls'] ?? null) ? $this->_['modulargridCssUrls'] : [];
-$jsonLensCssUrls = is_array($this->_['jsonLensCssUrls'] ?? null) ? $this->_['jsonLensCssUrls'] : [];
+$resolve = $this->_['resolve'];
+
+$modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
+$modularGridJsUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/index.js');
+$jsonLensCssUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/styles/jsonlens.css');
+$jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js');
 ?>
-<?php foreach(array_merge($modulargridCssUrls, $jsonLensCssUrls) as $cssUrl): ?>
-<link rel="stylesheet" href="<?php echo htmlspecialchars((string) $cssUrl, ENT_QUOTES); ?>" />
-<?php endforeach; ?>
+<link rel="stylesheet" href="<?php echo htmlspecialchars($modularGridCssUrl, ENT_QUOTES); ?>" />
+<link rel="stylesheet" href="<?php echo htmlspecialchars($jsonLensCssUrl, ENT_QUOTES); ?>" />
 
 <style>
 	.agent-tool-shell {
@@ -432,8 +435,8 @@ $jsonLensCssUrls = is_array($this->_['jsonLensCssUrls'] ?? null) ? $this->_['jso
 
 <script type="module">
 	const ENDPOINT_URL = <?php echo json_encode((string) $this->_['service'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
-	const MODULARGRID_URLS = <?php echo json_encode($this->_['modulargridJsUrls'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
-	const JSONLENS_URLS = <?php echo json_encode($this->_['jsonLensJsUrls'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const MODULARGRID_URLS = [<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>];
+	const JSONLENS_URLS = [<?php echo json_encode($jsonLensJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>];
 	const GRID_SELECTOR = '#agent-tool-test-grid';
 	const LOG_SELECTOR = '#agent-tool-test-output';
 	const BATCH_SIZE = 50;

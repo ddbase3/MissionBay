@@ -2,6 +2,7 @@
 
 namespace MissionBay\Display;
 
+use Base3\Api\IAssetResolver;
 use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
@@ -17,6 +18,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 	public function __construct(
 		private readonly IRequest $request,
 		private readonly IMvcView $view,
+		private readonly IAssetResolver $assetResolver,
 		private readonly IDatabase $database,
 		private readonly IClassMap $classmap,
 		private readonly ILinkTargetService $linkTargetService
@@ -44,8 +46,6 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 		$this->view->setPath(DIR_PLUGIN . 'MissionBay');
 		$this->view->setTemplate('Display/AgentToolLogAdminDisplay.php');
 
-		$basePath = $this->getBasePath();
-
 		$this->view->assign(
 			'service',
 			$this->linkTargetService->getLink(
@@ -56,12 +56,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			)
 		);
 
-		$this->view->assign('modulargridCssUrl', $basePath . '/components/Base3/ClientStack/modulargrid/styles/modulargrid.css');
-		$this->view->assign('modulargridJsUrl', $basePath . '/components/Base3/ClientStack/modulargrid/index.js');
-		$this->view->assign('chronoPickerCssUrl', $basePath . '/components/Base3/ClientStack/chronopicker/styles/chronopicker.css');
-		$this->view->assign('chronoPickerJsUrl', $basePath . '/components/Base3/ClientStack/chronopicker/index.js');
-		$this->view->assign('jsonLensCssUrl', $basePath . '/components/Base3/ClientStack/jsonlens/styles/jsonlens.css');
-		$this->view->assign('jsonLensJsUrl', $basePath . '/components/Base3/ClientStack/jsonlens/index.js');
+		$this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string) $src));
 		$this->view->assign('toolOptions', $this->getToolOptions());
 		$this->view->assign('statusOptions', $this->getStatusOptions());
 
@@ -767,16 +762,5 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 		}
 
 		return strtolower($value);
-	}
-
-	private function getBasePath(): string {
-		$scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
-		$basePath = rtrim(dirname($scriptName), '/');
-
-		if($basePath === '/' || $basePath === '\\' || $basePath === '.') {
-			return '';
-		}
-
-		return $basePath;
 	}
 }

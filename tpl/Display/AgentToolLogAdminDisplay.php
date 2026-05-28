@@ -1,6 +1,16 @@
-<link rel="stylesheet" href="<?php echo htmlspecialchars((string) $this->_['modulargridCssUrl'], ENT_QUOTES); ?>" />
-<link rel="stylesheet" href="<?php echo htmlspecialchars((string) $this->_['chronoPickerCssUrl'], ENT_QUOTES); ?>" />
-<link rel="stylesheet" href="<?php echo htmlspecialchars((string) $this->_['jsonLensCssUrl'], ENT_QUOTES); ?>" />
+<?php
+$resolve = $this->_['resolve'];
+
+$modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
+$modularGridJsUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/index.js');
+$chronoPickerCssUrl = (string) $resolve('plugin/ClientStack/assets/chronopicker/styles/chronopicker.css');
+$chronoPickerJsUrl = (string) $resolve('plugin/ClientStack/assets/chronopicker/index.js');
+$jsonLensCssUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/styles/jsonlens.css');
+$jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js');
+?>
+<link rel="stylesheet" href="<?php echo htmlspecialchars($modularGridCssUrl, ENT_QUOTES); ?>" />
+<link rel="stylesheet" href="<?php echo htmlspecialchars($chronoPickerCssUrl, ENT_QUOTES); ?>" />
+<link rel="stylesheet" href="<?php echo htmlspecialchars($jsonLensCssUrl, ENT_QUOTES); ?>" />
 
 <style>
 	.agent-tool-log-shell {
@@ -413,14 +423,14 @@
 		SearchPlugin,
 		SelectionPlugin,
 		SessionStoragePlugin
-	} from '<?php echo htmlspecialchars((string) $this->_['modulargridJsUrl'], ENT_QUOTES); ?>';
+	} from <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
 	import {
 		ChronoPicker,
 		DatePickerPlugin,
 		DateTimePlugin,
 		KeyboardPlugin
-	} from '<?php echo htmlspecialchars((string) $this->_['chronoPickerJsUrl'], ENT_QUOTES); ?>';
+	} from <?php echo json_encode($chronoPickerJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
 	import {
 		JsonLens,
@@ -430,7 +440,7 @@
 		SearchPlugin as JsonLensSearchPlugin,
 		PathPlugin,
 		RawViewPlugin
-	} from '<?php echo htmlspecialchars((string) $this->_['jsonLensJsUrl'], ENT_QUOTES); ?>';
+	} from <?php echo json_encode($jsonLensJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
 	const ENDPOINT_URL = <?php echo json_encode((string) $this->_['service'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const GRID_SELECTOR = '#agent-tool-log-grid';

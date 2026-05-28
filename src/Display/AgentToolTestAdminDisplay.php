@@ -2,6 +2,7 @@
 
 namespace MissionBay\Display;
 
+use Base3\Api\IAssetResolver;
 use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
@@ -16,6 +17,7 @@ final class AgentToolTestAdminDisplay implements IDisplay {
 		private readonly IClassMap $classmap,
 		private readonly IRequest $request,
 		private readonly IMvcView $view,
+		private readonly IAssetResolver $assetResolver,
 		private readonly ILinkTargetService $linkTargetService,
 		private readonly ?IAgentContext $agentContext = null
 	) {}
@@ -52,10 +54,7 @@ final class AgentToolTestAdminDisplay implements IDisplay {
 			)
 		);
 
-		$this->view->assign('modulargridCssUrls', $this->buildAssetCandidates('components/Base3/ClientStack/modulargrid/styles/modulargrid.css'));
-		$this->view->assign('modulargridJsUrls', $this->buildAssetCandidates('components/Base3/ClientStack/modulargrid/index.js'));
-		$this->view->assign('jsonLensCssUrls', $this->buildAssetCandidates('components/Base3/ClientStack/jsonlens/styles/jsonlens.css'));
-		$this->view->assign('jsonLensJsUrls', $this->buildAssetCandidates('components/Base3/ClientStack/jsonlens/index.js'));
+		$this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string) $src));
 
 		return $this->view->loadTemplate();
 	}
@@ -671,93 +670,5 @@ final class AgentToolTestAdminDisplay implements IDisplay {
 		}
 
 		return strtolower($value);
-	}
-
-	/**
-	 * @return array<int, string>
-	 */
-	private function buildAssetCandidates(string $path): array {
-		$path = ltrim($path, '/');
-		$candidates = [];
-		$resolved = $this->tryResolveAssetUrl($path);
-
-		foreach($resolved as $url) {
-			$candidates[] = $url;
-		}
-
-		$basePath = $this->getBasePath();
-		$publicBasePath = $this->getPublicBasePath();
-
-		$candidates[] = $publicBasePath . '/' . $path;
-		$candidates[] = $basePath . '/' . $path;
-		$candidates[] = '/public/' . $path;
-		$candidates[] = '/' . $path;
-
-		$out = [];
-
-		foreach($candidates as $candidate) {
-			$candidate = trim((string) $candidate);
-
-			if($candidate === '') {
-				continue;
-			}
-
-			if(!in_array($candidate, $out, true)) {
-				$out[] = $candidate;
-			}
-		}
-
-		return $out;
-	}
-
-	/**
-	 * @return array<int, string>
-	 */
-	private function tryResolveAssetUrl(string $path): array {
-		$out = [];
-
-		foreach(['getPublicAssetUrl', 'getAssetUrl', 'resolvePublicAsset', 'resolveAsset', 'resolveAssetUrl', 'getPublicUrl', 'getAssetLink'] as $method) {
-			if(!method_exists($this->linkTargetService, $method)) {
-				continue;
-			}
-
-			try {
-				$url = $this->linkTargetService->{$method}($path);
-
-				if(is_string($url) && trim($url) !== '') {
-					$out[] = trim($url);
-				}
-			}
-			catch(\Throwable) {
-				// Keep fallback URLs usable if the local resolver method has a different signature.
-			}
-		}
-
-		return $out;
-	}
-
-	private function getPublicBasePath(): string {
-		$basePath = $this->getBasePath();
-
-		if($basePath === '') {
-			return '/public';
-		}
-
-		if(str_ends_with($basePath, '/public')) {
-			return $basePath;
-		}
-
-		return rtrim($basePath . '/public', '/');
-	}
-
-	private function getBasePath(): string {
-		$scriptName = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
-		$basePath = rtrim(dirname($scriptName), '/');
-
-		if($basePath === '/' || $basePath === '\\' || $basePath === '.') {
-			return '';
-		}
-
-		return $basePath;
 	}
 }
