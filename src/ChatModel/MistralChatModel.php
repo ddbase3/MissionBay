@@ -15,11 +15,25 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\AiProvider;
+namespace MissionBay\ChatModel;
 
-class OpenAiProvider extends OpenAiCompatibleProvider {
+use MissionBay\AiProvider\MistralProvider;
+
+class MistralChatModel extends AbstractChatCompletionModel {
 
 	public static function getName(): string {
-		return 'openaiprovider';
+		return 'mistralchatmodel';
+	}
+
+	protected function getProviderName(): string {
+		return MistralProvider::getName();
+	}
+
+	protected function getDefaultEndpoint(): string {
+		return 'https://api.mistral.ai';
+	}
+
+	protected function getDefaultModel(): string {
+		return 'mistral-small-latest';
 	}
 }

@@ -15,11 +15,21 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\AiProvider;
+namespace MissionBay\ChatModel;
 
-class OpenAiProvider extends OpenAiCompatibleProvider {
+use MissionBay\AiProvider\OpenAiCompatibleProvider;
+
+class OpenAiCompatibleChatModel extends AbstractChatCompletionModel {
 
 	public static function getName(): string {
-		return 'openaiprovider';
+		return 'openaicompatiblechatmodel';
+	}
+
+	protected function getProviderName(): string {
+		return OpenAiCompatibleProvider::getName();
+	}
+
+	protected function getDefaultChatCompletionPath(): string {
+		return '/chat/completions';
 	}
 }
