@@ -186,6 +186,8 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 				return ['error' => $err];
 			}
 
+			$this->applyTurnContext($context, $assistantId);
+
 			$stream = $this->streamFactory->createStream(
 				'streamingaiassistant',
 				uniqid('chat-', true)
@@ -641,6 +643,53 @@ class StreamingAiAssistantNode extends AbstractAgentNode {
 		}
 
 		return '';
+	}
+
+	private function applyTurnContext(IAgentContext $context, string $assistantId): void {
+		$turnId = $this->readContextString($context, ['turn_id', 'chat_turn_id', 'message_id'], '');
+
+		if ($turnId === '') {
+			$turnId = $assistantId;
+		}
+
+		try {
+			$context->setVar('turn_id', $turnId);
+			$context->setVar('chat_turn_id', $turnId);
+			$context->setVar('assistant_message_id', $assistantId);
+		} catch (\Throwable $e) {
+			$this->logError('Turn context could not be stored: ' . $e->getMessage());
+		}
+	}
+
+	/**
+	 * @param array<int,string> $keys
+	 */
+	private function readContextString(IAgentContext $context, array $keys, string $default): string {
+		foreach ($keys as $key) {
+			$value = $this->readContextVar($context, $key);
+
+			if (is_scalar($value)) {
+				$value = trim((string)$value);
+
+				if ($value !== '') {
+					return $value;
+				}
+			}
+		}
+
+		return $default;
+	}
+
+	private function readContextVar(IAgentContext $context, string $key): mixed {
+		if (!method_exists($context, 'getVar')) {
+			return null;
+		}
+
+		try {
+			return $context->getVar($key);
+		} catch (\Throwable $e) {
+			return null;
+		}
 	}
 
 	private function pushTextAndDone(IEventStream $stream, string $text, string $status): void {

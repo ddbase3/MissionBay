@@ -129,11 +129,9 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		vertical-align: top;
 	}
 
-
 	.agent-tool-log-detail {
 		min-width: 0;
 	}
-
 
 	.agent-tool-log-detail .mg-row-detail-structured-header {
 		display: flex;
@@ -158,10 +156,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		display: inline-flex;
 		align-items: flex-start;
 		justify-content: flex-end;
+		gap: 6px;
 		flex: 0 0 auto;
 	}
 
-	.agent-tool-log-detail-fullscreen-button {
+	.agent-tool-log-button {
 		appearance: none;
 		border: 1px solid #cfcfcf;
 		border-radius: 4px;
@@ -175,11 +174,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		white-space: nowrap;
 	}
 
-	.agent-tool-log-detail-fullscreen-button:hover {
+	.agent-tool-log-button:hover {
 		background: #f5f5f5;
 	}
 
-	.agent-tool-log-detail-fullscreen-button:focus-visible {
+	.agent-tool-log-button:focus-visible {
 		outline: 2px solid #86a8cf;
 		outline-offset: 2px;
 	}
@@ -209,7 +208,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	.agent-tool-log-detail-layout {
 		display: grid;
-		grid-template-columns: minmax(260px, 380px) minmax(360px, 1fr);
+		grid-template-columns: minmax(260px, 420px) minmax(360px, 1fr);
 		align-items: start;
 		gap: 16px;
 		min-width: 0;
@@ -375,12 +374,100 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		font-size: 12px;
 	}
 
+	.agent-tool-log-group-detail {
+		display: grid;
+		gap: 10px;
+	}
+
+	.agent-tool-log-group-detail-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.agent-tool-log-group-detail-title {
+		font-size: 15px;
+		font-weight: 600;
+		color: #1f2c3c;
+	}
+
+	.agent-tool-log-group-detail-subtitle {
+		font-size: 12px;
+		color: #5f6d7e;
+	}
+
+	.agent-tool-log-child-table-scroll {
+		overflow-x: auto;
+		border: 1px solid #dce4ed;
+		border-radius: 6px;
+		background: rgba(255, 255, 255, 0.82);
+	}
+
+	.agent-tool-log-child-table {
+		width: 100%;
+		min-width: 900px;
+		border-collapse: collapse;
+	}
+
+	.agent-tool-log-child-table th,
+	.agent-tool-log-child-table td {
+		padding: 7px 10px;
+		border-bottom: 1px solid #e3e8ef;
+		text-align: left;
+		vertical-align: top;
+		font-size: 12px;
+	}
+
+	.agent-tool-log-child-table th {
+		background: #f7f9fc;
+		font-weight: 600;
+		color: #425466;
+		white-space: nowrap;
+	}
+
+	.agent-tool-log-child-table tbody tr:nth-child(even) {
+		background: rgba(248, 250, 253, 0.8);
+	}
+
+	.agent-tool-log-child-table-empty {
+		text-align: center;
+		color: #667587;
+	}
+
+	.agent-tool-log-filter-picker {
+		order: -100;
+	}
+
+	.agent-tool-log-filter-picker .mg-select {
+		min-width: 170px;
+	}
+
+	.agent-tool-log-optional-filter-remove {
+		appearance: none;
+		border: 1px solid #d4d4d4;
+		border-radius: 999px;
+		background: #fff;
+		color: #555;
+		cursor: pointer;
+		font: inherit;
+		font-size: 11px;
+		line-height: 1;
+		min-height: 22px;
+		min-width: 22px;
+		padding: 0 6px;
+	}
+
+	.agent-tool-log-optional-filter-remove:hover {
+		background: #f5f5f5;
+		color: #222;
+	}
+
 	@media (max-width: 980px) {
 		.agent-tool-log-detail-layout {
 			grid-template-columns: minmax(0, 1fr);
 		}
 	}
-
 
 	@media (max-width: 720px) {
 		.agent-tool-log-shell h1 {
@@ -397,8 +484,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	<h1>Agent tool log</h1>
 	<p>
 		Server-side ModularGrid view over <code>base3_missionbay_tooluse</code>.
-		Use full-text search, exact tool and status filters, node filtering and a created-at range.
-		Click a row to inspect arguments, result payload and error details.
+		Use search, filters, grouping and clipboard actions to inspect, copy and share tool-call traces.
 	</p>
 
 	<div class="agent-tool-log-grid">
@@ -410,10 +496,12 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 <script type="module">
 	const modularGridModule = await import(new URL(<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
 
-	const {                AjaxAdapter,
+	const {
+		AjaxAdapter,
 		BulkActionsPlugin,
 		ColumnVisibilityPlugin,
 		FiltersPlugin,
+		GroupingPlugin,
 		HeaderMenuPlugin,
 		InfoPlugin,
 		InfiniteScrollPlugin,
@@ -425,16 +513,20 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		SelectionPlugin,
 		SessionStoragePlugin
 	} = modularGridModule;
+
 	const chronoPickerModule = await import(new URL(<?php echo json_encode($chronoPickerJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
 
-	const {                ChronoPicker,
+	const {
+		ChronoPicker,
 		DatePickerPlugin,
 		DateTimePlugin,
 		KeyboardPlugin
 	} = chronoPickerModule;
+
 	const jsonLensModule = await import(new URL(<?php echo json_encode($jsonLensJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
 
-	const {                JsonLens,
+	const {
+		JsonLens,
 		TreeViewPlugin,
 		SyntaxHighlightPlugin,
 		ClipboardPlugin,
@@ -448,27 +540,84 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	const LOG_SELECTOR = '#agent-tool-log-output';
 	const TOOL_OPTIONS = <?php echo json_encode($this->_['toolOptions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const STATUS_OPTIONS = <?php echo json_encode($this->_['statusOptions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const GROUP_FIELD_OPTIONS = <?php echo json_encode($this->_['groupOptions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const BATCH_SIZE = 50;
-	const JSON_DETAIL_LABELS = new Set(['Arguments JSON', 'Result JSON']);
+	const JSON_DETAIL_LABELS = new Set(['Arguments JSON', 'Result JSON', 'Meta JSON']);
+	const GROUP_METRIC_SORT_KEYS = new Set([
+		'group_count',
+		'group_last_created',
+		'group_last_changed',
+		'group_finished_count',
+		'group_error_count',
+		'group_duration_sum',
+		'group_tools_preview',
+		'group_users_preview',
+		'group_anchor_id'
+	]);
+	const GROUP_NORMAL_SORT_KEYS = new Set([
+		'id',
+		'created_at',
+		'updated_at',
+		'finished_at',
+		'duration_seconds'
+	]);
+	const NORMAL_SORT_FALLBACK = {
+		key: 'created_at',
+		direction: 'desc',
+		type: 'datetime'
+	};
 	const CHRONO_FILTER_FIELDS = [
 		{ key: 'created_from', label: 'Created from' },
 		{ key: 'created_to', label: 'Created to' }
 	];
+	const FILTER_FIELDS = [
+		{ key: 'tool_name', label: 'Tool', defaultValue: '', alwaysVisible: true },
+		{ key: 'user', label: 'User', defaultValue: '', alwaysVisible: true },
+		{ key: 'status', label: 'Status', defaultValue: '' },
+		{ key: 'turn_id', label: 'Turn', defaultValue: '' },
+		{ key: 'chatbot_key', label: 'Chatbot', defaultValue: '' },
+		{ key: 'config_name', label: 'Config', defaultValue: '' },
+		{ key: 'node_id', label: 'Node', defaultValue: '' },
+		{ key: 'created_from', label: 'Created from', defaultValue: '' },
+		{ key: 'created_to', label: 'Created to', defaultValue: '' }
+	];
+	const OPTIONAL_FILTER_FIELDS = FILTER_FIELDS.filter((field) => !field.alwaysVisible);
+	const FILTER_DEFAULTS = FILTER_FIELDS.reduce((carry, field) => {
+		carry[field.key] = field.defaultValue || '';
+		return carry;
+	}, {});
 
 	const chronoPickerBindings = new Map();
+	const visibleOptionalFilters = new Set();
 
 	const SORT_TYPES = {
 		id: 'int',
+		turn_id: 'string',
 		tool_name: 'string',
 		label: 'string',
 		node_id: 'string',
 		call_id: 'string',
+		call_index: 'int',
 		iteration: 'int',
 		status: 'string',
+		chatbot_key: 'string',
+		config_group: 'string',
+		config_name: 'string',
+		user_id: 'int',
+		user_login: 'string',
 		created_at: 'datetime',
 		updated_at: 'datetime',
 		finished_at: 'datetime',
-		duration_seconds: 'int'
+		duration_seconds: 'int',
+		group_count: 'int',
+		group_last_created: 'datetime',
+		group_last_changed: 'datetime',
+		group_finished_count: 'int',
+		group_error_count: 'int',
+		group_duration_sum: 'int',
+		group_tools_preview: 'string',
+		group_users_preview: 'string',
+		group_anchor_id: 'int'
 	};
 
 	const layout = {
@@ -514,17 +663,93 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		logElement.appendChild(document.createTextNode(' ' + getText(message, 'None')));
 	}
 
-	function getText(value, placeholder = '—') {
-		if (value === null || value === undefined || value === '') {
+	function isEmptyValue(value) {
+		return value === null || value === undefined || value === '';
+	}
+
+	function getText(value, placeholder = '-') {
+		if (isEmptyValue(value)) {
 			return placeholder;
 		}
 
 		return String(value);
 	}
 
+	function getGroupFieldLabel(key) {
+		const found = GROUP_FIELD_OPTIONS.find((option) => option.key === key);
+		return found ? found.label : key;
+	}
+
+	function normalizeGroupFields(fields) {
+		const allowedKeys = new Set(GROUP_FIELD_OPTIONS.map((option) => option.key));
+		const normalized = [];
+		const used = new Set();
+
+		(fields || []).forEach((field) => {
+			const key = String(field || '').trim();
+
+			if (!key || !allowedKeys.has(key) || used.has(key)) {
+				return;
+			}
+
+			used.add(key);
+			normalized.push(key);
+		});
+
+		return normalized;
+	}
+
+	function getGroupFields() {
+		if (!grid) {
+			return [];
+		}
+
+		const fields = grid.getState().toolLogGrouping?.fields;
+
+		return normalizeGroupFields(fields);
+	}
+
+	function buildGroupPayload(fields) {
+		return normalizeGroupFields(fields).map((key) => {
+			return {
+				key,
+				dir: 'asc'
+			};
+		});
+	}
+
+	function resolveSortForRequest(request) {
+		const activeGroupFields = getGroupFields();
+		const hasGrouping = activeGroupFields.length > 0;
+		let sortKey = request.sortKey || NORMAL_SORT_FALLBACK.key;
+		let sortDirection = request.sortDirection || NORMAL_SORT_FALLBACK.direction;
+
+		if (hasGrouping) {
+			const allowedGroupedSorts = new Set([
+				...activeGroupFields,
+				...GROUP_METRIC_SORT_KEYS,
+				...GROUP_NORMAL_SORT_KEYS
+			]);
+
+			if (!allowedGroupedSorts.has(sortKey)) {
+				sortKey = activeGroupFields[0];
+				sortDirection = 'asc';
+			}
+		} else if (GROUP_METRIC_SORT_KEYS.has(sortKey)) {
+			sortKey = NORMAL_SORT_FALLBACK.key;
+			sortDirection = NORMAL_SORT_FALLBACK.direction;
+		}
+
+		return {
+			key: sortKey,
+			direction: sortDirection,
+			type: SORT_TYPES[sortKey] || 'string'
+		};
+	}
+
 	function formatDateTime(value) {
 		if (!value) {
-			return '—';
+			return '-';
 		}
 
 		const date = new Date(String(value).replace(' ', 'T'));
@@ -545,7 +770,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	function formatDuration(value) {
 		if (value === null || value === undefined || value === '') {
-			return '—';
+			return '-';
 		}
 
 		const seconds = Number(value);
@@ -555,6 +780,20 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		return String(seconds) + ' s';
+	}
+
+	function formatNumber(value) {
+		if (value === null || value === undefined || value === '') {
+			return '-';
+		}
+
+		const number = Number(value);
+
+		if (Number.isNaN(number)) {
+			return String(value);
+		}
+
+		return new Intl.NumberFormat(undefined).format(number);
 	}
 
 	function getStatusClass(status) {
@@ -585,9 +824,34 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		return result;
 	}
 
+	function buildCurrentServerContext() {
+		const state = grid ? grid.getState() : {};
+
+		return {
+			search: state.query?.search || '',
+			filters: buildFilterPayload(state.filters || {}),
+			group: buildGroupPayload(getGroupFields())
+		};
+	}
+
 	function renderCreatedAt(value, row) {
 		const wrapper = document.createElement('div');
 		wrapper.className = 'agent-tool-log-cell-stack';
+
+		if (row.is_group_row === true) {
+			const main = document.createElement('div');
+			main.className = 'agent-tool-log-cell-main';
+			main.textContent = formatDateTime(row.group_last_created);
+
+			const sub = document.createElement('div');
+			sub.className = 'agent-tool-log-cell-sub';
+			sub.textContent = formatNumber(row.group_count) + ' entries · last change ' + formatDateTime(row.group_last_changed);
+
+			wrapper.appendChild(main);
+			wrapper.appendChild(sub);
+
+			return wrapper;
+		}
 
 		const main = document.createElement('div');
 		main.className = 'agent-tool-log-cell-main';
@@ -603,9 +867,57 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		return wrapper;
 	}
 
+	function renderTurn(value, row) {
+		const wrapper = document.createElement('div');
+		wrapper.className = 'agent-tool-log-cell-stack';
+
+		if (row.is_group_row === true) {
+			const main = document.createElement('div');
+			main.className = 'agent-tool-log-cell-main';
+			main.textContent = getText(row.group_title, 'Grouped entries');
+
+			const sub = document.createElement('div');
+			sub.className = 'agent-tool-log-cell-sub';
+			sub.textContent = Array.isArray(row.group_labels) ? row.group_labels.join(' · ') : '';
+
+			wrapper.appendChild(main);
+			wrapper.appendChild(sub);
+
+			return wrapper;
+		}
+
+		const main = document.createElement('div');
+		main.className = 'agent-tool-log-cell-main';
+		main.textContent = getText(row.turn_id);
+
+		const sub = document.createElement('div');
+		sub.className = 'agent-tool-log-cell-sub';
+		sub.textContent = 'Call #' + getText(row.call_index, '0') + ' · ID ' + getText(row.id, '0');
+
+		wrapper.appendChild(main);
+		wrapper.appendChild(sub);
+
+		return wrapper;
+	}
+
 	function renderTool(value, row) {
 		const wrapper = document.createElement('div');
 		wrapper.className = 'agent-tool-log-cell-stack';
+
+		if (row.is_group_row === true) {
+			const main = document.createElement('div');
+			main.className = 'agent-tool-log-cell-main';
+			main.textContent = getText(row.group_tools_preview, row.tool_name || 'Grouped tools');
+
+			const sub = document.createElement('div');
+			sub.className = 'agent-tool-log-cell-sub';
+			sub.textContent = formatNumber(row.group_finished_count) + ' finished · ' + formatNumber(row.group_error_count) + ' errors';
+
+			wrapper.appendChild(main);
+			wrapper.appendChild(sub);
+
+			return wrapper;
+		}
 
 		const main = document.createElement('div');
 		main.className = 'agent-tool-log-cell-main';
@@ -624,6 +936,25 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	function renderStatus(value, row) {
 		const wrapper = document.createElement('div');
 		wrapper.className = 'agent-tool-log-pill-row';
+
+		if (row.is_group_row === true) {
+			const count = document.createElement('span');
+			count.className = 'agent-tool-log-pill agent-tool-log-pill-strong';
+			count.textContent = formatNumber(row.group_count) + ' entries';
+			wrapper.appendChild(count);
+
+			const errors = document.createElement('span');
+			errors.className = 'agent-tool-log-pill ' + (Number(row.group_error_count) > 0 ? 'agent-tool-log-pill-status-error' : '');
+			errors.textContent = formatNumber(row.group_error_count) + ' errors';
+			wrapper.appendChild(errors);
+
+			const finished = document.createElement('span');
+			finished.className = 'agent-tool-log-pill agent-tool-log-pill-status-finished';
+			finished.textContent = formatNumber(row.group_finished_count) + ' finished';
+			wrapper.appendChild(finished);
+
+			return wrapper;
+		}
 
 		const status = document.createElement('span');
 		status.className = ('agent-tool-log-pill agent-tool-log-pill-strong ' + getStatusClass(row.status)).trim();
@@ -646,9 +977,46 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		return wrapper;
 	}
 
+	function renderContext(value, row) {
+		const wrapper = document.createElement('div');
+		wrapper.className = 'agent-tool-log-cell-stack';
+
+		const main = document.createElement('div');
+		main.className = 'agent-tool-log-cell-main';
+		main.textContent = row.is_group_row === true
+			? getText(row.chatbot_key || row.config_name || row.group_title)
+			: getText(row.chatbot_key);
+
+		const sub = document.createElement('div');
+		sub.className = 'agent-tool-log-cell-sub';
+		sub.textContent = row.is_group_row === true
+			? getText(row.group_users_preview, 'Grouped users')
+			: getText(row.user_login, 'unknown_user') + ' · #' + getText(row.user_id, '0');
+
+		wrapper.appendChild(main);
+		wrapper.appendChild(sub);
+
+		return wrapper;
+	}
+
 	function renderNodeCall(value, row) {
 		const wrapper = document.createElement('div');
 		wrapper.className = 'agent-tool-log-cell-stack';
+
+		if (row.is_group_row === true) {
+			const main = document.createElement('div');
+			main.className = 'agent-tool-log-cell-main';
+			main.textContent = 'Group';
+
+			const sub = document.createElement('div');
+			sub.className = 'agent-tool-log-cell-sub';
+			sub.textContent = 'Anchor row #' + getText(row.group_anchor_id, '0');
+
+			wrapper.appendChild(main);
+			wrapper.appendChild(sub);
+
+			return wrapper;
+		}
 
 		const main = document.createElement('div');
 		main.className = 'agent-tool-log-cell-main';
@@ -703,6 +1071,25 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	}
 
 	async function loadRemoteDetail(context) {
+		const row = context && context.row ? context.row : null;
+
+		if (row && row.is_group_row === true) {
+			const serverContext = buildCurrentServerContext();
+			const response = await postJson({
+				mode: 'grouped-detail',
+				search: serverContext.search,
+				filters: serverContext.filters,
+				group: serverContext.group,
+				groupValues: row.group_values || {}
+			});
+
+			if (!response || !response.found || !response.detail) {
+				throw new Error('No grouped detail data returned for ' + getText(row.group_title, row.id));
+			}
+
+			return response.detail;
+		}
+
 		const id = getLogEntryId(context);
 
 		if (id === null) {
@@ -722,16 +1109,30 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	}
 
 	function createDetailLoadingPlaceholder(context) {
+		const row = context && context.row ? context.row : null;
 		const wrapper = document.createElement('div');
 		wrapper.className = 'agent-tool-log-detail-status';
+
+		if (row && row.is_group_row === true) {
+			wrapper.textContent = 'Loading grouped entries for ' + getText(row.group_title, row.id) + '...';
+			return wrapper;
+		}
+
 		wrapper.textContent = 'Loading detail for log entry #' + getText(getLogEntryId(context)) + '...';
 
 		return wrapper;
 	}
 
 	function createDetailErrorPlaceholder(context, error) {
+		const row = context && context.row ? context.row : null;
 		const wrapper = document.createElement('div');
 		wrapper.className = 'agent-tool-log-detail-status agent-tool-log-detail-status-error';
+
+		if (row && row.is_group_row === true) {
+			wrapper.textContent = 'Failed to load grouped entries for ' + getText(row.group_title, row.id) + ': ' + getText(error, 'Unknown error');
+			return wrapper;
+		}
+
 		wrapper.textContent = 'Failed to load detail for log entry #' + getText(getLogEntryId(context)) + ': ' + getText(error, 'Unknown error');
 
 		return wrapper;
@@ -739,7 +1140,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	function appendSafeContent(parent, content) {
 		if (content === null || content === undefined || content === '') {
-			parent.textContent = '—';
+			parent.textContent = '-';
 			return;
 		}
 
@@ -931,16 +1332,16 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 	}
 
-	function createFullscreenButton() {
+	function createButton(label, onClick) {
 		const button = document.createElement('button');
 
 		button.type = 'button';
-		button.className = 'agent-tool-log-detail-fullscreen-button';
-		button.textContent = 'Fullscreen';
+		button.className = 'agent-tool-log-button';
+		button.textContent = label;
 		button.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			toggleDetailFullscreen(button);
+			onClick(button);
 		});
 
 		return button;
@@ -951,6 +1352,10 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
 			return document.createTextNode(getText(payload));
+		}
+
+		if (payload.kind === 'grouped-child-table') {
+			return renderGroupChildTable(context);
 		}
 
 		const wrapper = createElement('mg-row-detail-structured agent-tool-log-detail');
@@ -969,7 +1374,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			headerText.appendChild(createElement('mg-row-detail-structured-summary', payload.summary));
 		}
 
-		headerActions.appendChild(createFullscreenButton());
+		headerActions.appendChild(createButton('Copy record', () => copySingleLogEntry(payload.record || context.row)));
+		headerActions.appendChild(createButton('Fullscreen', (button) => toggleDetailFullscreen(button)));
 		header.appendChild(headerText);
 		header.appendChild(headerActions);
 		leftColumn.appendChild(header);
@@ -1013,17 +1419,105 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		return wrapper;
 	}
 
+	function renderGroupChildTable(context) {
+		const payload = context.payload || {};
+		const row = context.row || {};
+		const wrapper = document.createElement('div');
+		wrapper.className = 'agent-tool-log-group-detail';
+
+		const header = document.createElement('div');
+		header.className = 'agent-tool-log-group-detail-header';
+
+		const headerText = document.createElement('div');
+
+		const title = document.createElement('div');
+		title.className = 'agent-tool-log-group-detail-title';
+		title.textContent = getText(payload.headline, 'Grouped log entries');
+		headerText.appendChild(title);
+
+		const subtitle = document.createElement('div');
+		subtitle.className = 'agent-tool-log-group-detail-subtitle';
+		subtitle.textContent = getText(payload.summary, 'Matching log entries');
+		headerText.appendChild(subtitle);
+
+		const actions = document.createElement('div');
+		actions.className = 'agent-tool-log-detail-header-actions';
+		actions.appendChild(createButton('Copy group', () => copyGroupLogEntries(row)));
+		actions.appendChild(createButton('Copy visible child rows', () => copyPayloadToClipboard(payload.rows || [])));
+
+		header.appendChild(headerText);
+		header.appendChild(actions);
+		wrapper.appendChild(header);
+
+		const tableScroll = document.createElement('div');
+		tableScroll.className = 'agent-tool-log-child-table-scroll';
+
+		const table = document.createElement('table');
+		table.className = 'agent-tool-log-child-table';
+
+		const thead = document.createElement('thead');
+		const headRow = document.createElement('tr');
+
+		(payload.columns || []).forEach((column) => {
+			const th = document.createElement('th');
+			th.textContent = column.label || column.key;
+			headRow.appendChild(th);
+		});
+
+		thead.appendChild(headRow);
+		table.appendChild(thead);
+
+		const tbody = document.createElement('tbody');
+		const rows = Array.isArray(payload.rows) ? payload.rows : [];
+
+		if (rows.length === 0) {
+			const emptyRow = document.createElement('tr');
+			const emptyCell = document.createElement('td');
+			emptyCell.colSpan = Math.max((payload.columns || []).length, 1);
+			emptyCell.className = 'agent-tool-log-child-table-empty';
+			emptyCell.textContent = 'No rows found for this group.';
+			emptyRow.appendChild(emptyCell);
+			tbody.appendChild(emptyRow);
+		} else {
+			rows.forEach((childRow) => {
+				const tr = document.createElement('tr');
+
+				(payload.columns || []).forEach((column) => {
+					const td = document.createElement('td');
+					td.textContent = getText(childRow[column.key]);
+					tr.appendChild(td);
+				});
+
+				tbody.appendChild(tr);
+			});
+		}
+
+		table.appendChild(tbody);
+		tableScroll.appendChild(table);
+		wrapper.appendChild(tableScroll);
+
+		return wrapper;
+	}
+
 	function createFallbackClipboardRecord(row) {
 		return {
 			id: row && row.id ? row.id : 0,
+			turn_id: getText(row && row.turn_id, ''),
 			node_id: getText(row && row.node_id, ''),
 			call_id: getText(row && row.call_id, ''),
+			call_index: row && row.call_index !== undefined ? row.call_index : 0,
+			chatbot_key: getText(row && row.chatbot_key, ''),
+			config_group: getText(row && row.config_group, ''),
+			config_name: getText(row && row.config_name, ''),
+			user_id: row && row.user_id !== undefined ? row.user_id : 0,
+			user_login: getText(row && row.user_login, ''),
 			tool_name: getText(row && row.tool_name, ''),
 			label: getText(row && row.label, ''),
 			iteration: row && row.iteration !== undefined ? row.iteration : 0,
 			status: getText(row && row.status, ''),
 			error_type: getText(row && row.error_type, ''),
 			error_code: getText(row && row.error_code, ''),
+			error_message: getText(row && row.error_message, ''),
 			created_at: getText(row && row.created_at, ''),
 			updated_at: getText(row && row.updated_at, ''),
 			finished_at: getText(row && row.finished_at, ''),
@@ -1042,6 +1536,24 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		return response.record;
+	}
+
+	async function loadRemoteGroupRecords(row) {
+		const serverContext = buildCurrentServerContext();
+
+		const response = await postJson({
+			mode: 'group-records',
+			search: serverContext.search,
+			filters: serverContext.filters,
+			group: serverContext.group,
+			groupValues: row.group_values || {}
+		});
+
+		if (!response || !response.found || !Array.isArray(response.records)) {
+			throw new Error('No grouped records returned for ' + getText(row.group_title, row.id));
+		}
+
+		return response.records;
 	}
 
 	async function writeClipboardText(text) {
@@ -1070,9 +1582,19 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	}
 
 	async function copySingleLogEntry(row) {
+		if (!row) {
+			setLog('No log entry available for clipboard copy.');
+			return;
+		}
+
+		if (row.is_group_row === true) {
+			await copyGroupLogEntries(row);
+			return;
+		}
+
 		try {
 			setLog('Copying log entry #' + getText(row && row.id) + '...');
-			const record = await loadRemoteRecord(row.id);
+			const record = row.arguments_json !== undefined ? row : await loadRemoteRecord(row.id);
 			await copyPayloadToClipboard(record);
 			setLog('Copied log entry #' + getText(row && row.id) + ' to clipboard.');
 		} catch (error) {
@@ -1085,13 +1607,36 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 	}
 
+	async function copyGroupLogEntries(row) {
+		if (!row || row.is_group_row !== true) {
+			setLog('Selected row is not a group.');
+			return;
+		}
+
+		try {
+			setLog('Copying group "' + getText(row.group_title, row.id) + '"...');
+			const records = await loadRemoteGroupRecords(row);
+			await copyPayloadToClipboard({
+				group: {
+					title: row.group_title,
+					values: row.group_values || {},
+					count: row.group_count || records.length
+				},
+				records
+			});
+			setLog('Copied group "' + getText(row.group_title, row.id) + '" with ' + String(records.length) + ' log entries to clipboard.');
+		} catch (error) {
+			setLog('Failed to copy group: ' + getText(error && error.message, String(error)));
+		}
+	}
+
 	async function copySelectedLogEntries(selectedRowIds) {
 		const ids = Array.isArray(selectedRowIds)
-			? selectedRowIds.filter((id) => id !== null && id !== undefined && id !== '')
+			? selectedRowIds.filter((id) => id !== null && id !== undefined && id !== '' && String(id).indexOf('group_') !== 0)
 			: [];
 
 		if (ids.length === 0) {
-			setLog('No log entries selected.');
+			setLog('No single log entries selected. Use the row action "Copy group" for grouped rows.');
 			return;
 		}
 
@@ -1127,6 +1672,38 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 	}
 
+	function buildGroupingStatePatch({ currentState, nextGroupingState }) {
+		const normalizedFields = normalizeGroupFields(nextGroupingState.fields || []);
+		const currentQuery = currentState.query || {};
+		let nextSortKey = currentQuery.sortKey || NORMAL_SORT_FALLBACK.key;
+		let nextSortDirection = currentQuery.sortDirection || NORMAL_SORT_FALLBACK.direction;
+
+		if (normalizedFields.length > 0) {
+			const allowedGroupedSorts = new Set([
+				...normalizedFields,
+				...GROUP_METRIC_SORT_KEYS,
+				...GROUP_NORMAL_SORT_KEYS
+			]);
+
+			if (!allowedGroupedSorts.has(nextSortKey)) {
+				nextSortKey = 'created_at';
+				nextSortDirection = 'desc';
+			}
+		} else if (GROUP_METRIC_SORT_KEYS.has(nextSortKey)) {
+			nextSortKey = NORMAL_SORT_FALLBACK.key;
+			nextSortDirection = NORMAL_SORT_FALLBACK.direction;
+		}
+
+		return {
+			query: {
+				sortKey: nextSortKey,
+				sortDirection: nextSortDirection
+			},
+			selection: {
+				selectedRowIds: []
+			}
+		};
+	}
 
 	function findChronoFilterInput(root, field, fallbackIndex) {
 		const exactSelector = [
@@ -1169,14 +1746,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	function dispatchFilterInputChanged(input) {
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		input.dispatchEvent(new Event('change', { bubbles: true }));
-	}
-
-	function closeChronoPicker(binding) {
-		if (!binding || !binding.picker || typeof binding.picker.execute !== 'function') {
-			return;
-		}
-
-		binding.picker.execute('close');
 	}
 
 	function repositionChronoPicker(binding) {
@@ -1347,6 +1916,237 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 	}
 
+	function getFilterPanel(root) {
+		return root.querySelector('.agent-tool-log-panel--filters');
+	}
+
+	function getFilterFieldByKey(key) {
+		return FILTER_FIELDS.find((field) => field.key === key) || null;
+	}
+
+	function getFilterFieldByLabel(label) {
+		return FILTER_FIELDS.find((field) => field.label === label) || null;
+	}
+
+	function getControlValue(control) {
+		if (!control) {
+			return '';
+		}
+
+		return String(control.value || '');
+	}
+
+	function isFilterValueDefault(key, value) {
+		return getControlValue({ value }) === String(FILTER_DEFAULTS[key] || '');
+	}
+
+	function getFilterControlFromGroup(group) {
+		const control = group.querySelector('select, input');
+
+		if (control instanceof HTMLSelectElement || control instanceof HTMLInputElement) {
+			return control;
+		}
+
+		return null;
+	}
+
+	function getFilterKeyFromGroup(group) {
+		const control = getFilterControlFromGroup(group);
+
+		if (control) {
+			const key = control.getAttribute('name')
+				|| control.dataset.key
+				|| control.dataset.filterKey
+				|| control.dataset.fieldKey
+				|| '';
+
+			if (key && getFilterFieldByKey(key)) {
+				return key;
+			}
+		}
+
+		const label = group.querySelector('.mg-label');
+		const labelText = label ? label.textContent.trim() : '';
+		const field = getFilterFieldByLabel(labelText);
+
+		return field ? field.key : '';
+	}
+
+	function dispatchFilterControlChanged(control) {
+		control.dispatchEvent(new Event('input', { bubbles: true }));
+		control.dispatchEvent(new Event('change', { bubbles: true }));
+	}
+
+	function resetFilterGroup(group, key) {
+		const control = getFilterControlFromGroup(group);
+
+		if (!control) {
+			return;
+		}
+
+		control.value = String(FILTER_DEFAULTS[key] || '');
+		dispatchFilterControlChanged(control);
+	}
+
+	function ensureOptionalFilterPicker(panel) {
+		let picker = panel.querySelector('.agent-tool-log-filter-picker');
+
+		if (picker) {
+			return picker;
+		}
+
+		picker = document.createElement('label');
+		picker.className = 'mg-control-group agent-tool-log-filter-picker';
+
+		const label = document.createElement('span');
+		label.className = 'mg-label';
+		label.textContent = 'Add filter';
+
+		const select = document.createElement('select');
+		select.className = 'mg-select';
+
+		picker.appendChild(label);
+		picker.appendChild(select);
+		panel.prepend(picker);
+
+		select.addEventListener('change', () => {
+			const key = select.value;
+
+			if (key !== '') {
+				visibleOptionalFilters.add(key);
+				applyOptionalFilterVisibility(panel);
+			}
+
+			select.value = '';
+		});
+
+		return picker;
+	}
+
+	function updateOptionalFilterPickerOptions(panel) {
+		const picker = ensureOptionalFilterPicker(panel);
+		const select = picker.querySelector('select');
+
+		if (!(select instanceof HTMLSelectElement)) {
+			return;
+		}
+
+		const optionKeys = OPTIONAL_FILTER_FIELDS
+			.filter((field) => !visibleOptionalFilters.has(field.key))
+			.map((field) => field.key);
+		const signature = optionKeys.join('|');
+
+		if (select.dataset.optionSignature === signature) {
+			return;
+		}
+
+		const current = select.value;
+		select.replaceChildren();
+
+		const placeholder = document.createElement('option');
+		placeholder.value = '';
+		placeholder.textContent = 'Select optional filter';
+		select.appendChild(placeholder);
+
+		optionKeys.forEach((key) => {
+			const field = getFilterFieldByKey(key);
+
+			if (!field) {
+				return;
+			}
+
+			const option = document.createElement('option');
+			option.value = field.key;
+			option.textContent = field.label;
+			select.appendChild(option);
+		});
+
+		select.dataset.optionSignature = signature;
+		select.value = optionKeys.includes(current) ? current : '';
+	}
+
+	function ensureOptionalFilterRemoveButton(group, key, panel) {
+		if (group.querySelector('.agent-tool-log-optional-filter-remove')) {
+			return;
+		}
+
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.className = 'agent-tool-log-optional-filter-remove';
+		button.title = 'Remove this filter';
+		button.textContent = '×';
+		button.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+
+			resetFilterGroup(group, key);
+			visibleOptionalFilters.delete(key);
+			applyOptionalFilterVisibility(panel);
+		});
+
+		group.appendChild(button);
+	}
+
+	function applyOptionalFilterVisibility(panel) {
+		if (!panel) {
+			return;
+		}
+
+		ensureOptionalFilterPicker(panel);
+
+		Array.from(panel.querySelectorAll('.mg-control-group')).forEach((group) => {
+			if (group.classList.contains('agent-tool-log-filter-picker')) {
+				return;
+			}
+
+			const key = getFilterKeyFromGroup(group);
+			const field = key !== '' ? getFilterFieldByKey(key) : null;
+
+			if (!field) {
+				return;
+			}
+
+			const control = getFilterControlFromGroup(group);
+			const value = getControlValue(control);
+			const hasNonDefaultValue = !isFilterValueDefault(key, value);
+
+			if (field.alwaysVisible) {
+				group.style.display = '';
+				return;
+			}
+
+			if (hasNonDefaultValue) {
+				visibleOptionalFilters.add(key);
+			}
+
+			ensureOptionalFilterRemoveButton(group, key, panel);
+			group.style.display = visibleOptionalFilters.has(key) ? '' : 'none';
+		});
+
+		updateOptionalFilterPickerOptions(panel);
+	}
+
+	function watchOptionalFilterControls(root) {
+		const panel = getFilterPanel(root);
+
+		if (!panel) {
+			return;
+		}
+
+		applyOptionalFilterVisibility(panel);
+
+		const observer = new MutationObserver(() => {
+			applyOptionalFilterVisibility(panel);
+		});
+
+		observer.observe(panel, {
+			childList: true,
+			subtree: true
+		});
+	}
+
+	let grid = null;
+
 	(async function() {
 		const root = document.querySelector(GRID_SELECTOR);
 
@@ -1356,8 +2156,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		root.dataset.initialized = '1';
 
-		let grid = null;
-
 		const adapter = new AjaxAdapter({
 			url: ENDPOINT_URL,
 			method: 'POST',
@@ -1366,23 +2164,23 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			mapRequest(request) {
 				const state = grid ? grid.getState() : {};
 				const filters = buildFilterPayload(state.filters || {});
-				const sortKey = request.sortKey || 'created_at';
-				const sortDirection = request.sortDirection || 'desc';
+				const groupFields = getGroupFields();
+				const sort = resolveSortForRequest(request);
 
 				return {
-					mode: 'page',
+					mode: groupFields.length > 0 ? 'grouped-page' : 'page',
 					page: request.page || 1,
 					pageSize: request.pageSize || BATCH_SIZE,
 					search: request.search || '',
 					sort: [
 						{
-							key: sortKey,
-							dir: sortDirection,
-							type: SORT_TYPES[sortKey] || 'string'
+							key: sort.key,
+							dir: sort.direction,
+							type: sort.type
 						}
 					],
 					filters,
-					group: []
+					group: buildGroupPayload(groupFields)
 				};
 			}
 		});
@@ -1393,19 +2191,20 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			dataMode: 'server',
 			server: {
 				searchDebounceMs: 260,
-				watchStateKeys: ['query', 'filters']
+				watchStateKeys: ['query', 'filters', 'toolLogGrouping']
 			},
 			features: {
 				paging: false
 			},
 			pageSize: BATCH_SIZE,
 			sort: {
-				key: 'created_at',
-				direction: 'desc'
+				key: NORMAL_SORT_FALLBACK.key,
+				direction: NORMAL_SORT_FALLBACK.direction
 			},
 			plugins: [
 				SearchPlugin,
 				FiltersPlugin,
+				GroupingPlugin,
 				HeaderMenuPlugin,
 				InfoPlugin,
 				SelectionPlugin,
@@ -1422,7 +2221,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					zone: 'topLine1',
 					order: 10,
 					label: 'Search',
-					placeholder: 'Search id, call id, tool, label, status, error'
+					placeholder: 'Search id, turn, user, chatbot, call id, tool, label, status, error'
 				},
 				filters: {
 					zone: 'topLine2',
@@ -1438,10 +2237,38 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 							options: TOOL_OPTIONS
 						},
 						{
+							key: 'user',
+							label: 'User',
+							type: 'text',
+							placeholder: 'User id or login',
+							width: 160
+						},
+						{
 							key: 'status',
 							label: 'Status',
 							type: 'select',
 							options: STATUS_OPTIONS
+						},
+						{
+							key: 'turn_id',
+							label: 'Turn',
+							type: 'text',
+							placeholder: 'Turn id',
+							width: 190
+						},
+						{
+							key: 'chatbot_key',
+							label: 'Chatbot',
+							type: 'text',
+							placeholder: 'Chatbot key',
+							width: 190
+						},
+						{
+							key: 'config_name',
+							label: 'Config',
+							type: 'text',
+							placeholder: 'Config name',
+							width: 180
 						},
 						{
 							key: 'node_id',
@@ -1466,6 +2293,37 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						}
 					]
 				},
+				grouping: {
+					zone: 'topLine1',
+					order: 20,
+					stateKey: 'toolLogGrouping',
+					control: 'dropdown',
+					multi: true,
+					fields: GROUP_FIELD_OPTIONS,
+					onStateChangePatch: buildGroupingStatePatch,
+					dropdown: {
+						summaryLabel: 'Grouping',
+						emptyLabel: 'No grouping',
+						headline: 'Group log rows by',
+						copy: 'Turn is usually the most useful grouping. Tool, user and chatbot are useful for debugging.',
+						clearLabel: 'Clear grouping',
+						preferredAlign: 'end',
+						stateKey: 'toolLogGroupingDropdown',
+						wrapperClassName: 'agent-tool-log-grouping-toolbar',
+						detailsClassName: 'agent-tool-log-grouping-dropdown',
+						summaryClassName: 'agent-tool-log-grouping-dropdown-summary',
+						summaryLabelClassName: 'agent-tool-log-grouping-dropdown-label',
+						summaryValueClassName: 'agent-tool-log-grouping-dropdown-value',
+						menuClassName: 'agent-tool-log-grouping-dropdown-menu',
+						headlineClassName: 'agent-tool-log-grouping-dropdown-headline',
+						copyClassName: 'agent-tool-log-grouping-dropdown-copy',
+						listClassName: 'agent-tool-log-grouping-checkbox-list',
+						rowClassName: 'agent-tool-log-grouping-checkbox-row',
+						badgeClassName: 'agent-tool-log-grouping-order-badge',
+						actionsClassName: 'agent-tool-log-grouping-dropdown-actions',
+						clearButtonClassName: 'agent-tool-log-grouping-clear-button'
+					}
+				},
 				headerMenu: {
 					showSortActions: true,
 					showClearSortAction: true,
@@ -1476,12 +2334,12 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				bulkActions: {
 					zone: 'topLine1',
-					order: 20,
+					order: 30,
 					selectedLabel: 'Selected log entries',
 					items: [
 						{
 							key: 'copy-selected-clipboard',
-							label: 'Copy to clipboard',
+							label: 'Copy selected entries',
 							onClick(context) {
 								copySelectedLogEntries(context.selectedRowIds || []);
 							}
@@ -1498,13 +2356,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				reset: {
 					zone: 'topLine1',
-					order: 30,
+					order: 40,
 					label: 'Reset',
-					sections: ['query', 'filters', 'columns', 'selection', 'detailView']
+					sections: ['query', 'filters', 'columns', 'selection', 'detailView', 'toolLogGrouping']
 				},
 				sessionStorage: {
 					key: 'agent-tool-log-grid',
-					sections: ['query', 'filters', 'columns', 'selection', 'detailView']
+					sections: ['query', 'filters', 'columns', 'selection', 'detailView', 'toolLogGrouping']
 				},
 				info: {
 					zone: 'statusZone',
@@ -1562,18 +2420,40 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				{
 					key: 'created_at',
 					label: 'Created',
-					width: 240,
+					width: 230,
 					headerMenu: {
 						defaultSortKey: 'created_at',
 						defaultSortDirection: 'desc',
 						sortOptions: [
 							{ key: 'created_at', label: 'Created' },
 							{ key: 'finished_at', label: 'Finished' },
-							{ key: 'duration_seconds', label: 'Duration' }
+							{ key: 'duration_seconds', label: 'Duration' },
+							{ key: 'group_last_created', label: 'Group last created' },
+							{ key: 'group_last_changed', label: 'Group last changed' },
+							{ key: 'group_count', label: 'Group count' }
 						]
 					},
 					render(value, row) {
 						return renderCreatedAt(value, row);
+					}
+				},
+				{
+					key: 'turn_id',
+					label: 'Turn',
+					width: 280,
+					headerMenu: {
+						defaultSortKey: 'turn_id',
+						defaultSortDirection: 'asc',
+						sortOptions: [
+							{ key: 'turn_id', label: 'Turn' },
+							{ key: 'call_index', label: 'Call index' },
+							{ key: 'id', label: 'ID' },
+							{ key: 'created_at', label: 'Created' },
+							{ key: 'group_count', label: 'Group count' }
+						]
+					},
+					render(value, row) {
+						return renderTurn(value, row);
 					}
 				},
 				{
@@ -1585,7 +2465,9 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortDirection: 'asc',
 						sortOptions: [
 							{ key: 'tool_name', label: 'Tool' },
-							{ key: 'label', label: 'Label' }
+							{ key: 'label', label: 'Label' },
+							{ key: 'created_at', label: 'Created' },
+							{ key: 'group_tools_preview', label: 'Group tools' }
 						]
 					},
 					render(value, row) {
@@ -1601,7 +2483,10 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortDirection: 'asc',
 						sortOptions: [
 							{ key: 'status', label: 'Status' },
-							{ key: 'iteration', label: 'Iteration' }
+							{ key: 'iteration', label: 'Iteration' },
+							{ key: 'created_at', label: 'Created' },
+							{ key: 'group_error_count', label: 'Group errors' },
+							{ key: 'group_finished_count', label: 'Group finished' }
 						]
 					},
 					render(value, row) {
@@ -1609,9 +2494,29 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					}
 				},
 				{
+					key: 'chatbot_key',
+					label: 'Chatbot / User',
+					width: 320,
+					headerMenu: {
+						defaultSortKey: 'chatbot_key',
+						defaultSortDirection: 'asc',
+						sortOptions: [
+							{ key: 'chatbot_key', label: 'Chatbot' },
+							{ key: 'config_name', label: 'Config' },
+							{ key: 'user_login', label: 'User login' },
+							{ key: 'user_id', label: 'User ID' },
+							{ key: 'created_at', label: 'Created' },
+							{ key: 'group_users_preview', label: 'Group users' }
+						]
+					},
+					render(value, row) {
+						return renderContext(value, row);
+					}
+				},
+				{
 					key: 'node_id',
 					label: 'Node / Call',
-					width: 420,
+					width: 380,
 					textDisplay: {
 						strategy: 'clamp',
 						lines: 3,
@@ -1622,7 +2527,9 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortDirection: 'asc',
 						sortOptions: [
 							{ key: 'node_id', label: 'Node' },
-							{ key: 'call_id', label: 'Call ID' }
+							{ key: 'call_id', label: 'Call ID' },
+							{ key: 'created_at', label: 'Created' },
+							{ key: 'group_anchor_id', label: 'Group anchor' }
 						]
 					},
 					render(value, row) {
@@ -1672,6 +2579,50 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 							{ key: 'label', label: 'Label' }
 						]
 					}
+				},
+				{
+					key: 'config_name',
+					label: 'Config name',
+					width: 280,
+					visible: false,
+					textDisplay: {
+						strategy: 'clamp',
+						lines: 2,
+						expandable: true
+					},
+					headerMenu: {
+						defaultSortKey: 'config_name',
+						defaultSortDirection: 'asc',
+						sortOptions: [
+							{ key: 'config_name', label: 'Config name' },
+							{ key: 'config_group', label: 'Config group' }
+						]
+					}
+				},
+				{
+					key: 'user_login',
+					label: 'User',
+					width: 220,
+					visible: false,
+					headerMenu: {
+						defaultSortKey: 'user_login',
+						defaultSortDirection: 'asc',
+						sortOptions: [
+							{ key: 'user_login', label: 'User login' },
+							{ key: 'user_id', label: 'User ID' }
+						]
+					}
+				},
+				{
+					key: 'prompt_text',
+					label: 'Prompt',
+					width: 360,
+					visible: false,
+					textDisplay: {
+						strategy: 'clamp',
+						lines: 3,
+						expandable: true
+					}
 				}
 			]
 		});
@@ -1684,8 +2635,25 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			setLog('Loaded ' + String(appendedCount) + ' more log entries. ' + String(totalLoaded) + ' log entries are currently loaded.');
 		});
 
+		grid.on('grouping:changed', ({ fields }) => {
+			const normalizedFields = normalizeGroupFields(fields || []);
+
+			setLog(
+				normalizedFields.length > 0
+					? 'Grouping active: ' + normalizedFields.map(getGroupFieldLabel).join(' -> ')
+					: 'Grouping cleared. Back to the normal infinite table.'
+			);
+		});
+
 		grid.on('detail:loaded', (event) => {
 			const detailRowId = event && typeof event === 'object' ? event.rowId : null;
+			const row = event && typeof event === 'object' ? event.row : null;
+			const payload = event && typeof event === 'object' ? event.payload : null;
+
+			if (row && row.is_group_row === true && payload && payload.kind === 'grouped-child-table') {
+				setLog('Loaded grouped child table for ' + getText(row.group_title, detailRowId) + ' with ' + String(payload.rows ? payload.rows.length : 0) + ' child rows.');
+				return;
+			}
 
 			setLog('Loaded detail for log entry #' + getText(detailRowId));
 		});
@@ -1699,6 +2667,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		await grid.init();
 		watchChronoPickerFilters(root);
-		setLog('Initial batch loaded. Scroll to append the next ' + String(BATCH_SIZE) + ' log entries automatically.');
+		watchOptionalFilterControls(root);
+		setLog('Initial batch loaded. Use grouping by Turn for request-level debugging.');
 	})();
 </script>

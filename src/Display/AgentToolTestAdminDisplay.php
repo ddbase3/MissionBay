@@ -9,6 +9,7 @@ use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentTool;
 
 final class AgentToolTestAdminDisplay implements IDisplay {
@@ -19,6 +20,7 @@ final class AgentToolTestAdminDisplay implements IDisplay {
 		private readonly IMvcView $view,
 		private readonly IAssetResolver $assetResolver,
 		private readonly ILinkTargetService $linkTargetService,
+		private readonly IAgentContextFactory $agentContextFactory,
 		private readonly ?IAgentContext $agentContext = null
 	) {}
 
@@ -513,19 +515,9 @@ final class AgentToolTestAdminDisplay implements IDisplay {
 			];
 		}
 
-		if(!$this->agentContext instanceof IAgentContext) {
-			return [
-				'mode' => 'call_tool',
-				'ok' => false,
-				'tool_key' => $toolKey,
-				'function_name' => $functionName,
-				'arguments' => $this->normalizeForJson($arguments),
-				'error' => 'No IAgentContext is available in the display. The form works, but callTool cannot be executed without a context instance.',
-			];
-		}
-
 		try {
-			$result = $tool->callTool($functionName, $arguments, $this->agentContext);
+			$context = $this->createAgentContext();
+			$result = $tool->callTool($functionName, $arguments, $context);
 
 			return [
 				'mode' => 'call_tool',
@@ -547,6 +539,14 @@ final class AgentToolTestAdminDisplay implements IDisplay {
 				'exception' => $e::class,
 			];
 		}
+	}
+
+	private function createAgentContext(): IAgentContext {
+		if($this->agentContext instanceof IAgentContext) {
+			return $this->agentContext;
+		}
+
+		return $this->agentContextFactory->createContext();
 	}
 
 	private function hasFunction(IAgentTool $tool, string $functionName): bool {

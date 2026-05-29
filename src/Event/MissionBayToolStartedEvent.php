@@ -28,6 +28,7 @@ class MissionBayToolStartedEvent extends BaseEvent {
 
 	/**
 	 * @param array<string,mixed> $arguments
+	 * @param array<string,mixed> $trace
 	 */
 	public function __construct(
 		private string $nodeId,
@@ -36,7 +37,9 @@ class MissionBayToolStartedEvent extends BaseEvent {
 		private string $label,
 		private array $arguments,
 		private int $iteration,
-		private string $timestamp = ''
+		private string $timestamp = '',
+		private int $callIndex = 0,
+		private array $trace = []
 	) {
 		if ($this->timestamp === '') {
 			$this->timestamp = (new \DateTimeImmutable())->format('c');
@@ -72,5 +75,16 @@ class MissionBayToolStartedEvent extends BaseEvent {
 
 	public function getTimestamp(): string {
 		return $this->timestamp;
+	}
+
+	public function getCallIndex(): int {
+		return $this->callIndex;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getTrace(): array {
+		return $this->trace;
 	}
 }

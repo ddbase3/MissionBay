@@ -11,7 +11,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 <style>
 	.agent-tool-shell {
-		max-width: 1640px;
+		max-width: 1700px;
 	}
 
 	.agent-tool-shell h1 {
@@ -248,6 +248,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		gap: 6px;
 	}
 
+	.agent-tool-detail-actions {
+		justify-content: flex-end;
+		flex: 0 0 auto;
+	}
+
 	.agent-tool-button,
 	.agent-tool-form-button {
 		display: inline-flex;
@@ -262,11 +267,18 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		font-size: 12px;
 		line-height: 1.25;
 		cursor: pointer;
+		white-space: nowrap;
 	}
 
 	.agent-tool-button:hover,
 	.agent-tool-form-button:hover {
 		background: #f5f5f5;
+	}
+
+	.agent-tool-button:focus-visible,
+	.agent-tool-form-button:focus-visible {
+		outline: 2px solid #86a8cf;
+		outline-offset: 2px;
 	}
 
 	.agent-tool-form-button-primary {
@@ -277,6 +289,39 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	.agent-tool-form-button-primary:hover {
 		background: #444;
+	}
+
+	.mg-row-detail:fullscreen,
+	.mg-row-detail:-webkit-full-screen {
+		display: block;
+		width: auto;
+		height: auto;
+		min-height: 100vh;
+		padding: 16px;
+		background: #f7f7f7;
+		overflow: auto;
+	}
+
+	.mg-row-detail:fullscreen .agent-tool-detail,
+	.mg-row-detail:-webkit-full-screen .agent-tool-detail {
+		display: block;
+		width: auto;
+		height: auto;
+		min-height: 0;
+	}
+
+	.mg-row-detail:fullscreen .agent-tool-detail-layout,
+	.mg-row-detail:-webkit-full-screen .agent-tool-detail-layout {
+		grid-template-columns: minmax(360px, 0.95fr) minmax(420px, 1.25fr);
+		max-width: 1800px;
+		margin: 0 auto;
+	}
+
+	.mg-row-detail:fullscreen .agent-tool-json-fallback,
+	.mg-row-detail:fullscreen .agent-tool-form-preview,
+	.mg-row-detail:-webkit-full-screen .agent-tool-json-fallback,
+	.mg-row-detail:-webkit-full-screen .agent-tool-form-preview {
+		max-height: 620px;
 	}
 
 	.agent-tool-form {
@@ -646,6 +691,59 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		setLog('Copied tool row ' + getText(row && (row.id || row.tool_key || row.name)));
 	}
 
+	function getFullscreenTarget(source) {
+		if (source instanceof HTMLElement) {
+			return source.closest('.mg-row-detail') || source.closest('.agent-tool-detail') || source;
+		}
+
+		return null;
+	}
+
+	async function toggleDetailFullscreen(source) {
+		const target = getFullscreenTarget(source);
+
+		if (!target) {
+			setLog('Fullscreen target not found.');
+			return;
+		}
+
+		try {
+			if (document.fullscreenElement === target) {
+				await document.exitFullscreen();
+				return;
+			}
+
+			if (document.fullscreenElement && document.fullscreenElement !== target) {
+				await document.exitFullscreen();
+			}
+
+			if (typeof target.requestFullscreen === 'function') {
+				await target.requestFullscreen();
+				setLog('Opened tool detail in fullscreen.');
+				return;
+			}
+
+			setLog('Fullscreen API is not supported by this browser.');
+		} catch (error) {
+			setLog('Could not open fullscreen: ' + getText(error && error.message, String(error)));
+		}
+	}
+
+	function createFullscreenButton() {
+		const button = document.createElement('button');
+
+		button.type = 'button';
+		button.className = 'agent-tool-button';
+		button.textContent = 'Fullscreen';
+		button.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			toggleDetailFullscreen(button);
+		});
+
+		return button;
+	}
+
 	function renderTool(value, row) {
 		const wrapper = createElement('agent-tool-cell-stack');
 		const main = createElement('agent-tool-cell-main', getText(row.name));
@@ -788,6 +886,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		if (payload.description) {
 			headerText.appendChild(createElement('agent-tool-detail-summary', payload.description));
 		}
+
+		actions.appendChild(createFullscreenButton());
 
 		const copyButton = document.createElement('button');
 		copyButton.type = 'button';

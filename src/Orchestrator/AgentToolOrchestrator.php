@@ -71,8 +71,10 @@ class AgentToolOrchestrator {
 		string $nodeId = ''
 	): AgentToolOrchestratorResult {
 		$iterations = 0;
+		$callIndex = 0;
 		$finalAssistantMessage = null;
 		$executedToolCalls = [];
+		$trace = $this->buildTrace($context);
 
 		while ($iterations < $maxLoops) {
 			$iterations++;
@@ -138,6 +140,8 @@ class AgentToolOrchestrator {
 			$messages[] = $assistant;
 
 			foreach ($toolCalls as $call) {
+				$callIndex++;
+
 				$this->handleToolCall(
 					$call,
 					$tools,
@@ -145,8 +149,10 @@ class AgentToolOrchestrator {
 					$context,
 					$eventCallback,
 					$iterations,
+					$callIndex,
 					$executedToolCalls,
-					$nodeId
+					$nodeId,
+					$trace
 				);
 			}
 		}
@@ -173,6 +179,7 @@ class AgentToolOrchestrator {
 	 * @param array<int,array<string,mixed>> $messages
 	 * @param array<int,array<string,mixed>> $executedToolCalls
 	 * @param ?callable $eventCallback
+	 * @param array<string,mixed> $trace
 	 */
 	private function handleToolCall(
 		array $call,
@@ -181,8 +188,10 @@ class AgentToolOrchestrator {
 		IAgentContext $context,
 		?callable $eventCallback,
 		int $iteration,
+		int $callIndex,
 		array &$executedToolCalls,
-		string $nodeId
+		string $nodeId,
+		array $trace
 	): void {
 		$callId = (string)($call['id'] ?? uniqid('toolcall_', true));
 		$toolName = (string)($call['function']['name'] ?? '');
@@ -204,13 +213,14 @@ class AgentToolOrchestrator {
 			}
 		}
 
-		$this->emitEvent($eventCallback, 'tool.started', [
+		$this->emitEvent($eventCallback, 'tool.started', $this->buildUiPayload([
 			'call_id' => $callId,
 			'tool' => $toolName,
 			'label' => $label,
 			'args' => $args,
-			'iteration' => $iteration
-		]);
+			'iteration' => $iteration,
+			'call_index' => $callIndex
+		], $trace));
 
 		$this->fireToolStartedEvent(
 			$nodeId,
@@ -218,7 +228,9 @@ class AgentToolOrchestrator {
 			$toolName,
 			$label,
 			$args,
-			$iteration
+			$iteration,
+			$callIndex,
+			$trace
 		);
 
 		$this->log('Tool started: ' . $toolName . ' [' . $callId . ']');
@@ -233,14 +245,15 @@ class AgentToolOrchestrator {
 				'error' => $warn
 			];
 
-			$this->emitEvent($eventCallback, 'tool.error', [
+			$this->emitEvent($eventCallback, 'tool.error', $this->buildUiPayload([
 				'call_id' => $callId,
 				'tool' => $toolName,
 				'label' => $label,
 				'args' => $args,
 				'error' => $warn,
-				'iteration' => $iteration
-			]);
+				'iteration' => $iteration,
+				'call_index' => $callIndex
+			], $trace));
 
 			$this->fireToolFailedEvent(
 				$nodeId,
@@ -251,7 +264,9 @@ class AgentToolOrchestrator {
 				$warn,
 				\RuntimeException::class,
 				0,
-				$iteration
+				$iteration,
+				$callIndex,
+				$trace
 			);
 
 			$messages[] = [
@@ -276,14 +291,15 @@ class AgentToolOrchestrator {
 				'result' => $result
 			];
 
-			$this->emitEvent($eventCallback, 'tool.finished', [
+			$this->emitEvent($eventCallback, 'tool.finished', $this->buildUiPayload([
 				'call_id' => $callId,
 				'tool' => $toolName,
 				'label' => $label,
 				'args' => $args,
 				'result' => $result,
-				'iteration' => $iteration
-			]);
+				'iteration' => $iteration,
+				'call_index' => $callIndex
+			], $trace));
 
 			$this->fireToolFinishedEvent(
 				$nodeId,
@@ -292,7 +308,9 @@ class AgentToolOrchestrator {
 				$label,
 				$args,
 				$result,
-				$iteration
+				$iteration,
+				$callIndex,
+				$trace
 			);
 
 			$this->log('Tool finished: ' . $toolName . ' [' . $callId . ']');
@@ -322,7 +340,7 @@ class AgentToolOrchestrator {
 				'code' => $e->getCode()
 			];
 
-			$this->emitEvent($eventCallback, 'tool.error', [
+			$this->emitEvent($eventCallback, 'tool.error', $this->buildUiPayload([
 				'call_id' => $callId,
 				'tool' => $toolName,
 				'label' => $label,
@@ -330,8 +348,9 @@ class AgentToolOrchestrator {
 				'error' => $e->getMessage(),
 				'type' => get_class($e),
 				'code' => $e->getCode(),
-				'iteration' => $iteration
-			]);
+				'iteration' => $iteration,
+				'call_index' => $callIndex
+			], $trace));
 
 			$this->fireToolFailedEvent(
 				$nodeId,
@@ -342,7 +361,9 @@ class AgentToolOrchestrator {
 				$e->getMessage(),
 				get_class($e),
 				$e->getCode(),
-				$iteration
+				$iteration,
+				$callIndex,
+				$trace
 			);
 
 			$messages[] = [
@@ -405,6 +426,50 @@ class AgentToolOrchestrator {
 		return $json;
 	}
 
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildTrace(IAgentContext $context): array {
+		$configGroup = $this->readContextString($context, ['config_group', 'chatbot_config_group'], 'unknown_group');
+		$configName = $this->readContextString($context, ['config_name', 'chatbot_config_name'], 'unknown_config');
+		$chatbotKey = $this->readContextString($context, ['chatbot_key', 'chatbot_id', 'chatbot_name'], '');
+
+		if ($chatbotKey === '') {
+			$chatbotKey = $this->buildChatbotKey($configGroup, $configName);
+		}
+
+		return [
+			'turn_id' => $this->readContextString($context, ['turn_id', 'chat_turn_id', 'message_id'], 'unknown_turn'),
+			'chatbot_key' => $chatbotKey,
+			'config_group' => $configGroup,
+			'config_name' => $configName
+		];
+	}
+
+	private function buildChatbotKey(string $configGroup, string $configName): string {
+		if ($configGroup !== 'unknown_group' && $configName !== 'unknown_config') {
+			return $configGroup . ':' . $configName;
+		}
+
+		if ($configName !== 'unknown_config') {
+			return $configName;
+		}
+
+		return 'unknown_chatbot';
+	}
+
+	/**
+	 * @param array<string,mixed> $payload
+	 * @param array<string,mixed> $trace
+	 * @return array<string,mixed>
+	 */
+	private function buildUiPayload(array $payload, array $trace): array {
+		$payload['turn_id'] = (string)($trace['turn_id'] ?? 'unknown_turn');
+		$payload['chatbot_key'] = (string)($trace['chatbot_key'] ?? 'unknown_chatbot');
+
+		return $payload;
+	}
+
 	private function emitEvent(?callable $eventCallback, string $event, array $payload): void {
 		if ($eventCallback === null) {
 			return;
@@ -419,6 +484,7 @@ class AgentToolOrchestrator {
 
 	/**
 	 * @param array<string,mixed> $arguments
+	 * @param array<string,mixed> $trace
 	 */
 	private function fireToolStartedEvent(
 		string $nodeId,
@@ -426,7 +492,9 @@ class AgentToolOrchestrator {
 		string $toolName,
 		string $label,
 		array $arguments,
-		int $iteration
+		int $iteration,
+		int $callIndex,
+		array $trace
 	): void {
 		if ($this->eventManager === null) {
 			return;
@@ -440,7 +508,10 @@ class AgentToolOrchestrator {
 					$toolName,
 					$label,
 					$arguments,
-					$iteration
+					$iteration,
+					'',
+					$callIndex,
+					$trace
 				)
 			);
 		} catch (\Throwable $e) {
@@ -450,6 +521,7 @@ class AgentToolOrchestrator {
 
 	/**
 	 * @param array<string,mixed> $arguments
+	 * @param array<string,mixed> $trace
 	 */
 	private function fireToolFinishedEvent(
 		string $nodeId,
@@ -458,7 +530,9 @@ class AgentToolOrchestrator {
 		string $label,
 		array $arguments,
 		mixed $result,
-		int $iteration
+		int $iteration,
+		int $callIndex,
+		array $trace
 	): void {
 		if ($this->eventManager === null) {
 			return;
@@ -473,7 +547,10 @@ class AgentToolOrchestrator {
 					$label,
 					$arguments,
 					$result,
-					$iteration
+					$iteration,
+					'',
+					$callIndex,
+					$trace
 				)
 			);
 		} catch (\Throwable $e) {
@@ -483,6 +560,7 @@ class AgentToolOrchestrator {
 
 	/**
 	 * @param array<string,mixed> $arguments
+	 * @param array<string,mixed> $trace
 	 */
 	private function fireToolFailedEvent(
 		string $nodeId,
@@ -493,7 +571,9 @@ class AgentToolOrchestrator {
 		string $errorMessage,
 		string $errorType,
 		int|string $errorCode,
-		int $iteration
+		int $iteration,
+		int $callIndex,
+		array $trace
 	): void {
 		if ($this->eventManager === null) {
 			return;
@@ -510,11 +590,45 @@ class AgentToolOrchestrator {
 					$errorMessage,
 					$errorType,
 					$errorCode,
-					$iteration
+					$iteration,
+					'',
+					$callIndex,
+					$trace
 				)
 			);
 		} catch (\Throwable $e) {
 			$this->logError('Tool failed event failed (' . $toolName . '): ' . $e->getMessage());
+		}
+	}
+
+	/**
+	 * @param array<int,string> $keys
+	 */
+	private function readContextString(IAgentContext $context, array $keys, string $default): string {
+		foreach ($keys as $key) {
+			$value = $this->readContextVar($context, $key);
+
+			if (is_scalar($value)) {
+				$value = trim((string)$value);
+
+				if ($value !== '') {
+					return $value;
+				}
+			}
+		}
+
+		return $default;
+	}
+
+	private function readContextVar(IAgentContext $context, string $key): mixed {
+		if (!method_exists($context, 'getVar')) {
+			return null;
+		}
+
+		try {
+			return $context->getVar($key);
+		} catch (\Throwable $e) {
+			return null;
 		}
 	}
 
