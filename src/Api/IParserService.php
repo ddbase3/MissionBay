@@ -15,25 +15,27 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace MissionBay\Api;
 
-use MissionBay\Transport\MistralTransport;
+use Base3\Api\IBase;
+use MissionBay\Dto\AgentContentItem;
+use MissionBay\Dto\AgentParsedContent;
 
-class MistralChatModel extends AbstractChatCompletionModel {
+interface IParserService extends IBase {
 
-	public static function getName(): string {
-		return 'mistralchatmodel';
-	}
+	/**
+	 * @param array<string,mixed> $options
+	 */
+	public function setOptions(array $options): void;
 
-	protected function getProviderName(): string {
-		return MistralTransport::getName();
-	}
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getOptions(): array;
 
-	protected function getDefaultEndpoint(): string {
-		return 'https://api.mistral.ai';
-	}
+	public function getPriority(): int;
 
-	protected function getDefaultModel(): string {
-		return 'mistral-medium-2508';
-	}
+	public function supports(AgentContentItem $item): bool;
+
+	public function parse(AgentContentItem $item): AgentParsedContent;
 }

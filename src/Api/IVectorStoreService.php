@@ -15,25 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace MissionBay\Api;
 
-use MissionBay\Transport\MistralTransport;
+interface IVectorStoreService extends IAgentVectorStore {
 
-class MistralChatModel extends AbstractChatCompletionModel {
+	/**
+	 * @param array<string,mixed> $options
+	 */
+	public function setOptions(array $options): void;
 
-	public static function getName(): string {
-		return 'mistralchatmodel';
-	}
-
-	protected function getProviderName(): string {
-		return MistralTransport::getName();
-	}
-
-	protected function getDefaultEndpoint(): string {
-		return 'https://api.mistral.ai';
-	}
-
-	protected function getDefaultModel(): string {
-		return 'mistral-medium-2508';
-	}
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getOptions(): array;
 }

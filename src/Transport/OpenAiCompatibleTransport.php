@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\AiProvider;
+namespace MissionBay\Transport;
 
 use AssistantFoundation\Api\IAiProvider;
 
-class OpenAiCompatibleProvider implements IAiProvider {
+class OpenAiCompatibleTransport implements IAiProvider {
 
 	/**
 	 * @var array<string,mixed>
@@ -27,7 +27,7 @@ class OpenAiCompatibleProvider implements IAiProvider {
 	protected array $options = [];
 
 	public static function getName(): string {
-		return 'openaicompatibleprovider';
+		return 'openaicompatibletransport';
 	}
 
 	/**
@@ -48,21 +48,21 @@ class OpenAiCompatibleProvider implements IAiProvider {
 		$url = $this->buildUrl($path);
 		$method = strtoupper(trim((string)($options['method'] ?? 'POST')));
 
-		if ($method === 'GET' && count($payload) > 0) {
+		if($method === 'GET' && count($payload) > 0) {
 			$query = http_build_query($payload);
 
-			if ($query !== '') {
+			if($query !== '') {
 				$url .= (str_contains($url, '?') ? '&' : '?') . $query;
 			}
 		}
 
 		$jsonPayload = null;
 
-		if ($method !== 'GET') {
+		if($method !== 'GET') {
 			$jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-			if ($jsonPayload === false) {
-				throw new \RuntimeException('Failed to encode OpenAI-compatible provider request payload.');
+			if($jsonPayload === false) {
+				throw new \RuntimeException('Failed to encode OpenAI-compatible transport request payload.');
 			}
 		}
 
@@ -80,30 +80,30 @@ class OpenAiCompatibleProvider implements IAiProvider {
 
 		$result = curl_exec($ch);
 
-		if ($result === false) {
+		if($result === false) {
 			$error = curl_error($ch);
 			curl_close($ch);
-			throw new \RuntimeException('OpenAI-compatible provider request failed: ' . $error);
+			throw new \RuntimeException('OpenAI-compatible transport request failed: ' . $error);
 		}
 
 		$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
 
-		if ($httpCode < 200 || $httpCode >= 300) {
+		if($httpCode < 200 || $httpCode >= 300) {
 			throw new \RuntimeException(
-				'OpenAI-compatible provider request failed with status ' . $httpCode . ': ' . (string)$result
+				'OpenAI-compatible transport request failed with status ' . $httpCode . ': ' . (string)$result
 			);
 		}
 
-		if (trim((string)$result) === '') {
+		if(trim((string)$result) === '') {
 			return [];
 		}
 
 		$data = json_decode((string)$result, true);
 
-		if (!is_array($data)) {
+		if(!is_array($data)) {
 			throw new \RuntimeException(
-				'Invalid JSON response from OpenAI-compatible provider: ' . substr((string)$result, 0, 200)
+				'Invalid JSON response from OpenAI-compatible transport: ' . substr((string)$result, 0, 200)
 			);
 		}
 
@@ -114,21 +114,21 @@ class OpenAiCompatibleProvider implements IAiProvider {
 		$url = $this->buildUrl($path);
 		$method = strtoupper(trim((string)($options['method'] ?? 'POST')));
 
-		if ($method === 'GET' && count($payload) > 0) {
+		if($method === 'GET' && count($payload) > 0) {
 			$query = http_build_query($payload);
 
-			if ($query !== '') {
+			if($query !== '') {
 				$url .= (str_contains($url, '?') ? '&' : '?') . $query;
 			}
 		}
 
 		$jsonPayload = null;
 
-		if ($method !== 'GET') {
+		if($method !== 'GET') {
 			$jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-			if ($jsonPayload === false) {
-				throw new \RuntimeException('Failed to encode OpenAI-compatible provider stream payload.');
+			if($jsonPayload === false) {
+				throw new \RuntimeException('Failed to encode OpenAI-compatible transport stream payload.');
 			}
 		}
 
@@ -154,18 +154,18 @@ class OpenAiCompatibleProvider implements IAiProvider {
 
 		$result = curl_exec($ch);
 
-		if ($result === false) {
+		if($result === false) {
 			$error = curl_error($ch);
 			curl_close($ch);
-			throw new \RuntimeException('OpenAI-compatible provider streaming request failed: ' . $error);
+			throw new \RuntimeException('OpenAI-compatible transport streaming request failed: ' . $error);
 		}
 
 		$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
 
-		if ($httpCode < 200 || $httpCode >= 300) {
+		if($httpCode < 200 || $httpCode >= 300) {
 			throw new \RuntimeException(
-				'OpenAI-compatible provider streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500)
+				'OpenAI-compatible transport streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500)
 			);
 		}
 	}
@@ -174,47 +174,47 @@ class OpenAiCompatibleProvider implements IAiProvider {
 		$endpoint = trim((string)($this->options['endpoint'] ?? ''));
 		$path = trim($path);
 
-		if ($path !== '' && preg_match('#^https?://#i', $path) === 1) {
+		if($path !== '' && preg_match('#^https?://#i', $path) === 1) {
 			return $path;
 		}
 
-		if ($endpoint === '') {
-			throw new \RuntimeException('Missing OpenAI-compatible provider endpoint.');
+		if($endpoint === '') {
+			throw new \RuntimeException('Missing OpenAI-compatible transport endpoint.');
 		}
 
-		if ($path === '') {
+		if($path === '') {
 			return $endpoint;
 		}
 
 		$endpointQuery = parse_url($endpoint, PHP_URL_QUERY);
-		if ($endpointQuery !== null && $endpointQuery !== false && $endpointQuery !== '') {
+		if($endpointQuery !== null && $endpointQuery !== false && $endpointQuery !== '') {
 			return $endpoint;
 		}
 
 		$normalizedPath = '/' . ltrim($path, '/');
 		$endpointPath = (string)(parse_url($endpoint, PHP_URL_PATH) ?? '');
 
-		if ($endpointPath !== '') {
+		if($endpointPath !== '') {
 			$normalizedEndpointPath = '/' . trim($endpointPath, '/');
 
-			if (rtrim($normalizedEndpointPath, '/') === rtrim($normalizedPath, '/')) {
+			if(rtrim($normalizedEndpointPath, '/') === rtrim($normalizedPath, '/')) {
 				return $endpoint;
 			}
 
-			if (
+			if(
 				$normalizedEndpointPath !== '/'
 				&& str_ends_with(rtrim($normalizedEndpointPath, '/'), rtrim($normalizedPath, '/'))
 			) {
 				return $endpoint;
 			}
 
-			if (
+			if(
 				$normalizedEndpointPath !== '/'
 				&& str_starts_with($normalizedPath . '/', rtrim($normalizedEndpointPath, '/') . '/')
 			) {
 				$suffix = substr($normalizedPath, strlen(rtrim($normalizedEndpointPath, '/')));
 
-				if ($suffix === false || $suffix === '') {
+				if($suffix === false || $suffix === '') {
 					return $endpoint;
 				}
 
@@ -232,17 +232,17 @@ class OpenAiCompatibleProvider implements IAiProvider {
 	private function buildHeaders(array $options): array {
 		$apiKey = trim((string)($options['apikey'] ?? $this->options['apikey'] ?? ''));
 
-		if ($apiKey === '') {
-			throw new \RuntimeException('Missing API key for OpenAI-compatible provider.');
+		if($apiKey === '') {
+			throw new \RuntimeException('Missing API key for OpenAI-compatible transport.');
 		}
 
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: Bearer ' . $apiKey,
+			'Authorization: Bearer ' . $apiKey
 		];
 
-		foreach (($options['headers'] ?? []) as $header) {
-			if (is_string($header) && trim($header) !== '') {
+		foreach(($options['headers'] ?? []) as $header) {
+			if(is_string($header) && trim($header) !== '') {
 				$headers[] = $header;
 			}
 		}
@@ -254,19 +254,19 @@ class OpenAiCompatibleProvider implements IAiProvider {
 	 * @param resource $ch
 	 */
 	private function applyRequestMethod($ch, string $method, ?string $jsonPayload): void {
-		if ($method === 'GET') {
+		if($method === 'GET') {
 			curl_setopt($ch, CURLOPT_HTTPGET, true);
 			return;
 		}
 
-		if ($method === 'POST') {
+		if($method === 'POST') {
 			curl_setopt($ch, CURLOPT_POST, true);
 		}
 		else {
 			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
 		}
 
-		if ($jsonPayload !== null) {
+		if($jsonPayload !== null) {
 			curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
 		}
 	}

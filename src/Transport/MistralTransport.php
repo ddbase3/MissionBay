@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\AiProvider;
+namespace MissionBay\Transport;
 
 use AssistantFoundation\Api\IAiProvider;
 
-class MistralProvider implements IAiProvider {
+class MistralTransport implements IAiProvider {
 
 	/**
 	 * @var array<string,mixed>
@@ -27,7 +27,7 @@ class MistralProvider implements IAiProvider {
 	protected array $options = [];
 
 	public static function getName(): string {
-		return 'mistralprovider';
+		return 'mistraltransport';
 	}
 
 	/**
@@ -48,21 +48,21 @@ class MistralProvider implements IAiProvider {
 		$url = $this->buildUrl($path);
 		$method = strtoupper(trim((string)($options['method'] ?? 'POST')));
 
-		if ($method === 'GET' && count($payload) > 0) {
+		if($method === 'GET' && count($payload) > 0) {
 			$query = http_build_query($payload);
 
-			if ($query !== '') {
+			if($query !== '') {
 				$url .= (str_contains($url, '?') ? '&' : '?') . $query;
 			}
 		}
 
 		$jsonPayload = null;
 
-		if ($method !== 'GET') {
+		if($method !== 'GET') {
 			$jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-			if ($jsonPayload === false) {
-				throw new \RuntimeException('Failed to encode Mistral provider request payload.');
+			if($jsonPayload === false) {
+				throw new \RuntimeException('Failed to encode Mistral transport request payload.');
 			}
 		}
 
@@ -80,27 +80,27 @@ class MistralProvider implements IAiProvider {
 
 		$result = curl_exec($ch);
 
-		if ($result === false) {
+		if($result === false) {
 			$error = curl_error($ch);
 			curl_close($ch);
-			throw new \RuntimeException('Mistral provider request failed: ' . $error);
+			throw new \RuntimeException('Mistral transport request failed: ' . $error);
 		}
 
 		$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
 
-		if ($httpCode < 200 || $httpCode >= 300) {
-			throw new \RuntimeException('Mistral provider request failed with status ' . $httpCode . ': ' . (string)$result);
+		if($httpCode < 200 || $httpCode >= 300) {
+			throw new \RuntimeException('Mistral transport request failed with status ' . $httpCode . ': ' . (string)$result);
 		}
 
-		if (trim((string)$result) === '') {
+		if(trim((string)$result) === '') {
 			return [];
 		}
 
 		$data = json_decode((string)$result, true);
 
-		if (!is_array($data)) {
-			throw new \RuntimeException('Invalid JSON response from Mistral provider: ' . substr((string)$result, 0, 200));
+		if(!is_array($data)) {
+			throw new \RuntimeException('Invalid JSON response from Mistral transport: ' . substr((string)$result, 0, 200));
 		}
 
 		return $data;
@@ -110,21 +110,21 @@ class MistralProvider implements IAiProvider {
 		$url = $this->buildUrl($path);
 		$method = strtoupper(trim((string)($options['method'] ?? 'POST')));
 
-		if ($method === 'GET' && count($payload) > 0) {
+		if($method === 'GET' && count($payload) > 0) {
 			$query = http_build_query($payload);
 
-			if ($query !== '') {
+			if($query !== '') {
 				$url .= (str_contains($url, '?') ? '&' : '?') . $query;
 			}
 		}
 
 		$jsonPayload = null;
 
-		if ($method !== 'GET') {
+		if($method !== 'GET') {
 			$jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-			if ($jsonPayload === false) {
-				throw new \RuntimeException('Failed to encode Mistral provider stream payload.');
+			if($jsonPayload === false) {
+				throw new \RuntimeException('Failed to encode Mistral transport stream payload.');
 			}
 		}
 
@@ -150,18 +150,18 @@ class MistralProvider implements IAiProvider {
 
 		$result = curl_exec($ch);
 
-		if ($result === false) {
+		if($result === false) {
 			$error = curl_error($ch);
 			curl_close($ch);
-			throw new \RuntimeException('Mistral provider streaming request failed: ' . $error);
+			throw new \RuntimeException('Mistral transport streaming request failed: ' . $error);
 		}
 
 		$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
 
-		if ($httpCode < 200 || $httpCode >= 300) {
+		if($httpCode < 200 || $httpCode >= 300) {
 			throw new \RuntimeException(
-				'Mistral provider streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500)
+				'Mistral transport streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500)
 			);
 		}
 	}
@@ -170,35 +170,35 @@ class MistralProvider implements IAiProvider {
 		$endpoint = trim((string)($this->options['endpoint'] ?? ''));
 		$path = trim($path);
 
-		if ($path !== '' && preg_match('#^https?://#i', $path) === 1) {
+		if($path !== '' && preg_match('#^https?://#i', $path) === 1) {
 			return $path;
 		}
 
-		if ($endpoint === '') {
-			throw new \RuntimeException('Missing Mistral provider endpoint.');
+		if($endpoint === '') {
+			throw new \RuntimeException('Missing Mistral transport endpoint.');
 		}
 
-		if ($path === '') {
+		if($path === '') {
 			return $endpoint;
 		}
 
 		$normalizedPath = '/' . ltrim($path, '/');
 		$endpointPath = (string)(parse_url($endpoint, PHP_URL_PATH) ?? '');
 
-		if ($endpointPath !== '') {
+		if($endpointPath !== '') {
 			$normalizedEndpointPath = '/' . trim($endpointPath, '/');
 
-			if (rtrim($normalizedEndpointPath, '/') === rtrim($normalizedPath, '/')) {
+			if(rtrim($normalizedEndpointPath, '/') === rtrim($normalizedPath, '/')) {
 				return $endpoint;
 			}
 
-			if (
+			if(
 				$normalizedEndpointPath !== '/'
 				&& str_starts_with($normalizedPath . '/', rtrim($normalizedEndpointPath, '/') . '/')
 			) {
 				$suffix = substr($normalizedPath, strlen(rtrim($normalizedEndpointPath, '/')));
 
-				if ($suffix === false || $suffix === '') {
+				if($suffix === false || $suffix === '') {
 					return $endpoint;
 				}
 
@@ -216,17 +216,17 @@ class MistralProvider implements IAiProvider {
 	private function buildHeaders(array $options): array {
 		$apiKey = trim((string)($options['apikey'] ?? $this->options['apikey'] ?? ''));
 
-		if ($apiKey === '') {
-			throw new \RuntimeException('Missing API key for Mistral provider.');
+		if($apiKey === '') {
+			throw new \RuntimeException('Missing API key for Mistral transport.');
 		}
 
 		$headers = [
 			'Content-Type: application/json',
-			'Authorization: Bearer ' . $apiKey,
+			'Authorization: Bearer ' . $apiKey
 		];
 
-		foreach (($options['headers'] ?? []) as $header) {
-			if (is_string($header) && trim($header) !== '') {
+		foreach(($options['headers'] ?? []) as $header) {
+			if(is_string($header) && trim($header) !== '') {
 				$headers[] = $header;
 			}
 		}
@@ -238,19 +238,19 @@ class MistralProvider implements IAiProvider {
 	 * @param resource $ch
 	 */
 	private function applyRequestMethod($ch, string $method, ?string $jsonPayload): void {
-		if ($method === 'GET') {
+		if($method === 'GET') {
 			curl_setopt($ch, CURLOPT_HTTPGET, true);
 			return;
 		}
 
-		if ($method === 'POST') {
+		if($method === 'POST') {
 			curl_setopt($ch, CURLOPT_POST, true);
 		}
 		else {
 			curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
 		}
 
-		if ($jsonPayload !== null) {
+		if($jsonPayload !== null) {
 			curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
 		}
 	}

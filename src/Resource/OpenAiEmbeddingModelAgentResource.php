@@ -20,14 +20,15 @@ namespace MissionBay\Resource;
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Api\IAiProvider;
 use Base3\Api\IClassMap;
-use MissionBay\AiProvider\OpenAiProvider;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Transport\OpenAiTransport;
 
 /**
  * OpenAiEmbeddingModelAgentResource
  *
- * Provides access to OpenAI's embedding models via a dockable resource.
- * Configuration is dynamic and supports resolver modes.
+ * Direct OpenAI embedding resource.
+ * This resource is intentionally independent from service-embedding
+ * configuration and is kept for direct/static agent flow setups.
  */
 class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
 
@@ -40,7 +41,7 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 
 	protected array $resolvedOptions = [];
 
-	protected ?OpenAiProvider $provider = null;
+	protected ?OpenAiTransport $provider = null;
 
 	public function __construct(IAgentConfigValueResolver $resolver, IClassMap $classMap, ?string $id = null) {
 		parent::__construct($id);
@@ -66,7 +67,7 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 		$this->resolvedOptions = [
 			'model' => $this->resolver->resolveValue($this->modelConfig) ?? 'text-embedding-3-small',
 			'apikey' => $this->resolver->resolveValue($this->apikeyConfig),
-			'endpoint' => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.openai.com/v1/embeddings',
+			'endpoint' => $this->resolver->resolveValue($this->endpointConfig) ?? 'https://api.openai.com/v1/embeddings'
 		];
 
 		$this->configureProvider();
@@ -90,7 +91,7 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 
 		$result = $this->getProvider()->request('/v1/embeddings', [
 			'model' => $model,
-			'input' => $texts,
+			'input' => $texts
 		]);
 
 		if(!isset($result['data']) || !is_array($result['data'])) {
@@ -106,16 +107,16 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 		}, $result['data']);
 	}
 
-	private function getProvider(): OpenAiProvider {
-		if($this->provider instanceof OpenAiProvider) {
+	private function getProvider(): OpenAiTransport {
+		if($this->provider instanceof OpenAiTransport) {
 			return $this->provider;
 		}
 
-		$provider = $this->classMap->getInstanceByInterfaceName(IAiProvider::class, OpenAiProvider::getName());
+		$provider = $this->classMap->getInstanceByInterfaceName(IAiProvider::class, OpenAiTransport::getName());
 
-		if(!$provider instanceof OpenAiProvider) {
+		if(!$provider instanceof OpenAiTransport) {
 			throw new \RuntimeException(
-				'Unable to resolve provider "' . OpenAiProvider::getName() . '" for interface ' . IAiProvider::class . '.'
+				'Unable to resolve provider "' . OpenAiTransport::getName() . '" for interface ' . IAiProvider::class . '.'
 			);
 		}
 
@@ -126,13 +127,13 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 	}
 
 	private function configureProvider(): void {
-		if(!$this->provider instanceof OpenAiProvider) {
+		if(!$this->provider instanceof OpenAiTransport) {
 			return;
 		}
 
 		$this->provider->setOptions([
 			'endpoint' => $this->resolvedOptions['endpoint'] ?? 'https://api.openai.com/v1/embeddings',
-			'apikey' => $this->resolvedOptions['apikey'] ?? null,
+			'apikey' => $this->resolvedOptions['apikey'] ?? null
 		]);
 	}
 }

@@ -17,7 +17,7 @@
 
 namespace MissionBay\ChatModel;
 
-use MissionBay\AiProvider\OpenAiCompatibleProvider;
+use MissionBay\Transport\OpenAiCompatibleTransport;
 
 class OpenAiCompatibleChatModel extends AbstractChatCompletionModel {
 
@@ -26,10 +26,6 @@ class OpenAiCompatibleChatModel extends AbstractChatCompletionModel {
 	}
 
 	protected function getProviderName(): string {
-		return OpenAiCompatibleProvider::getName();
-	}
-
-	protected function getDefaultChatCompletionPath(): string {
-		return '/chat/completions';
+		return OpenAiCompatibleTransport::getName();
 	}
 }

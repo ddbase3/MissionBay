@@ -15,25 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace MissionBay\ImageModel;
 
-use MissionBay\Transport\MistralTransport;
+use MissionBay\Transport\OpenAiCompatibleTransport;
 
-class MistralChatModel extends AbstractChatCompletionModel {
+class OpenAiCompatibleImageModel extends AbstractImageGenerationModel {
 
 	public static function getName(): string {
-		return 'mistralchatmodel';
+		return 'openaicompatibleimagemodel';
 	}
 
 	protected function getProviderName(): string {
-		return MistralTransport::getName();
-	}
-
-	protected function getDefaultEndpoint(): string {
-		return 'https://api.mistral.ai';
-	}
-
-	protected function getDefaultModel(): string {
-		return 'mistral-medium-2508';
+		return OpenAiCompatibleTransport::getName();
 	}
 }

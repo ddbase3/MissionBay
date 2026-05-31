@@ -15,25 +15,30 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace MissionBay\Api;
 
-use MissionBay\Transport\MistralTransport;
+use Base3\Api\IBase;
 
-class MistralChatModel extends AbstractChatCompletionModel {
+interface IConnectionDriverDefinition extends IBase {
 
-	public static function getName(): string {
-		return 'mistralchatmodel';
-	}
+	public function getDriver(): string;
 
-	protected function getProviderName(): string {
-		return MistralTransport::getName();
-	}
+	public function getLabel(): string;
 
-	protected function getDefaultEndpoint(): string {
-		return 'https://api.mistral.ai';
-	}
+	public function getConnectionType(): string;
 
-	protected function getDefaultModel(): string {
-		return 'mistral-medium-2508';
-	}
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getConfigSchema(): array;
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getDefaultConfig(): array;
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getHealthCheckSchema(): array;
 }

@@ -15,11 +15,26 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\AiProvider;
+namespace MissionBay\VectorStore;
 
-class OpenAiProvider extends OpenAiCompatibleProvider {
+final class QdrantVectorStoreService extends AbstractQdrantVectorStoreService {
 
 	public static function getName(): string {
-		return 'openaiprovider';
+		return 'qdrantvectorstoreservice';
+	}
+
+	protected function buildUrl(string $path): string {
+		$path = '/' . ltrim(trim($path), '/');
+
+		return $this->getBaseUrl() . $path;
+	}
+
+	protected function buildHeaders(): array {
+		$authHeaderName = $this->getStringOption('auth_header_name', 'api-key');
+
+		return [
+			'Content-Type: application/json',
+			$authHeaderName . ': ' . $this->getAuthSecret()
+		];
 	}
 }

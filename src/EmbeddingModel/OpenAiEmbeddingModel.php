@@ -15,25 +15,25 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace MissionBay\EmbeddingModel;
 
-use MissionBay\Transport\MistralTransport;
+use MissionBay\Transport\OpenAiTransport;
 
-class MistralChatModel extends AbstractChatCompletionModel {
+class OpenAiEmbeddingModel extends AbstractEmbeddingModel {
 
 	public static function getName(): string {
-		return 'mistralchatmodel';
+		return 'openaiembeddingmodel';
 	}
 
 	protected function getProviderName(): string {
-		return MistralTransport::getName();
+		return OpenAiTransport::getName();
 	}
 
 	protected function getDefaultEndpoint(): string {
-		return 'https://api.mistral.ai';
+		return 'https://api.openai.com';
 	}
 
 	protected function getDefaultModel(): string {
-		return 'mistral-medium-2508';
+		return 'text-embedding-3-small';
 	}
 }
