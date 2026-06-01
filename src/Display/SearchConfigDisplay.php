@@ -76,7 +76,57 @@ final class SearchConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function getMissingModelMessage(): string {
-		return 'Missing model.';
+		return 'Missing model for selected search service driver.';
+	}
+
+	/**
+	 * @param array<string,mixed> $driverDefinition
+	 */
+	protected function isModelRequiredForDriver(string $driver, array $driverDefinition): bool {
+		if($this->readBoolFlag($driverDefinition, 'modelRequired') === true) {
+			return true;
+		}
+
+		if($this->readBoolFlag($driverDefinition, 'modelRequired') === false) {
+			return false;
+		}
+
+		if($this->readBoolFlag($driverDefinition, 'requiresModel') === true) {
+			return true;
+		}
+
+		if($this->readBoolFlag($driverDefinition, 'requiresModel') === false) {
+			return false;
+		}
+
+		$defaultConfig = is_array($driverDefinition['defaultConfig'] ?? null) ? $driverDefinition['defaultConfig'] : [];
+
+		if($this->readBoolFlag($defaultConfig, 'modelRequired') === true) {
+			return true;
+		}
+
+		if($this->readBoolFlag($defaultConfig, 'modelRequired') === false) {
+			return false;
+		}
+
+		if($this->readBoolFlag($defaultConfig, 'requiresModel') === true) {
+			return true;
+		}
+
+		if($this->readBoolFlag($defaultConfig, 'requiresModel') === false) {
+			return false;
+		}
+
+		return in_array($driver, [
+			'openai_websearch',
+			'openai-websearch',
+			'openai_responses_websearch',
+			'openai-responses-websearch',
+			'openai_chat_websearch',
+			'openai-chat-websearch',
+			'openai_search',
+			'openai-search'
+		], true);
 	}
 
 	protected function readSpecificOptions(array $options): array {
@@ -137,6 +187,37 @@ final class SearchConfigDisplay extends AbstractServiceConfigDisplay {
 		$row['blockedDomainsText'] = implode("\n", $row['blockedDomains']);
 
 		return $row;
+	}
+
+	/**
+	 * @param array<string,mixed> $data
+	 */
+	private function readBoolFlag(array $data, string $key): ?bool {
+		if(!array_key_exists($key, $data)) {
+			return null;
+		}
+
+		$value = $data[$key];
+
+		if(is_bool($value)) {
+			return $value;
+		}
+
+		if(is_int($value)) {
+			return $value !== 0;
+		}
+
+		$value = strtolower(trim((string)$value));
+
+		if(in_array($value, ['1', 'true', 'yes', 'on'], true)) {
+			return true;
+		}
+
+		if(in_array($value, ['0', 'false', 'no', 'off'], true)) {
+			return false;
+		}
+
+		return null;
 	}
 
 	/**

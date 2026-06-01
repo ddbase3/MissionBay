@@ -76,6 +76,17 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 	 */
 	abstract protected function expandSpecificDisplayOptions(array $row): array;
 
+	/**
+	 * Allows concrete service config displays to decide whether a model is required.
+	 *
+	 * Default remains strict to preserve existing behavior for all service types.
+	 *
+	 * @param array<string,mixed> $driverDefinition
+	 */
+	protected function isModelRequiredForDriver(string $driver, array $driverDefinition): bool {
+		return true;
+	}
+
 	public function setData($data) {
 		// no-op
 	}
@@ -306,7 +317,7 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 			throw new RuntimeException($this->getUnknownDriverMessage($driver));
 		}
 
-		if($model === '') {
+		if($model === '' && $this->isModelRequiredForDriver($driver, $drivers[$driver])) {
 			throw new RuntimeException($this->getMissingModelMessage());
 		}
 

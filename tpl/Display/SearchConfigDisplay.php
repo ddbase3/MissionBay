@@ -78,8 +78,13 @@
 					</div>
 
 					<div class="searchcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model">Model</label>
-						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model" name="model" placeholder="gpt-5.5" autocomplete="off">
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model">
+							Model <span data-role="modelrequiredlabel" style="font-weight:normal;color:#777">(optional)</span>
+						</label>
+						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model" name="model" placeholder="optional" autocomplete="off">
+						<div class="searchcfg-hint searchcfg-inline-hint" data-role="modelhint">
+							Model is optional unless the selected driver requires it.
+						</div>
 					</div>
 
 					<div class="searchcfg-field searchcfg-field-row">
@@ -492,6 +497,8 @@
 			legend: root.querySelector("[data-role='legend']"),
 			idhint: root.querySelector("[data-role='idhint']"),
 			connectionhint: root.querySelector("[data-role='connectionhint']"),
+			modelrequiredlabel: root.querySelector("[data-role='modelrequiredlabel']"),
+			modelhint: root.querySelector("[data-role='modelhint']"),
 			newBtn: root.querySelector("[data-role='new']"),
 			reloadBtn: root.querySelector("[data-role='reload']"),
 			deleteBtn: root.querySelector("[data-role='delete']"),
@@ -585,6 +592,57 @@
 			return state.drivers.find(function(item) {
 				return String(item.driver || "") === driver;
 			}) || null;
+		}
+
+		function isModelRequiredForDriver(driverName) {
+			const driver = findDriver(driverName);
+			const config = driver && driver.defaultConfig && typeof driver.defaultConfig === "object" ? driver.defaultConfig : {};
+			const normalized = String(driverName || "").toLowerCase();
+
+			if (driver && (driver.modelRequired === true || driver.requiresModel === true)) {
+				return true;
+			}
+
+			if (driver && (driver.modelRequired === false || driver.requiresModel === false)) {
+				return false;
+			}
+
+			if (config.modelRequired === true || config.requiresModel === true) {
+				return true;
+			}
+
+			if (config.modelRequired === false || config.requiresModel === false) {
+				return false;
+			}
+
+			return [
+				"openai_websearch",
+				"openai-websearch",
+				"openai_responses_websearch",
+				"openai-responses-websearch",
+				"openai_chat_websearch",
+				"openai-chat-websearch",
+				"openai_search",
+				"openai-search"
+			].indexOf(normalized) !== -1;
+		}
+
+		function updateModelState() {
+			const required = isModelRequiredForDriver(refs.driver.value);
+
+			if (refs.modelrequiredlabel) {
+				refs.modelrequiredlabel.textContent = required ? "(required)" : "(optional)";
+			}
+
+			if (refs.modelhint) {
+				refs.modelhint.textContent = required
+					? "This driver requires a model. Example: gpt-5.5 or gpt-5-search-api."
+					: "This driver does not require a model. Leave empty if the service works without one.";
+			}
+
+			if (!refs.model.value) {
+				refs.model.placeholder = required ? "gpt-5.5" : "optional";
+			}
 		}
 
 		function formatOptions(options) {
@@ -695,6 +753,7 @@
 				option.value = "";
 				option.textContent = "No search drivers available";
 				refs.driver.appendChild(option);
+				updateModelState();
 				return;
 			}
 
@@ -711,12 +770,14 @@
 			}
 
 			refs.driver.value = selected || refs.driver.value || "";
+			updateModelState();
 		}
 
 		function applyDriverDefaults(force) {
 			const driver = findDriver(refs.driver.value);
 
 			if (!driver) {
+				updateModelState();
 				return;
 			}
 
@@ -739,6 +800,8 @@
 				refs.connectTimeoutSeconds.value = options.connectTimeoutSeconds ?? "";
 				refs.options.value = formatOptions(options);
 			}
+
+			updateModelState();
 		}
 
 		function resetForm() {
@@ -763,6 +826,7 @@
 			state.selectedId = "";
 			setEditMode(false);
 			updateConnectionHint();
+			updateModelState();
 			highlightSelection();
 		}
 
@@ -792,6 +856,7 @@
 			state.selectedId = search.id || "";
 			setEditMode(true);
 			updateConnectionHint();
+			updateModelState();
 			highlightSelection();
 		}
 
@@ -989,8 +1054,8 @@
 				return;
 			}
 
-			if (!model) {
-				printOutput("Model is required.", "error");
+			if (!model && isModelRequiredForDriver(driver)) {
+				printOutput("Model is required for the selected driver.", "error");
 				return;
 			}
 
@@ -1085,6 +1150,7 @@
 
 		refs.driver.addEventListener("change", function() {
 			applyDriverDefaults(false);
+			updateModelState();
 		});
 
 		refs.tbody.addEventListener("click", function(e) {
