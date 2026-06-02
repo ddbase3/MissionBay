@@ -15,6 +15,8 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 
 	private const TABLE_NAME = 'base3_missionbay_tooluse';
 
+	private ?bool $toolUseTableExists = null;
+
 	public function __construct(
 		private readonly IRequest $request,
 		private readonly IMvcView $view,
@@ -117,7 +119,9 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 	 * @return array<string, mixed>
 	 */
 	private function buildPageResponse(array $request): array {
-		$this->database->connect();
+		if(!$this->hasToolUseTable()) {
+			return $this->buildEmptyPageResponse($request);
+		}
 
 		$whereParts = $this->buildWhereParts($request['search'], $request['filters']);
 		$whereSql = count($whereParts) > 0
@@ -125,7 +129,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			: '';
 
 		$totalQuery = 'SELECT COUNT(*) FROM `' . self::TABLE_NAME . '` t' . $whereSql;
-		$total = (int) ($this->database->scalarQuery($totalQuery) ?? 0);
+		$total = (int) ($this->safeScalarQuery($totalQuery, 0) ?? 0);
 
 		$pageSize = $request['pageSize'];
 		$page = $request['page'];
@@ -140,7 +144,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			$this->buildOrderBySql($request['sort']) .
 			' LIMIT ' . $offset . ', ' . $pageSize;
 
-		$rows = $this->database->multiQuery($query);
+		$rows = $this->safeMultiQuery($query);
 		$data = [];
 
 		foreach($rows as $row) {
@@ -173,7 +177,9 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 	 * @return array<string, mixed>
 	 */
 	private function buildGroupedPageResponse(array $request): array {
-		$this->database->connect();
+		if(!$this->hasToolUseTable()) {
+			return $this->buildEmptyGroupedPageResponse($request);
+		}
 
 		$group = $request['group'];
 		$whereParts = $this->buildWhereParts($request['search'], $request['filters']);
@@ -200,7 +206,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			$groupBySql .
 			') grouped_rows';
 
-		$total = (int) ($this->database->scalarQuery($totalQuery) ?? 0);
+		$total = (int) ($this->safeScalarQuery($totalQuery, 0) ?? 0);
 
 		$pageSize = $request['pageSize'];
 		$page = $request['page'];
@@ -225,7 +231,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			$this->buildGroupedOrderBySql($request['sort'], $group) .
 			' LIMIT ' . $offset . ', ' . $pageSize;
 
-		$rows = $this->database->multiQuery($query);
+		$rows = $this->safeMultiQuery($query);
 		$data = [];
 
 		foreach($rows as $row) {
@@ -250,6 +256,50 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			'appliedSort' => [$request['sort']],
 			'appliedFilters' => $request['filters'],
 			'appliedGroup' => $group,
+		];
+	}
+
+	/**
+	 * @param array<string, mixed> $request
+	 * @return array<string, mixed>
+	 */
+	private function buildEmptyPageResponse(array $request): array {
+		return [
+			'mode' => 'page',
+			'data' => [],
+			'groups' => [],
+			'page' => $request['page'],
+			'pageSize' => $request['pageSize'],
+			'total' => 0,
+			'totalPages' => 0,
+			'hasMore' => false,
+			'nextCursor' => null,
+			'appliedSearch' => $request['search'],
+			'appliedSort' => [$request['sort']],
+			'appliedFilters' => $request['filters'],
+			'appliedGroup' => [],
+		];
+	}
+
+	/**
+	 * @param array<string, mixed> $request
+	 * @return array<string, mixed>
+	 */
+	private function buildEmptyGroupedPageResponse(array $request): array {
+		return [
+			'mode' => 'grouped-page',
+			'data' => [],
+			'groups' => $request['group'],
+			'page' => $request['page'],
+			'pageSize' => $request['pageSize'],
+			'total' => 0,
+			'totalPages' => 0,
+			'hasMore' => false,
+			'nextCursor' => null,
+			'appliedSearch' => $request['search'],
+			'appliedSort' => [$request['sort']],
+			'appliedFilters' => $request['filters'],
+			'appliedGroup' => $request['group'],
 		];
 	}
 
@@ -776,7 +826,13 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			];
 		}
 
-		$this->database->connect();
+		if(!$this->hasToolUseTable()) {
+			return [
+				'mode' => 'detail',
+				'found' => false,
+				'detail' => null,
+			];
+		}
 
 		$query =
 			'SELECT ' .
@@ -785,7 +841,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			'WHERE t.`id` = ' . $id . ' ' .
 			'LIMIT 1';
 
-		$row = $this->database->singleQuery($query);
+		$row = $this->safeSingleQuery($query);
 
 		if(!is_array($row) || count($row) === 0) {
 			return [
@@ -920,7 +976,9 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 	 * @return array<string, mixed>
 	 */
 	private function buildGroupedDetailResponse(array $request): array {
-		$this->database->connect();
+		if(!$this->hasToolUseTable()) {
+			return $this->buildEmptyGroupedDetailResponse();
+		}
 
 		$whereParts = array_merge(
 			$this->buildWhereParts($request['search'], $request['filters']),
@@ -939,7 +997,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			' ORDER BY t.`created_at` ASC, t.`call_index` ASC, t.`id` ASC' .
 			' LIMIT 0, 250';
 
-		$rows = $this->database->multiQuery($query);
+		$rows = $this->safeMultiQuery($query);
 		$children = [];
 
 		foreach($rows as $row) {
@@ -993,11 +1051,65 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 	}
 
 	/**
+	 * @return array<string, mixed>
+	 */
+	private function buildEmptyGroupedDetailResponse(): array {
+		return [
+			'mode' => 'grouped-detail',
+			'found' => true,
+			'detail' => [
+				'kind' => 'grouped-child-table',
+				'headline' => 'Grouped tool calls',
+				'summary' => '0 matching log entries loaded. The tool log table does not exist yet.',
+				'columns' => [
+					[
+						'key' => 'created_at',
+						'label' => 'Created',
+					],
+					[
+						'key' => 'turn_id',
+						'label' => 'Turn',
+					],
+					[
+						'key' => 'call_index',
+						'label' => 'Call',
+					],
+					[
+						'key' => 'tool_name',
+						'label' => 'Tool',
+					],
+					[
+						'key' => 'status',
+						'label' => 'Status',
+					],
+					[
+						'key' => 'user_login',
+						'label' => 'User',
+					],
+					[
+						'key' => 'chatbot_key',
+						'label' => 'Chatbot',
+					],
+				],
+				'rows' => [],
+			],
+		];
+	}
+
+	/**
 	 * @param array<string, mixed> $request
 	 * @return array<string, mixed>
 	 */
 	private function buildGroupRecordsResponse(array $request): array {
-		$this->database->connect();
+		if(!$this->hasToolUseTable()) {
+			return [
+				'mode' => 'group-records',
+				'found' => false,
+				'records' => [],
+				'limit' => 500,
+				'totalReturned' => 0,
+			];
+		}
 
 		$whereParts = array_merge(
 			$this->buildWhereParts($request['search'], $request['filters']),
@@ -1016,7 +1128,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			' ORDER BY t.`created_at` ASC, t.`call_index` ASC, t.`id` ASC' .
 			' LIMIT 0, 500';
 
-		$rows = $this->database->multiQuery($query);
+		$rows = $this->safeMultiQuery($query);
 		$records = [];
 
 		foreach($rows as $row) {
@@ -1048,7 +1160,13 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			];
 		}
 
-		$this->database->connect();
+		if(!$this->hasToolUseTable()) {
+			return [
+				'mode' => 'record',
+				'found' => false,
+				'record' => null,
+			];
+		}
 
 		$query =
 			'SELECT ' .
@@ -1057,7 +1175,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			'WHERE t.`id` = ' . $id . ' ' .
 			'LIMIT 1';
 
-		$row = $this->database->singleQuery($query);
+		$row = $this->safeSingleQuery($query);
 
 		if(!is_array($row) || count($row) === 0) {
 			return [
@@ -1115,6 +1233,63 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 		];
 	}
 
+	private function hasToolUseTable(): bool {
+		if($this->toolUseTableExists !== null) {
+			return $this->toolUseTableExists;
+		}
+
+		try {
+			$this->database->connect();
+
+			$query =
+				'SELECT COUNT(*) ' .
+				'FROM information_schema.tables ' .
+				'WHERE table_schema = DATABASE() ' .
+				'AND table_name = \'' . $this->database->escape(self::TABLE_NAME) . '\'';
+
+			$this->toolUseTableExists = ((int) ($this->database->scalarQuery($query) ?? 0)) > 0;
+		} catch(\Throwable $exception) {
+			$this->toolUseTableExists = false;
+		}
+
+		return $this->toolUseTableExists;
+	}
+
+	/**
+	 * @return array<int, mixed>
+	 */
+	private function safeMultiQuery(string $query): array {
+		try {
+			$rows = $this->database->multiQuery($query);
+			return is_array($rows) ? $rows : [];
+		} catch(\Throwable $exception) {
+			$this->toolUseTableExists = false;
+			return [];
+		}
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private function safeSingleQuery(string $query): array {
+		try {
+			$row = $this->database->singleQuery($query);
+			return is_array($row) ? $row : [];
+		} catch(\Throwable $exception) {
+			$this->toolUseTableExists = false;
+			return [];
+		}
+	}
+
+	private function safeScalarQuery(string $query, mixed $default = null): mixed {
+		try {
+			return $this->database->scalarQuery($query) ?? $default;
+		} catch(\Throwable $exception) {
+			$this->toolUseTableExists = false;
+			return $default;
+		}
+	}
+
 	/**
 	 * @return array<int, array<string, string>>
 	 */
@@ -1132,20 +1307,20 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			}
 		}
 
-		$this->database->connect();
+		if($this->hasToolUseTable()) {
+			$rows = $this->safeMultiQuery(
+				'SELECT DISTINCT t.`tool_name` FROM `' . self::TABLE_NAME . '` t WHERE t.`tool_name` <> \'\' ORDER BY t.`tool_name` ASC'
+			);
 
-		$rows = $this->database->multiQuery(
-			'SELECT DISTINCT t.`tool_name` FROM `' . self::TABLE_NAME . '` t WHERE t.`tool_name` <> \'\' ORDER BY t.`tool_name` ASC'
-		);
+			foreach($rows as $row) {
+				if(!is_array($row)) {
+					continue;
+				}
 
-		foreach($rows as $row) {
-			if(!is_array($row)) {
-				continue;
-			}
-
-			$name = trim((string) ($row['tool_name'] ?? ''));
-			if($name !== '') {
-				$values[$name] = $name;
+				$name = trim((string) ($row['tool_name'] ?? ''));
+				if($name !== '') {
+					$values[$name] = $name;
+				}
 			}
 		}
 
@@ -1172,11 +1347,11 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 	 * @return array<int, array<string, string>>
 	 */
 	private function getStatusOptions(): array {
-		$this->database->connect();
-
-		$rows = $this->database->multiQuery(
-			'SELECT DISTINCT t.`status` FROM `' . self::TABLE_NAME . '` t WHERE t.`status` <> \'\' ORDER BY t.`status` ASC'
-		);
+		$rows = $this->hasToolUseTable()
+			? $this->safeMultiQuery(
+				'SELECT DISTINCT t.`status` FROM `' . self::TABLE_NAME . '` t WHERE t.`status` <> \'\' ORDER BY t.`status` ASC'
+			)
+			: [];
 
 		$options = [
 			[

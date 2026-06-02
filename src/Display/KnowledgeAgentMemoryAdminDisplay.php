@@ -14,6 +14,8 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 	private const TABLE_NAME = 'base3_agent_knowledge';
 	private const UPDATED_BY = 'admin';
 
+	private ?bool $knowledgeTableExists = null;
+
 	public function __construct(
 		private readonly IRequest $request,
 		private readonly IMvcView $view,
@@ -112,6 +114,10 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 	 * @return array<string, mixed>
 	 */
 	private function buildPageResponse(array $request): array {
+		if(!$this->hasKnowledgeTable()) {
+			return $this->emptyPageResponse($request);
+		}
+
 		$this->database->connect();
 
 		$whereParts = $this->buildWhereParts($request['search'], $request['filters']);
@@ -120,7 +126,7 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			: '';
 
 		$totalQuery = 'SELECT COUNT(*) FROM `' . self::TABLE_NAME . '` t' . $whereSql;
-		$total = (int) ($this->database->scalarQuery($totalQuery) ?? 0);
+		$total = (int) ($this->safeScalarQuery($totalQuery, 0) ?? 0);
 
 		$pageSize = $request['pageSize'];
 		$page = $request['page'];
@@ -135,7 +141,7 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			$this->buildOrderBySql($request['sort']) .
 			' LIMIT ' . $offset . ', ' . $pageSize;
 
-		$rows = $this->database->multiQuery($query);
+		$rows = $this->safeMultiQuery($query);
 		$data = [];
 
 		foreach($rows as $row) {
@@ -907,6 +913,10 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			return null;
 		}
 
+		if(!$this->hasKnowledgeTable()) {
+			return null;
+		}
+
 		$this->database->connect();
 
 		$select = $this->buildSelectList();
@@ -921,13 +931,96 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			'WHERE t.`id` = ' . $id . ' ' .
 			'LIMIT 1';
 
-		$row = $this->database->singleQuery($query);
+		$row = $this->safeSingleQuery($query);
 
 		if(!is_array($row) || count($row) === 0) {
 			return null;
 		}
 
 		return $row;
+	}
+
+	private function hasKnowledgeTable(): bool {
+		if($this->knowledgeTableExists !== null) {
+			return $this->knowledgeTableExists;
+		}
+
+		try {
+			$this->database->connect();
+
+			$query =
+				'SELECT COUNT(*) ' .
+				'FROM information_schema.tables ' .
+				'WHERE table_schema = DATABASE() ' .
+				'AND table_name = \'' . $this->database->escape(self::TABLE_NAME) . '\'';
+
+			$this->knowledgeTableExists = ((int) ($this->database->scalarQuery($query) ?? 0)) > 0;
+		}
+		catch(\Throwable $exception) {
+			$this->knowledgeTableExists = false;
+		}
+
+		return $this->knowledgeTableExists;
+	}
+
+	/**
+	 * @param array<string, mixed> $request
+	 * @return array<string, mixed>
+	 */
+	private function emptyPageResponse(array $request): array {
+		return [
+			'mode' => 'page',
+			'data' => [],
+			'groups' => [],
+			'page' => $request['page'],
+			'pageSize' => $request['pageSize'],
+			'total' => 0,
+			'totalPages' => 0,
+			'hasMore' => false,
+			'nextCursor' => null,
+			'appliedSearch' => $request['search'],
+			'appliedSort' => [$request['sort']],
+			'appliedFilters' => $request['filters'],
+			'appliedGroup' => [],
+		];
+	}
+
+	/**
+	 * @return array<int, mixed>
+	 */
+	private function safeMultiQuery(string $query): array {
+		try {
+			$rows = $this->database->multiQuery($query);
+			return is_array($rows) ? $rows : [];
+		}
+		catch(\Throwable $exception) {
+			$this->knowledgeTableExists = false;
+			return [];
+		}
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private function safeSingleQuery(string $query): array {
+		try {
+			$row = $this->database->singleQuery($query);
+			return is_array($row) ? $row : [];
+		}
+		catch(\Throwable $exception) {
+			$this->knowledgeTableExists = false;
+			return [];
+		}
+	}
+
+	private function safeScalarQuery(string $query, mixed $default = null): mixed {
+		try {
+			return $this->database->scalarQuery($query) ?? $default;
+		}
+		catch(\Throwable $exception) {
+			$this->knowledgeTableExists = false;
+			return $default;
+		}
 	}
 
 	/**
@@ -973,18 +1066,22 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			];
 		}
 
-		$this->database->connect();
-
-		$rows = $this->database->multiQuery(
-			'SELECT DISTINCT t.`' . $column . '` AS `value` FROM `' . self::TABLE_NAME . '` t WHERE COALESCE(t.`' . $column . '`, \'\') <> \'\' ORDER BY t.`' . $column . '` ASC'
-		);
-
 		$options = [
 			[
 				'value' => '',
 				'label' => $emptyLabel,
 			]
 		];
+
+		if(!$this->hasKnowledgeTable()) {
+			return $options;
+		}
+
+		$this->database->connect();
+
+		$rows = $this->safeMultiQuery(
+			'SELECT DISTINCT t.`' . $column . '` AS `value` FROM `' . self::TABLE_NAME . '` t WHERE COALESCE(t.`' . $column . '`, \'\') <> \'\' ORDER BY t.`' . $column . '` ASC'
+		);
 
 		foreach($rows as $row) {
 			if(!is_array($row)) {
