@@ -167,12 +167,16 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 			'connection_driver' => true,
 			'model' => true,
 			'endpoint' => true,
-			'apikey' => true
+			'apikey' => true,
+			'max_tokens' => true,
+			'top_p' => true,
+			'timeout_seconds' => true,
+			'connect_timeout_seconds' => true,
+			'maxtokens' => true
 		]);
 
 		$this->mapOptionalNumber($options, $serviceOptions, 'temperature', 'temperature', 'float');
 		$this->mapOptionalNumber($options, $serviceOptions, 'maxTokens', 'max_tokens', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'maxTokens', 'maxtokens', 'int');
 		$this->mapOptionalNumber($options, $serviceOptions, 'topP', 'top_p', 'float');
 		$this->mapOptionalNumber($options, $serviceOptions, 'timeoutSeconds', 'timeout_seconds', 'int');
 		$this->mapOptionalNumber($options, $serviceOptions, 'connectTimeoutSeconds', 'connect_timeout_seconds', 'int');

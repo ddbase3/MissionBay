@@ -80,6 +80,8 @@ final class LlmConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function readSpecificOptions(array $options): array {
+		$options = $this->removeRuntimeOptionAliases($options);
+
 		$temperature = $this->readOptionalFloat('temperature', 'Temperature');
 		$maxTokens = $this->readOptionalInt('maxTokens', 'Max tokens');
 		$topP = $this->readOptionalFloat('topP', 'Top P');
@@ -111,7 +113,9 @@ final class LlmConfigDisplay extends AbstractServiceConfigDisplay {
 
 	protected function expandSpecificDisplayOptions(array $row): array {
 		$options = is_array($row['options'] ?? null) ? $row['options'] : [];
+		$options = $this->removeRuntimeOptionAliases($options);
 
+		$row['options'] = $options;
 		$row['temperature'] = $this->normalizeNullableNumber($options['temperature'] ?? null);
 		$row['maxTokens'] = $this->normalizeNullableNumber($options['maxTokens'] ?? null);
 		$row['topP'] = $this->normalizeNullableNumber($options['topP'] ?? null);
@@ -119,5 +123,17 @@ final class LlmConfigDisplay extends AbstractServiceConfigDisplay {
 		$row['connectTimeoutSeconds'] = $this->normalizeNullableNumber($options['connectTimeoutSeconds'] ?? null);
 
 		return $row;
+	}
+
+	private function removeRuntimeOptionAliases(array $options): array {
+		unset(
+			$options['max_tokens'],
+			$options['top_p'],
+			$options['timeout_seconds'],
+			$options['connect_timeout_seconds'],
+			$options['maxtokens']
+		);
+
+		return $options;
 	}
 }
