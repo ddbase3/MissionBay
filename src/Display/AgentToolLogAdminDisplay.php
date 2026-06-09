@@ -1238,16 +1238,12 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			return $this->toolUseTableExists;
 		}
 
+		$this->toolUseTableExists = false;
+
 		try {
 			$this->database->connect();
-
-			$query =
-				'SELECT COUNT(*) ' .
-				'FROM information_schema.tables ' .
-				'WHERE table_schema = DATABASE() ' .
-				'AND table_name = \'' . $this->database->escape(self::TABLE_NAME) . '\'';
-
-			$this->toolUseTableExists = ((int) ($this->database->scalarQuery($query) ?? 0)) > 0;
+			$this->database->multiQuery('SELECT 1 FROM `' . self::TABLE_NAME . '` LIMIT 0');
+			$this->toolUseTableExists = true;
 		} catch(\Throwable $exception) {
 			$this->toolUseTableExists = false;
 		}

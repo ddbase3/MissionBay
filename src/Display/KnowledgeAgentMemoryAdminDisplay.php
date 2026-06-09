@@ -118,7 +118,9 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			return $this->emptyPageResponse($request);
 		}
 
-		$this->database->connect();
+		if(!$this->safeConnect()) {
+			return $this->emptyPageResponse($request);
+		}
 
 		$whereParts = $this->buildWhereParts($request['search'], $request['filters']);
 		$whereSql = count($whereParts) > 0
@@ -917,8 +919,6 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			return null;
 		}
 
-		$this->database->connect();
-
 		$select = $this->buildSelectList();
 
 		if($withContent) {
@@ -946,7 +946,9 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 		}
 
 		try {
-			$this->database->connect();
+			if(!$this->safeConnect()) {
+				return false;
+			}
 
 			$query =
 				'SELECT COUNT(*) ' .
@@ -985,11 +987,26 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 		];
 	}
 
+	private function safeConnect(): bool {
+		try {
+			$this->database->connect();
+			return true;
+		}
+		catch(\Throwable $exception) {
+			$this->knowledgeTableExists = false;
+			return false;
+		}
+	}
+
 	/**
 	 * @return array<int, mixed>
 	 */
 	private function safeMultiQuery(string $query): array {
 		try {
+			if(!$this->safeConnect()) {
+				return [];
+			}
+
 			$rows = $this->database->multiQuery($query);
 			return is_array($rows) ? $rows : [];
 		}
@@ -1004,6 +1021,10 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 	 */
 	private function safeSingleQuery(string $query): array {
 		try {
+			if(!$this->safeConnect()) {
+				return [];
+			}
+
 			$row = $this->database->singleQuery($query);
 			return is_array($row) ? $row : [];
 		}
@@ -1015,6 +1036,10 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 
 	private function safeScalarQuery(string $query, mixed $default = null): mixed {
 		try {
+			if(!$this->safeConnect()) {
+				return $default;
+			}
+
 			return $this->database->scalarQuery($query) ?? $default;
 		}
 		catch(\Throwable $exception) {
@@ -1076,8 +1101,6 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 		if(!$this->hasKnowledgeTable()) {
 			return $options;
 		}
-
-		$this->database->connect();
 
 		$rows = $this->safeMultiQuery(
 			'SELECT DISTINCT t.`' . $column . '` AS `value` FROM `' . self::TABLE_NAME . '` t WHERE COALESCE(t.`' . $column . '`, \'\') <> \'\' ORDER BY t.`' . $column . '` ASC'
