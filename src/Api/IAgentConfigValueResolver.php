@@ -18,18 +18,22 @@
 namespace MissionBay\Api;
 
 /**
- * Interface for resolving dynamic configuration values at runtime.
- * Supports various resolution strategies (fixed, env, config, etc).
+ * Interface for resolving agent configuration values at runtime.
+ *
+ * This resolver is MissionBay-specific and may support agent runtime modes
+ * in addition to the generic BASE3 config value modes.
  */
 interface IAgentConfigValueResolver {
 
 	/**
-	 * Resolve a value from a config specification.
+	 * Resolves a value from an agent config specification.
 	 *
-	 * Scalars are returned as-is.
+	 * Scalars are returned as-is. Generic config value modes are delegated to
+	 * the BASE3 config value resolver. Agent-specific modes may be handled by
+	 * the concrete MissionBay implementation.
 	 *
-	 * @param array|string|int|float|bool|null $config
-	 * @return mixed
+	 * @param array|string|int|float|bool|null $config Raw agent config value definition
+	 * @return mixed Resolved runtime value
 	 */
 	public function resolveValue(array|string|int|float|bool|null $config): mixed;
 }

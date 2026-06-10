@@ -17,15 +17,18 @@
 
 namespace MissionBay\Agent;
 
+use Base3\ConfigValue\Api\IConfigValueResolver;
 use MissionBay\Api\IAgentConfigValueResolver;
-use Base3\Configuration\Api\IConfiguration;
+use RuntimeException;
 
 /**
- * Resolves configuration values at runtime from various sources:
- * - fixed
- * - default
- * - env
- * - config
+ * Resolves MissionBay agent configuration values at runtime.
+ *
+ * Generic config value modes such as fixed, configuration, env and file are
+ * delegated to the BASE3 config value resolver. MissionBay-specific runtime
+ * modes remain here to avoid exposing them as generic framework modes.
+ *
+ * Supported MissionBay-specific modes:
  * - inherit
  * - random
  * - uuid
@@ -33,75 +36,60 @@ use Base3\Configuration\Api\IConfiguration;
 class AgentConfigValueResolver implements IAgentConfigValueResolver {
 
 	public function __construct(
-		private readonly IConfiguration $configuration
+		private readonly IConfigValueResolver $configValueResolver
 	) {}
 
 	/**
 	 * Resolves a config entry into a final runtime value.
 	 *
-	 * Scalars are returned unchanged.
+	 * Scalars and generic config value definitions are delegated to the BASE3
+	 * config value resolver. Only MissionBay-specific modes are handled locally.
 	 *
-	 * @param array|string|int|float|bool|null $config
-	 * @return mixed
+	 * @param array|string|int|float|bool|null $config Raw agent config value definition
+	 * @return mixed Resolved runtime value
 	 */
 	public function resolveValue(array|string|int|float|bool|null $config): mixed {
-		if (!is_array($config)) {
-			return $config;
+		if (is_array($config)) {
+			$mode = $config['mode'] ?? null;
+
+			switch ($mode) {
+				case 'inherit':
+					return null;
+
+				case 'random':
+					return $this->resolveRandom($config);
+
+				case 'uuid':
+					return $this->generateUuidV4();
+			}
 		}
 
-		$mode = $config['mode'] ?? 'inherit';
+		return $this->configValueResolver->resolve($config);
+	}
 
-		switch ($mode) {
-			case 'fixed':
-			case 'default':
-				return $config['value'] ?? null;
+	/**
+	 * Resolves a random value from the configured value list.
+	 *
+	 * The legacy field "value" is still supported. The field "values" is also
+	 * accepted as a clearer alternative for future definitions.
+	 *
+	 * @param array $config Random config value definition
+	 * @return mixed Randomly selected value or null if no values are available
+	 */
+	protected function resolveRandom(array $config): mixed {
+		$values = $config['values'] ?? ($config['value'] ?? null);
 
-			case 'env':
-				return getenv((string)($config['value'] ?? '')) ?: null;
-
-			case 'config':
-				$section = $config['section'] ?? null;
-				$key = $config['key'] ?? null;
-
-				if (!$section || !$key) {
-					throw new \RuntimeException(
-						"AgentConfigValueResolver: 'config' mode requires both 'section' and 'key'."
-					);
-				}
-
-				$sectionData = $this->configuration->get($section);
-				if (!is_array($sectionData)) {
-					throw new \RuntimeException(
-						"AgentConfigValueResolver: Section '$section' not found or invalid."
-					);
-				}
-
-				if (!array_key_exists($key, $sectionData)) {
-					throw new \RuntimeException(
-						"AgentConfigValueResolver: Key '$key' not found in section '$section'."
-					);
-				}
-
-				return $sectionData[$key];
-
-			case 'random':
-				$value = $config['value'] ?? null;
-				if (is_array($value) && !empty($value)) {
-					return $value[array_rand($value)];
-				}
-				return null;
-
-			case 'uuid':
-				return $this->generateUuidV4();
-
-			case 'inherit':
-			default:
-				return null;
+		if (!is_array($values) || empty($values)) {
+			return null;
 		}
+
+		return $values[array_rand($values)];
 	}
 
 	/**
 	 * Generates a UUID v4 string.
+	 *
+	 * @return string UUID v4 value
 	 */
 	protected function generateUuidV4(): string {
 		$data = random_bytes(16);
