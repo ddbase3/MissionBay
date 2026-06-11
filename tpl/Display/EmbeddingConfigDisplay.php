@@ -4,15 +4,13 @@
 	<div class="embcfg-meta">
 		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
 		<div><strong>Connection group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">–</span></div>
-		<div data-role="loading" class="embcfg-loading">Please wait…</div>
+		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="embcfg-loading">Please wait...</div>
 	</div>
 
 	<div class="embcfg-hint">
 		Embedding services define concrete vector embedding models. Technical endpoint and authentication are taken from the selected connection.
 	</div>
-
-	<div data-role="output" class="embcfg-output" style="display:none"></div>
 
 	<div class="embcfg-layout">
 		<div class="embcfg-listbox">
@@ -36,7 +34,7 @@
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="9" class="mono">Loading…</td></tr>
+					<tr><td colspan="9" class="mono">Loading...</td></tr>
 				</tbody>
 			</table>
 		</div>
@@ -78,7 +76,7 @@
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection"
 							name="connection"
 						>
-							<option value="">Loading connections…</option>
+							<option value="">Loading connections...</option>
 						</select>
 						<div class="embcfg-hint embcfg-inline-hint" data-role="connectionhint">
 							Connections contain endpoint and authentication data.
@@ -91,7 +89,7 @@
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-driver"
 							name="driver"
 						>
-							<option value="">Loading drivers…</option>
+							<option value="">Loading drivers...</option>
 						</select>
 					</div>
 
@@ -182,6 +180,8 @@
 					</div>
 				</div>
 
+				<div data-role="formfeedback" class="embcfg-form-feedback" style="display:none"></div>
+
 				<div class="embcfg-actions">
 					<button type="submit" class="primary">Save embedding service</button>
 					<button type="button" data-role="delete" disabled>Delete embedding service</button>
@@ -232,32 +232,6 @@
 	display: none;
 	color: #666;
 	font-style: italic;
-}
-
-.embcfg-output {
-	background: #fff;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	padding: 10px;
-	font-family: Consolas, monospace;
-	font-size: 12px;
-	white-space: pre-wrap;
-	max-height: 240px;
-	overflow: auto;
-	color: #444;
-	margin-bottom: 12px;
-}
-
-.embcfg-output.error {
-	border-color: #d88;
-	background: #fff5f5;
-	color: #a33;
-}
-
-.embcfg-output.success {
-	border-color: #8d8;
-	background: #f6fff6;
-	color: #373;
 }
 
 .embcfg-layout {
@@ -462,6 +436,27 @@
 	font-weight: 600;
 }
 
+.embcfg-form-feedback {
+	margin-top: 14px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	padding: 9px 11px;
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.embcfg-form-feedback.success {
+	border-color: #8d8;
+	background: #f6fff6;
+	color: #2d6b2d;
+}
+
+.embcfg-form-feedback.error {
+	border-color: #d88;
+	background: #fff5f5;
+	color: #a33;
+}
+
 .embcfg-actions {
 	display: flex;
 	gap: 8px;
@@ -485,7 +480,6 @@
 (function() {
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
-	const configGroup = <?php echo json_encode((string)$this->_['configGroup']); ?>;
 
 	function init() {
 		const root = document.getElementById(instanceId);
@@ -498,7 +492,7 @@
 		const refs = {
 			loading: root.querySelector("[data-role='loading']"),
 			lastupdate: root.querySelector("[data-role='lastupdate']"),
-			output: root.querySelector("[data-role='output']"),
+			formfeedback: root.querySelector("[data-role='formfeedback']"),
 			tbody: root.querySelector("[data-role='tbody']"),
 			form: root.querySelector("[data-role='form']"),
 			legend: root.querySelector("[data-role='legend']"),
@@ -558,36 +552,27 @@
 				return;
 			}
 
-			refs.lastupdate.textContent = ts || "–";
+			refs.lastupdate.textContent = ts || "-";
 		}
 
-		function printOutput(obj, type) {
-			if (!refs.output) {
+		function showFeedback(message, type) {
+			if (!refs.formfeedback) {
 				return;
 			}
 
-			refs.output.style.display = "block";
-			refs.output.className = "embcfg-output";
-
-			if (type === "error") {
-				refs.output.classList.add("error");
-			}
-
-			if (type === "success") {
-				refs.output.classList.add("success");
-			}
-
-			refs.output.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+			refs.formfeedback.style.display = "block";
+			refs.formfeedback.className = "embcfg-form-feedback " + (type === "error" ? "error" : "success");
+			refs.formfeedback.textContent = message;
 		}
 
-		function clearOutput() {
-			if (!refs.output) {
+		function clearFeedback() {
+			if (!refs.formfeedback) {
 				return;
 			}
 
-			refs.output.style.display = "none";
-			refs.output.className = "embcfg-output";
-			refs.output.textContent = "";
+			refs.formfeedback.style.display = "none";
+			refs.formfeedback.className = "embcfg-form-feedback";
+			refs.formfeedback.textContent = "";
 		}
 
 		function setEditMode(editing) {
@@ -887,20 +872,20 @@
 				try {
 					json = JSON.parse(text);
 				} catch (e) {
-					printOutput("Invalid JSON response:\n" + text, "error");
+					showFeedback("The server response could not be read.", "error");
 					return null;
 				}
 
 				setLastUpdate(json.timestamp || "");
 
 				if (json.status !== "ok") {
-					printOutput(json.message || json, "error");
+					showFeedback(json.message || "The request could not be completed.", "error");
 					return null;
 				}
 
 				return json;
 			} catch (e) {
-				printOutput("Request failed:\n" + e, "error");
+				showFeedback("The request failed. Please try again.", "error");
 				return null;
 			} finally {
 				setLoading(false);
@@ -913,6 +898,7 @@
 			});
 
 			if (!json) {
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'>Embedding services could not be loaded.</td></tr>";
 				return;
 			}
 
@@ -956,18 +942,20 @@
 				const parsed = JSON.parse(raw);
 
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					printOutput("Advanced options must be a JSON object.", "error");
+					showFeedback("Advanced options must be a JSON object.", "error");
 					return null;
 				}
 
 				return JSON.stringify(parsed);
 			} catch (e) {
-				printOutput("Advanced options must be valid JSON:\n" + e.message, "error");
+				showFeedback("Advanced options must be valid JSON.", "error");
 				return null;
 			}
 		}
 
 		async function saveCurrent() {
+			clearFeedback();
+
 			const id = normalizeKey(refs.id.value);
 			const name = String(refs.name.value || "").trim();
 			const connection = normalizeKey(refs.connection.value);
@@ -990,27 +978,27 @@
 			refs.driver.value = driver;
 
 			if (!id) {
-				printOutput("Embedding service id is required.", "error");
+				showFeedback("Embedding service id is required.", "error");
 				return;
 			}
 
 			if (!name) {
-				printOutput("Name is required.", "error");
+				showFeedback("Name is required.", "error");
 				return;
 			}
 
 			if (!connection) {
-				printOutput("Connection is required.", "error");
+				showFeedback("Connection is required.", "error");
 				return;
 			}
 
 			if (!driver) {
-				printOutput("Driver is required.", "error");
+				showFeedback("Driver is required.", "error");
 				return;
 			}
 
 			if (!model) {
-				printOutput("Model is required.", "error");
+				showFeedback("Model is required.", "error");
 				return;
 			}
 
@@ -1036,20 +1024,18 @@
 
 			const embedding = (json.data && json.data.embedding) ? json.data.embedding : null;
 
-			printOutput({
-				status: "saved",
-				group: configGroup,
-				embedding: embedding
-			}, "success");
+			showFeedback("Embedding service saved.", "success");
 
 			await loadList(embedding && embedding.id ? embedding.id : id);
 		}
 
 		async function removeCurrent() {
+			clearFeedback();
+
 			const id = String(state.selectedId || refs.id.value || "").trim();
 
 			if (!id) {
-				printOutput("No embedding service selected.", "error");
+				showFeedback("No embedding service selected.", "error");
 				return;
 			}
 
@@ -1066,11 +1052,7 @@
 				return;
 			}
 
-			printOutput({
-				status: "removed",
-				group: configGroup,
-				id: id
-			}, "success");
+			showFeedback("Embedding service deleted.", "success");
 
 			resetForm();
 			await loadList();
@@ -1082,12 +1064,12 @@
 		});
 
 		refs.newBtn.addEventListener("click", function() {
-			clearOutput();
+			clearFeedback();
 			resetForm();
 		});
 
 		refs.reloadBtn.addEventListener("click", function() {
-			clearOutput();
+			clearFeedback();
 			loadList(state.selectedId || "");
 		});
 
@@ -1109,7 +1091,7 @@
 				return;
 			}
 
-			clearOutput();
+			clearFeedback();
 
 			const embedding = findEmbedding(btn.getAttribute("data-id"));
 			fillForm(embedding);

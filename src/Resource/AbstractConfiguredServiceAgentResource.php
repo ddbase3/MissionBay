@@ -107,10 +107,9 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 		}
 
 		$config = ConnectionConfig::fromSettings($connectionId, $settings);
-		$data = $config->toDisplayArray();
 
-		if(!$this->toBool($data['enabled'] ?? true, true)) {
-			throw new RuntimeException('Connection config is disabled: ' . $connectionId . ' ' . $this->formatConfigDebug($data));
+		if(!$config->isEnabled()) {
+			throw new RuntimeException('Connection config is disabled: ' . $connectionId . ' ' . $this->formatConfigDebug($config->toSettings()));
 		}
 
 		return $config;
@@ -126,11 +125,10 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 			throw new RuntimeException('Service config has no model: ' . $serviceConfig->getId() . ' ' . $this->formatConfigDebug($serviceConfig->toSettings()));
 		}
 
-		$connectionData = $connectionConfig->toDisplayArray();
-		$baseUrl = trim((string)($connectionData['baseUrl'] ?? ''));
+		$baseUrl = trim($connectionConfig->getBaseUrl());
 
 		if($baseUrl === '') {
-			throw new RuntimeException('Connection config has no base URL: ' . (string)($connectionData['id'] ?? 'unknown') . ' ' . $this->formatConfigDebug($connectionData));
+			throw new RuntimeException('Connection config has no base URL: ' . $connectionConfig->getId() . ' ' . $this->formatConfigDebug($connectionConfig->toSettings()));
 		}
 
 		$options = [
@@ -138,18 +136,18 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 			$serviceAlias . '_label' => $serviceConfig->getName(),
 			'service_type' => $serviceConfig->getServiceType(),
 			'service_driver' => $serviceConfig->getDriver(),
-			'connection_id' => (string)($connectionData['id'] ?? ''),
-			'connection_label' => (string)($connectionData['name'] ?? ''),
-			'connection_type' => (string)($connectionData['type'] ?? ''),
-			'connection_driver' => (string)($connectionData['driver'] ?? ''),
-			'auth_type' => (string)($connectionData['authType'] ?? 'none'),
-			'auth_header_name' => trim((string)($connectionData['authHeaderName'] ?? '')),
+			'connection_id' => $connectionConfig->getId(),
+			'connection_label' => $connectionConfig->getConnectionName(),
+			'connection_type' => $connectionConfig->getType(),
+			'connection_driver' => $connectionConfig->getDriver(),
+			'auth_type' => $connectionConfig->getAuthType(),
+			'auth_header_name' => $connectionConfig->getAuthHeaderName(),
 			'model' => $model,
 			'endpoint' => $baseUrl,
 			'base_url' => $baseUrl
 		];
 
-		$secret = $this->resolveConnectionSecret($connectionData);
+		$secret = $this->resolveConnectionSecret($connectionConfig);
 
 		if($secret !== null) {
 			$options['apikey'] = $secret;
@@ -159,30 +157,23 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 		return $options;
 	}
 
-	/**
-	 * @param array<string,mixed> $connectionData
-	 */
-	protected function resolveConnectionSecret(array $connectionData): ?string {
-		$authType = $this->normalizeKey((string)($connectionData['authType'] ?? 'none'));
+	protected function resolveConnectionSecret(ConnectionConfig $connectionConfig): ?string {
+		$authType = $this->normalizeKey($connectionConfig->getAuthType());
 
 		if($authType === 'none') {
 			return null;
 		}
 
-		$secretMode = $this->normalizeSecretMode((string)($connectionData['secretMode'] ?? 'fixed'));
-		$secretValue = trim((string)($connectionData['secretValue'] ?? ''));
+		$secretConfig = $connectionConfig->getAuthSecretConfig();
 
-		if($secretValue === '') {
-			throw new RuntimeException('Connection config has no secret value: ' . (string)($connectionData['id'] ?? 'unknown'));
+		if($secretConfig === []) {
+			throw new RuntimeException('Connection config has no secret config: ' . $connectionConfig->getId());
 		}
 
-		$value = $this->resolver->resolveValue([
-			'mode' => $secretMode,
-			'value' => $secretValue
-		]);
+		$value = $this->resolver->resolveValue($secretConfig);
 
 		if($value === null || trim((string)$value) === '') {
-			throw new RuntimeException('Connection secret could not be resolved: ' . (string)($connectionData['id'] ?? 'unknown'));
+			throw new RuntimeException('Connection secret could not be resolved: ' . $connectionConfig->getId());
 		}
 
 		return (string)$value;
@@ -309,16 +300,6 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 	protected function normalizeKey(string $value): string {
 		$value = strtolower(trim($value));
 		return preg_replace('/[^a-z0-9._-]+/', '', $value) ?? '';
-	}
-
-	protected function normalizeSecretMode(string $value): string {
-		$value = $this->normalizeKey($value);
-
-		if(in_array($value, ['fixed', 'env'], true)) {
-			return $value;
-		}
-
-		return 'fixed';
 	}
 
 	protected function toBool(mixed $value, bool $default): bool {

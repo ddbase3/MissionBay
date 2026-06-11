@@ -12,8 +12,6 @@
 		Parsers receive files, text or streams and return extracted text plus structured payload data. Endpoint, secret and authentication header are taken from the selected connection.
 	</div>
 
-	<div data-role="output" class="parsercfg-output" style="display:none"></div>
-
 	<div class="parsercfg-layout">
 		<div class="parsercfg-listbox">
 			<div class="parsercfg-toolbar">
@@ -121,6 +119,8 @@
 					</div>
 				</div>
 
+				<div data-role="formfeedback" class="parsercfg-form-feedback" style="display:none"></div>
+
 				<div class="parsercfg-actions">
 					<button type="submit" class="primary">Save parser</button>
 					<button type="button" data-role="delete" disabled>Delete parser</button>
@@ -131,14 +131,13 @@
 </div>
 
 <style>
-.parser-config-admin{background:#fff;border:1px solid #d6d6d6;padding:16px;border-radius:4px;max-width:100%;font-family:Arial,sans-serif;color:#333}.parser-config-admin h3{margin-top:0;margin-bottom:12px;font-size:1.1em}.parser-config-admin h4{margin-top:0;margin-bottom:10px;font-size:1em}.parsercfg-meta{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;color:#555}.mono{font-family:Consolas,monospace}.parsercfg-loading{display:none;color:#666;font-style:italic}.parsercfg-output{background:#fff;border:1px solid #ddd;border-radius:4px;padding:10px;font-family:Consolas,monospace;font-size:12px;white-space:pre-wrap;max-height:240px;overflow:auto;color:#444;margin-bottom:12px}.parsercfg-output.error{border-color:#d88;background:#fff5f5;color:#a33}.parsercfg-output.success{border-color:#8d8;background:#f6fff6;color:#373}.parsercfg-layout{display:grid;grid-template-columns:minmax(720px,1fr) minmax(380px,520px);gap:16px;align-items:start}.parsercfg-listbox,.parsercfg-formbox{border:1px solid #ddd;border-radius:4px;background:#fafafa;padding:12px}.parsercfg-toolbar{display:flex;gap:8px;margin-bottom:10px}.parsercfg-toolbar button,.parsercfg-actions button{border:1px solid #c9c9c9;background:#f1f1f1;color:#333;border-radius:6px;padding:8px 12px;cursor:pointer}.parsercfg-actions .primary{background:#eaf3ff;border-color:#aac6ea}.parsercfg-actions button[disabled]{opacity:.5;cursor:not-allowed}.parsercfg-table{width:100%;border-collapse:collapse;background:#fff}.parsercfg-table th,.parsercfg-table td{padding:8px 10px;border-bottom:1px solid #e0e0e0;vertical-align:middle;text-align:left;font-size:13px}.parsercfg-table th{background:#f5f5f5;font-weight:600;border-bottom:2px solid #cfcfcf}.parsercfg-table tr.selected td{background:#eef5ff}.parsercfg-table td.id-col,.parsercfg-table td.connection-col,.parsercfg-table td.driver-col,.parsercfg-table td.option-col{font-family:Consolas,monospace;font-size:12px}.parsercfg-edit-btn{border:1px solid #c9c9c9;background:#f1f1f1;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12px}.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #ccc;background:#f6f6f6;color:#333;font-size:12px;white-space:nowrap}.badge.ok{border-color:#8d8;background:#f6fff6;color:#2d6b2d}.badge.off{border-color:#d7c17a;background:#fff8df;color:#876c11}.badge.warn{border-color:#e0a56b;background:#fff4e8;color:#8a4f12}.parsercfg-hint{margin-bottom:12px;font-size:12px;color:#666}.parsercfg-inline-hint{margin-top:6px;margin-bottom:0}.parsercfg-grid{display:grid;grid-template-columns:1fr;gap:12px}.parsercfg-field label{display:block;font-weight:600;margin-bottom:6px;font-size:13px}.parsercfg-field input[type=text],.parsercfg-field select,.parsercfg-field textarea{width:100%;box-sizing:border-box;border:1px solid #cfcfcf;border-radius:6px;padding:8px 10px;background:#fff;color:#333}.parsercfg-field textarea{min-height:110px;font-family:Consolas,monospace;font-size:12px;resize:vertical}.parsercfg-field input[readonly]{background:#f6f6f6;color:#666}.parsercfg-field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.parsercfg-field-checkbox{padding-top:4px}.parsercfg-checkbox{display:inline-flex;align-items:center;gap:8px;font-weight:600}.parsercfg-actions{display:flex;gap:8px;margin-top:14px}@media (max-width:1200px){.parsercfg-layout{grid-template-columns:1fr}}@media (max-width:620px){.parsercfg-field-row{grid-template-columns:1fr}}
+.parser-config-admin{background:#fff;border:1px solid #d6d6d6;padding:16px;border-radius:4px;max-width:100%;font-family:Arial,sans-serif;color:#333}.parser-config-admin h3{margin-top:0;margin-bottom:12px;font-size:1.1em}.parser-config-admin h4{margin-top:0;margin-bottom:10px;font-size:1em}.parsercfg-meta{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;color:#555}.mono{font-family:Consolas,monospace}.parsercfg-loading{display:none;color:#666;font-style:italic}.parsercfg-layout{display:grid;grid-template-columns:minmax(720px,1fr) minmax(380px,520px);gap:16px;align-items:start}.parsercfg-listbox,.parsercfg-formbox{border:1px solid #ddd;border-radius:4px;background:#fafafa;padding:12px}.parsercfg-toolbar{display:flex;gap:8px;margin-bottom:10px}.parsercfg-toolbar button,.parsercfg-actions button{border:1px solid #c9c9c9;background:#f1f1f1;color:#333;border-radius:6px;padding:8px 12px;cursor:pointer}.parsercfg-toolbar button:hover,.parsercfg-actions button:hover{background:#e8e8e8}.parsercfg-actions .primary{background:#eaf3ff;border-color:#aac6ea}.parsercfg-actions .primary:hover{background:#dcecff}.parsercfg-actions button[disabled]{opacity:.5;cursor:not-allowed}.parsercfg-table{width:100%;border-collapse:collapse;background:#fff}.parsercfg-table th,.parsercfg-table td{padding:8px 10px;border-bottom:1px solid #e0e0e0;vertical-align:middle;text-align:left;font-size:13px}.parsercfg-table th{background:#f5f5f5;font-weight:600;border-bottom:2px solid #cfcfcf}.parsercfg-table tr.selected td{background:#eef5ff}.parsercfg-table td.id-col,.parsercfg-table td.connection-col,.parsercfg-table td.driver-col,.parsercfg-table td.option-col{font-family:Consolas,monospace;font-size:12px}.parsercfg-edit-btn{border:1px solid #c9c9c9;background:#f1f1f1;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12px}.parsercfg-edit-btn:hover{background:#e8e8e8}.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #ccc;background:#f6f6f6;color:#333;font-size:12px;white-space:nowrap}.badge.ok{border-color:#8d8;background:#f6fff6;color:#2d6b2d}.badge.off{border-color:#d7c17a;background:#fff8df;color:#876c11}.badge.warn{border-color:#e0a56b;background:#fff4e8;color:#8a4f12}.parsercfg-hint{margin-bottom:12px;font-size:12px;color:#666}.parsercfg-inline-hint{margin-top:6px;margin-bottom:0}.parsercfg-grid{display:grid;grid-template-columns:1fr;gap:12px}.parsercfg-field label{display:block;font-weight:600;margin-bottom:6px;font-size:13px}.parsercfg-field input[type=text],.parsercfg-field select,.parsercfg-field textarea{width:100%;box-sizing:border-box;border:1px solid #cfcfcf;border-radius:6px;padding:8px 10px;background:#fff;color:#333}.parsercfg-field textarea{min-height:110px;font-family:Consolas,monospace;font-size:12px;resize:vertical}.parsercfg-field input[readonly]{background:#f6f6f6;color:#666}.parsercfg-field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.parsercfg-field-checkbox{padding-top:4px}.parsercfg-checkbox{display:inline-flex;align-items:center;gap:8px;font-weight:600}.parsercfg-form-feedback{margin-top:14px;border:1px solid #ddd;border-radius:6px;padding:9px 11px;font-size:13px;line-height:1.4}.parsercfg-form-feedback.success{border-color:#8d8;background:#f6fff6;color:#2d6b2d}.parsercfg-form-feedback.error{border-color:#d88;background:#fff5f5;color:#a33}.parsercfg-actions{display:flex;gap:8px;margin-top:14px}@media (max-width:1200px){.parsercfg-layout{grid-template-columns:1fr}}@media (max-width:620px){.parsercfg-field-row{grid-template-columns:1fr}}
 </style>
 
 <script>
 (function() {
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
-	const configGroup = <?php echo json_encode((string)$this->_['configGroup']); ?>;
 
 	function init() {
 		const root = document.getElementById(instanceId);
@@ -148,7 +147,7 @@
 		const refs = {
 			loading: root.querySelector("[data-role='loading']"),
 			lastupdate: root.querySelector("[data-role='lastupdate']"),
-			output: root.querySelector("[data-role='output']"),
+			formfeedback: root.querySelector("[data-role='formfeedback']"),
 			tbody: root.querySelector("[data-role='tbody']"),
 			form: root.querySelector("[data-role='form']"),
 			legend: root.querySelector("[data-role='legend']"),
@@ -182,8 +181,8 @@
 
 		function setLoading(active) { refs.loading.style.display = active ? "block" : "none"; }
 		function setLastUpdate(ts) { refs.lastupdate.textContent = ts || "-"; }
-		function printOutput(obj, type) { refs.output.style.display = "block"; refs.output.className = "parsercfg-output"; if (type) refs.output.classList.add(type); refs.output.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2); }
-		function clearOutput() { refs.output.style.display = "none"; refs.output.textContent = ""; }
+		function showFeedback(message, type) { refs.formfeedback.style.display = "block"; refs.formfeedback.className = "parsercfg-form-feedback " + (type === "error" ? "error" : "success"); refs.formfeedback.textContent = message; }
+		function clearFeedback() { refs.formfeedback.style.display = "none"; refs.formfeedback.className = "parsercfg-form-feedback"; refs.formfeedback.textContent = ""; }
 		function formatOptions(options) { const clean = Object.assign({}, options || {}); ["contentType","supportedTypes","priority","fileField","timeoutSeconds","connectTimeoutSeconds","maxBytes"].forEach(k => delete clean[k]); return Object.keys(clean).length ? JSON.stringify(clean, null, 2) : "{\n}"; }
 
 		function connectionLabel(id) {
@@ -355,20 +354,20 @@
 				try {
 					json = JSON.parse(text);
 				} catch (e) {
-					printOutput("Invalid JSON response:\n" + text, "error");
+					showFeedback("The server response could not be read.", "error");
 					return null;
 				}
 
 				setLastUpdate(json.timestamp || "");
 
 				if (json.status !== "ok") {
-					printOutput(json.message || json, "error");
+					showFeedback(json.message || "The request could not be completed.", "error");
 					return null;
 				}
 
 				return json;
 			} catch (e) {
-				printOutput("Request failed:\n" + e, "error");
+				showFeedback("The request failed. Please try again.", "error");
 				return null;
 			} finally {
 				setLoading(false);
@@ -377,7 +376,10 @@
 
 		async function loadList(preselectId) {
 			const json = await callApi({action: "list"});
-			if (!json) return;
+			if (!json) {
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'>Parsers could not be loaded.</td></tr>";
+				return;
+			}
 
 			state.connections = json.data && Array.isArray(json.data.connections) ? json.data.connections : [];
 			state.drivers = json.data && Array.isArray(json.data.drivers) ? json.data.drivers : [];
@@ -399,17 +401,19 @@
 			try {
 				const parsed = JSON.parse(raw);
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					printOutput("Advanced options must be a JSON object.", "error");
+					showFeedback("Advanced options must be a JSON object.", "error");
 					return null;
 				}
 				return JSON.stringify(parsed);
 			} catch (e) {
-				printOutput("Advanced options must be valid JSON:\n" + e.message, "error");
+				showFeedback("Advanced options must be valid JSON.", "error");
 				return null;
 			}
 		}
 
 		async function saveCurrent() {
+			clearFeedback();
+
 			const options = readOptionsJson();
 			if (options === null) return;
 
@@ -423,7 +427,7 @@
 			refs.model.value = model;
 
 			if (!id || !name || !connection || !driver) {
-				printOutput("Parser id, name, connection and driver are required.", "error");
+				showFeedback("Parser id, name, connection and driver are required.", "error");
 				return;
 			}
 
@@ -448,14 +452,16 @@
 			if (!json) return;
 
 			const parser = json.data && json.data.parser ? json.data.parser : null;
-			printOutput({status:"saved", group:configGroup, parser}, "success");
+			showFeedback("Parser saved.", "success");
 			await loadList(parser && parser.id ? parser.id : id);
 		}
 
 		async function removeCurrent() {
+			clearFeedback();
+
 			const id = String(state.selectedId || refs.id.value || "").trim();
 			if (!id) {
-				printOutput("No parser selected.", "error");
+				showFeedback("No parser selected.", "error");
 				return;
 			}
 
@@ -464,21 +470,21 @@
 			const json = await callApi({action:"remove", id});
 			if (!json) return;
 
-			printOutput({status:"removed", group:configGroup, id}, "success");
+			showFeedback("Parser deleted.", "success");
 			resetForm();
 			await loadList();
 		}
 
 		refs.form.addEventListener("submit", e => { e.preventDefault(); saveCurrent(); });
-		refs.newBtn.addEventListener("click", () => { clearOutput(); resetForm(); });
-		refs.reloadBtn.addEventListener("click", () => { clearOutput(); loadList(state.selectedId || ""); });
+		refs.newBtn.addEventListener("click", () => { clearFeedback(); resetForm(); });
+		refs.reloadBtn.addEventListener("click", () => { clearFeedback(); loadList(state.selectedId || ""); });
 		refs.deleteBtn.addEventListener("click", removeCurrent);
 		refs.connection.addEventListener("change", updateConnectionHint);
 		refs.driver.addEventListener("change", () => applyDriverDefaults(true));
 		refs.tbody.addEventListener("click", e => {
 			const btn = e.target.closest("button[data-action='edit']");
 			if (!btn) return;
-			clearOutput();
+			clearFeedback();
 			fillForm(findParser(btn.getAttribute("data-id")));
 		});
 

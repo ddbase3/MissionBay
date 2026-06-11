@@ -52,15 +52,14 @@ final class HttpConnectionDriverDefinition implements IConnectionDriverDefinitio
 					'enum' => ['none', 'bearer', 'api-key', 'basic'],
 					'default' => 'bearer'
 				],
-				'auth.secretMode' => [
+				'auth.headerName' => [
 					'type' => 'string',
-					'label' => 'Secret mode',
-					'enum' => ['fixed', 'env'],
-					'default' => 'fixed'
+					'label' => 'Auth header name',
+					'required' => false
 				],
-				'auth.secretValue' => [
-					'type' => 'string',
-					'label' => 'Secret value',
+				'auth.secret' => [
+					'type' => 'object',
+					'label' => 'Secret config',
 					'required' => false
 				],
 				'timeoutSeconds' => [
@@ -79,8 +78,11 @@ final class HttpConnectionDriverDefinition implements IConnectionDriverDefinitio
 			'baseUrl' => '',
 			'auth' => [
 				'type' => 'bearer',
-				'secretMode' => 'fixed',
-				'secretValue' => ''
+				'headerName' => 'Authorization',
+				'secret' => [
+					'mode' => 'fixed',
+					'value' => ''
+				]
 			],
 			'timeoutSeconds' => 60,
 			'scope' => 'global',

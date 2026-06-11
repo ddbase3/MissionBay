@@ -4,15 +4,13 @@
 	<div class="searchcfg-meta">
 		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
 		<div><strong>Connection group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">–</span></div>
-		<div data-role="loading" class="searchcfg-loading">Please wait…</div>
+		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="searchcfg-loading">Please wait...</div>
 	</div>
 
 	<div class="searchcfg-hint">
 		Search services configure external or provider-based web search. They can be used by agent flows as independent retrieval services.
 	</div>
-
-	<div data-role="output" class="searchcfg-output" style="display:none"></div>
 
 	<div class="searchcfg-layout">
 		<div class="searchcfg-listbox">
@@ -36,7 +34,7 @@
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="9" class="mono">Loading…</td></tr>
+					<tr><td colspan="9" class="mono">Loading...</td></tr>
 				</tbody>
 			</table>
 		</div>
@@ -63,7 +61,7 @@
 					<div class="searchcfg-field">
 						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection">Connection</label>
 						<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection" name="connection">
-							<option value="">Loading connections…</option>
+							<option value="">Loading connections...</option>
 						</select>
 						<div class="searchcfg-hint searchcfg-inline-hint" data-role="connectionhint">
 							Connections contain endpoint and authentication data.
@@ -73,7 +71,7 @@
 					<div class="searchcfg-field">
 						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-driver">Driver</label>
 						<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-driver" name="driver">
-							<option value="">Loading drivers…</option>
+							<option value="">Loading drivers...</option>
 						</select>
 					</div>
 
@@ -175,6 +173,8 @@
 					</div>
 				</div>
 
+				<div data-role="formfeedback" class="searchcfg-form-feedback" style="display:none"></div>
+
 				<div class="searchcfg-actions">
 					<button type="submit" class="primary">Save search service</button>
 					<button type="button" data-role="delete" disabled>Delete search service</button>
@@ -225,32 +225,6 @@
 	display: none;
 	color: #666;
 	font-style: italic;
-}
-
-.searchcfg-output {
-	background: #fff;
-	border: 1px solid #ddd;
-	border-radius: 4px;
-	padding: 10px;
-	font-family: Consolas, monospace;
-	font-size: 12px;
-	white-space: pre-wrap;
-	max-height: 240px;
-	overflow: auto;
-	color: #444;
-	margin-bottom: 12px;
-}
-
-.searchcfg-output.error {
-	border-color: #d88;
-	background: #fff5f5;
-	color: #a33;
-}
-
-.searchcfg-output.success {
-	border-color: #8d8;
-	background: #f6fff6;
-	color: #373;
 }
 
 .searchcfg-layout {
@@ -455,6 +429,27 @@
 	font-weight: 600;
 }
 
+.searchcfg-form-feedback {
+	margin-top: 14px;
+	border: 1px solid #ddd;
+	border-radius: 6px;
+	padding: 9px 11px;
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+.searchcfg-form-feedback.success {
+	border-color: #8d8;
+	background: #f6fff6;
+	color: #2d6b2d;
+}
+
+.searchcfg-form-feedback.error {
+	border-color: #d88;
+	background: #fff5f5;
+	color: #a33;
+}
+
 .searchcfg-actions {
 	display: flex;
 	gap: 8px;
@@ -478,7 +473,6 @@
 (function() {
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
-	const configGroup = <?php echo json_encode((string)$this->_['configGroup']); ?>;
 
 	function init() {
 		const root = document.getElementById(instanceId);
@@ -491,7 +485,7 @@
 		const refs = {
 			loading: root.querySelector("[data-role='loading']"),
 			lastupdate: root.querySelector("[data-role='lastupdate']"),
-			output: root.querySelector("[data-role='output']"),
+			formfeedback: root.querySelector("[data-role='formfeedback']"),
 			tbody: root.querySelector("[data-role='tbody']"),
 			form: root.querySelector("[data-role='form']"),
 			legend: root.querySelector("[data-role='legend']"),
@@ -549,28 +543,19 @@
 		}
 
 		function setLastUpdate(ts) {
-			refs.lastupdate.textContent = ts || "–";
+			refs.lastupdate.textContent = ts || "-";
 		}
 
-		function printOutput(obj, type) {
-			refs.output.style.display = "block";
-			refs.output.className = "searchcfg-output";
-
-			if (type === "error") {
-				refs.output.classList.add("error");
-			}
-
-			if (type === "success") {
-				refs.output.classList.add("success");
-			}
-
-			refs.output.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+		function showFeedback(message, type) {
+			refs.formfeedback.style.display = "block";
+			refs.formfeedback.className = "searchcfg-form-feedback " + (type === "error" ? "error" : "success");
+			refs.formfeedback.textContent = message;
 		}
 
-		function clearOutput() {
-			refs.output.style.display = "none";
-			refs.output.className = "searchcfg-output";
-			refs.output.textContent = "";
+		function clearFeedback() {
+			refs.formfeedback.style.display = "none";
+			refs.formfeedback.className = "searchcfg-form-feedback";
+			refs.formfeedback.textContent = "";
 		}
 
 		function findSearch(id) {
@@ -938,20 +923,20 @@
 				try {
 					json = JSON.parse(text);
 				} catch (e) {
-					printOutput("Invalid JSON response:\n" + text, "error");
+					showFeedback("The server response could not be read.", "error");
 					return null;
 				}
 
 				setLastUpdate(json.timestamp || "");
 
 				if (json.status !== "ok") {
-					printOutput(json.message || json, "error");
+					showFeedback(json.message || "The request could not be completed.", "error");
 					return null;
 				}
 
 				return json;
 			} catch (e) {
-				printOutput("Request failed:\n" + e, "error");
+				showFeedback("The request failed. Please try again.", "error");
 				return null;
 			} finally {
 				setLoading(false);
@@ -964,6 +949,7 @@
 			});
 
 			if (!json) {
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'>Search services could not be loaded.</td></tr>";
 				return;
 			}
 
@@ -1007,18 +993,20 @@
 				const parsed = JSON.parse(raw);
 
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					printOutput("Advanced options must be a JSON object.", "error");
+					showFeedback("Advanced options must be a JSON object.", "error");
 					return null;
 				}
 
 				return JSON.stringify(parsed);
 			} catch (e) {
-				printOutput("Advanced options must be valid JSON:\n" + e.message, "error");
+				showFeedback("Advanced options must be valid JSON.", "error");
 				return null;
 			}
 		}
 
 		async function saveCurrent() {
+			clearFeedback();
+
 			const id = normalizeKey(refs.id.value);
 			const name = String(refs.name.value || "").trim();
 			const connection = normalizeKey(refs.connection.value);
@@ -1035,27 +1023,27 @@
 			refs.driver.value = driver;
 
 			if (!id) {
-				printOutput("Search service id is required.", "error");
+				showFeedback("Search service id is required.", "error");
 				return;
 			}
 
 			if (!name) {
-				printOutput("Name is required.", "error");
+				showFeedback("Name is required.", "error");
 				return;
 			}
 
 			if (!connection) {
-				printOutput("Connection is required.", "error");
+				showFeedback("Connection is required.", "error");
 				return;
 			}
 
 			if (!driver) {
-				printOutput("Driver is required.", "error");
+				showFeedback("Driver is required.", "error");
 				return;
 			}
 
 			if (!model && isModelRequiredForDriver(driver)) {
-				printOutput("Model is required for the selected driver.", "error");
+				showFeedback("Model is required for the selected driver.", "error");
 				return;
 			}
 
@@ -1085,20 +1073,18 @@
 
 			const search = (json.data && json.data.search) ? json.data.search : null;
 
-			printOutput({
-				status: "saved",
-				group: configGroup,
-				search: search
-			}, "success");
+			showFeedback("Search service saved.", "success");
 
 			await loadList(search && search.id ? search.id : id);
 		}
 
 		async function removeCurrent() {
+			clearFeedback();
+
 			const id = String(state.selectedId || refs.id.value || "").trim();
 
 			if (!id) {
-				printOutput("No search service selected.", "error");
+				showFeedback("No search service selected.", "error");
 				return;
 			}
 
@@ -1115,11 +1101,7 @@
 				return;
 			}
 
-			printOutput({
-				status: "removed",
-				group: configGroup,
-				id: id
-			}, "success");
+			showFeedback("Search service deleted.", "success");
 
 			resetForm();
 			await loadList();
@@ -1131,12 +1113,12 @@
 		});
 
 		refs.newBtn.addEventListener("click", function() {
-			clearOutput();
+			clearFeedback();
 			resetForm();
 		});
 
 		refs.reloadBtn.addEventListener("click", function() {
-			clearOutput();
+			clearFeedback();
 			loadList(state.selectedId || "");
 		});
 
@@ -1159,7 +1141,7 @@
 				return;
 			}
 
-			clearOutput();
+			clearFeedback();
 
 			const search = findSearch(btn.getAttribute("data-id"));
 			fillForm(search);

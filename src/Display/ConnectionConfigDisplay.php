@@ -21,6 +21,7 @@ use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
+use Base3\ConfigValue\Api\IConfigValueResolver;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IConnectionDriverDefinition;
@@ -36,7 +37,8 @@ final class ConnectionConfigDisplay implements IDisplay {
 		private readonly IRequest $request,
 		private readonly ILinkTargetService $linkTargetService,
 		private readonly ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap
+		private readonly IClassMap $classMap,
+		private readonly IConfigValueResolver $configValueResolver
 	) {}
 
 	public static function getName(): string {
@@ -80,7 +82,10 @@ final class ConnectionConfigDisplay implements IDisplay {
 				'list' => $this->jsonSuccess([
 					'group' => self::SETTINGS_GROUP,
 					'drivers' => $this->listDriverDefinitions(),
-					'connections' => $this->listConnections()
+					'connections' => $this->listConnections(),
+					'configValueModes' => $this->configValueResolver->getModes(),
+					'configValueModeSchemas' => $this->configValueResolver->getModeSchemas(),
+					'configValueModeResolverNames' => $this->configValueResolver->getModeResolverNames()
 				]),
 				'save' => $this->jsonSuccess([
 					'group' => self::SETTINGS_GROUP,
@@ -198,8 +203,6 @@ final class ConnectionConfigDisplay implements IDisplay {
 		$type = $this->normalizeKey((string)$this->request->request('type', ''));
 		$baseUrl = trim((string)$this->request->request('baseUrl', ''));
 		$authType = $this->normalizeAuthType((string)$this->request->request('authType', 'none'));
-		$secretMode = $this->normalizeSecretMode((string)$this->request->request('secretMode', 'fixed'));
-		$secretValue = trim((string)$this->request->request('secretValue', ''));
 		$authHeaderName = trim((string)$this->request->request('authHeaderName', ''));
 		$timeoutSeconds = $this->readPositiveInt('timeoutSeconds', 60, 'Timeout seconds');
 		$scope = $this->normalizeKey((string)$this->request->request('scope', 'global'));
@@ -232,13 +235,7 @@ final class ConnectionConfigDisplay implements IDisplay {
 			throw new RuntimeException('Missing base URL.');
 		}
 
-		if($authType !== 'none' && $secretValue === '') {
-			throw new RuntimeException('Missing secret value.');
-		}
-
 		if($authType === 'none') {
-			$secretMode = 'fixed';
-			$secretValue = '';
 			$authHeaderName = '';
 		}
 
@@ -246,15 +243,16 @@ final class ConnectionConfigDisplay implements IDisplay {
 			$scope = 'global';
 		}
 
-		$config = new ConnectionConfig(
+		$authSecretConfig = $this->readAuthSecretConfig($id, $authType);
+
+		$config = ConnectionConfig::createWithAuthSecretConfig(
 			$id,
 			$name,
 			$type,
 			$driver,
 			$baseUrl,
 			$authType,
-			$secretMode,
-			$secretValue,
+			$authSecretConfig,
 			$timeoutSeconds,
 			$scope,
 			$enabled,
@@ -298,6 +296,158 @@ final class ConnectionConfigDisplay implements IDisplay {
 		}
 
 		return $decoded;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function readAuthSecretConfig(string $id, string $authType): array {
+		if($authType === 'none') {
+			return [];
+		}
+
+		$secretConfig = $this->readAuthSecretConfigJson();
+
+		if($secretConfig !== null) {
+			if($this->shouldKeepExistingSecret($secretConfig)) {
+				return $this->readExistingAuthSecretConfig($id);
+			}
+
+			$this->assertAuthSecretConfig($secretConfig);
+
+			return $secretConfig;
+		}
+
+		if($this->normalizeBool($this->request->request('keepSecret', 0))) {
+			return $this->readExistingAuthSecretConfig($id);
+		}
+
+		$legacySecretMode = $this->normalizeSecretMode((string)$this->request->request('secretMode', 'fixed'));
+		$legacySecretValue = trim((string)$this->request->request('secretValue', ''));
+
+		if($legacySecretValue === '') {
+			throw new RuntimeException('Missing secret value.');
+		}
+
+		if($legacySecretMode === 'env') {
+			return [
+				'mode' => 'env',
+				'name' => $legacySecretValue
+			];
+		}
+
+		return [
+			'mode' => 'fixed',
+			'value' => $legacySecretValue
+		];
+	}
+
+	/**
+	 * @return array<string,mixed>|null
+	 */
+	private function readAuthSecretConfigJson(): ?array {
+		$raw = $this->request->request('secretConfig', null);
+
+		if($raw === null || $raw === '') {
+			return null;
+		}
+
+		if(is_array($raw)) {
+			return $raw;
+		}
+
+		$raw = trim((string)$raw);
+
+		if($raw === '') {
+			return null;
+		}
+
+		$decoded = json_decode($raw, true);
+
+		if(!is_array($decoded)) {
+			throw new RuntimeException('Secret config must be a valid JSON object.');
+		}
+
+		return $decoded;
+	}
+
+	/**
+	 * @param array<string,mixed> $secretConfig
+	 */
+	private function shouldKeepExistingSecret(array $secretConfig): bool {
+		if($this->normalizeBool($this->request->request('keepSecret', 0))) {
+			return true;
+		}
+
+		$mode = $this->normalizeKey((string)($secretConfig['mode'] ?? ''));
+
+		if($mode !== 'fixed') {
+			return false;
+		}
+
+		$value = trim((string)($secretConfig['value'] ?? ''));
+
+		return $value === '' && $this->normalizeBool($secretConfig['configured'] ?? false);
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function readExistingAuthSecretConfig(string $id): array {
+		$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $id, []);
+
+		if($settings === [] || !is_array($settings)) {
+			throw new RuntimeException('Existing secret cannot be kept because the connection does not exist.');
+		}
+
+		$config = ConnectionConfig::fromSettings($id, $settings);
+		$secretConfig = $config->getAuthSecretConfig();
+
+		if($secretConfig === []) {
+			throw new RuntimeException('Existing secret cannot be kept because no secret is configured.');
+		}
+
+		return $secretConfig;
+	}
+
+	/**
+	 * @param array<string,mixed> $secretConfig
+	 */
+	private function assertAuthSecretConfig(array $secretConfig): void {
+		$mode = $this->normalizeKey((string)($secretConfig['mode'] ?? ''));
+
+		if($mode === '') {
+			throw new RuntimeException('Secret config has no mode.');
+		}
+
+		$schema = $this->configValueResolver->getModeSchema($mode);
+
+		if(is_array($schema)) {
+			$this->assertRequiredSecretFields($mode, $secretConfig, $schema);
+			return;
+		}
+
+		if(count($secretConfig) <= 1) {
+			throw new RuntimeException('Secret config has no values.');
+		}
+	}
+
+	/**
+	 * @param array<string,mixed> $secretConfig
+	 * @param array<string,mixed> $schema
+	 */
+	private function assertRequiredSecretFields(string $mode, array $secretConfig, array $schema): void {
+		$required = is_array($schema['required'] ?? null) ? $schema['required'] : [];
+
+		foreach($required as $field) {
+			if(!is_string($field) || trim($field) === '') {
+				continue;
+			}
+
+			if(!array_key_exists($field, $secretConfig) || trim((string)$secretConfig[$field]) === '') {
+				throw new RuntimeException('Missing secret config field: ' . $mode . '.' . $field);
+			}
+		}
 	}
 
 	private function readPositiveInt(string $key, int $default, string $label): int {
@@ -344,6 +494,10 @@ final class ConnectionConfigDisplay implements IDisplay {
 	private function normalizeBool(mixed $value): bool {
 		if(is_bool($value)) {
 			return $value;
+		}
+
+		if(is_int($value)) {
+			return $value !== 0;
 		}
 
 		$value = strtolower(trim((string)$value));
