@@ -99,6 +99,35 @@ final class SearchConfigDisplay extends AbstractServiceConfigDisplay {
 			return false;
 		}
 
+		$configSchema = is_array($driverDefinition['configSchema'] ?? null) ? $driverDefinition['configSchema'] : [];
+
+		if($this->readBoolFlag($configSchema, 'modelRequired') === true) {
+			return true;
+		}
+
+		if($this->readBoolFlag($configSchema, 'modelRequired') === false) {
+			return false;
+		}
+
+		if($this->readBoolFlag($configSchema, 'requiresModel') === true) {
+			return true;
+		}
+
+		if($this->readBoolFlag($configSchema, 'requiresModel') === false) {
+			return false;
+		}
+
+		$configProperties = is_array($configSchema['properties'] ?? null) ? $configSchema['properties'] : [];
+		$modelProperty = is_array($configProperties['model'] ?? null) ? $configProperties['model'] : [];
+
+		if($this->readBoolFlag($modelProperty, 'required') === true) {
+			return true;
+		}
+
+		if($this->readBoolFlag($modelProperty, 'required') === false) {
+			return false;
+		}
+
 		$defaultConfig = is_array($driverDefinition['defaultConfig'] ?? null) ? $driverDefinition['defaultConfig'] : [];
 
 		if($this->readBoolFlag($defaultConfig, 'modelRequired') === true) {
@@ -125,7 +154,9 @@ final class SearchConfigDisplay extends AbstractServiceConfigDisplay {
 			'openai_chat_websearch',
 			'openai-chat-websearch',
 			'openai_search',
-			'openai-search'
+			'openai-search',
+			'mistral_websearch',
+			'mistral-websearch'
 		], true);
 	}
 

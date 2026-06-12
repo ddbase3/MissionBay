@@ -48,6 +48,8 @@ final class MistralWebSearchServiceDriverDefinition implements IServiceDriverDef
 	public function getConfigSchema(): array {
 		return [
 			'type' => 'object',
+			'modelRequired' => true,
+			'requiresModel' => true,
 			'properties' => [
 				'model' => [
 					'type' => 'string',
@@ -69,9 +71,14 @@ final class MistralWebSearchServiceDriverDefinition implements IServiceDriverDef
 			'serviceType' => 'search',
 			'driver' => 'mistral-websearch',
 			'model' => '',
+			'modelRequired' => true,
+			'requiresModel' => true,
 			'enabled' => true,
 			'options' => [
-				'maxResults' => 10
+				'externalWebAccess' => true,
+				'maxResults' => 10,
+				'allowedDomains' => [],
+				'blockedDomains' => []
 			]
 		];
 	}

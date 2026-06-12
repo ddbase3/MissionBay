@@ -19,7 +19,10 @@ namespace MissionBay\Resource;
 
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
+use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Api\IAgentTool;
 use MissionBay\Api\ISearchService;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\SearchService\MistralWebSearchService;
@@ -32,15 +35,23 @@ use RuntimeException;
  *
  * Loads a configured search service and delegates to the matching
  * ISearchService adapter.
+ *
+ * The resource also exposes the configured search service as an
+ * assistant tool. Tool usage is intentionally defensive: configuration
+ * errors are returned as structured tool results instead of breaking
+ * the whole assistant flow during resource setup.
  */
-class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgentResource implements ISearchService {
+class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgentResource implements ISearchService, IAgentTool {
 
 	private const SEARCH_SETTINGS_GROUP = 'service-search';
 	private const CONNECTION_SETTINGS_GROUP = 'connection';
 	private const SERVICE_TYPE = 'search';
 	private const SERVICE_ALIAS = 'search';
+	private const TOOL_NAME = 'web_search';
 
 	private ?ISearchService $service = null;
+	private ?int $toolMaxResults = null;
+	private bool $includeRawResult = false;
 
 	public function __construct(
 		IAgentConfigValueResolver $resolver,
@@ -66,15 +77,90 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 		$this->service = null;
 		$this->resolvedOptions = [];
 
-		$this->configureService();
+		$this->toolMaxResults = $this->readOptionalPositiveIntConfig($config, 'maxresults');
+		$this->includeRawResult = $this->readOptionalBoolConfig($config, 'includeraw', false);
+
+		// Do not configure the service here.
+		// A broken search service must not prevent the assistant from starting.
 	}
 
 	public function search(string $query, array $options = []): array {
 		return $this->ensureService()->search($query, $options);
 	}
 
+	public function getToolDefinitions(): array {
+		return [[
+			'type' => 'function',
+			'label' => 'Web Search',
+			'category' => 'web',
+			'tags' => ['web', 'search', 'current-information'],
+			'priority' => 60,
+			'function' => [
+				'name' => self::TOOL_NAME,
+				'description' => 'Searches the web through the configured MissionBay search service. Use it for current or external information that is not already available in the conversation.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => [
+						'query' => [
+							'type' => 'string',
+							'description' => 'The natural language search query.'
+						],
+						'max_results' => [
+							'type' => 'integer',
+							'description' => 'Optional maximum number of search results to return. The resource configuration may cap this value.',
+							'minimum' => 1
+						]
+					],
+					'required' => ['query']
+				]
+			]
+		]];
+	}
+
+	public function callTool(string $name, array $arguments, IAgentContext $context): array {
+		if($name !== self::TOOL_NAME) {
+			throw new InvalidArgumentException('Unsupported tool: ' . $name);
+		}
+
+		$query = $arguments['query'] ?? null;
+
+		if(!is_string($query) || trim($query) === '') {
+			return $this->errorResult(
+				'Missing required parameter: query',
+				'missing_query',
+				$query,
+				[]
+			);
+		}
+
+		$query = trim($query);
+		$options = $this->buildToolSearchOptions($arguments);
+
+		try {
+			$result = $this->search($query, $options);
+		} catch(\Throwable $e) {
+			return $this->errorResult(
+				'Web search failed: ' . $e->getMessage(),
+				'web_search_failed',
+				$query,
+				$options,
+				$e
+			);
+		}
+
+		return $this->buildToolResult($query, $options, $result);
+	}
+
 	protected function ensureConfigured(): void {
-		$this->ensureService();
+		try {
+			$this->ensureService();
+		} catch(\Throwable $e) {
+			$this->resolvedOptions['configuration_error'] = [
+				'message' => $e->getMessage(),
+				'type' => get_class($e),
+				'code' => $e->getCode()
+			];
+		}
 	}
 
 	protected function applyResolvedOptions(): void {
@@ -155,9 +241,13 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 			'connection_label' => true,
 			'connection_type' => true,
 			'connection_driver' => true,
+			'auth_type' => true,
+			'auth_header_name' => true,
 			'model' => true,
 			'endpoint' => true,
-			'apikey' => true
+			'base_url' => true,
+			'apikey' => true,
+			'auth_secret' => true
 		]);
 
 		$this->mapOptionalNumber($options, $serviceOptions, 'maxResults', 'max_results', 'int');
@@ -171,6 +261,188 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 		$this->mapOptionalArray($options, $serviceOptions, 'blockedDomains', 'blocked_domains');
 
 		return $options;
+	}
+
+	/**
+	 * @param array<string,mixed> $arguments
+	 * @return array<string,mixed>
+	 */
+	private function buildToolSearchOptions(array $arguments): array {
+		$options = [];
+
+		$maxResults = $this->readOptionalPositiveIntArgument($arguments, 'max_results');
+
+		if($maxResults !== null && $this->toolMaxResults !== null) {
+			$maxResults = min($maxResults, $this->toolMaxResults);
+		}
+
+		if($maxResults === null) {
+			$maxResults = $this->toolMaxResults;
+		}
+
+		if($maxResults !== null) {
+			$options['max_results'] = $maxResults;
+		}
+
+		return $options;
+	}
+
+	/**
+	 * @param array<string,mixed> $options
+	 * @param array<string,mixed> $result
+	 * @return array<string,mixed>
+	 */
+	private function buildToolResult(string $query, array $options, array $result): array {
+		$result = $this->redactSensitiveValue($result);
+
+		if(!$this->includeRawResult && isset($result['raw'])) {
+			unset($result['raw']);
+		}
+
+		if(($result['ok'] ?? true) === false) {
+			$result['query'] = $result['query'] ?? $query;
+
+			if($options !== [] && !isset($result['options'])) {
+				$result['options'] = $this->redactSensitiveValue($options);
+			}
+
+			return $result;
+		}
+
+		$out = [
+			'ok' => true,
+			'query' => $query
+		];
+
+		if($options !== []) {
+			$out['options'] = $this->redactSensitiveValue($options);
+		}
+
+		if(isset($result['answer'])) {
+			$out['answer'] = $result['answer'];
+		}
+
+		if(isset($result['results'])) {
+			$out['results'] = $result['results'];
+		}
+
+		if(isset($result['citations'])) {
+			$out['citations'] = $result['citations'];
+		}
+
+		$meta = $result;
+		unset($meta['query'], $meta['answer'], $meta['results'], $meta['citations']);
+
+		if($meta !== []) {
+			$out['meta'] = $meta;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	private function readOptionalPositiveIntConfig(array $config, string $key): ?int {
+		if(!array_key_exists($key, $config)) {
+			return null;
+		}
+
+		$value = $this->resolver->resolveValue($config[$key]);
+
+		if($value === null || $value === '' || !is_numeric($value)) {
+			return null;
+		}
+
+		$value = (int)$value;
+
+		return $value > 0 ? $value : null;
+	}
+
+	/**
+	 * @param array<string,mixed> $config
+	 */
+	private function readOptionalBoolConfig(array $config, string $key, bool $default): bool {
+		if(!array_key_exists($key, $config)) {
+			return $default;
+		}
+
+		return $this->toBool($this->resolver->resolveValue($config[$key]), $default);
+	}
+
+	/**
+	 * @param array<string,mixed> $arguments
+	 */
+	private function readOptionalPositiveIntArgument(array $arguments, string $key): ?int {
+		if(!array_key_exists($key, $arguments)) {
+			return null;
+		}
+
+		$value = $arguments[$key];
+
+		if($value === null || $value === '' || !is_numeric($value)) {
+			return null;
+		}
+
+		$value = (int)$value;
+
+		return $value > 0 ? $value : null;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function errorResult(
+		string $message,
+		string $errorCode,
+		mixed $query = null,
+		array $options = [],
+		?\Throwable $exception = null
+	): array {
+		$out = [
+			'ok' => false,
+			'error_code' => $errorCode,
+			'error' => $message
+		];
+
+		if(is_string($query) && trim($query) !== '') {
+			$out['query'] = trim($query);
+		}
+
+		if($options !== []) {
+			$out['options'] = $this->redactSensitiveValue($options);
+		}
+
+		if($exception !== null) {
+			$out['diagnostic'] = [
+				'type' => get_class($exception),
+				'code' => $exception->getCode(),
+				'message' => $exception->getMessage()
+			];
+		}
+
+		return $out;
+	}
+
+	private function redactSensitiveValue(mixed $value): mixed {
+		if(!is_array($value)) {
+			return $value;
+		}
+
+		$out = [];
+
+		foreach($value as $key => $item) {
+			$keyString = strtolower((string)$key);
+
+			if($this->isSensitiveKey($keyString)) {
+				$out[$key] = '[redacted]';
+				continue;
+			}
+
+			$out[$key] = $this->redactSensitiveValue($item);
+		}
+
+		return $out;
 	}
 
 	/**
