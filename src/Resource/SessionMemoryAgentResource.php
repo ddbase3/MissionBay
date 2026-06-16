@@ -27,6 +27,8 @@ use MissionBay\Api\IAgentMemory;
 
 class SessionMemoryAgentResource extends AbstractAgentResource implements IAgentMemory, ISchemaProvider {
 
+	private const SESSION_KEY = 'mb_memory';
+
 	private ISession $session;
 	private IAgentConfigValueResolver $resolver;
 	private ?ILogger $logger = null;
@@ -126,7 +128,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$this->ensureInitialized();
 		$nodes = $this->nodes();
 		$h = $nodes[$nodeId] ?? [];
-		$this->log("load history for $nodeId: " . count($h) . " [" . session_id() . "]");
+		$this->log("load history for $nodeId: " . count($h) . " [" . $this->session->getId() . "]");
 		return $h;
 	}
 
@@ -188,31 +190,62 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		if (!$this->session->started()) {
 			return;
 		}
-		if (!isset($_SESSION['mb_memory'])) {
-			$_SESSION['mb_memory'] = [];
-		}
-		if (!isset($_SESSION['mb_memory'][$this->namespace])) {
-			$_SESSION['mb_memory'][$this->namespace] = [
+
+		$store = $this->readMemoryStore();
+
+		if (!isset($store[$this->namespace]) || !is_array($store[$this->namespace])) {
+			$store[$this->namespace] = [
 				'nodes' => []
 			];
 		}
+
+		if (!isset($store[$this->namespace]['nodes']) || !is_array($store[$this->namespace]['nodes'])) {
+			$store[$this->namespace]['nodes'] = [];
+		}
+
+		$this->writeMemoryStore($store);
 	}
 
-	private function &bucket(): array {
-		if (!isset($_SESSION['mb_memory'][$this->namespace])) {
-			$_SESSION['mb_memory'][$this->namespace] = ['nodes' => []];
-		}
-		return $_SESSION['mb_memory'][$this->namespace];
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function readMemoryStore(): array {
+		$value = $this->session->get(self::SESSION_KEY, []);
+
+		return is_array($value) ? $value : [];
+	}
+
+	/**
+	 * @param array<string,mixed> $store
+	 */
+	private function writeMemoryStore(array $store): void {
+		$this->session->set(self::SESSION_KEY, $store);
 	}
 
 	private function nodes(): array {
-		$bucket = $this->bucket();
-		return $bucket['nodes'] ?? [];
+		$store = $this->readMemoryStore();
+		$namespace = $store[$this->namespace] ?? [];
+
+		if (!is_array($namespace)) {
+			return [];
+		}
+
+		$nodes = $namespace['nodes'] ?? [];
+
+		return is_array($nodes) ? $nodes : [];
 	}
 
 	private function setNodes(array $nodes): void {
-		$bucket = &$this->bucket();
-		$bucket['nodes'] = $nodes;
+		$store = $this->readMemoryStore();
+
+		if (!isset($store[$this->namespace]) || !is_array($store[$this->namespace])) {
+			$store[$this->namespace] = [
+				'nodes' => []
+			];
+		}
+
+		$store[$this->namespace]['nodes'] = $nodes;
+		$this->writeMemoryStore($store);
 	}
 
 	/**
