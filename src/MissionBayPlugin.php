@@ -23,6 +23,9 @@ use Base3\Api\IContainer;
 use Base3\Api\IPlugin;
 use Base3\ConfigValue\Api\IConfigValueResolver;
 use Base3\ConfigValue\Resolver\ConfigValueResolver;
+use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Api\IAgentComponentFlowBuilder;
+use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentRouterFactory;
@@ -39,6 +42,8 @@ use MissionBay\Agent\AgentFlowFactory;
 use MissionBay\Agent\AgentNodeFactory;
 use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Agent\AgentRagPayloadNormalizer;
+use MissionBay\Service\AgentComponentFlowBuilder;
+use MissionBay\Service\AgentComponentPresetRepository;
 
 class MissionBayPlugin implements IPlugin, ICheck {
 
@@ -65,6 +70,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfigValueResolver::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)
+			->set(IAgentComponentPresetRepository::class, fn($c) => new AgentComponentPresetRepository($c->get(ISettingsStore::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentComponentFlowBuilder::class, fn($c) => new AgentComponentFlowBuilder($c->get(IAgentComponentPresetRepository::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentRagPayloadNormalizer::class, fn() => new AgentRagPayloadNormalizer(), IContainer::SHARED | IContainer::NOOVERWRITE);
 	}
 
