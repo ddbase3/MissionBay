@@ -452,6 +452,23 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
                 color: #276028;
         }
 
+        .agent-component-preset-step5-resource-info {
+                margin-top: 6px;
+                padding: 7px 8px;
+                border: 1px solid #e2e2e2;
+                border-radius: 6px;
+                background: #fbfbfb;
+                font-size: 12px;
+                color: #555;
+                line-height: 1.4;
+        }
+
+        .agent-component-preset-step5-resource-info code {
+                color: #222;
+                background: transparent;
+                font-size: 12px;
+        }
+
         @media (max-width: 980px) {
                 .agent-component-preset-step5-detail,
                 .agent-component-preset-step5-form {
@@ -528,6 +545,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
                                                 <option value="<?php echo $e($resourceId); ?>" title="<?php echo $e($resourceClass); ?>"><?php echo $e($resourceId); ?></option>
 <?php endforeach; ?>
                                         </select>
+                                        <div id="agent-component-preset-step5-resource-info" class="agent-component-preset-step5-resource-info">No resource type selected.</div>
                                 </div>
 
                                 <div>
@@ -724,6 +742,50 @@ function getText(value, placeholder = '-') {
         return String(value);
 }
 
+function getResourceOption(type) {
+        const key = String(type || '').trim();
+
+        return (Array.isArray(RESOURCE_OPTIONS) ? RESOURCE_OPTIONS : []).find((item) => item && String(item.id || '') === key) || null;
+}
+
+function renderResourceInfo(form) {
+        const info = document.getElementById('agent-component-preset-step5-resource-info');
+
+        if (!info) {
+                return;
+        }
+
+        const resource = getResourceOption(getFormFieldValue(form, 'type'));
+
+        if (!resource) {
+                info.textContent = 'No resource type selected.';
+                return;
+        }
+
+        const dockCount = Array.isArray(resource.docks) ? resource.docks.length : 0;
+
+        info.innerHTML = '';
+        info.appendChild(document.createTextNode('Class: '));
+
+        const classCode = document.createElement('code');
+        classCode.textContent = getText(resource.class);
+        info.appendChild(classCode);
+
+        info.appendChild(document.createElement('br'));
+        info.appendChild(document.createTextNode('Dock definitions: ' + String(dockCount)));
+
+        if (dockCount > 0) {
+                const dockNames = resource.docks
+                        .map((dock) => dock && dock.name ? String(dock.name) : '')
+                        .filter(Boolean);
+
+                if (dockNames.length > 0) {
+                        info.appendChild(document.createElement('br'));
+                        info.appendChild(document.createTextNode('Docks: ' + dockNames.join(', ')));
+                }
+        }
+}
+
 function setStartupStatus(message, details = '', isError = false) {
         const root = document.querySelector(GRID_SELECTOR);
 
@@ -763,14 +825,14 @@ async function importFirst(url, moduleLabel) {
 async function postJson(payload) {
         log('POST JSON start', payload);
 
-	/*
-	 * CRITICAL: Do not change this request contract.
-	 * ModularGrid and the BASE3/ILIAS endpoint currently rely on this exact fetch setup:
-	 * POST + Content-Type application/json + JSON.stringify(payload).
-	 * Do not add credentials, mode, cache, FormData, query params, CSRF handling,
-	 * wrappers, adapter changes, or any other request architecture here.
-	 * Any change to this block requires an explicit user request and a separate runtime test.
-	 */
+        /*
+         * CRITICAL: Do not change this request contract.
+         * ModularGrid and the BASE3/ILIAS endpoint currently rely on this exact fetch setup:
+         * POST + Content-Type application/json + JSON.stringify(payload).
+         * Do not add credentials, mode, cache, FormData, query params, CSRF handling,
+         * wrappers, adapter changes, or any other request architecture here.
+         * Any change to this block requires an explicit user request and a separate runtime test.
+         */
         const response = await fetch(ENDPOINT_URL, {
                 method: 'POST',
                 headers: {
@@ -1071,6 +1133,7 @@ function openPresetEditor(record) {
         }
 
         setCapabilityCheckboxes(form, record.capabilities || []);
+        renderResourceInfo(form);
 
         elements.modal.classList.add('is-open');
         elements.modal.setAttribute('aria-hidden', 'false');
@@ -1378,6 +1441,12 @@ function bindEditorEvents() {
         const copyButton = document.getElementById('agent-component-preset-step5-copy-payload');
         const saveButton = document.getElementById('agent-component-preset-step5-save');
         const elements = getEditorElements();
+
+        if (elements.form && elements.form.elements.namedItem('type')) {
+                elements.form.elements.namedItem('type').addEventListener('change', () => {
+                        renderResourceInfo(elements.form);
+                });
+        }
 
         if (addButton) {
                 addButton.addEventListener('click', (event) => {

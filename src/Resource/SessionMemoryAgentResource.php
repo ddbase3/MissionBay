@@ -17,14 +17,15 @@
 
 namespace MissionBay\Resource;
 
-use MissionBay\Api\IAgentMemory;
+use Base3\Api\ISchemaProvider;
+use Base3\Logger\Api\ILogger;
+use Base3\Session\Api\ISession;
+use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContext;
-use Base3\Session\Api\ISession;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Agent\AgentNodeDock;
+use MissionBay\Api\IAgentMemory;
 
-class SessionMemoryAgentResource extends AbstractAgentResource implements IAgentMemory {
+class SessionMemoryAgentResource extends AbstractAgentResource implements IAgentMemory, ISchemaProvider {
 
 	private ISession $session;
 	private IAgentConfigValueResolver $resolver;
@@ -50,6 +51,38 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		return 'Provides session-backed node chat history using ISession. Can log activity if a logger is docked.';
 	}
 
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getSchema(): array {
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'namespace' => [
+					'type' => 'string',
+					'description' => 'Session memory namespace used to isolate memory buckets.',
+					'default' => 'default'
+				],
+				'max' => [
+					'type' => 'integer',
+					'description' => 'Maximum number of visible chat messages stored per node.',
+					'default' => 20,
+					'minimum' => 1
+				],
+				'priority' => [
+					'type' => 'integer',
+					'description' => 'Memory priority used when multiple memories are attached to an assistant node. Lower values are loaded first.',
+					'default' => 80
+				]
+			],
+			'required' => []
+		];
+	}
+
+	/**
+	 * @return AgentNodeDock[]
+	 */
 	public function getDockDefinitions(): array {
 		return [
 			new AgentNodeDock(
