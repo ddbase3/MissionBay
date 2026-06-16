@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use Base3\Accesscontrol\Api\IAccesscontrol;
+use Base3\Api\ISchemaProvider;
 use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
 use Base3\Session\Api\ISession;
@@ -27,12 +28,13 @@ use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentMemory;
 use MissionBay\Api\IAgentTool;
 
-class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool {
+class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool, ISchemaProvider {
+
+	private const SYSTEM_TITLE = 'User preferences';
 
 	private ?ILogger $logger = null;
 
 	private int $priority = 20;
-	private string $systemTitle = 'User preferences';
 
 	public function __construct(
 		private readonly IDatabase $database,
@@ -53,6 +55,27 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		return 'Stores user/session preferences via tool calls and injects them as system prompt addendum via memory.';
 	}
 
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getSchema(): array {
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'priority' => [
+					'type' => 'integer',
+					'description' => 'Memory priority used when multiple memories are attached to an assistant node. Lower values are loaded first.',
+					'default' => 20
+				]
+			],
+			'required' => []
+		];
+	}
+
+	/**
+	 * @return AgentNodeDock[]
+	 */
 	public function getDockDefinitions(): array {
 		return [
 			new AgentNodeDock(
@@ -69,7 +92,6 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		parent::setConfig($config);
 
 		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 20);
-		$this->systemTitle = (string)($this->resolver->resolveValue($config['systemtitle'] ?? null) ?? 'User preferences');
 	}
 
 	public function init(array $resources, IAgentContext $context): void {
@@ -89,7 +111,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 			return [];
 		}
 
-		$content = $this->systemTitle . ":\n- " . implode("\n- ", $lines);
+		$content = self::SYSTEM_TITLE . ":\n- " . implode("\n- ", $lines);
 
 		return [[
 			'role' => 'system',
@@ -284,7 +306,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 			$ids['session']
 		);
 
-		// Patch 1: If we just saved a user-pref, remove any session-pref for the same key (so user wins cleanly).
+		// If we just saved a user-pref, remove any session-pref for the same key so user wins cleanly.
 		if ($scope === 'user') {
 			$this->cleanupSessionPref($key);
 		}
@@ -313,7 +335,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$scopeRaw = trim((string)($arguments['scope'] ?? ''));
 		$scopeReq = strtolower($scopeRaw);
 
-		// If scope is explicitly given, delete only that scope (with normal fallback rules).
+		// If scope is explicitly given, delete only that scope with normal fallback rules.
 		if ($scopeReq === 'user' || $scopeReq === 'session') {
 
 			$scope = $this->resolveFinalScope($scopeReq, (string)($def['default_scope'] ?? 'user'));
@@ -331,7 +353,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 			];
 		}
 
-		// Patch 2: Otherwise delete both scopes for current identity (best UX).
+		// Otherwise delete both scopes for current identity.
 		$deletedUser = $this->deleteUserPrefForCurrentUser($key);
 		$deletedSession = $this->deleteSessionPrefForCurrentSession($key);
 		$deleted = ($deletedUser || $deletedSession);
@@ -591,9 +613,9 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 
 		$where = $enabledOnly ? 'WHERE enabled=1' : '';
 		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled
-			  FROM base3_missionbay_userpref_def
-			  $where
-			  ORDER BY sort_order ASC, pref_key ASC";
+				  FROM base3_missionbay_userpref_def
+				  $where
+				  ORDER BY sort_order ASC, pref_key ASC";
 
 		return $this->database->multiQuery($q) ?? [];
 	}
@@ -602,9 +624,9 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$this->database->connect();
 
 		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled
-			  FROM base3_missionbay_userpref_def
-			  WHERE pref_key='" . $this->database->escape($key) . "'
-			  LIMIT 1";
+				  FROM base3_missionbay_userpref_def
+				  WHERE pref_key='" . $this->database->escape($key) . "'
+				  LIMIT 1";
 
 		$row = $this->database->singleQuery($q);
 		return $row ?: null;
@@ -617,19 +639,19 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$sessionSql = $sessionKey !== null ? "'" . $this->database->escape($sessionKey) . "'" : 'NULL';
 
 		$q = "INSERT INTO base3_missionbay_userpref_value (scope, ident, userid, session, pref_key, pref_value)
-			  VALUES (
-				'" . $this->database->escape($scope) . "',
-				'" . $this->database->escape($ident) . "',
-				$useridSql,
-				$sessionSql,
-				'" . $this->database->escape($key) . "',
-				'" . $this->database->escape($value) . "'
-			  )
-			  ON DUPLICATE KEY UPDATE
-				pref_value=VALUES(pref_value),
-				userid=VALUES(userid),
-				session=VALUES(session),
-				updated=CURRENT_TIMESTAMP";
+				  VALUES (
+					'" . $this->database->escape($scope) . "',
+					'" . $this->database->escape($ident) . "',
+					$useridSql,
+					$sessionSql,
+					'" . $this->database->escape($key) . "',
+					'" . $this->database->escape($value) . "'
+				  )
+				  ON DUPLICATE KEY UPDATE
+					pref_value=VALUES(pref_value),
+					userid=VALUES(userid),
+					session=VALUES(session),
+					updated=CURRENT_TIMESTAMP";
 
 		$this->database->nonQuery($q);
 	}
@@ -638,9 +660,9 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$this->database->connect();
 
 		$q = "DELETE FROM base3_missionbay_userpref_value
-			  WHERE scope='" . $this->database->escape($scope) . "'
-				AND pref_key='" . $this->database->escape($key) . "'
-				AND ident='" . $this->database->escape($ident) . "'";
+				  WHERE scope='" . $this->database->escape($scope) . "'
+						AND pref_key='" . $this->database->escape($key) . "'
+						AND ident='" . $this->database->escape($ident) . "'";
 
 		$this->database->nonQuery($q);
 		return $this->database->affectedRows() > 0;
@@ -656,9 +678,9 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$ident = $this->buildIdent('session', null, $sessionKey);
 
 		$q = "DELETE FROM base3_missionbay_userpref_value
-			  WHERE scope='session'
-				AND pref_key='" . $this->database->escape($key) . "'
-				AND ident='" . $this->database->escape($ident) . "'";
+				  WHERE scope='session'
+						AND pref_key='" . $this->database->escape($key) . "'
+						AND ident='" . $this->database->escape($ident) . "'";
 
 		$this->database->connect();
 		$this->database->nonQuery($q);
@@ -699,9 +721,9 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 		$conds[] = 'ident IN (' . implode(',', $idents) . ')';
 
 		$q = "SELECT scope, pref_key, pref_value, updated
-			  FROM base3_missionbay_userpref_value
-			  WHERE " . implode(' AND ', $conds) . "
-			  ORDER BY scope ASC, pref_key ASC";
+				  FROM base3_missionbay_userpref_value
+				  WHERE " . implode(' AND ', $conds) . "
+				  ORDER BY scope ASC, pref_key ASC";
 
 		return $this->database->multiQuery($q) ?? [];
 	}
