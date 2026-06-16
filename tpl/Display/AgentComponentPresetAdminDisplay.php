@@ -15,482 +15,482 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 <link rel="stylesheet" href="<?php echo $e($modularGridCssUrl); ?>" />
 
 <style>
-	.agent-component-preset-step5-shell {
-		max-width: 1700px;
-	}
-
-	.agent-component-preset-step5-shell h1 {
-		margin: 0 0 8px 0;
-		font-size: 24px;
-		line-height: 1.2;
-		font-weight: 600;
-	}
-
-	.agent-component-preset-step5-shell p {
-		margin: 0 0 16px 0;
-		max-width: 1120px;
-		color: #555;
-		line-height: 1.45;
-	}
-
-	.agent-component-preset-step5-grid .agent-component-preset-step5-panel {
-		display: flex;
-		align-items: center;
-		flex-wrap: nowrap;
-		gap: 8px;
-		min-width: 0;
-		width: 100%;
-		padding: 8px 10px;
-		border: 1px solid #e2e2e2;
-		border-radius: 8px;
-		background: #fff;
-		overflow-x: auto;
-	}
-
-	.agent-component-preset-step5-grid .agent-component-preset-step5-panel > * {
-		flex: 0 0 auto;
-	}
-
-	.agent-component-preset-step5-main {
-		border: 1px solid #e2e2e2;
-		border-radius: 8px;
-		background: #fff;
-		padding: 4px 0;
-	}
-
-	.agent-component-preset-step5-grid .mg-control-group {
-		flex-direction: row;
-		align-items: center;
-		gap: 6px;
-		min-width: auto;
-	}
-
-	.agent-component-preset-step5-grid .mg-label {
-		white-space: nowrap;
-		color: #666;
-		font-size: 12px;
-	}
-
-	.agent-component-preset-step5-grid .mg-inline-buttons {
-		flex-wrap: nowrap;
-	}
-
-	.agent-component-preset-step5-grid .mg-input,
-	.agent-component-preset-step5-grid .mg-select,
-	.agent-component-preset-step5-grid .mg-button {
-		min-height: 28px;
-		font-size: 13px;
-	}
-
-	.agent-component-preset-step5-grid input[type="search"].mg-input {
-		width: 300px;
-	}
-
-	.agent-component-preset-step5-grid .mg-select {
-		width: auto;
-		min-width: 96px;
-	}
-
-	.agent-component-preset-step5-grid .mg-table-scroll {
-		height: 540px;
-		overflow: auto;
-		padding-bottom: 4px;
-	}
-
-	.agent-component-preset-step5-grid .mg-table thead th {
-		position: sticky;
-		top: 0;
-		z-index: 12;
-		background: #fff;
-	}
-
-	.agent-component-preset-step5-grid .mg-table thead th.mg-cell-pinned {
-		z-index: 14;
-	}
-
-	.agent-component-preset-step5-grid .mg-table th,
-	.agent-component-preset-step5-grid .mg-table td {
-		padding: 6px 8px;
-		font-size: 13px;
-		vertical-align: top;
-	}
-
-	.agent-component-preset-step5-grid .mg-row-actions-cell,
-	.agent-component-preset-step5-grid .mg-row-actions-header {
-		width: 54px;
-		min-width: 54px;
-		text-align: center;
-	}
-
-	.agent-component-preset-step5-top-actions,
-	.agent-component-preset-step5-detail-actions {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 8px;
-	}
-
-	.agent-component-preset-step5-cell-stack {
-		display: grid;
-		gap: 2px;
-		min-width: 0;
-	}
-
-	.agent-component-preset-step5-cell-main {
-		font-weight: 600;
-		color: #222;
-		min-width: 0;
-		overflow-wrap: anywhere;
-	}
-
-	.agent-component-preset-step5-cell-sub {
-		font-size: 12px;
-		color: #666;
-		min-width: 0;
-		overflow-wrap: anywhere;
-	}
-
-	.agent-component-preset-step5-pill-row {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 4px;
-		align-items: center;
-	}
-
-	.agent-component-preset-step5-pill {
-		display: inline-flex;
-		align-items: center;
-		padding: 1px 6px;
-		border: 1px solid #d6d6d6;
-		border-radius: 999px;
-		background: #fafafa;
-		font-size: 11px;
-		line-height: 1.35;
-		color: #444;
-		white-space: nowrap;
-	}
-
-	.agent-component-preset-step5-output,
-	.agent-component-preset-step5-status {
-		margin-top: 12px;
-		padding: 8px 10px;
-		border: 1px solid #e2e2e2;
-		border-radius: 8px;
-		background: #fff;
-		font-size: 13px;
-		color: #555;
-	}
-
-	.agent-component-preset-step5-output strong,
-	.agent-component-preset-step5-status strong {
-		color: #222;
-	}
-
-	.agent-component-preset-step5-startup {
-		padding: 16px;
-		border: 1px solid #e2e2e2;
-		border-radius: 8px;
-		background: #fff;
-		font-size: 13px;
-		color: #555;
-	}
-
-	.agent-component-preset-step5-startup-error {
-		border-color: #e4b9b9;
-		background: #fff8f8;
-		color: #8a1f1f;
-	}
-
-	.agent-component-preset-step5-startup pre {
-		white-space: pre-wrap;
-		word-break: break-word;
-		margin: 8px 0 0 0;
-		font-size: 12px;
-	}
-
-	.agent-component-preset-step5-detail {
-		min-width: 0;
-	}
-
-	.agent-component-preset-step5-detail-layout,
-	.agent-component-preset-step5-detail {
-		display: grid;
-		grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.15fr);
-		gap: 14px;
-		align-items: start;
-		padding: 10px;
-		background: #fbfbfb;
-	}
-
-	.agent-component-preset-step5-detail-card {
-		min-width: 0;
-		padding: 10px;
-		border: 1px solid #e2e2e2;
-		border-radius: 8px;
-		background: #fff;
-	}
-
-	.agent-component-preset-step5-detail-title {
-		margin: 0 0 6px 0;
-		font-size: 15px;
-		font-weight: 600;
-		color: #222;
-	}
-
-	.agent-component-preset-step5-detail-row {
-		display: grid;
-		grid-template-columns: 120px minmax(0, 1fr);
-		gap: 6px;
-		margin: 0 0 6px 0;
-		font-size: 13px;
-	}
-
-	.agent-component-preset-step5-detail-key {
-		font-weight: 600;
-		color: #444;
-	}
-
-	.agent-component-preset-step5-json,
-	.agent-component-preset-step5-log {
-		margin: 0;
-		padding: 8px;
-		max-height: 360px;
-		overflow: auto;
-		border: 1px solid #e2e2e2;
-		border-radius: 6px;
-		background: #fbfbfb;
-		white-space: pre-wrap;
-		word-break: break-word;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-		font-size: 12px;
-		line-height: 1.4;
-	}
-
-	.agent-component-preset-step5-log {
-		max-height: 260px;
-	}
-
-	.agent-component-preset-step5-log-details {
-		margin-top: 10px;
-	}
-
-	.agent-component-preset-step5-log-details summary {
-		padding: 7px 10px;
-		border: 1px solid #e2e2e2;
-		border-radius: 8px;
-		background: #fff;
-		cursor: pointer;
-		font-size: 13px;
-		color: #444;
-	}
-
-	.agent-component-preset-step5-button {
-		appearance: none;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 28px;
-		padding: 4px 10px;
-		border: 1px solid #cfcfcf;
-		border-radius: 6px;
-		background: #fff;
-		color: #222;
-		font: inherit;
-		font-size: 12px;
-		line-height: 1.25;
-		cursor: pointer;
-		white-space: nowrap;
-	}
-
-	.agent-component-preset-step5-button:hover {
-		background: #f5f5f5;
-	}
-
-	.agent-component-preset-step5-button:focus-visible {
-		outline: 2px solid #86a8cf;
-		outline-offset: 2px;
-	}
-
-	.agent-component-preset-step5-button-primary {
-		background: #222;
-		border-color: #222;
-		color: #fff;
-	}
-
-	.agent-component-preset-step5-button-primary:hover {
-		background: #444;
-	}
-
-	.agent-component-preset-step5-button-danger {
-		border-color: #c8a2a2;
-		color: #8a1f1f;
-	}
-
-	.agent-component-preset-step5-button-danger:hover {
-		background: #fff0f0;
-	}
-
-	.agent-component-preset-step5-modal-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 9000;
-		display: none;
-		align-items: center;
-		justify-content: center;
-		padding: 24px;
-		background: rgba(0, 0, 0, 0.35);
-	}
-
-	.agent-component-preset-step5-modal-backdrop.is-open {
-		display: flex;
-	}
-
-	.agent-component-preset-step5-modal {
-		display: grid;
-		grid-template-rows: auto 1fr auto;
-		gap: 12px;
-		width: min(1120px, 100%);
-		max-height: min(860px, 100%);
-		border: 1px solid #d6d6d6;
-		border-radius: 8px;
-		background: #fff;
-		box-shadow: 0 16px 50px rgba(0, 0, 0, 0.20);
-		padding: 16px;
-	}
-
-	.agent-component-preset-step5-modal-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.agent-component-preset-step5-modal-footer {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.agent-component-preset-step5-modal-title {
-		font-size: 18px;
-		line-height: 1.25;
-		font-weight: 600;
-		color: #222;
-	}
-
-	.agent-component-preset-step5-modal-body {
-		min-height: 0;
-		overflow: auto;
-	}
-
-	.agent-component-preset-step5-form {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(260px, 1fr));
-		gap: 12px;
-	}
-
-	.agent-component-preset-step5-field-full {
-		grid-column: 1 / -1;
-	}
-
-	.agent-component-preset-step5-label {
-		display: block;
-		margin: 0 0 4px 0;
-		font-size: 12px;
-		font-weight: 600;
-		color: #333;
-	}
-
-	.agent-component-preset-step5-input,
-	.agent-component-preset-step5-select,
-	.agent-component-preset-step5-textarea {
-		width: 100%;
-		max-width: 100%;
-		min-height: 32px;
-		padding: 5px 7px;
-		border: 1px solid #cfcfcf;
-		border-radius: 6px;
-		background: #fff;
-		color: #222;
-		font: inherit;
-		font-size: 13px;
-		box-sizing: border-box;
-	}
-
-	.agent-component-preset-step5-select[multiple] {
-		min-height: 72px;
-	}
-
-	.agent-component-preset-step5-textarea {
-		min-height: 110px;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-		font-size: 12px;
-		line-height: 1.4;
-		resize: vertical;
-	}
-
-	.agent-component-preset-step5-checkbox-row {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		min-height: 32px;
-		font-size: 13px;
-	}
-
-	.agent-component-preset-step5-modal-status {
-		min-height: 18px;
-		font-size: 12px;
-		color: #666;
-	}
-
-	.agent-component-preset-step5-modal-status-error {
-		color: #8a1f1f;
-	}
-
-	.agent-component-preset-step5-modal-status-ok {
-		color: #276028;
-	}
-
-	@media (max-width: 980px) {
-		.agent-component-preset-step5-detail,
-		.agent-component-preset-step5-form {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	@media (max-width: 720px) {
-		.agent-component-preset-step5-shell h1 {
-			font-size: 21px;
-		}
-
-		.agent-component-preset-step5-grid .mg-table-scroll {
-			height: 420px;
-		}
-	}
+        .agent-component-preset-step5-shell {
+                max-width: 1700px;
+        }
+
+        .agent-component-preset-step5-shell h1 {
+                margin: 0 0 8px 0;
+                font-size: 24px;
+                line-height: 1.2;
+                font-weight: 600;
+        }
+
+        .agent-component-preset-step5-shell p {
+                margin: 0 0 16px 0;
+                max-width: 1120px;
+                color: #555;
+                line-height: 1.45;
+        }
+
+        .agent-component-preset-step5-grid .agent-component-preset-step5-panel {
+                display: flex;
+                align-items: center;
+                flex-wrap: nowrap;
+                gap: 8px;
+                min-width: 0;
+                width: 100%;
+                padding: 8px 10px;
+                border: 1px solid #e2e2e2;
+                border-radius: 8px;
+                background: #fff;
+                overflow-x: auto;
+        }
+
+        .agent-component-preset-step5-grid .agent-component-preset-step5-panel > * {
+                flex: 0 0 auto;
+        }
+
+        .agent-component-preset-step5-main {
+                border: 1px solid #e2e2e2;
+                border-radius: 8px;
+                background: #fff;
+                padding: 4px 0;
+        }
+
+        .agent-component-preset-step5-grid .mg-control-group {
+                flex-direction: row;
+                align-items: center;
+                gap: 6px;
+                min-width: auto;
+        }
+
+        .agent-component-preset-step5-grid .mg-label {
+                white-space: nowrap;
+                color: #666;
+                font-size: 12px;
+        }
+
+        .agent-component-preset-step5-grid .mg-inline-buttons {
+                flex-wrap: nowrap;
+        }
+
+        .agent-component-preset-step5-grid .mg-input,
+        .agent-component-preset-step5-grid .mg-select,
+        .agent-component-preset-step5-grid .mg-button {
+                min-height: 28px;
+                font-size: 13px;
+        }
+
+        .agent-component-preset-step5-grid input[type="search"].mg-input {
+                width: 300px;
+        }
+
+        .agent-component-preset-step5-grid .mg-select {
+                width: auto;
+                min-width: 96px;
+        }
+
+        .agent-component-preset-step5-grid .mg-table-scroll {
+                height: 540px;
+                overflow: auto;
+                padding-bottom: 4px;
+        }
+
+        .agent-component-preset-step5-grid .mg-table thead th {
+                position: sticky;
+                top: 0;
+                z-index: 12;
+                background: #fff;
+        }
+
+        .agent-component-preset-step5-grid .mg-table thead th.mg-cell-pinned {
+                z-index: 14;
+        }
+
+        .agent-component-preset-step5-grid .mg-table th,
+        .agent-component-preset-step5-grid .mg-table td {
+                padding: 6px 8px;
+                font-size: 13px;
+                vertical-align: top;
+        }
+
+        .agent-component-preset-step5-grid .mg-row-actions-cell,
+        .agent-component-preset-step5-grid .mg-row-actions-header {
+                width: 54px;
+                min-width: 54px;
+                text-align: center;
+        }
+
+        .agent-component-preset-step5-top-actions,
+        .agent-component-preset-step5-detail-actions {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 8px;
+        }
+
+        .agent-component-preset-step5-cell-stack {
+                display: grid;
+                gap: 2px;
+                min-width: 0;
+        }
+
+        .agent-component-preset-step5-cell-main {
+                font-weight: 600;
+                color: #222;
+                min-width: 0;
+                overflow-wrap: anywhere;
+        }
+
+        .agent-component-preset-step5-cell-sub {
+                font-size: 12px;
+                color: #666;
+                min-width: 0;
+                overflow-wrap: anywhere;
+        }
+
+        .agent-component-preset-step5-pill-row {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                align-items: center;
+        }
+
+        .agent-component-preset-step5-pill {
+                display: inline-flex;
+                align-items: center;
+                padding: 1px 6px;
+                border: 1px solid #d6d6d6;
+                border-radius: 999px;
+                background: #fafafa;
+                font-size: 11px;
+                line-height: 1.35;
+                color: #444;
+                white-space: nowrap;
+        }
+
+        .agent-component-preset-step5-output,
+        .agent-component-preset-step5-status {
+                margin-top: 12px;
+                padding: 8px 10px;
+                border: 1px solid #e2e2e2;
+                border-radius: 8px;
+                background: #fff;
+                font-size: 13px;
+                color: #555;
+        }
+
+        .agent-component-preset-step5-output strong,
+        .agent-component-preset-step5-status strong {
+                color: #222;
+        }
+
+        .agent-component-preset-step5-startup {
+                padding: 16px;
+                border: 1px solid #e2e2e2;
+                border-radius: 8px;
+                background: #fff;
+                font-size: 13px;
+                color: #555;
+        }
+
+        .agent-component-preset-step5-startup-error {
+                border-color: #e4b9b9;
+                background: #fff8f8;
+                color: #8a1f1f;
+        }
+
+        .agent-component-preset-step5-startup pre {
+                white-space: pre-wrap;
+                word-break: break-word;
+                margin: 8px 0 0 0;
+                font-size: 12px;
+        }
+
+        .agent-component-preset-step5-detail {
+                min-width: 0;
+        }
+
+        .agent-component-preset-step5-detail-layout,
+        .agent-component-preset-step5-detail {
+                display: grid;
+                grid-template-columns: minmax(320px, 1fr) minmax(360px, 1.15fr);
+                gap: 14px;
+                align-items: start;
+                padding: 10px;
+                background: #fbfbfb;
+        }
+
+        .agent-component-preset-step5-detail-card {
+                min-width: 0;
+                padding: 10px;
+                border: 1px solid #e2e2e2;
+                border-radius: 8px;
+                background: #fff;
+        }
+
+        .agent-component-preset-step5-detail-title {
+                margin: 0 0 6px 0;
+                font-size: 15px;
+                font-weight: 600;
+                color: #222;
+        }
+
+        .agent-component-preset-step5-detail-row {
+                display: grid;
+                grid-template-columns: 120px minmax(0, 1fr);
+                gap: 6px;
+                margin: 0 0 6px 0;
+                font-size: 13px;
+        }
+
+        .agent-component-preset-step5-detail-key {
+                font-weight: 600;
+                color: #444;
+        }
+
+        .agent-component-preset-step5-json,
+        .agent-component-preset-step5-log {
+                margin: 0;
+                padding: 8px;
+                max-height: 360px;
+                overflow: auto;
+                border: 1px solid #e2e2e2;
+                border-radius: 6px;
+                background: #fbfbfb;
+                white-space: pre-wrap;
+                word-break: break-word;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: 12px;
+                line-height: 1.4;
+        }
+
+        .agent-component-preset-step5-log {
+                max-height: 260px;
+        }
+
+        .agent-component-preset-step5-log-details {
+                margin-top: 10px;
+        }
+
+        .agent-component-preset-step5-log-details summary {
+                padding: 7px 10px;
+                border: 1px solid #e2e2e2;
+                border-radius: 8px;
+                background: #fff;
+                cursor: pointer;
+                font-size: 13px;
+                color: #444;
+        }
+
+        .agent-component-preset-step5-button {
+                appearance: none;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 28px;
+                padding: 4px 10px;
+                border: 1px solid #cfcfcf;
+                border-radius: 6px;
+                background: #fff;
+                color: #222;
+                font: inherit;
+                font-size: 12px;
+                line-height: 1.25;
+                cursor: pointer;
+                white-space: nowrap;
+        }
+
+        .agent-component-preset-step5-button:hover {
+                background: #f5f5f5;
+        }
+
+        .agent-component-preset-step5-button:focus-visible {
+                outline: 2px solid #86a8cf;
+                outline-offset: 2px;
+        }
+
+        .agent-component-preset-step5-button-primary {
+                background: #222;
+                border-color: #222;
+                color: #fff;
+        }
+
+        .agent-component-preset-step5-button-primary:hover {
+                background: #444;
+        }
+
+        .agent-component-preset-step5-button-danger {
+                border-color: #c8a2a2;
+                color: #8a1f1f;
+        }
+
+        .agent-component-preset-step5-button-danger:hover {
+                background: #fff0f0;
+        }
+
+        .agent-component-preset-step5-modal-backdrop {
+                position: fixed;
+                inset: 0;
+                z-index: 9000;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                background: rgba(0, 0, 0, 0.35);
+        }
+
+        .agent-component-preset-step5-modal-backdrop.is-open {
+                display: flex;
+        }
+
+        .agent-component-preset-step5-modal {
+                display: grid;
+                grid-template-rows: auto 1fr auto;
+                gap: 12px;
+                width: min(1120px, 100%);
+                max-height: min(860px, 100%);
+                border: 1px solid #d6d6d6;
+                border-radius: 8px;
+                background: #fff;
+                box-shadow: 0 16px 50px rgba(0, 0, 0, 0.20);
+                padding: 16px;
+        }
+
+        .agent-component-preset-step5-modal-header {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 12px;
+        }
+
+        .agent-component-preset-step5-modal-footer {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+        }
+
+        .agent-component-preset-step5-modal-title {
+                font-size: 18px;
+                line-height: 1.25;
+                font-weight: 600;
+                color: #222;
+        }
+
+        .agent-component-preset-step5-modal-body {
+                min-height: 0;
+                overflow: auto;
+        }
+
+        .agent-component-preset-step5-form {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(260px, 1fr));
+                gap: 12px;
+        }
+
+        .agent-component-preset-step5-field-full {
+                grid-column: 1 / -1;
+        }
+
+        .agent-component-preset-step5-label {
+                display: block;
+                margin: 0 0 4px 0;
+                font-size: 12px;
+                font-weight: 600;
+                color: #333;
+        }
+
+        .agent-component-preset-step5-input,
+        .agent-component-preset-step5-select,
+        .agent-component-preset-step5-textarea {
+                width: 100%;
+                max-width: 100%;
+                min-height: 32px;
+                padding: 5px 7px;
+                border: 1px solid #cfcfcf;
+                border-radius: 6px;
+                background: #fff;
+                color: #222;
+                font: inherit;
+                font-size: 13px;
+                box-sizing: border-box;
+        }
+
+        .agent-component-preset-step5-select[multiple] {
+                min-height: 72px;
+        }
+
+        .agent-component-preset-step5-textarea {
+                min-height: 110px;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: 12px;
+                line-height: 1.4;
+                resize: vertical;
+        }
+
+        .agent-component-preset-step5-checkbox-row {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                min-height: 32px;
+                font-size: 13px;
+        }
+
+        .agent-component-preset-step5-modal-status {
+                min-height: 18px;
+                font-size: 12px;
+                color: #666;
+        }
+
+        .agent-component-preset-step5-modal-status-error {
+                color: #8a1f1f;
+        }
+
+        .agent-component-preset-step5-modal-status-ok {
+                color: #276028;
+        }
+
+        @media (max-width: 980px) {
+                .agent-component-preset-step5-detail,
+                .agent-component-preset-step5-form {
+                        grid-template-columns: 1fr;
+                }
+        }
+
+        @media (max-width: 720px) {
+                .agent-component-preset-step5-shell h1 {
+                        font-size: 21px;
+                }
+
+                .agent-component-preset-step5-grid .mg-table-scroll {
+                        height: 420px;
+                }
+        }
 </style>
 
 <div class="agent-component-preset-step5-shell">
-	<h1>Agent Component Preset Admin</h1>
-	<p>
-		Manage reusable presets for dockable MissionBay agent components. Resource types, capabilities and meta fields are selected through controlled editor fields; Config JSON and Docks JSON stay editable as structured JSON.
-	</p>
+        <h1>Agent Component Preset Admin</h1>
+        <p>
+                Manage reusable presets for dockable MissionBay agent components. Resource types, capabilities and meta fields are selected through controlled editor fields; Config JSON and Docks JSON stay editable as structured JSON.
+        </p>
 
-	<div class="agent-component-preset-step5-grid">
-		<div class="agent-component-preset-step5-top-actions">
-			<button type="button" id="agent-component-preset-step5-add" class="agent-component-preset-step5-button agent-component-preset-step5-button-primary">Add preset</button>
-			<button type="button" id="agent-component-preset-step5-reload" class="agent-component-preset-step5-button">Reload defaults</button>
-		</div>
+        <div class="agent-component-preset-step5-grid">
+                <div class="agent-component-preset-step5-top-actions">
+                        <button type="button" id="agent-component-preset-step5-add" class="agent-component-preset-step5-button agent-component-preset-step5-button-primary">Add preset</button>
+                        <button type="button" id="agent-component-preset-step5-reload" class="agent-component-preset-step5-button">Reload defaults</button>
+                </div>
 
-		<div id="agent-component-preset-step5-grid" class="agent-component-preset-step5-grid-shell">
-			<div class="agent-component-preset-step5-startup">Loading Agent Component Preset Admin display...</div>
-		</div>
-		<div id="agent-component-preset-step5-output" class="agent-component-preset-step5-status"><strong>Last action:</strong> Waiting for initialization.</div>
-		<details class="agent-component-preset-step5-log-details">
-			<summary>Debug log</summary>
-			<pre id="agent-component-preset-step5-log" class="agent-component-preset-step5-log">Status log will appear here.</pre>
-		</details>
-	</div>
+                <div id="agent-component-preset-step5-grid" class="agent-component-preset-step5-grid-shell">
+                        <div class="agent-component-preset-step5-startup">Loading Agent Component Preset Admin display...</div>
+                </div>
+                <div id="agent-component-preset-step5-output" class="agent-component-preset-step5-status"><strong>Last action:</strong> Waiting for initialization.</div>
+                <details class="agent-component-preset-step5-log-details">
+                        <summary>Debug log</summary>
+                        <pre id="agent-component-preset-step5-log" class="agent-component-preset-step5-log">Status log will appear here.</pre>
+                </details>
+        </div>
 </div>
 
 <div id="agent-component-preset-step5-editor" class="agent-component-preset-step5-modal-backdrop" aria-hidden="true">
@@ -513,66 +513,66 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
                                         <input type="text" name="label" class="agent-component-preset-step5-input" />
                                 </div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Resource type</label>
-					<select name="type" class="agent-component-preset-step5-select">
-						<option value="">Select resource type</option>
+                                <div>
+                                        <label class="agent-component-preset-step5-label">Resource type</label>
+                                        <select name="type" class="agent-component-preset-step5-select">
+                                                <option value="">Select resource type</option>
 <?php foreach($resourceOptions as $resourceOption): ?>
 <?php
-	$resourceId = is_array($resourceOption) ? (string)($resourceOption['id'] ?? '') : (string)$resourceOption;
-	$resourceClass = is_array($resourceOption) ? (string)($resourceOption['class'] ?? '') : '';
-	if($resourceId === '') {
-		continue;
-	}
+        $resourceId = is_array($resourceOption) ? (string)($resourceOption['id'] ?? '') : (string)$resourceOption;
+        $resourceClass = is_array($resourceOption) ? (string)($resourceOption['class'] ?? '') : '';
+        if($resourceId === '') {
+                continue;
+        }
 ?>
-						<option value="<?php echo $e($resourceId); ?>" title="<?php echo $e($resourceClass); ?>"><?php echo $e($resourceId); ?></option>
+                                                <option value="<?php echo $e($resourceId); ?>" title="<?php echo $e($resourceClass); ?>"><?php echo $e($resourceId); ?></option>
 <?php endforeach; ?>
-					</select>
-				</div>
+                                        </select>
+                                </div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Enabled</label>
-					<label class="agent-component-preset-step5-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
-				</div>
+                                <div>
+                                        <label class="agent-component-preset-step5-label">Enabled</label>
+                                        <label class="agent-component-preset-step5-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
+                                </div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Capabilities</label>
-					<select name="capabilities[]" class="agent-component-preset-step5-select" multiple>
+                                <div>
+                                        <label class="agent-component-preset-step5-label">Capabilities</label>
+                                        <select name="capabilities[]" class="agent-component-preset-step5-select" multiple>
 <?php foreach($capabilityOptions as $capabilityOption): ?>
-						<option value="<?php echo $e($capabilityOption); ?>"><?php echo $e($capabilityOption); ?></option>
+                                                <option value="<?php echo $e($capabilityOption); ?>"><?php echo $e($capabilityOption); ?></option>
 <?php endforeach; ?>
-					</select>
-				</div>
+                                        </select>
+                                </div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Category</label>
-					<select name="category" class="agent-component-preset-step5-select">
-						<option value="">Select category</option>
+                                <div>
+                                        <label class="agent-component-preset-step5-label">Category</label>
+                                        <select name="category" class="agent-component-preset-step5-select">
+                                                <option value="">Select category</option>
 <?php foreach($categoryOptions as $categoryOption): ?>
-						<option value="<?php echo $e($categoryOption); ?>"><?php echo $e($categoryOption); ?></option>
+                                                <option value="<?php echo $e($categoryOption); ?>"><?php echo $e($categoryOption); ?></option>
 <?php endforeach; ?>
-					</select>
-				</div>
+                                        </select>
+                                </div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Status</label>
-					<select name="status" class="agent-component-preset-step5-select">
-						<option value="">Select status</option>
+                                <div>
+                                        <label class="agent-component-preset-step5-label">Status</label>
+                                        <select name="status" class="agent-component-preset-step5-select">
+                                                <option value="">Select status</option>
 <?php foreach($statusOptions as $statusOption): ?>
-						<option value="<?php echo $e($statusOption); ?>"><?php echo $e($statusOption); ?></option>
+                                                <option value="<?php echo $e($statusOption); ?>"><?php echo $e($statusOption); ?></option>
 <?php endforeach; ?>
-					</select>
-				</div>
+                                        </select>
+                                </div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Risk</label>
-					<select name="risk" class="agent-component-preset-step5-select">
-						<option value="">Select risk</option>
+                                <div>
+                                        <label class="agent-component-preset-step5-label">Risk</label>
+                                        <select name="risk" class="agent-component-preset-step5-select">
+                                                <option value="">Select risk</option>
 <?php foreach($riskOptions as $riskOption): ?>
-						<option value="<?php echo $e($riskOption); ?>"><?php echo $e($riskOption); ?></option>
+                                                <option value="<?php echo $e($riskOption); ?>"><?php echo $e($riskOption); ?></option>
 <?php endforeach; ?>
-					</select>
-				</div>
+                                        </select>
+                                </div>
 
                                 <div>
                                         <label class="agent-component-preset-step5-label">Version</label>
@@ -601,9 +601,8 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
                         </form>
                 </div>
                 <div class="agent-component-preset-step5-modal-footer">
-                        <div id="agent-component-preset-step5-editor-status" class="agent-component-preset-step5-modal-status">Save and Delete are enabled.</div>
+                        <div id="agent-component-preset-step5-editor-status" class="agent-component-preset-step5-modal-status">Save is enabled.</div>
                         <div>
-                                <button type="button" class="agent-component-preset-step5-button agent-component-preset-step5-button-danger" id="agent-component-preset-step5-delete">Delete</button>
                                 <button type="button" class="agent-component-preset-step5-button" id="agent-component-preset-step5-copy-payload">Copy payload</button>
                                 <button type="button" class="agent-component-preset-step5-button agent-component-preset-step5-button-primary" id="agent-component-preset-step5-save">Save</button>
                         </div>
@@ -686,6 +685,23 @@ function stringifyJson(value) {
         }
 }
 
+async function copyText(text) {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                await navigator.clipboard.writeText(String(text || ''));
+                return;
+        }
+
+        const textarea = document.createElement('textarea');
+        textarea.value = String(text || '');
+        textarea.setAttribute('readonly', 'readonly');
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+}
+
 function createElement(className = '', text = '') {
         const element = document.createElement('div');
 
@@ -747,6 +763,14 @@ async function importFirst(url, moduleLabel) {
 async function postJson(payload) {
         log('POST JSON start', payload);
 
+	/*
+	 * CRITICAL: Do not change this request contract.
+	 * ModularGrid and the BASE3/ILIAS endpoint currently rely on this exact fetch setup:
+	 * POST + Content-Type application/json + JSON.stringify(payload).
+	 * Do not add credentials, mode, cache, FormData, query params, CSRF handling,
+	 * wrappers, adapter changes, or any other request architecture here.
+	 * Any change to this block requires an explicit user request and a separate runtime test.
+	 */
         const response = await fetch(ENDPOINT_URL, {
                 method: 'POST',
                 headers: {
@@ -1048,14 +1072,9 @@ function openPresetEditor(record) {
 
         setCapabilityCheckboxes(form, record.capabilities || []);
 
-        const deleteButton = document.getElementById('agent-component-preset-step5-delete');
-        if (deleteButton) {
-                deleteButton.hidden = String(oldIdValue || '').trim() === '';
-        }
-
         elements.modal.classList.add('is-open');
         elements.modal.setAttribute('aria-hidden', 'false');
-        setEditorStatus('Editor opened. Save and Delete are enabled.', 'ok');
+        setEditorStatus('Editor opened. Save is enabled.', 'ok');
         setLog('Opened editor test for ' + getText(record.preset_id || record.id, 'new preset'));
 }
 
@@ -1256,47 +1275,46 @@ async function saveEditorPayload() {
         }
 }
 
-async function deleteEditorPreset() {
+async function deletePresetById(id) {
+        id = String(id || '').trim();
+
+        if (!id) {
+                throw new Error('Missing preset id.');
+        }
+
+        const response = await postJson({
+                mode: 'delete',
+                id
+        });
+
+        if (!response || !response.ok) {
+                throw new Error(response && response.error ? response.error : 'Delete failed.');
+        }
+
+        return response;
+}
+
+async function deletePresetFromRow(row) {
         try {
-                const elements = getEditorElements();
-                const form = elements.form;
-
-                if (!form) {
-                        throw new Error('Preset editor form not found.');
-                }
-
-                const id = String(form.elements.namedItem('old_id').value || form.elements.namedItem('id').value || '').trim();
+                const id = getPresetIdFromRow(row);
 
                 if (!id) {
-                        throw new Error('Only saved presets can be deleted.');
+                        throw new Error('Missing preset id.');
                 }
 
                 if (!window.confirm('Delete preset "' + id + '"?')) {
-                        setEditorStatus('Delete cancelled.', '');
                         setLog('Delete cancelled for ' + id);
                         return;
                 }
 
-                setEditorStatus('Deleting preset...', '');
                 setLog('Deleting preset ' + id);
-
-                const response = await postJson({
-                        mode: 'delete',
-                        id
-                });
-
-                if (!response || !response.ok) {
-                        throw new Error(response && response.error ? response.error : 'Delete failed.');
-                }
-
-                setEditorStatus('Preset deleted. Reloading page...', 'ok');
-                setLog('Deleted preset ' + getText(response.id || id, id));
+                const response = await deletePresetById(id);
+                setLog('Deleted preset ' + getText(response.id || id, id) + '. Reloading page...');
 
                 window.setTimeout(() => {
                         window.location.reload();
                 }, 500);
         } catch (error) {
-                setEditorStatus(error && error.message ? error.message : String(error), 'error');
                 setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
         }
 }
@@ -1358,7 +1376,6 @@ function bindEditorEvents() {
         const addButton = document.getElementById('agent-component-preset-step5-add');
         const reloadButton = document.getElementById('agent-component-preset-step5-reload');
         const copyButton = document.getElementById('agent-component-preset-step5-copy-payload');
-        const deleteButton = document.getElementById('agent-component-preset-step5-delete');
         const saveButton = document.getElementById('agent-component-preset-step5-save');
         const elements = getEditorElements();
 
@@ -1382,14 +1399,6 @@ function bindEditorEvents() {
                         copyEditorPayload();
                 });
         }
-
-        if (deleteButton) {
-                deleteButton.addEventListener('click', (event) => {
-                        event.preventDefault();
-                        deleteEditorPreset();
-                });
-        }
-
 
         if (saveButton) {
                 saveButton.addEventListener('click', (event) => {
@@ -1559,6 +1568,13 @@ async function initGrid(modularGridModule) {
                                                 label: 'Duplicate preset',
                                                 onClick(context) {
                                                         openDuplicateEditorFromRow(context && context.row ? context.row : null);
+                                                }
+                                        },
+                                        {
+                                                key: 'delete-preset',
+                                                label: 'Delete preset',
+                                                onClick(context) {
+                                                        deletePresetFromRow(context && context.row ? context.row : null);
                                                 }
                                         }
                                 ]
