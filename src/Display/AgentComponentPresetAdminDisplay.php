@@ -22,9 +22,12 @@ use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
+use Base3\Api\ISchemaProvider;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Api\IAgentMemory;
 use MissionBay\Api\IAgentResource;
+use MissionBay\Api\IAgentTool;
 use Throwable;
 
 /**
@@ -37,6 +40,11 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 
 	private const SETTINGS_GROUP = 'agent-component-preset';
 	private const BATCH_SIZE = 50;
+
+	/**
+	 * @var array<int,array<string,mixed>>|null
+	 */
+	private ?array $resourceOptionsCache = null;
 
 	public function __construct(
 		private readonly IRequest $request,
@@ -83,8 +91,11 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			)
 		);
 
+		$resourceOptions = $this->listResourceOptions();
+
 		$this->view->assign('settings_group', self::SETTINGS_GROUP);
-		$this->view->assign('resource_options', $this->listResourceOptions());
+		$this->view->assign('resource_options', $resourceOptions);
+		$this->view->assign('preset_options', $this->listPresetOptions($resourceOptions));
 		$this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string)$src));
 
 		return $this->view->loadTemplate();
@@ -276,7 +287,11 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$label = trim((string)($payload['label'] ?? ''));
 		$type = $this->normalizeTechnicalKey((string)($payload['type'] ?? ''));
 		$enabled = $this->toBool($payload['enabled'] ?? true);
-		$capabilities = $this->normalizeStringArray($payload['capabilities'] ?? []);
+		$capabilities = $this->deriveCapabilitiesForType($type);
+
+		if($capabilities === []) {
+			$capabilities = $this->getStoredCapabilitiesForSaveFallback($oldId, $id, $payload);
+		}
 
 		if($id === '') {
 			return $this->buildErrorResponse('Preset id must not be empty.', 'save');
@@ -288,10 +303,6 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 
 		if($label === '') {
 			$label = $id;
-		}
-
-		if($capabilities === []) {
-			return $this->buildErrorResponse('At least one capability is required.', 'save');
 		}
 
 		try {
@@ -430,7 +441,9 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$label = trim((string)($settings['label'] ?? ''));
 		$type = $this->normalizeTechnicalKey((string)($settings['type'] ?? ''));
 		$enabled = $this->toBool($settings['enabled'] ?? true);
-		$capabilities = $this->normalizeStringArray($settings['capabilities'] ?? []);
+		$storedCapabilities = $this->normalizeStringArray($settings['capabilities'] ?? []);
+		$derivedCapabilities = $this->deriveCapabilitiesForType($type);
+		$capabilities = $derivedCapabilities !== [] ? $derivedCapabilities : $storedCapabilities;
 		$config = is_array($settings['config'] ?? null) ? $settings['config'] : [];
 		$docks = is_array($settings['docks'] ?? null) ? $settings['docks'] : [];
 		$meta = is_array($settings['meta'] ?? null) ? $settings['meta'] : [];
@@ -477,9 +490,9 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			'config_count' => count($config),
 			'dock_count' => count($docks),
 			'capabilities_edit' => implode(', ', $capabilities),
-			'config_json' => $this->encodePrettyJson($config),
-			'docks_json' => $this->encodePrettyJson($docks),
-			'meta_json' => $this->encodePrettyJson($meta),
+			'config_json' => $this->encodePrettyJsonObject($config),
+			'docks_json' => $this->encodePrettyJsonObject($docks),
+			'meta_json' => $this->encodePrettyJsonObject($meta),
 			'preset_json' => $this->encodePrettyJson($preset),
 			'preset' => $preset
 		];
@@ -678,12 +691,23 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 	 * @return array<int,array<string,string>>
 	 */
 	private function listResourceOptions(): array {
+		if($this->resourceOptionsCache !== null) {
+			return $this->resourceOptionsCache;
+		}
+
 		$options = [];
 
 		try {
-			$resources = $this->classMap->getInstances(['interface' => IAgentResource::class]);
+			if(method_exists($this->classMap, 'getInstancesByInterface')) {
+				$resources = $this->classMap->getInstancesByInterface(IAgentResource::class);
+			}
+			else {
+				$resources = $this->classMap->getInstances(['interface' => IAgentResource::class]);
+			}
 		}
 		catch(Throwable) {
+			$this->resourceOptionsCache = [];
+
 			return [];
 		}
 
@@ -698,15 +722,253 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 				continue;
 			}
 
-			$options[$id] = [
-				'id' => $id,
-				'class' => $resource::class
-			];
+			$options[$id] = $this->normalizeResourceOption($id, $resource);
 		}
 
 		ksort($options);
+		$this->resourceOptionsCache = array_values($options);
 
-		return array_values($options);
+		return $this->resourceOptionsCache;
+	}
+
+	/**
+	 * @return array<string,array<string,mixed>>
+	 */
+	private function listResourceOptionsById(): array {
+		$map = [];
+
+		foreach($this->listResourceOptions() as $option) {
+			$id = (string)($option['id'] ?? '');
+
+			if($id !== '') {
+				$map[$id] = $option;
+			}
+		}
+
+		return $map;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function normalizeResourceOption(string $id, IAgentResource $resource): array {
+		$interfaces = $this->normalizeInterfaceArray(array_values(class_implements($resource) ?: []));
+		$class = $resource::class;
+		$capabilities = [];
+
+		if($resource instanceof IAgentMemory) {
+			$capabilities[] = 'memory';
+		}
+
+		if($resource instanceof IAgentTool) {
+			$capabilities[] = 'tool';
+		}
+
+		$capabilities = array_values(array_unique($capabilities));
+		sort($capabilities);
+
+		return [
+			'id' => $id,
+			'class' => $class,
+			'description' => $this->safeResourceDescription($resource),
+			'capabilities' => $capabilities,
+			'capability_text' => implode(', ', $capabilities),
+			'interfaces' => $interfaces,
+			'schema' => $this->safeResourceSchema($resource),
+			'docks' => $this->safeResourceDocks($resource)
+		];
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function listPresetOptions(array $resourceOptions): array {
+		$resourcesById = [];
+
+		foreach($resourceOptions as $resourceOption) {
+			$type = (string)($resourceOption['id'] ?? '');
+
+			if($type !== '') {
+				$resourcesById[$type] = $resourceOption;
+			}
+		}
+
+		$rows = [];
+
+		foreach($this->loadRows() as $row) {
+			$type = (string)($row['type'] ?? '');
+			$resourceOption = $resourcesById[$type] ?? [];
+			$interfaces = is_array($resourceOption['interfaces'] ?? null) ? $resourceOption['interfaces'] : [];
+			$capabilities = is_array($resourceOption['capabilities'] ?? null) && $resourceOption['capabilities'] !== []
+				? $resourceOption['capabilities']
+				: (is_array($row['capabilities'] ?? null) ? $row['capabilities'] : []);
+
+			$rows[] = [
+				'id' => (string)($row['preset_id'] ?? $row['id'] ?? ''),
+				'label' => (string)($row['label'] ?? ''),
+				'type' => $type,
+				'enabled' => $this->toBool($row['enabled'] ?? true),
+				'capabilities' => array_values($capabilities),
+				'capability_text' => implode(', ', array_values($capabilities)),
+				'interfaces' => array_values($interfaces),
+				'class' => (string)($resourceOption['class'] ?? '')
+			];
+		}
+
+		usort($rows, function(array $left, array $right): int {
+			$result = strcmp($this->toLower((string)($left['label'] ?? '')), $this->toLower((string)($right['label'] ?? '')));
+
+			if($result !== 0) {
+				return $result;
+			}
+
+			return strcmp($this->toLower((string)($left['id'] ?? '')), $this->toLower((string)($right['id'] ?? '')));
+		});
+
+		return $rows;
+	}
+
+	private function safeResourceDescription(IAgentResource $resource): string {
+		try {
+			return trim((string)$resource->getDescription());
+		}
+		catch(Throwable) {
+			return '';
+		}
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function safeResourceSchema(IAgentResource $resource): array {
+		if(!$resource instanceof ISchemaProvider) {
+			return [];
+		}
+
+		try {
+			$schema = $resource->getSchema();
+		}
+		catch(Throwable) {
+			return [];
+		}
+
+		return is_array($schema) ? $schema : [];
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function safeResourceDocks(IAgentResource $resource): array {
+		try {
+			$docks = $resource->getDockDefinitions();
+		}
+		catch(Throwable) {
+			return [];
+		}
+
+		$result = [];
+
+		foreach($docks as $dock) {
+			if(is_object($dock) && method_exists($dock, 'toArray')) {
+				$value = $dock->toArray();
+			}
+			elseif(is_array($dock)) {
+				$value = $dock;
+			}
+			else {
+				$value = [
+					'name' => (string)($dock->name ?? ''),
+					'description' => (string)($dock->description ?? ''),
+					'interface' => (string)($dock->interface ?? ''),
+					'maxConnections' => $dock->maxConnections ?? null,
+					'required' => (bool)($dock->required ?? false)
+				];
+			}
+
+			$name = trim((string)($value['name'] ?? ''));
+
+			if($name === '') {
+				continue;
+			}
+
+			$result[] = [
+				'name' => $name,
+				'description' => trim((string)($value['description'] ?? '')),
+				'interface' => trim((string)($value['interface'] ?? '')),
+				'maxConnections' => isset($value['maxConnections']) ? (int)$value['maxConnections'] : null,
+				'required' => $this->toBool($value['required'] ?? false)
+			];
+		}
+
+		return $result;
+	}
+
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function normalizeInterfaceArray(mixed $value): array {
+		if(!is_array($value)) {
+			return [];
+		}
+
+		$result = [];
+
+		foreach($value as $item) {
+			if(!is_scalar($item) && $item !== null) {
+				continue;
+			}
+
+			$item = trim((string)$item);
+
+			if($item === '') {
+				continue;
+			}
+
+			$result[] = $item;
+		}
+
+		$result = array_values(array_unique($result));
+		sort($result);
+
+		return $result;
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function deriveCapabilitiesForType(string $type): array {
+		$type = $this->normalizeTechnicalKey($type);
+		$options = $this->listResourceOptionsById();
+		$capabilities = $options[$type]['capabilities'] ?? [];
+
+		return $this->normalizeStringArray($capabilities);
+	}
+
+	/**
+	 * @param array<string,mixed> $payload
+	 * @return array<int,string>
+	 */
+	private function getStoredCapabilitiesForSaveFallback(string $oldId, string $id, array $payload): array {
+		foreach([$oldId, $id] as $candidateId) {
+			$candidateId = $this->normalizeTechnicalKey($candidateId);
+
+			if($candidateId === '' || !$this->settingsStore->has(self::SETTINGS_GROUP, $candidateId)) {
+				continue;
+			}
+
+			$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $candidateId, []);
+
+			if(is_array($settings)) {
+				$capabilities = $this->normalizeStringArray($settings['capabilities'] ?? []);
+
+				if($capabilities !== []) {
+					return $capabilities;
+				}
+			}
+		}
+
+		return $this->normalizeStringArray($payload['capabilities'] ?? []);
 	}
 
 	/**
@@ -801,6 +1063,18 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 
 		return is_string($json) ? $json : '{}';
+	}
+
+	/**
+	 * Encodes associative setting payloads as JSON objects for the editor contract.
+	 * Empty PHP arrays would otherwise become [], which breaks object-based editor controls.
+	 */
+	private function encodePrettyJsonObject(mixed $value): string {
+		if(is_array($value) && $value === []) {
+			return '{}';
+		}
+
+		return $this->encodePrettyJson($value);
 	}
 
 	private function toLower(string $value): string {
