@@ -699,9 +699,12 @@ const SORT_TYPES = {
 	label: 'string',
 	type: 'string',
 	capability_text: 'string',
+	interface_text: 'string',
 	status: 'string',
 	category: 'string'
 };
+
+let grid = null;
 
 const layout = {
 	type: 'stack',
@@ -1413,6 +1416,43 @@ async function postJson(payload) {
 	return json;
 }
 
+async function refreshGrid() {
+	if (!grid) {
+		setLog('Grid is not initialized; refresh skipped.');
+		return;
+	}
+
+	const commands = ['reloadData', 'reload', 'refreshData', 'refresh'];
+
+	if (typeof grid.execute === 'function') {
+		for (const commandName of commands) {
+			try {
+				const result = grid.execute(commandName);
+
+				if (result && typeof result.then === 'function') {
+					await result;
+				}
+
+				return;
+			} catch (error) {}
+		}
+	}
+
+	for (const methodName of commands) {
+		if (typeof grid[methodName] === 'function') {
+			const result = grid[methodName]();
+
+			if (result && typeof result.then === 'function') {
+				await result;
+			}
+
+			return;
+		}
+	}
+
+	setLog('Grid refresh is not available. Please refresh the page manually.');
+}
+
 function renderPreset(value, row) {
 	const wrapper = createElement('agent-component-preset-step5-cell-stack');
 	const main = createElement('agent-component-preset-step5-cell-main', getText(row.label || row.preset_id));
@@ -1447,6 +1487,29 @@ function renderPills(value) {
 	items.forEach((item) => wrapper.appendChild(createPill(item)));
 
 	return wrapper;
+}
+
+function renderCapabilities(value, row) {
+	const wrapper = createElement('agent-component-preset-step5-cell-stack');
+	const interfaces = getDisplayInterfaceText(row);
+	const interfaceLine = createElement('agent-component-preset-step5-cell-sub', getText(interfaces));
+
+	wrapper.appendChild(renderPills(value));
+	wrapper.appendChild(interfaceLine);
+
+	return wrapper;
+}
+
+function getDisplayInterfaceText(row) {
+	if (!row || typeof row !== 'object') {
+		return '';
+	}
+
+	if (Array.isArray(row.display_interfaces)) {
+		return row.display_interfaces.map((item) => String(item || '').trim()).filter(Boolean).join(', ');
+	}
+
+	return String(row.interface_text || '').trim();
 }
 
 function createPill(text) {
@@ -1517,6 +1580,7 @@ function renderPresetDetail(context) {
 	left.appendChild(createDetailRow('Type', record.type));
 	left.appendChild(createDetailRow('Enabled', record.enabled ? 'yes' : 'no'));
 	left.appendChild(createDetailRow('Capabilities', record.capability_text));
+	left.appendChild(createDetailRow('Interfaces', getDisplayInterfaceText(record)));
 	left.appendChild(createDetailRow('Category', record.category));
 	left.appendChild(createDetailRow('Status', record.status));
 	left.appendChild(createDetailRow('Risk', record.risk));
@@ -1885,12 +1949,12 @@ async function saveEditorPayload() {
 			throw new Error(response && response.error ? response.error : 'Save failed.');
 		}
 
-		setEditorStatus('Preset saved. Reloading page...', 'ok');
-		setLog('Saved preset ' + getText(response.id || payload.id, payload.id));
+		setEditorStatus('Preset saved. Updating grid...', 'ok');
+		closePresetEditor();
+		await refreshGrid();
 
-		window.setTimeout(() => {
-			window.location.reload();
-		}, 500);
+		const record = response.record || payload;
+		setLog('Saved preset ' + getText(record.preset_id || record.id || payload.id, payload.id) + '.');
 	} catch (error) {
 		setEditorStatus(error && error.message ? error.message : String(error), 'error');
 		setLog('Save failed: ' + getText(error && error.message ? error.message : error));
@@ -1931,11 +1995,9 @@ async function deletePresetFromRow(row) {
 
 		setLog('Deleting preset ' + id);
 		const response = await deletePresetById(id);
-		setLog('Deleted preset ' + getText(response.id || id, id) + '. Reloading page...');
-
-		window.setTimeout(() => {
-			window.location.reload();
-		}, 500);
+		setLog('Deleted preset ' + getText(response.id || id, id) + '. Updating grid...');
+		await refreshGrid();
+		setLog('Deleted preset ' + getText(response.id || id, id) + '.');
 	} catch (error) {
 		setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
 	}
@@ -2129,7 +2191,7 @@ async function initGrid(modularGridModule) {
 
 	log('adapter created');
 
-	const grid = new ModularGrid(GRID_SELECTOR, {
+	grid = new ModularGrid(GRID_SELECTOR, {
 		layout,
 		adapter,
 		dataMode: 'server',
@@ -2280,9 +2342,17 @@ async function initGrid(modularGridModule) {
 			{
 				key: 'capability_text',
 				label: 'Capabilities',
-				width: 180,
-				render(value) {
-					return renderPills(value);
+				width: 240,
+				headerMenu: {
+					defaultSortKey: 'capability_text',
+					defaultSortDirection: 'asc',
+					sortOptions: [
+						{ key: 'capability_text', label: 'Capabilities' },
+						{ key: 'interface_text', label: 'Interfaces' }
+					]
+				},
+				render(value, row) {
+					return renderCapabilities(value, row);
 				}
 			},
 			{

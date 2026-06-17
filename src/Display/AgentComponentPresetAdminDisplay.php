@@ -18,6 +18,7 @@
 namespace MissionBay\Display;
 
 use Base3\Api\IAssetResolver;
+use Base3\Api\IBase;
 use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
@@ -222,6 +223,8 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 				'enabled_label' => $row['enabled_label'],
 				'capabilities' => $row['capabilities'],
 				'capability_text' => $row['capability_text'],
+				'display_interfaces' => $row['display_interfaces'],
+				'interface_text' => $row['interface_text'],
 				'category' => $row['category'],
 				'status' => $row['status'],
 				'risk' => $row['risk'],
@@ -444,6 +447,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$storedCapabilities = $this->normalizeStringArray($settings['capabilities'] ?? []);
 		$derivedCapabilities = $this->deriveCapabilitiesForType($type);
 		$capabilities = $derivedCapabilities !== [] ? $derivedCapabilities : $storedCapabilities;
+		$displayInterfaces = $this->deriveDisplayInterfacesForType($type);
 		$config = is_array($settings['config'] ?? null) ? $settings['config'] : [];
 		$docks = is_array($settings['docks'] ?? null) ? $settings['docks'] : [];
 		$meta = is_array($settings['meta'] ?? null) ? $settings['meta'] : [];
@@ -464,6 +468,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			'type' => $type,
 			'enabled' => $enabled,
 			'capabilities' => $capabilities,
+			'display_interfaces' => $displayInterfaces,
 			'config' => $config,
 			'docks' => $docks,
 			'meta' => $meta
@@ -479,6 +484,8 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			'enabled_label' => $enabled ? 'enabled' : 'disabled',
 			'capabilities' => $capabilities,
 			'capability_text' => implode(', ', $capabilities),
+			'display_interfaces' => $displayInterfaces,
+			'interface_text' => implode(', ', $displayInterfaces),
 			'category' => $category,
 			'status' => $status,
 			'risk' => $risk,
@@ -753,6 +760,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 	 */
 	private function normalizeResourceOption(string $id, IAgentResource $resource): array {
 		$interfaces = $this->normalizeInterfaceArray(array_values(class_implements($resource) ?: []));
+		$displayInterfaces = $this->normalizeDisplayInterfaceArray($interfaces);
 		$class = $resource::class;
 		$capabilities = [];
 
@@ -773,6 +781,8 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			'description' => $this->safeResourceDescription($resource),
 			'capabilities' => $capabilities,
 			'capability_text' => implode(', ', $capabilities),
+			'display_interfaces' => $displayInterfaces,
+			'interface_text' => implode(', ', $displayInterfaces),
 			'interfaces' => $interfaces,
 			'schema' => $this->safeResourceSchema($resource),
 			'docks' => $this->safeResourceDocks($resource)
@@ -802,6 +812,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			$capabilities = is_array($resourceOption['capabilities'] ?? null) && $resourceOption['capabilities'] !== []
 				? $resourceOption['capabilities']
 				: (is_array($row['capabilities'] ?? null) ? $row['capabilities'] : []);
+			$displayInterfaces = is_array($resourceOption['display_interfaces'] ?? null) ? $resourceOption['display_interfaces'] : [];
 
 			$rows[] = [
 				'id' => (string)($row['preset_id'] ?? $row['id'] ?? ''),
@@ -811,6 +822,8 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 				'capabilities' => array_values($capabilities),
 				'capability_text' => implode(', ', array_values($capabilities)),
 				'interfaces' => array_values($interfaces),
+				'display_interfaces' => array_values($displayInterfaces),
+				'interface_text' => implode(', ', array_values($displayInterfaces)),
 				'class' => (string)($resourceOption['class'] ?? '')
 			];
 		}
@@ -932,6 +945,60 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		sort($result);
 
 		return $result;
+	}
+
+	/**
+	 * @param array<int,string> $interfaces
+	 * @return array<int,string>
+	 */
+	private function normalizeDisplayInterfaceArray(array $interfaces): array {
+		$excludedInterfaces = [
+			IBase::class,
+			IAgentResource::class,
+			IAgentMemory::class,
+			IAgentTool::class,
+			ISchemaProvider::class
+		];
+
+		$result = [];
+
+		foreach($interfaces as $interface) {
+			$interface = trim((string)$interface);
+
+			if($interface === '' || in_array($interface, $excludedInterfaces, true)) {
+				continue;
+			}
+
+			$result[] = $this->shortClassName($interface);
+		}
+
+		$result = array_values(array_unique($result));
+		sort($result);
+
+		return $result;
+	}
+
+	private function shortClassName(string $className): string {
+		$className = trim($className, '\\');
+
+		if($className === '') {
+			return '';
+		}
+
+		$pos = strrpos($className, '\\');
+
+		return $pos === false ? $className : substr($className, $pos + 1);
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function deriveDisplayInterfacesForType(string $type): array {
+		$type = $this->normalizeTechnicalKey($type);
+		$options = $this->listResourceOptionsById();
+		$interfaces = $options[$type]['display_interfaces'] ?? [];
+
+		return $this->normalizeStringArray($interfaces);
 	}
 
 	/**
