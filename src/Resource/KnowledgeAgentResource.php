@@ -17,6 +17,7 @@
 
 namespace MissionBay\Resource;
 
+use Base3\Api\ISchemaProvider;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -25,12 +26,13 @@ use MissionBay\Api\IAgentKnowledgeService;
 use MissionBay\Api\IAgentMemory;
 use MissionBay\Api\IAgentTool;
 
-class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool {
+class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool, ISchemaProvider {
+
+	private const SYSTEM_TITLE = 'Knowledge memory';
 
 	private ?ILogger $logger = null;
 
 	private int $priority = 30;
-	private string $systemTitle = 'Knowledge memory';
 	private int $injectLimit = 8;
 	private int $injectMaxLength = 2500;
 	private int $injectFetchLimit = 40;
@@ -57,6 +59,60 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		return 'Provides persistent knowledge memory as both tool access and system prompt injection.';
 	}
 
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getSchema(): array {
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'priority' => [
+					'type' => 'integer',
+					'description' => 'Memory priority used when multiple memories are attached to an assistant node. Lower values are loaded first.',
+					'default' => 30
+				],
+				'injectlimit' => [
+					'type' => 'integer',
+					'description' => 'Maximum number of knowledge entries injected as system memory.',
+					'default' => 8,
+					'minimum' => 1
+				],
+				'injectmaxlength' => [
+					'type' => 'integer',
+					'description' => 'Maximum total character budget for injected knowledge lines. Values less than or equal to 0 disable this limit.',
+					'default' => 2500,
+					'minimum' => 0
+				],
+				'injectfetchlimit' => [
+					'type' => 'integer',
+					'description' => 'Maximum number of candidate entries fetched before injection filtering and sorting.',
+					'default' => 40,
+					'minimum' => 1
+				],
+				'injectonlyalways' => [
+					'type' => 'boolean',
+					'description' => 'If true, only entries marked always_inject or pinned are considered for automatic system prompt injection.',
+					'default' => true
+				],
+				'injecttypes' => [
+					'type' => 'array',
+					'description' => 'Knowledge memory types considered for automatic system prompt injection.',
+					'items' => [
+						'type' => 'string',
+						'enum' => ['task', 'episodic', 'semantic', 'procedural']
+					],
+					'default' => ['task', 'episodic', 'semantic', 'procedural'],
+					'uniqueItems' => true
+				]
+			],
+			'required' => []
+		];
+	}
+
+	/**
+	 * @return AgentNodeDock[]
+	 */
 	public function getDockDefinitions(): array {
 		return [
 			new AgentNodeDock(
@@ -73,7 +129,6 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 		parent::setConfig($config);
 
 		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 30);
-		$this->systemTitle = (string)($this->resolver->resolveValue($config['systemtitle'] ?? null) ?? 'Knowledge memory');
 		$this->injectLimit = (int)($this->resolver->resolveValue($config['injectlimit'] ?? null) ?? 8);
 		$this->injectMaxLength = (int)($this->resolver->resolveValue($config['injectmaxlength'] ?? null) ?? 2500);
 		$this->injectFetchLimit = (int)($this->resolver->resolveValue($config['injectfetchlimit'] ?? null) ?? 40);
@@ -105,7 +160,7 @@ class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemo
 			return [];
 		}
 
-		$content = $this->systemTitle . ":\n- " . implode("\n- ", $lines);
+		$content = self::SYSTEM_TITLE . ":\n- " . implode("\n- ", $lines);
 
 		return [[
 			'role' => 'system',
