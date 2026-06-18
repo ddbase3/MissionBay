@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use Base3\Api\IClassMap;
+use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -41,7 +42,7 @@ use RuntimeException;
  * errors are returned as structured tool results instead of breaking
  * the whole assistant flow during resource setup.
  */
-class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgentResource implements ISearchService, IAgentTool {
+class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgentResource implements ISearchService, IAgentTool, ISchemaProvider {
 
 	private const SEARCH_SETTINGS_GROUP = 'service-search';
 	private const CONNECTION_SETTINGS_GROUP = 'connection';
@@ -68,6 +69,33 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 
 	public function getDescription(): string {
 		return 'Loads a configured web search service by id and delegates to the matching search adapter.';
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	public function getSchema(): array {
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'service' => [
+					'type' => 'string',
+					'description' => 'Configured search service id from the service-search settings group.'
+				],
+				'maxresults' => [
+					'type' => 'integer',
+					'description' => 'Optional maximum number of search results exposed through the web_search tool. This caps the tool argument max_results.',
+					'minimum' => 1
+				],
+				'includeraw' => [
+					'type' => 'boolean',
+					'description' => 'Whether raw provider results should be included in tool responses.',
+					'default' => false
+				]
+			],
+			'required' => ['service']
+		];
 	}
 
 	public function setConfig(array $config): void {
