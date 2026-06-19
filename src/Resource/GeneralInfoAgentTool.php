@@ -334,6 +334,10 @@ class GeneralInfoAgentTool extends AbstractAgentResource implements IAgentTool {
 			$result->scope = $request->scope;
 		}
 
+		if ($result->provider === '') {
+			$result->provider = $provider::getName();
+		}
+
 		if ($result->message === '') {
 			$result->message = $provider->getTitle();
 		}

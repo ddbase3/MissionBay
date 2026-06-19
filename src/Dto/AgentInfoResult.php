@@ -36,6 +36,8 @@ class AgentInfoResult {
 
 	public string $scope = '';
 
+	public string $provider = '';
+
 	public string $message = '';
 
 	public array $links = [];
@@ -60,11 +62,13 @@ class AgentInfoResult {
 		array $detail = [],
 		array $errors = [],
 		array $suggestions = [],
-		array $paging = []
+		array $paging = [],
+		string $provider = ''
 	) {
 		$this->success = $success;
 		$this->topic = $topic;
 		$this->scope = $scope;
+		$this->provider = $provider;
 		$this->message = $message;
 		$this->links = $links;
 		$this->items = $items;
@@ -81,7 +85,8 @@ class AgentInfoResult {
 		array $items = [],
 		array $detail = [],
 		array $links = [],
-		array $paging = []
+		array $paging = [],
+		string $provider = ''
 	): self {
 		return new self(
 			success: true,
@@ -93,7 +98,8 @@ class AgentInfoResult {
 			detail: $detail,
 			errors: [],
 			suggestions: [],
-			paging: $paging
+			paging: $paging,
+			provider: $provider
 		);
 	}
 
@@ -102,7 +108,8 @@ class AgentInfoResult {
 		string $scope,
 		string $code,
 		string $message,
-		array $suggestions = []
+		array $suggestions = [],
+		string $provider = ''
 	): self {
 		return new self(
 			success: false,
@@ -117,7 +124,8 @@ class AgentInfoResult {
 				'message' => $message
 			]],
 			suggestions: $suggestions,
-			paging: []
+			paging: [],
+			provider: $provider
 		);
 	}
 
@@ -141,6 +149,10 @@ class AgentInfoResult {
 			'topic' => $this->topic,
 			'scope' => $this->scope
 		];
+
+		if ($includeEmpty || $this->provider !== '') {
+			$out['provider'] = $this->provider;
+		}
 
 		if ($includeEmpty || $this->message !== '') {
 			$out['message'] = $this->message;
