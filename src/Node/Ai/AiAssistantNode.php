@@ -17,23 +17,25 @@
 
 namespace MissionBay\Node\Ai;
 
-use AssistantFoundation\Api\IAiChatModel;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentMemory;
-use MissionBay\Api\IAgentProfileSelector;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
-use MissionBay\Node\AbstractAgentNode;
-use MissionBay\Orchestrator\AgentToolOrchestrator;
-use MissionBay\Profile\ProfilePlan;
-use MissionBay\Profile\ToolDefFilter;
-use MissionBay\Profile\ToolGuardAgentTool;
+use MissionBay\Api\IAgentAssistantFallbackBuilder;
+use MissionBay\Api\IAgentAssistantFinalResponseService;
+use MissionBay\Api\IAgentAssistantMemoryService;
+use MissionBay\Api\IAgentAssistantTurnService;
+use MissionBay\Api\IAgentContext;
+use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
 
-class AiAssistantNode extends AbstractAgentNode {
+class AiAssistantNode extends AbstractAiAssistantNode {
 
-	private ?ILogger $logger = null;
+	public function __construct(
+		IAgentAssistantTurnService $turnService,
+		IAgentAssistantFinalResponseService $finalResponseService,
+		IAgentAssistantMemoryService $memoryService,
+		IAgentAssistantFallbackBuilder $fallbackBuilder,
+		?string $id = null
+	) {
+		parent::__construct($turnService, $finalResponseService, $memoryService, $fallbackBuilder, $id);
+	}
 
 	public static function getName(): string {
 		return 'aiassistantnode';
@@ -44,29 +46,7 @@ class AiAssistantNode extends AbstractAgentNode {
 	}
 
 	public function getInputDefinitions(): array {
-		return [
-			new AgentNodePort(
-				name: 'prompt',
-				description: 'The user message.',
-				type: 'string',
-				default: null,
-				required: true
-			),
-			new AgentNodePort(
-				name: 'system',
-				description: 'Optional system message.',
-				type: 'string',
-				default: 'You are a helpful assistant.',
-				required: false
-			),
-			new AgentNodePort(
-				name: 'mode',
-				description: 'Operation mode: "chat" (default) or "suggestions" (read-only memory, no tools).',
-				type: 'string',
-				default: 'chat',
-				required: false
-			)
-		];
+		return $this->getCommonInputDefinitions(true);
 	}
 
 	public function getOutputDefinitions(): array {
@@ -86,6 +66,13 @@ class AiAssistantNode extends AbstractAgentNode {
 				required: false
 			),
 			new AgentNodePort(
+				name: 'warning',
+				description: 'Warning code, if the response had to use a fallback.',
+				type: 'string',
+				default: null,
+				required: false
+			),
+			new AgentNodePort(
 				name: 'error',
 				description: 'Error message, if any.',
 				type: 'string',
@@ -96,172 +83,74 @@ class AiAssistantNode extends AbstractAgentNode {
 	}
 
 	public function getDockDefinitions(): array {
-		return [
-			new AgentNodeDock(
-				name: 'chatmodel',
-				description: 'Docked assistant chat model.',
-				interface: IAiChatModel::class,
-				maxConnections: 1,
-				required: true
-			),
-			new AgentNodeDock(
-				name: 'memory',
-				description: 'Optional memory for storing previous messages.',
-				interface: IAgentMemory::class,
-				maxConnections: 99,
-				required: false
-			),
-			new AgentNodeDock(
-				name: 'logger',
-				description: 'Optional logger.',
-				interface: ILogger::class,
-				maxConnections: 1,
-				required: false
-			),
-			new AgentNodeDock(
-				name: 'tools',
-				description: 'Callable tools for function calling.',
-				interface: IAgentTool::class,
-				maxConnections: 99,
-				required: false
-			),
-			new AgentNodeDock(
-				name: 'profileselector',
-				description: 'Optional profile selector that returns ProfilePlans (supports multi-profile).',
-				interface: IAgentProfileSelector::class,
-				maxConnections: 1,
-				required: false
-			)
-		];
+		return $this->getCommonDockDefinitions();
 	}
 
 	public function execute(array $inputs, array $resources, IAgentContext $context): array {
+		$assistantId = $this->createAssistantMessageId();
+
 		try {
-			$model = $resources['chatmodel'][0] ?? null;
-			$memories = $resources['memory'] ?? [];
-			$tools = $resources['tools'] ?? [];
+			$turnResources = $this->buildTurnResources($resources, 'Missing required chat model.');
 
-			if (isset($resources['logger'][0]) && $resources['logger'][0] instanceof ILogger) {
-				$this->logger = $resources['logger'][0];
-			}
-
-			if (!$model instanceof IAiChatModel) {
-				$err = 'Missing required chat model.';
-				$this->logError($err);
-				return ['error' => $err];
-			}
-
-			usort($memories, fn(IAgentMemory $a, IAgentMemory $b) => $a->getPriority() <=> $b->getPriority());
-
-			$prompt = trim((string)($inputs['prompt'] ?? ''));
-			$system = trim((string)($inputs['system'] ?? 'You are a helpful assistant.'));
-			$mode = strtolower(trim((string)($inputs['mode'] ?? 'chat')));
-
-			if ($mode === '') {
-				$mode = 'chat';
-			}
-
-			$isSuggestions = ($mode === 'suggestions');
-			$this->log('Mode: ' . $mode);
-
-			if ($prompt === '') {
+			if ($this->readInputPrompt($inputs) === '') {
 				$err = 'Prompt is required.';
 				$this->logError($err);
-				return ['error' => $err];
+				return [
+					'error' => $err,
+					'tool_calls' => []
+				];
 			}
 
-			$toolDefs = [];
+			$mode = $this->readInputMode($inputs);
+			$isSuggestions = ($mode === 'suggestions');
 
-			if (!$isSuggestions) {
-				$profileSelector = $resources['profileselector'][0] ?? null;
-				$effectivePlan = $this->buildEffectiveProfilePlan($profileSelector, $prompt, $system, $context);
+			$this->log('Mode: ' . $mode . '.');
 
-				$filter = new ToolDefFilter();
-				$filtered = $filter->filter($tools, $effectivePlan);
-
-				$toolDefs = $filtered['toolDefs'];
-				$report = $filtered['report'];
-				$allowedToolNames = $filtered['allowedToolNames'];
-
-				if (!$report->isFeasible()) {
-					$this->logError('Requested profiles cannot be fulfilled. Falling back to default behavior.');
-
-					$effectivePlan = new ProfilePlan('default');
-					$filtered = $filter->filter($tools, $effectivePlan);
-
-					$toolDefs = $filtered['toolDefs'];
-					$allowedToolNames = $filtered['allowedToolNames'];
-				}
-
-				$systemAppend = $effectivePlan->getSystemAppend();
-				if ($systemAppend !== null && trim($systemAppend) !== '') {
-					$system = rtrim($system) . "\n\n" . trim($systemAppend);
-				}
-
-				if (is_array($allowedToolNames) && count($allowedToolNames) > 0) {
-					$tools = array_map(
-						fn($tool) => new ToolGuardAgentTool($tool, $allowedToolNames),
-						$tools
-					);
-				}
-
-				$this->log('Number of tools: ' . count($toolDefs) . '.');
-			} else {
-				$tools = [];
-				$toolDefs = [];
-				$this->log('Suggestions mode: tools disabled.');
-			}
-
-			$messages = $this->buildInitialMessages($system, $memories);
-
-			$userMessage = $this->createUserMessage($prompt);
-			$messages[] = $userMessage;
-
-			if (!$isSuggestions) {
-				$this->appendVisibleMessageToMemories($memories, $this->getId(), $userMessage);
-			}
-
-			$orchestrator = new AgentToolOrchestrator($this->logger);
-			$orchestrationResult = $orchestrator->run(
-				$model,
-				$messages,
-				$toolDefs,
-				$tools,
-				$context,
-				null,
-				8
+			$options = $this->buildTurnOptions(
+				inputs: $inputs,
+				assistantMessageId: $assistantId,
+				toolsEnabled: !$isSuggestions,
+				memoryReadEnabled: true,
+				memoryWriteEnabled: !$isSuggestions,
+				mode: $mode
 			);
 
-			if (!$orchestrationResult->isCompleted()) {
-				throw new \RuntimeException('Tool phase did not complete within the allowed tool-call loop limit.');
+			$turnResult = $this->turnService->run(
+				$turnResources,
+				$context,
+				$options,
+				null
+			);
+
+			if (!$turnResult->isCompleted()) {
+				return $this->handleIncompleteTurn($turnResult);
 			}
 
-			$context->setVar('orchestrator_messages', $orchestrationResult->getMessages());
-			$context->setVar('orchestrator_final_assistant', $orchestrationResult->getFinalAssistantMessage());
-			$context->setVar('orchestrator_iterations', $orchestrationResult->getIterations());
+			try {
+				$finalContent = $this->finalResponseService->createDirectResponse($turnResources->getModel(), $turnResult);
+			} catch (\Throwable $e) {
+				$this->logError('Direct final response failed: ' . $e->getMessage());
+				$finalContent = $this->buildDirectFailureFallback($turnResult);
+				$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
+				$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
 
-			$finalAssistantMessage = $orchestrationResult->getFinalAssistantMessage();
-			if (!is_array($finalAssistantMessage)) {
-				throw new \RuntimeException('Missing final assistant message.');
+				return [
+					'message' => $assistantMessage,
+					'tool_calls' => $turnResult->getToolCalls(),
+					'warning' => 'fallback_direct_response_error'
+				];
 			}
 
-			$assistantMessage = [
-				'id' => uniqid('msg_', true),
-				'role' => 'assistant',
-				'content' => $this->normalizeMessageContent($finalAssistantMessage['content'] ?? ''),
-				'timestamp' => (new \DateTimeImmutable())->format('c'),
-				'feedback' => null
-			];
+			$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
+			$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
 
-			if (!$isSuggestions) {
-				$this->appendVisibleMessageToMemories($memories, $this->getId(), $assistantMessage);
-			} else {
+			if ($isSuggestions) {
 				$this->log('Suggestions mode: memory write skipped.');
 			}
 
 			return [
 				'message' => $assistantMessage,
-				'tool_calls' => $orchestrationResult->getToolCalls()
+				'tool_calls' => $turnResult->getToolCalls()
 			];
 
 		} catch (\Throwable $e) {
@@ -274,205 +163,25 @@ class AiAssistantNode extends AbstractAgentNode {
 		}
 	}
 
-	/**
-	 * Builds the initial working messages for the current turn.
-	 *
-	 * Memory is treated as visible dialogue memory only.
-	 * Older tool traces are intentionally filtered out here.
-	 *
-	 * @param array<int,IAgentMemory> $memories
-	 * @return array<int,array<string,mixed>>
-	 */
-	private function buildInitialMessages(string $system, array $memories): array {
-		$messages = [
-			['role' => 'system', 'content' => $system]
-		];
+	private function handleIncompleteTurn(AgentAssistantTurnResult $turnResult): array {
+		$finalContent = $turnResult->getFallbackContent() ?? 'Ich konnte die Anfrage nicht vollständig abschließen. Bitte versuche es erneut oder grenze die Anfrage etwas ein.';
+		$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
+		$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
 
-		$nodeId = $this->getId();
-
-		foreach ($memories as $memory) {
-			foreach ($this->safeLoadHistory($memory, $nodeId) as $entry) {
-				if (!$this->isVisibleHistoryEntry($entry)) {
-					continue;
-				}
-
-				$messages[] = $entry;
-			}
-		}
-
-		return $messages;
-	}
-
-	/**
-	 * @return array<string,mixed>
-	 */
-	private function createUserMessage(string $prompt): array {
 		return [
-			'id' => uniqid('msg_', true),
-			'role' => 'user',
-			'content' => $prompt,
-			'timestamp' => (new \DateTimeImmutable())->format('c'),
-			'feedback' => null
+			'message' => $assistantMessage,
+			'tool_calls' => $turnResult->getToolCalls(),
+			'warning' => $turnResult->getFailureCode() !== '' ? $turnResult->getFailureCode() : 'tool_phase_incomplete'
 		];
 	}
 
-	/**
-	 * Only visible dialogue entries should be reloaded from persistent memory.
-	 *
-	 * Allowed:
-	 * - system
-	 * - user
-	 * - assistant without tool_calls
-	 *
-	 * Rejected:
-	 * - tool messages
-	 * - assistant planning messages with tool_calls
-	 *
-	 * @param mixed $entry
-	 */
-	private function isVisibleHistoryEntry(mixed $entry): bool {
-		if (!is_array($entry) || !isset($entry['role'])) {
-			return false;
+	private function buildDirectFailureFallback(AgentAssistantTurnResult $turnResult): string {
+		$orchestrationResult = $turnResult->getOrchestrationResult();
+
+		if ($orchestrationResult !== null) {
+			return $this->fallbackBuilder->build($orchestrationResult);
 		}
 
-		$role = (string)$entry['role'];
-
-		if ($role === 'system' || $role === 'user') {
-			return true;
-		}
-
-		if ($role !== 'assistant') {
-			return false;
-		}
-
-		if (!empty($entry['tool_calls']) && is_array($entry['tool_calls'])) {
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * @param array<int,IAgentMemory> $memories
-	 * @param array<string,mixed> $message
-	 */
-	private function appendVisibleMessageToMemories(array $memories, string $nodeId, array $message): void {
-		foreach ($memories as $memory) {
-			$this->safeAppendHistory($memory, $nodeId, $message);
-		}
-	}
-
-	private function buildEffectiveProfilePlan(mixed $profileSelector, string $prompt, string $system, IAgentContext $context): ProfilePlan {
-		if (!$profileSelector instanceof IAgentProfileSelector) {
-			return new ProfilePlan('default');
-		}
-
-		$plans = $profileSelector->selectPlans($prompt, $system, $context);
-		if (count($plans) === 0) {
-			return new ProfilePlan('default');
-		}
-
-		$mergedSystemAppend = [];
-		$mergedAllowed = null;
-		$mergedRequired = [];
-
-		foreach ($plans as $plan) {
-			if (!$plan instanceof ProfilePlan) {
-				continue;
-			}
-
-			$append = $plan->getSystemAppend();
-			if ($append !== null && trim($append) !== '') {
-				$mergedSystemAppend[] = trim($append);
-			}
-
-			$allowed = $plan->getAllowedTools();
-			if (is_array($allowed)) {
-				if ($mergedAllowed === null) {
-					$mergedAllowed = [];
-				}
-
-				foreach ($allowed as $name) {
-					$name = (string)$name;
-					if ($name !== '') {
-						$mergedAllowed[$name] = true;
-					}
-				}
-			}
-
-			foreach ($plan->getRequiredTools() as $req) {
-				$req = (string)$req;
-				if ($req !== '') {
-					$mergedRequired[$req] = true;
-				}
-			}
-		}
-
-		$effectiveAllowedTools = $mergedAllowed === null ? null : array_keys($mergedAllowed);
-		if (is_array($effectiveAllowedTools)) {
-			sort($effectiveAllowedTools);
-		}
-
-		$effectiveRequiredTools = array_keys($mergedRequired);
-		sort($effectiveRequiredTools);
-
-		return new ProfilePlan(
-			profileName: 'effective',
-			systemAppend: count($mergedSystemAppend) > 0 ? implode("\n\n", $mergedSystemAppend) : null,
-			allowedTools: $effectiveAllowedTools,
-			requiredTools: $effectiveRequiredTools
-		);
-	}
-
-	private function safeLoadHistory(IAgentMemory $memory, string $nodeId): array {
-		try {
-			return $memory->loadNodeHistory($nodeId) ?? [];
-		} catch (\Throwable $e) {
-			$this->logError('Memory loadNodeHistory failed: ' . $e->getMessage());
-			return [];
-		}
-	}
-
-	private function safeAppendHistory(IAgentMemory $memory, string $nodeId, array $message): void {
-		try {
-			$memory->appendNodeHistory($nodeId, $message);
-		} catch (\Throwable $e) {
-			$this->logError('Memory appendNodeHistory failed: ' . $e->getMessage());
-		}
-	}
-
-	private function normalizeMessageContent(mixed $content): string {
-		if ($content === null) {
-			return '';
-		}
-
-		if (is_string($content)) {
-			return $content;
-		}
-
-		if (is_bool($content)) {
-			return $content ? 'true' : 'false';
-		}
-
-		if (is_int($content) || is_float($content)) {
-			return (string)$content;
-		}
-
-		$json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-		if ($json === false || $json === 'null') {
-			return '';
-		}
-
-		return $json;
-	}
-
-	private function log(string $msg): void {
-		if ($this->logger) {
-			$this->logger->log(static::getName(), '[' . $this->id . '] ' . $msg);
-		}
-	}
-
-	private function logError(string $msg): void {
-		$this->log('[ERROR] ' . $msg);
+		return 'Ich konnte die Anfrage nicht vollständig abschließen. Bitte versuche es erneut oder grenze die Anfrage etwas ein.';
 	}
 }
