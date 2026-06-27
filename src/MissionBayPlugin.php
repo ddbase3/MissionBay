@@ -44,6 +44,7 @@ use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentConfigFormService;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
+use MissionBay\Api\IAgentExecutionService;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Api\IAgentMemoryFactory;
 use MissionBay\Api\IAgentNodeFactory;
@@ -56,6 +57,7 @@ use MissionBay\Profile\AgentAssistantToolSetupFactory;
 use MissionBay\Service\AgentComponentFlowBuilder;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\AgentConfigFormService;
+use MissionBay\Service\AgentExecutionService;
 use MissionBay\Service\Assistant\AgentAssistantFallbackBuilder;
 use MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
 use MissionBay\Service\Assistant\AgentAssistantMemoryService;
@@ -89,6 +91,11 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)
 			->set(IAgentComponentPresetRepository::class, fn($c) => new AgentComponentPresetRepository($c->get(ISettingsStore::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentComponentFlowBuilder::class, fn($c) => new AgentComponentFlowBuilder($c->get(IAgentComponentPresetRepository::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentExecutionService::class, fn($c) => new AgentExecutionService(
+				$c->get(IAgentContextFactory::class),
+				$c->get(IAgentFlowFactory::class),
+				$c->get(IAgentComponentFlowBuilder::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentConfigFormService::class, fn($c) => new AgentConfigFormService($c->get(IRequest::class), $c->get(ISettingsStore::class), $c->get(IClassMap::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentRagPayloadNormalizer::class, fn() => new AgentRagPayloadNormalizer(), IContainer::SHARED | IContainer::NOOVERWRITE)
 
