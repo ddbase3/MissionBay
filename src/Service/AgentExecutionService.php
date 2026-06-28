@@ -17,11 +17,11 @@
 
 namespace MissionBay\Service;
 
+use AssistentFoundation\Api\IAgentExecutionService;
+use AssistentFoundation\Dto\AgentExecutionResult;
 use MissionBay\Api\IAgentComponentFlowBuilder;
 use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentExecutionService;
 use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Dto\AgentExecutionResult;
 
 /**
  * AgentExecutionService
