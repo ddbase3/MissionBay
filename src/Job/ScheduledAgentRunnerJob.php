@@ -21,7 +21,7 @@ use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\Worker\Api\IJob;
 use Base3\Worker\Api\IJobExecutionPolicy;
-use AssistentFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Api\IAgentExecutionService;
 use Throwable;
 
 /**

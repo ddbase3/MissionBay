@@ -29,7 +29,7 @@ use Base3\Event\Api\IEventManager;
 use Base3\Event\EventManager;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\Usermanager\Api\IUsermanager;
-use AssistentFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Api\IAgentExecutionService;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
 use MissionBay\Agent\AgentFlowFactory;

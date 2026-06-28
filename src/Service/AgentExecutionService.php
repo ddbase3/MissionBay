@@ -17,8 +17,8 @@
 
 namespace MissionBay\Service;
 
-use AssistentFoundation\Api\IAgentExecutionService;
-use AssistentFoundation\Dto\AgentExecutionResult;
+use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Dto\AgentExecutionResult;
 use MissionBay\Api\IAgentComponentFlowBuilder;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
