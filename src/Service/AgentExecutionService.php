@@ -34,6 +34,8 @@ class AgentExecutionService implements IAgentExecutionService {
 	private const CHAT_LLM_RESOURCE_ID = 'chatllm';
 	private const CHAT_LLM_RESOURCE_TYPE = 'configuredchatmodelagentresource';
 	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
+	private const CANONICAL_USER_INPUT = 'prompt';
+	private const LEGACY_USER_INPUT = 'user';
 
 	/**
 	 * @var array<int,string>
@@ -58,6 +60,7 @@ class AgentExecutionService implements IAgentExecutionService {
 		$this->warnings = [];
 
 		$flow = $this->normalizeAgentFlow($agentSettings['agent_flow'] ?? []);
+		$flow = $this->normalizePromptInputConnections($flow);
 
 		if ($flow === []) {
 			throw new \RuntimeException('Invalid Flow JSON');
@@ -79,7 +82,7 @@ class AgentExecutionService implements IAgentExecutionService {
 		$flow = $this->componentFlowBuilder->build($flow, $components, $assistantNodeId);
 		$this->warnings = $this->componentFlowBuilder->getWarnings();
 
-		return $flow;
+		return $this->normalizePromptInputConnections($flow);
 	}
 
 	/**
@@ -90,7 +93,7 @@ class AgentExecutionService implements IAgentExecutionService {
 	public function run(array $agentSettings, array $inputs = [], array $contextVars = []): AgentExecutionResult {
 		$effectiveFlow = $this->buildEffectiveFlow($agentSettings);
 		$flow = $this->createFlow($effectiveFlow, $contextVars);
-		$output = $flow->run($inputs);
+		$output = $flow->run($this->normalizeInputs($inputs));
 
 		return new AgentExecutionResult($output, $effectiveFlow, $this->warnings);
 	}
@@ -103,7 +106,7 @@ class AgentExecutionService implements IAgentExecutionService {
 	public function stream(array $agentSettings, array $inputs = [], array $contextVars = []): void {
 		$effectiveFlow = $this->buildEffectiveFlow($agentSettings);
 		$flow = $this->createFlow($effectiveFlow, $contextVars);
-		$flow->run($inputs);
+		$flow->run($this->normalizeInputs($inputs));
 	}
 
 	/**
@@ -140,6 +143,19 @@ class AgentExecutionService implements IAgentExecutionService {
 	/**
 	 * @return array<string,mixed>
 	 */
+	private function normalizeInputs(array $inputs): array {
+		if (!array_key_exists(self::CANONICAL_USER_INPUT, $inputs) && array_key_exists(self::LEGACY_USER_INPUT, $inputs)) {
+			$inputs[self::CANONICAL_USER_INPUT] = $inputs[self::LEGACY_USER_INPUT];
+		}
+
+		unset($inputs[self::LEGACY_USER_INPUT]);
+
+		return $inputs;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
 	private function normalizeAgentFlow(mixed $value): array {
 		if (is_array($value)) {
 			return $value;
@@ -158,6 +174,47 @@ class AgentExecutionService implements IAgentExecutionService {
 		$decoded = json_decode($value, true);
 
 		return is_array($decoded) ? $decoded : [];
+	}
+
+	/**
+	 * @param array<string,mixed> $flow
+	 * @return array<string,mixed>
+	 */
+	private function normalizePromptInputConnections(array $flow): array {
+		if (!isset($flow['connections']) || !is_array($flow['connections'])) {
+			return $flow;
+		}
+
+		$connections = [];
+		$seen = [];
+
+		foreach ($flow['connections'] as $connection) {
+			if (!is_array($connection)) {
+				continue;
+			}
+
+			if ((string)($connection['from'] ?? '') === '__input__' && (string)($connection['output'] ?? '') === self::LEGACY_USER_INPUT) {
+				$connection['output'] = self::CANONICAL_USER_INPUT;
+			}
+
+			$key = implode("\0", [
+				(string)($connection['from'] ?? ''),
+				(string)($connection['output'] ?? ''),
+				(string)($connection['to'] ?? ''),
+				(string)($connection['input'] ?? '')
+			]);
+
+			if (isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$connections[] = $connection;
+		}
+
+		$flow['connections'] = $connections;
+
+		return $flow;
 	}
 
 	/**

@@ -247,7 +247,6 @@ final class ScheduledAgentRunnerJob implements IJob {
 		return [
 			'system' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? '')),
 			'prompt' => $userPrompt,
-			'user' => $userPrompt,
 			'mode' => 'scheduled_agent'
 		];
 	}

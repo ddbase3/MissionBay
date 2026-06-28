@@ -88,6 +88,8 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			$errors[] = 'Selected LLM does not exist in settings group "' . self::LLM_SETTINGS_GROUP . '": ' . $llm;
 		}
 
+		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
+
 		if ($errors === [] && $llm !== '') {
 			$agentFlow = $this->applyLlmToAgentFlow($agentFlow, $llm);
 		}
@@ -125,6 +127,7 @@ class AgentConfigFormService implements IAgentConfigFormService {
 		$defaults = $this->getDefaultSettings();
 
 		$agentFlow = is_array($settings['agent_flow'] ?? null) ? $settings['agent_flow'] : $defaults['agent_flow'];
+		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
 		$agentComponents = $this->normalizeAgentComponentsViewInput($settings['agent_components'] ?? $defaults['agent_components']);
 		$llm = $this->normalizeTechnicalKey((string)($settings['llm'] ?? ''));
 
@@ -703,6 +706,47 @@ class AgentConfigFormService implements IAgentConfigFormService {
 		}
 
 		return $fallback;
+	}
+
+	/**
+	 * @param array<string,mixed> $agentFlow
+	 * @return array<string,mixed>
+	 */
+	protected function normalizePromptInputConnections(array $agentFlow): array {
+		if (!isset($agentFlow['connections']) || !is_array($agentFlow['connections'])) {
+			return $agentFlow;
+		}
+
+		$connections = [];
+		$seen = [];
+
+		foreach ($agentFlow['connections'] as $connection) {
+			if (!is_array($connection)) {
+				continue;
+			}
+
+			if ((string)($connection['from'] ?? '') === '__input__' && (string)($connection['output'] ?? '') === 'user') {
+				$connection['output'] = 'prompt';
+			}
+
+			$key = implode("\0", [
+				(string)($connection['from'] ?? ''),
+				(string)($connection['output'] ?? ''),
+				(string)($connection['to'] ?? ''),
+				(string)($connection['input'] ?? '')
+			]);
+
+			if (isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$connections[] = $connection;
+		}
+
+		$agentFlow['connections'] = $connections;
+
+		return $agentFlow;
 	}
 
 	protected function extractLlmFromAgentFlow(array $agentFlow): string {
