@@ -24,8 +24,11 @@ use Base3\Api\IPlugin;
 use Base3\Api\IRequest;
 use Base3\ConfigValue\Api\IConfigValueResolver;
 use Base3\ConfigValue\Resolver\ConfigValueResolver;
+use Base3\Database\Api\IDatabase;
 use Base3\Event\Api\IEventManager;
+use Base3\Event\EventManager;
 use Base3\Settings\Api\ISettingsStore;
+use Base3\Usermanager\Api\IUsermanager;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
 use MissionBay\Agent\AgentFlowFactory;
@@ -52,6 +55,10 @@ use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IAgentToolOrchestratorFactory;
+use MissionBay\Event\MissionBayToolFailedEvent;
+use MissionBay\Event\MissionBayToolFinishedEvent;
+use MissionBay\Event\MissionBayToolStartedEvent;
+use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Orchestrator\AgentToolOrchestratorFactory;
 use MissionBay\Profile\AgentAssistantToolSetupFactory;
 use MissionBay\Service\AgentComponentFlowBuilder;
@@ -79,6 +86,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 	public function init() {
 		$this->container
 			->set(self::getName(), $this, IContainer::SHARED)
+
+			->set(IEventManager::class, fn() => new EventManager(), IContainer::SHARED | IContainer::NOOVERWRITE)
 
 			->set(IConfigValueResolver::class, fn($c) => new ConfigValueResolver($c->get(IClassMap::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 
@@ -112,6 +121,18 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentToolOrchestratorFactory::class),
 				$c->get(IAgentAssistantFallbackBuilder::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE);
+
+		// Events
+		$listener = new MissionBayToolEventDisplayListener(
+			$this->container->get(IDatabase::class),
+			$this->container->get(IUsermanager::class)
+		);
+
+		$eventManager = $this->container->get(IEventManager::class);
+
+		$eventManager->on(MissionBayToolStartedEvent::class, [$listener, 'onToolStarted']);
+		$eventManager->on(MissionBayToolFinishedEvent::class, [$listener, 'onToolFinished']);
+		$eventManager->on(MissionBayToolFailedEvent::class, [$listener, 'onToolFailed']);
 	}
 
 	// Implementation of ICheck
