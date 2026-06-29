@@ -2,18 +2,19 @@
 
 namespace Base3AgentsWebsite\Chatbot;
 
+use Base3\Api\IClassMap;
 use Base3\Api\IOutput;
 use Base3\Api\IRequest;
 use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentMemoryFactory;
 use MissionBay\Api\IAgentFlowFactory;
+use MissionBay\Api\IAgentMemory;
 
 class ChatbotService implements IOutput {
 
 	public function __construct(
 		private readonly IRequest $request,
+		private readonly IClassMap $classmap,
 		private readonly IAgentContextFactory $agentcontextfactory,
-		private readonly IAgentMemoryFactory $agentmemoryfactory,
 		private readonly IAgentFlowFactory $agentflowfactory
 	) {}
 
@@ -28,7 +29,12 @@ class ChatbotService implements IOutput {
 			return 'Please provide a prompt.';
 		}
 
-		$memory = $this->agentmemoryfactory->createMemory('sessionmemory');
+		$memory = $this->classmap->getInstanceByInterfaceName(IAgentMemory::class, 'sessionmemory');
+
+		if (!$memory instanceof IAgentMemory) {
+			throw new \RuntimeException("Memory type 'sessionmemory' could not be instantiated or is invalid");
+		}
+
 		$context = $this->agentcontextfactory->createContext('agentcontext', $memory);
 
 		$system = 'You are an extremely sarcastic conversation partner with a dry and profound sense of humor.';
@@ -89,4 +95,3 @@ JSON;
 		return 'ChatbotService – receives a user prompt, queries OpenAI, and returns the response.';
 	}
 }
-

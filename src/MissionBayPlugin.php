@@ -33,7 +33,6 @@ use AssistantFoundation\Api\IAgentExecutionService;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
 use MissionBay\Agent\AgentFlowFactory;
-use MissionBay\Agent\AgentMemoryFactory;
 use MissionBay\Agent\AgentNodeFactory;
 use MissionBay\Agent\AgentRagPayloadNormalizer;
 use MissionBay\Agent\AgentResourceFactory;
@@ -49,7 +48,6 @@ use MissionBay\Api\IAgentConfigFormService;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Api\IAgentMemoryFactory;
 use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Api\IAgentResourceFactory;
@@ -93,7 +91,6 @@ class MissionBayPlugin implements IPlugin, ICheck {
 
 			->set(IAgentContextFactory::class, fn($c) => new AgentContextFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			// ->set(IAgentRouterFactory::class, fn($c) => new AgentRouterFactory($c->get(IClassMap::class)), IContainer::SHARED)
-			->set(IAgentMemoryFactory::class, fn($c) => new AgentMemoryFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentNodeFactory::class, fn($c) => new AgentNodeFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfigValueResolver::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
