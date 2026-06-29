@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace MissionBay\Resource\Logger\Logger;
 
 use Base3\Api\ISchemaProvider;
 use Base3\Logger\Api\ILogger;

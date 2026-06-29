@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace MissionBay\Resource\AgentTool\Log;
 
 use Base3\Api\ISchemaProvider;
 use Base3\Logger\Api\ILogger;
@@ -24,6 +24,7 @@ use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Resource\AbstractConfiguredServiceAgentResource;
 
 /**
  * LogAgentTool

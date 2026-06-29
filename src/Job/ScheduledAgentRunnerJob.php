@@ -31,11 +31,11 @@ use Throwable;
  *
  * The job itself is intentionally not policy controlled. It is expected to run
  * whenever the worker cycle reaches it, then evaluates the configured execution
- * policy of each active scheduled-agent record individually.
+ * policy of each active agent record individually.
  */
 final class ScheduledAgentRunnerJob implements IJob {
 
-	private const SETTINGS_GROUP = 'scheduled-agent';
+	private const SETTINGS_GROUP = 'agent';
 	private const DEFAULT_PRIORITY = 50;
 	private const MAX_ERROR_DETAILS = 5;
 

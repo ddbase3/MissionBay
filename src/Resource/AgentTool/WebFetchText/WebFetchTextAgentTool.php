@@ -15,10 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace MissionBay\Resource\AgentTool\WebFetchText;
 
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Resource\AbstractAgentResource;
 
 final class WebFetchTextAgentTool extends AbstractAgentResource implements IAgentTool {
 	private int $maxBytes = 262144; // 256KB download cap

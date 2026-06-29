@@ -15,11 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace MissionBay\Resource\AgentMemory\Time;
 
 use MissionBay\Api\IAgentMemory;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Resource\AbstractAgentResource;
 
 /**
  * TimeMemoryAgentResource

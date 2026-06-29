@@ -15,10 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace MissionBay\Resource\AgentTool\CurrentTime;
 
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IAgentContext;
+use MissionBay\Resource\AbstractAgentResource;
 
 /**
  * CurrentTimeAgentTool
