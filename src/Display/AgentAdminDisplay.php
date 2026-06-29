@@ -25,6 +25,7 @@ use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\Worker\Api\IJobExecutionPolicy;
+use AssistantFoundation\Api\IAgentExecutionService;
 use JsonException;
 use MissionBay\Api\IAgentConfigFormService;
 use Throwable;
@@ -52,7 +53,8 @@ final class AgentAdminDisplay implements IDisplay {
                 private readonly ISettingsStore $settingsStore,
                 private readonly ILinkTargetService $linkTargetService,
                 private readonly IClassMap $classMap,
-                private readonly IAgentConfigFormService $agentConfigFormService
+                private readonly IAgentConfigFormService $agentConfigFormService,
+                private readonly IAgentExecutionService $agentExecutionService
         ) {}
 
         public static function getName(): string {
@@ -152,6 +154,10 @@ final class AgentAdminDisplay implements IDisplay {
                         return $this->buildDeleteResponse($request['id']);
                 }
 
+                if($request['mode'] === 'run') {
+                        return $this->buildRunResponse($request['id'], $payload);
+                }
+
                 if($request['mode'] === 'reload') {
                         return $this->buildReloadResponse();
                 }
@@ -192,7 +198,7 @@ final class AgentAdminDisplay implements IDisplay {
          */
         private function normalizeRequest(array $payload): array {
                 $mode = 'page';
-                $allowedModes = ['page', 'record', 'save', 'delete', 'reload'];
+                $allowedModes = ['page', 'record', 'save', 'delete', 'run', 'reload'];
 
                 if(isset($payload['mode']) && is_string($payload['mode']) && in_array($payload['mode'], $allowedModes, true)) {
                         $mode = $payload['mode'];
@@ -423,6 +429,210 @@ final class AgentAdminDisplay implements IDisplay {
                         'action' => 'deleted',
                         'id' => $id
                 ];
+        }
+
+        /**
+         * @param array<string,mixed> $payload
+         * @return array<string,mixed>
+         */
+        private function buildRunResponse(string $id, array $payload): array {
+                $id = $this->normalizeTechnicalKey($id);
+
+                if($id === '') {
+                        return $this->buildErrorResponse('Missing agent id.', 'run');
+                }
+
+                if(!$this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
+                        return $this->buildErrorResponse('Agent not found: ' . $id, 'run');
+                }
+
+                $settings = $this->settingsStore->get(self::SETTINGS_GROUP, $id, []);
+
+                if(!is_array($settings)) {
+                        return $this->buildErrorResponse('Agent settings are invalid: ' . $id, 'run');
+                }
+
+                $settings = $this->normalizeAgentSettings($settings);
+                $userPrompt = $this->normalizeTextBlock($this->getRunUserPrompt($payload, $settings));
+
+                try {
+                        $result = $this->agentExecutionService->run(
+                                $settings,
+                                $this->buildAgentInputs($settings, $userPrompt),
+                                $this->buildAgentContextVars($id, $settings, $userPrompt)
+                        );
+                }
+                catch(Throwable $e) {
+                        return $this->buildErrorResponse('Agent execution failed: ' . $e->getMessage(), 'run');
+                }
+
+                $output = $result->getOutput();
+                $assistantNodeId = $this->getAssistantNodeId($settings);
+                $message = $this->extractAssistantMessage($output, $assistantNodeId);
+                $flowError = $this->extractFlowError($output, $assistantNodeId);
+                $messageText = $message !== null ? $this->normalizeMessageContent($message['content'] ?? '') : '';
+
+                return [
+                        'ok' => $flowError === '',
+                        'mode' => 'run',
+                        'action' => $flowError === '' ? 'ran' : 'failed',
+                        'id' => $id,
+                        'assistant_node_id' => $assistantNodeId,
+                        'message' => $message,
+                        'message_text' => $messageText,
+                        'flow_error' => $flowError,
+                        'result_text' => $this->formatRunResultText($messageText, $flowError, $output),
+                        'output' => $output,
+                        'warnings' => $this->agentExecutionService->getWarnings()
+                ];
+        }
+
+        /**
+         * @param array<string,mixed> $payload
+         * @param array<string,mixed> $settings
+         */
+        private function getRunUserPrompt(array $payload, array $settings): string {
+                if(isset($payload['user_prompt']) && is_scalar($payload['user_prompt'])) {
+                        return (string)$payload['user_prompt'];
+                }
+
+                $postedPrompt = $this->request->request('user_prompt', null);
+
+                if(is_scalar($postedPrompt)) {
+                        return (string)$postedPrompt;
+                }
+
+                return (string)($settings['user_prompt'] ?? '');
+        }
+
+        /**
+         * @param array<string,mixed> $settings
+         * @return array<string,mixed>
+         */
+        private function buildAgentInputs(array $settings, string $userPrompt): array {
+                return [
+                        'system' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? '')),
+                        'prompt' => $userPrompt,
+                        'mode' => 'manual_agent'
+                ];
+        }
+
+        /**
+         * @param array<string,mixed> $settings
+         * @return array<string,mixed>
+         */
+        private function buildAgentContextVars(string $agentId, array $settings, string $userPrompt): array {
+                return [
+                        'agent_id' => $agentId,
+                        'agent_label' => trim((string)($settings['label'] ?? '')),
+                        'agent_config' => $settings,
+                        'agent_run_mode' => 'manual',
+                        'agent_user_prompt' => $userPrompt
+                ];
+        }
+
+        /**
+         * @param array<string,mixed> $settings
+         */
+        private function getAssistantNodeId(array $settings): string {
+                $nodeId = $this->normalizeLabel((string)($settings['agent_components_assistant_node'] ?? 'assistant'));
+
+                return $nodeId !== '' ? $nodeId : 'assistant';
+        }
+
+        /**
+         * @param array<string,mixed> $output
+         * @return ?array<string,mixed>
+         */
+        private function extractAssistantMessage(array $output, string $assistantNodeId): ?array {
+                if(isset($output[$assistantNodeId]['message']) && is_array($output[$assistantNodeId]['message'])) {
+                        return $output[$assistantNodeId]['message'];
+                }
+
+                if(isset($output['assistant']['message']) && is_array($output['assistant']['message'])) {
+                        return $output['assistant']['message'];
+                }
+
+                foreach($output as $nodeOutput) {
+                        if(is_array($nodeOutput) && isset($nodeOutput['message']) && is_array($nodeOutput['message'])) {
+                                return $nodeOutput['message'];
+                        }
+                }
+
+                return null;
+        }
+
+        /**
+         * @param array<string,mixed> $output
+         */
+        private function extractFlowError(array $output, string $assistantNodeId): string {
+                if(isset($output[$assistantNodeId]['error']) && is_scalar($output[$assistantNodeId]['error'])) {
+                        return trim((string)$output[$assistantNodeId]['error']);
+                }
+
+                if(isset($output['assistant']['error']) && is_scalar($output['assistant']['error'])) {
+                        return trim((string)$output['assistant']['error']);
+                }
+
+                foreach($output as $nodeOutput) {
+                        if(is_array($nodeOutput) && isset($nodeOutput['error']) && is_scalar($nodeOutput['error'])) {
+                                return trim((string)$nodeOutput['error']);
+                        }
+                }
+
+                return '';
+        }
+
+        /**
+         * @param array<string,mixed> $output
+         */
+        private function formatRunResultText(string $messageText, string $flowError, array $output): string {
+                if($messageText !== '') {
+                        return $messageText;
+                }
+
+                if($flowError !== '') {
+                        return 'Flow error: ' . $flowError;
+                }
+
+                return 'Agent run finished, but no assistant message was returned. ' . $this->describeFlowOutput($output);
+        }
+
+        /**
+         * @param array<string,mixed> $output
+         */
+        private function describeFlowOutput(array $output): string {
+                $nodeIds = array_keys($output);
+                $nodeIds = array_map('strval', $nodeIds);
+                $nodeIds = array_values(array_filter($nodeIds, static fn(string $id): bool => $id !== ''));
+
+                if($nodeIds === []) {
+                        return 'No terminal node output was returned.';
+                }
+
+                return 'Terminal nodes: ' . implode(', ', $nodeIds) . '.';
+        }
+
+        private function normalizeMessageContent(mixed $content): string {
+                if($content === null) {
+                        return '';
+                }
+
+                if(is_string($content)) {
+                        return $content;
+                }
+
+                if(is_bool($content)) {
+                        return $content ? 'true' : 'false';
+                }
+
+                if(is_int($content) || is_float($content)) {
+                        return (string)$content;
+                }
+
+                $json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+                return is_string($json) && $json !== 'null' ? $json : '';
         }
 
         /**

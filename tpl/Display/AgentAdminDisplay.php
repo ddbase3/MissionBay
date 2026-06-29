@@ -394,6 +394,57 @@
                 color: #276028;
         }
 
+        .agent-admin-run-prompt {
+                width: 100%;
+                min-height: 190px;
+                padding: 8px;
+                border: 1px solid #cfcfcf;
+                border-radius: 6px;
+                background: #fff;
+                color: #222;
+                font: inherit;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: 13px;
+                line-height: 1.4;
+                resize: vertical;
+                box-sizing: border-box;
+        }
+
+        .agent-admin-run-result {
+                margin: 12px 0 0;
+                padding: 10px;
+                min-height: 120px;
+                max-height: 360px;
+                overflow: auto;
+                border: 1px solid #e2e2e2;
+                border-radius: 6px;
+                background: #fbfbfb;
+                white-space: pre-wrap;
+                word-break: break-word;
+                font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+                font-size: 12px;
+                line-height: 1.4;
+        }
+
+        .agent-admin-run-details {
+                margin: 12px 0 0;
+        }
+
+        .agent-admin-run-details summary {
+                padding: 7px 10px;
+                border: 1px solid #e2e2e2;
+                border-radius: 8px;
+                background: #fff;
+                cursor: pointer;
+                font-size: 13px;
+                color: #444;
+        }
+
+        .agent-admin-run-details .agent-admin-run-result {
+                min-height: 80px;
+                max-height: 280px;
+        }
+
         @media (max-width: 980px) {
                 .agent-admin-detail,
                 .agent-admin-form-header {
@@ -450,6 +501,33 @@
                         <div>
                                 <button type="button" class="agent-admin-button" id="agent-admin-copy-payload">Copy payload</button>
                                 <button type="button" class="agent-admin-button agent-admin-button-primary" id="agent-admin-save">Save</button>
+                        </div>
+                </div>
+        </div>
+</div>
+
+<div id="agent-admin-runner" class="agent-admin-modal-backdrop" aria-hidden="true">
+        <div class="agent-admin-modal" role="dialog" aria-modal="true" aria-labelledby="agent-admin-runner-title">
+                <div class="agent-admin-modal-header">
+                        <div id="agent-admin-runner-title" class="agent-admin-modal-title">Run agent</div>
+                        <button type="button" class="agent-admin-button" data-run-close="1">Close</button>
+                </div>
+                <div class="agent-admin-modal-body">
+                        <input type="hidden" id="agent-admin-runner-id" />
+                        <label class="agent-admin-label" for="agent-admin-runner-prompt">User prompt</label>
+                        <textarea id="agent-admin-runner-prompt" class="agent-admin-run-prompt"></textarea>
+                        <p class="agent-admin-help">The configured user prompt is loaded here and can be adjusted for this manual run.</p>
+                        <pre id="agent-admin-runner-result" class="agent-admin-run-result">Result will appear here.</pre>
+                        <details class="agent-admin-run-details">
+                                <summary>Raw flow output</summary>
+                                <pre id="agent-admin-runner-output" class="agent-admin-run-result">Raw output will appear here.</pre>
+                        </details>
+                </div>
+                <div class="agent-admin-modal-footer">
+                        <div id="agent-admin-runner-status" class="agent-admin-modal-status">Ready.</div>
+                        <div>
+                                <button type="button" class="agent-admin-button" data-run-close="1">Close</button>
+                                <button type="button" class="agent-admin-button agent-admin-button-primary" id="agent-admin-runner-run">Run agent</button>
                         </div>
                 </div>
         </div>
@@ -766,6 +844,18 @@
                         modal: document.getElementById('agent-admin-editor'),
                         form: document.getElementById('base3_agent_admin_editor_form'),
                         status: document.getElementById('agent-admin-editor-status')
+                };
+        }
+
+        function getRunnerElements() {
+                return {
+                        modal: document.getElementById('agent-admin-runner'),
+                        id: document.getElementById('agent-admin-runner-id'),
+                        prompt: document.getElementById('agent-admin-runner-prompt'),
+                        result: document.getElementById('agent-admin-runner-result'),
+                        output: document.getElementById('agent-admin-runner-output'),
+                        status: document.getElementById('agent-admin-runner-status'),
+                        runButton: document.getElementById('agent-admin-runner-run')
                 };
         }
 
@@ -1231,6 +1321,149 @@
                 }
         }
 
+        function setRunnerStatus(message, type = '') {
+                const elements = getRunnerElements();
+
+                if (!elements.status) {
+                        return;
+                }
+
+                elements.status.className = 'agent-admin-modal-status';
+
+                if (type) {
+                        elements.status.classList.add('agent-admin-modal-status-' + type);
+                }
+
+                elements.status.textContent = message || '';
+        }
+
+        function updateRunnerForm(record) {
+                const elements = getRunnerElements();
+                record = record && typeof record === 'object' ? record : {};
+
+                if (!elements.modal || !elements.id || !elements.prompt || !elements.result) {
+                        setLog('Agent runner elements not found.');
+                        return;
+                }
+
+                const id = String(record.agent_id || record.id || '').trim();
+                const label = String(record.label || id || 'agent');
+
+                elements.id.value = id;
+                elements.prompt.value = String(record.user_prompt || '');
+                elements.result.textContent = 'Result will appear here.';
+
+                if (elements.output) {
+                        elements.output.textContent = 'Raw output will appear here.';
+                }
+
+                const title = document.getElementById('agent-admin-runner-title');
+                if (title) {
+                        title.textContent = 'Run agent: ' + getText(label);
+                }
+
+                elements.modal.classList.add('is-open');
+                elements.modal.setAttribute('aria-hidden', 'false');
+                setRunnerStatus('Ready.', 'ok');
+                setLog('Opened runner for ' + getText(id));
+        }
+
+        async function openRunnerFromRow(row) {
+                try {
+                        setLog('Loading record for runner: ' + getText(getAgentIdFromRow(row)));
+                        const record = await loadRemoteRecord(row);
+                        updateRunnerForm(record);
+                } catch (error) {
+                        setLog('Could not open runner: ' + getText(error && error.message ? error.message : error));
+                }
+        }
+
+        function closeRunner() {
+                const elements = getRunnerElements();
+
+                if (!elements.modal) {
+                        return;
+                }
+
+                elements.modal.classList.remove('is-open');
+                elements.modal.setAttribute('aria-hidden', 'true');
+                setLog('Closed runner.');
+        }
+
+        async function runAgentFromDialog() {
+                const elements = getRunnerElements();
+
+                if (!elements.id || !elements.prompt || !elements.result || !elements.runButton) {
+                        setLog('Run failed: agent runner elements not found.');
+                        return;
+                }
+
+                const id = String(elements.id.value || '').trim();
+
+                if (!id) {
+                        setRunnerStatus('Agent ID is missing.', 'error');
+                        return;
+                }
+
+                elements.runButton.disabled = true;
+                elements.result.textContent = 'Running...';
+                setRunnerStatus('Running agent...', '');
+                setLog('Running agent ' + id);
+
+                try {
+                        const response = await postJson({
+                                mode: 'run',
+                                id,
+                                user_prompt: elements.prompt.value || ''
+                        });
+
+                        if (!response || !response.ok) {
+                                throw new Error(response && response.error ? response.error : 'Run failed.');
+                        }
+
+                        renderRunnerResponse(elements, response);
+                        setRunnerStatus('Agent run finished.', 'ok');
+                        setLog('Agent run finished for ' + id + '.');
+                } catch (error) {
+                        const message = getText(error && error.message ? error.message : error);
+                        elements.result.textContent = message;
+
+                        if (elements.output) {
+                                elements.output.textContent = '';
+                        }
+
+                        setRunnerStatus(message, 'error');
+                        setLog('Run failed: ' + message);
+                } finally {
+                        elements.runButton.disabled = false;
+                }
+        }
+
+        function renderRunnerResponse(elements, response) {
+                const messageText = String(response.message_text || '');
+                const resultText = String(response.result_text || '');
+
+                if (messageText !== '') {
+                        elements.result.textContent = messageText;
+                }
+                else if (resultText !== '') {
+                        elements.result.textContent = resultText;
+                }
+                else {
+                        elements.result.textContent = stringifyJson(response.output || response);
+                }
+
+                if (elements.output) {
+                        elements.output.textContent = stringifyJson({
+                                assistant_node_id: response.assistant_node_id || '',
+                                message: response.message || null,
+                                flow_error: response.flow_error || '',
+                                warnings: response.warnings || [],
+                                output: response.output || {}
+                        });
+                }
+        }
+
         function validateEditorForm(form) {
                 const id = normalizeTechnicalKey(getFormFieldValue(form, 'agent_id'));
 
@@ -1452,6 +1685,7 @@
                 const copyButton = document.getElementById('agent-admin-copy-payload');
                 const saveButton = document.getElementById('agent-admin-save');
                 const elements = getEditorElements();
+                const runnerElements = getRunnerElements();
 
                 if (elements.form) {
                         elements.form.addEventListener('submit', (event) => {
@@ -1507,6 +1741,28 @@
                         elements.modal.addEventListener('click', (event) => {
                                 if (event.target === elements.modal) {
                                         closeEditor();
+                                }
+                        });
+                }
+
+                if (runnerElements.runButton) {
+                        runnerElements.runButton.addEventListener('click', (event) => {
+                                event.preventDefault();
+                                runAgentFromDialog();
+                        });
+                }
+
+                if (runnerElements.modal) {
+                        runnerElements.modal.querySelectorAll('[data-run-close]').forEach((button) => {
+                                button.addEventListener('click', (event) => {
+                                        event.preventDefault();
+                                        closeRunner();
+                                });
+                        });
+
+                        runnerElements.modal.addEventListener('click', (event) => {
+                                if (event.target === runnerElements.modal) {
+                                        closeRunner();
                                 }
                         });
                 }
@@ -1645,6 +1901,13 @@
                                                 ]
                                         },
                                         items: [
+                                                {
+                                                        key: 'run-agent',
+                                                        label: 'Run agent',
+                                                        onClick(context) {
+                                                                openRunnerFromRow(context && context.row ? context.row : null);
+                                                        }
+                                                },
                                                 {
                                                         key: 'edit-agent',
                                                         label: 'Edit agent',
