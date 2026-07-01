@@ -18,6 +18,7 @@
 namespace MissionBay\Job;
 
 use Base3\Api\IClassMap;
+use Base3\Configuration\Api\IConfiguration;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\Worker\Api\IJob;
 use Base3\Worker\Api\IJobExecutionPolicy;
@@ -27,303 +28,314 @@ use Throwable;
 /**
  * ScheduledAgentRunnerJob
  *
- * Always-active dispatcher job for scheduled MissionBay agents.
+ * Dispatcher job for scheduled MissionBay agents.
  *
- * The job itself is intentionally not policy controlled. It is expected to run
- * whenever the worker cycle reaches it, then evaluates the configured execution
- * policy of each active agent record individually.
+ * The job runs whenever the worker cycle reaches it, then evaluates the
+ * configured execution policy of each active agent record individually.
  */
 final class ScheduledAgentRunnerJob implements IJob {
 
-	private const SETTINGS_GROUP = 'agent';
-	private const DEFAULT_PRIORITY = 50;
-	private const MAX_ERROR_DETAILS = 5;
+        private const SETTINGS_GROUP = 'agent';
+        private const DEFAULT_PRIORITY = 1;
+        private const MAX_ERROR_DETAILS = 5;
 
-	/**
-	 * @var array<string,IJobExecutionPolicy>|null
-	 */
-	private ?array $policiesById = null;
+        private ?array $missionbayIliasConf = null;
 
-	public function __construct(
-		private readonly ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap,
-		private readonly IAgentExecutionService $agentExecutionService
-	) {}
+        /**
+         * @var array<string,IJobExecutionPolicy>|null
+         */
+        private ?array $policiesById = null;
 
-	public static function getName(): string {
-		return 'scheduledagentrunnerjob';
-	}
+        public function __construct(
+                private readonly ISettingsStore $settingsStore,
+                private readonly IClassMap $classMap,
+                private readonly IConfiguration $configuration,
+                private readonly IAgentExecutionService $agentExecutionService
+        ) {}
 
-	public function isActive() {
-		return true;
-	}
+        public static function getName(): string {
+                return 'scheduledagentrunnerjob';
+        }
 
-	public function getPriority() {
-		return self::DEFAULT_PRIORITY;
-	}
+        public function isActive() {
+                $conf = $this->getMissionbayIliasConf();
+                return ((int)($conf['scheduledagentrunnerjob.active'] ?? 0)) === 1;
+        }
 
-	public function go() {
-		$stats = [
-			'total' => 0,
-			'active' => 0,
-			'disabled' => 0,
-			'due' => 0,
-			'ran' => 0,
-			'skipped' => 0,
-			'errors' => 0
-		];
-		$errors = [];
+        public function getPriority() {
+                $conf = $this->getMissionbayIliasConf();
+                return (int)($conf['scheduledagentrunnerjob.priority'] ?? self::DEFAULT_PRIORITY);
+        }
 
-		try {
-			$group = $this->settingsStore->getGroup(self::SETTINGS_GROUP);
-		}
-		catch (Throwable $e) {
-			return 'Scheduled agent runner failed: ' . $e->getMessage();
-		}
+        public function go() {
+                $stats = [
+                        'total' => 0,
+                        'active' => 0,
+                        'disabled' => 0,
+                        'due' => 0,
+                        'ran' => 0,
+                        'skipped' => 0,
+                        'errors' => 0
+                ];
+                $errors = [];
 
-		if (!is_array($group) || $group === []) {
-			return 'Scheduled agents done - total:0 active:0 due:0 ran:0 skipped:0 disabled:0 errors:0';
-		}
+                try {
+                        $group = $this->settingsStore->getGroup(self::SETTINGS_GROUP);
+                }
+                catch (Throwable $e) {
+                        return 'Scheduled agent runner failed: ' . $e->getMessage();
+                }
 
-		foreach ($group as $agentId => $settings) {
-			$stats['total']++;
-			$agentId = $this->normalizeTechnicalKey((string)$agentId);
+                if (!is_array($group) || $group === []) {
+                        return 'Scheduled agents done - total:0 active:0 due:0 ran:0 skipped:0 disabled:0 errors:0';
+                }
 
-			if ($agentId === '') {
-				$stats['errors']++;
-				$this->addError($errors, 'Skipped scheduled agent with empty id.');
-				continue;
-			}
+                foreach ($group as $agentId => $settings) {
+                        $stats['total']++;
+                        $agentId = $this->normalizeTechnicalKey((string)$agentId);
 
-			if (!is_array($settings)) {
-				$stats['errors']++;
-				$this->addError($errors, 'Scheduled agent is not an array: ' . $agentId);
-				continue;
-			}
+                        if ($agentId === '') {
+                                $stats['errors']++;
+                                $this->addError($errors, 'Skipped scheduled agent with empty id.');
+                                continue;
+                        }
 
-			if (!$this->isEnabled($settings)) {
-				$stats['disabled']++;
-				continue;
-			}
+                        if (!is_array($settings)) {
+                                $stats['errors']++;
+                                $this->addError($errors, 'Scheduled agent is not an array: ' . $agentId);
+                                continue;
+                        }
 
-			$stats['active']++;
+                        if (!$this->isEnabled($settings)) {
+                                $stats['disabled']++;
+                                continue;
+                        }
 
-			try {
-				$policy = $this->getPolicyForAgent($agentId, $settings, $errors);
-			}
-			catch (Throwable $e) {
-				$stats['errors']++;
-				$this->addError($errors, 'Timing policies could not be loaded: ' . $e->getMessage());
-				continue;
-			}
+                        $stats['active']++;
 
-			if ($policy === null) {
-				$stats['errors']++;
-				continue;
-			}
+                        try {
+                                $policy = $this->getPolicyForAgent($agentId, $settings, $errors);
+                        }
+                        catch (Throwable $e) {
+                                $stats['errors']++;
+                                $this->addError($errors, 'Timing policies could not be loaded: ' . $e->getMessage());
+                                continue;
+                        }
 
-			$jobName = $this->buildAgentJobName($agentId);
+                        if ($policy === null) {
+                                $stats['errors']++;
+                                continue;
+                        }
 
-			try {
-				$policy->setData($this->getPolicyDataForAgent($agentId, $settings));
+                        $jobName = $this->buildAgentJobName($agentId);
 
-				if (!$policy->shouldRun($jobName)) {
-					$stats['skipped']++;
-					continue;
-				}
-			}
-			catch (Throwable $e) {
-				$stats['errors']++;
-				$this->addError($errors, 'Policy check failed for scheduled agent "' . $agentId . '": ' . $e->getMessage());
-				continue;
-			}
+                        try {
+                                $policy->setData($this->getPolicyDataForAgent($agentId, $settings));
 
-			$stats['due']++;
+                                if (!$policy->shouldRun($jobName)) {
+                                        $stats['skipped']++;
+                                        continue;
+                                }
+                        }
+                        catch (Throwable $e) {
+                                $stats['errors']++;
+                                $this->addError($errors, 'Policy check failed for scheduled agent "' . $agentId . '": ' . $e->getMessage());
+                                continue;
+                        }
 
-			try {
-				$this->agentExecutionService->run(
-					$settings,
-					$this->buildAgentInputs($settings),
-					$this->buildAgentContextVars($agentId, $settings)
-				);
+                        $stats['due']++;
 
-				$policy->markRun($jobName);
-				$stats['ran']++;
-			}
-			catch (Throwable $e) {
-				$stats['errors']++;
-				$this->addError($errors, 'Scheduled agent execution failed for "' . $agentId . '": ' . $e->getMessage());
-			}
-		}
+                        try {
+                                $this->agentExecutionService->run(
+                                        $settings,
+                                        $this->buildAgentInputs($settings),
+                                        $this->buildAgentContextVars($agentId, $settings)
+                                );
 
-		return $this->formatResult($stats, $errors);
-	}
+                                $policy->markRun($jobName);
+                                $stats['ran']++;
+                        }
+                        catch (Throwable $e) {
+                                $stats['errors']++;
+                                $this->addError($errors, 'Scheduled agent execution failed for "' . $agentId . '": ' . $e->getMessage());
+                        }
+                }
 
-	/**
-	 * @param array<string,mixed> $settings
-	 */
-	private function isEnabled(array $settings): bool {
-		if (!array_key_exists('enabled', $settings)) {
-			return true;
-		}
+                return $this->formatResult($stats, $errors);
+        }
 
-		return $this->toBool($settings['enabled']);
-	}
+        private function getMissionbayIliasConf(): array {
+                if ($this->missionbayIliasConf === null) {
+                        $this->missionbayIliasConf = (array)$this->configuration->get('job');
+                }
+                return $this->missionbayIliasConf;
+        }
 
-	/**
-	 * @param array<string,mixed> $settings
-	 */
-	private function getPolicyForAgent(string $agentId, array $settings, array &$errors): ?IJobExecutionPolicy {
-		$definition = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
-		$policyId = $this->normalizeTechnicalKey((string)($definition['policy'] ?? ''));
+        /**
+         * @param array<string,mixed> $settings
+         */
+        private function isEnabled(array $settings): bool {
+                if (!array_key_exists('enabled', $settings)) {
+                        return true;
+                }
 
-		if ($policyId === '') {
-			$this->addError($errors, 'Scheduled agent has no timing policy: ' . $agentId);
-			return null;
-		}
+                return $this->toBool($settings['enabled']);
+        }
 
-		$policies = $this->getPoliciesById();
+        /**
+         * @param array<string,mixed> $settings
+         */
+        private function getPolicyForAgent(string $agentId, array $settings, array &$errors): ?IJobExecutionPolicy {
+                $definition = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
+                $policyId = $this->normalizeTechnicalKey((string)($definition['policy'] ?? ''));
 
-		if (!isset($policies[$policyId])) {
-			$this->addError($errors, 'Scheduled agent uses unknown timing policy "' . $policyId . '": ' . $agentId);
-			return null;
-		}
+                if ($policyId === '') {
+                        $this->addError($errors, 'Scheduled agent has no timing policy: ' . $agentId);
+                        return null;
+                }
 
-		return $policies[$policyId];
-	}
+                $policies = $this->getPoliciesById();
 
-	/**
-	 * @return array<string,IJobExecutionPolicy>
-	 */
-	private function getPoliciesById(): array {
-		if ($this->policiesById !== null) {
-			return $this->policiesById;
-		}
+                if (!isset($policies[$policyId])) {
+                        $this->addError($errors, 'Scheduled agent uses unknown timing policy "' . $policyId . '": ' . $agentId);
+                        return null;
+                }
 
-		$rows = [];
-		$policies = $this->classMap->getInstancesByInterface(IJobExecutionPolicy::class);
+                return $policies[$policyId];
+        }
 
-		foreach ($policies as $policy) {
-			if (!$policy instanceof IJobExecutionPolicy) {
-				continue;
-			}
+        /**
+         * @return array<string,IJobExecutionPolicy>
+         */
+        private function getPoliciesById(): array {
+                if ($this->policiesById !== null) {
+                        return $this->policiesById;
+                }
 
-			$id = $this->normalizeTechnicalKey((string)$policy::getName());
+                $rows = [];
+                $policies = $this->classMap->getInstancesByInterface(IJobExecutionPolicy::class);
 
-			if ($id === '') {
-				continue;
-			}
+                foreach ($policies as $policy) {
+                        if (!$policy instanceof IJobExecutionPolicy) {
+                                continue;
+                        }
 
-			$rows[$id] = $policy;
-		}
+                        $id = $this->normalizeTechnicalKey((string)$policy::getName());
 
-		$this->policiesById = $rows;
+                        if ($id === '') {
+                                continue;
+                        }
 
-		return $rows;
-	}
+                        $rows[$id] = $policy;
+                }
 
-	/**
-	 * @param array<string,mixed> $settings
-	 * @return array<string,mixed>
-	 */
-	private function getPolicyDataForAgent(string $agentId, array $settings): array {
-		$definition = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
-		$data = is_array($definition['data'] ?? null) ? $definition['data'] : [];
+                $this->policiesById = $rows;
 
-		if (trim((string)($data['id'] ?? '')) === '') {
-			$data['id'] = $agentId;
-		}
+                return $rows;
+        }
 
-		return $data;
-	}
+        /**
+         * @param array<string,mixed> $settings
+         * @return array<string,mixed>
+         */
+        private function getPolicyDataForAgent(string $agentId, array $settings): array {
+                $definition = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
+                $data = is_array($definition['data'] ?? null) ? $definition['data'] : [];
 
-	/**
-	 * @param array<string,mixed> $settings
-	 * @return array<string,mixed>
-	 */
-	private function buildAgentInputs(array $settings): array {
-		$userPrompt = $this->normalizeTextBlock((string)($settings['user_prompt'] ?? ''));
+                if (trim((string)($data['id'] ?? '')) === '') {
+                        $data['id'] = $agentId;
+                }
 
-		return [
-			'system' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? '')),
-			'prompt' => $userPrompt,
-			'mode' => 'scheduled_agent'
-		];
-	}
+                return $data;
+        }
 
-	/**
-	 * @param array<string,mixed> $settings
-	 * @return array<string,mixed>
-	 */
-	private function buildAgentContextVars(string $agentId, array $settings): array {
-		$policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
+        /**
+         * @param array<string,mixed> $settings
+         * @return array<string,mixed>
+         */
+        private function buildAgentInputs(array $settings): array {
+                $userPrompt = $this->normalizeTextBlock((string)($settings['user_prompt'] ?? ''));
 
-		return [
-			'scheduled_agent_id' => $agentId,
-			'scheduled_agent_label' => trim((string)($settings['label'] ?? '')),
-			'scheduled_agent_config' => $settings,
-			'scheduled_agent_policy' => $policy
-		];
-	}
+                return [
+                        'system' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? '')),
+                        'prompt' => $userPrompt,
+                        'mode' => 'scheduled_agent'
+                ];
+        }
 
-	private function buildAgentJobName(string $agentId): string {
-		return self::getName() . '.' . $agentId;
-	}
+        /**
+         * @param array<string,mixed> $settings
+         * @return array<string,mixed>
+         */
+        private function buildAgentContextVars(string $agentId, array $settings): array {
+                $policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
 
-	/**
-	 * @param array<string,int> $stats
-	 * @param array<int,string> $errors
-	 */
-	private function formatResult(array $stats, array $errors): string {
-		$message = 'Scheduled agents done'
-			. ' - total:' . (int)$stats['total']
-			. ' active:' . (int)$stats['active']
-			. ' due:' . (int)$stats['due']
-			. ' ran:' . (int)$stats['ran']
-			. ' skipped:' . (int)$stats['skipped']
-			. ' disabled:' . (int)$stats['disabled']
-			. ' errors:' . (int)$stats['errors'];
+                return [
+                        'scheduled_agent_id' => $agentId,
+                        'scheduled_agent_label' => trim((string)($settings['label'] ?? '')),
+                        'scheduled_agent_config' => $settings,
+                        'scheduled_agent_policy' => $policy
+                ];
+        }
 
-		if ($errors !== []) {
-			$message .= ' - ' . implode(' | ', $errors);
-		}
+        private function buildAgentJobName(string $agentId): string {
+                return self::getName() . '.' . $agentId;
+        }
 
-		return $message;
-	}
+        /**
+         * @param array<string,int> $stats
+         * @param array<int,string> $errors
+         */
+        private function formatResult(array $stats, array $errors): string {
+                $message = 'Scheduled agents done'
+                        . ' - total:' . (int)$stats['total']
+                        . ' active:' . (int)$stats['active']
+                        . ' due:' . (int)$stats['due']
+                        . ' ran:' . (int)$stats['ran']
+                        . ' skipped:' . (int)$stats['skipped']
+                        . ' disabled:' . (int)$stats['disabled']
+                        . ' errors:' . (int)$stats['errors'];
 
-	/**
-	 * @param array<int,string> $errors
-	 */
-	private function addError(array &$errors, string $error): void {
-		if (count($errors) >= self::MAX_ERROR_DETAILS) {
-			return;
-		}
+                if ($errors !== []) {
+                        $message .= ' - ' . implode(' | ', $errors);
+                }
 
-		$errors[] = $error;
-	}
+                return $message;
+        }
 
-	private function normalizeTextBlock(string $value): string {
-		return str_replace(["\r\n", "\r"], "\n", $value);
-	}
+        /**
+         * @param array<int,string> $errors
+         */
+        private function addError(array &$errors, string $error): void {
+                if (count($errors) >= self::MAX_ERROR_DETAILS) {
+                        return;
+                }
 
-	private function normalizeTechnicalKey(string $value): string {
-		$value = strtolower(trim($value));
+                $errors[] = $error;
+        }
 
-		return preg_replace('/[^a-z0-9._-]+/', '', $value) ?? '';
-	}
+        private function normalizeTextBlock(string $value): string {
+                return str_replace(["\r\n", "\r"], "\n", $value);
+        }
 
-	private function toBool(mixed $value): bool {
-		if (is_bool($value)) {
-			return $value;
-		}
+        private function normalizeTechnicalKey(string $value): string {
+                $value = strtolower(trim($value));
 
-		if (is_int($value)) {
-			return $value === 1;
-		}
+                return preg_replace('/[^a-z0-9._-]+/', '', $value) ?? '';
+        }
 
-		$value = strtolower(trim((string)$value));
+        private function toBool(mixed $value): bool {
+                if (is_bool($value)) {
+                        return $value;
+                }
 
-		return in_array($value, ['1', 'true', 'yes', 'on'], true);
-	}
+                if (is_int($value)) {
+                        return $value === 1;
+                }
+
+                $value = strtolower(trim((string)$value));
+
+                return in_array($value, ['1', 'true', 'yes', 'on'], true);
+        }
 
 }
