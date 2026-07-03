@@ -814,7 +814,7 @@ final class AgentAdminDisplay implements IDisplay {
 
                 $out = [];
 
-                foreach(['enabled', 'policy'] as $key) {
+                foreach(['enabled', 'policy', 'llm'] as $key) {
                         if(!array_key_exists($key, $filters) || $filters[$key] === null || $filters[$key] === '') {
                                 continue;
                         }
@@ -879,6 +879,10 @@ final class AgentAdminDisplay implements IDisplay {
                         }
 
                         if(isset($filters['policy']) && (string)($row['policy'] ?? '') !== (string)$filters['policy']) {
+                                continue;
+                        }
+
+                        if(isset($filters['llm']) && str_contains($this->toLower((string)($row['llm'] ?? '')), $this->toLower((string)$filters['llm'])) === false) {
                                 continue;
                         }
 

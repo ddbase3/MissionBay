@@ -6,9 +6,12 @@
         $defaultRecord = is_array($this->_['default_record'] ?? null) ? $this->_['default_record'] : [];
         $modularGridCssUrl = (string)$resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
         $modularGridJsUrl = (string)$resolve('plugin/ClientStack/assets/modulargrid/index.js');
+        $modularDialogCssUrl = (string)$resolve('plugin/ClientStack/assets/modulardialog/styles/modulardialog.css');
+        $modularDialogJsUrl = (string)$resolve('plugin/ClientStack/assets/modulardialog/index.js');
         $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 <link rel="stylesheet" href="<?php echo $e($modularGridCssUrl); ?>" />
+<link rel="stylesheet" href="<?php echo $e($modularDialogCssUrl); ?>" />
 
 <style>
         .agent-admin-shell {
@@ -41,6 +44,16 @@
                 border-radius: 8px;
                 background: #fff;
                 overflow-x: auto;
+        }
+
+        .agent-admin-grid .agent-admin-panel--filters {
+                flex-wrap: wrap;
+                align-items: flex-start;
+                overflow-x: visible;
+        }
+
+        .agent-admin-grid .agent-admin-panel > * {
+                flex: 0 0 auto;
         }
 
         .agent-admin-main {
@@ -100,10 +113,11 @@
 
         .agent-admin-top-actions,
         .agent-admin-detail-actions {
-                display: flex;
+                display: inline-flex;
                 align-items: center;
-                flex-wrap: wrap;
+                flex-wrap: nowrap;
                 gap: 8px;
+                flex: 0 0 auto;
         }
 
         .agent-admin-button {
@@ -129,13 +143,13 @@
         }
 
         .agent-admin-button-primary {
-                background: #222;
-                border-color: #222;
+                background: #2f5d91;
+                border-color: #2f5d91;
                 color: #fff;
         }
 
         .agent-admin-button-primary:hover {
-                background: #444;
+                background: #284f7c;
         }
 
         .agent-admin-button-danger {
@@ -289,54 +303,31 @@
                 color: #444;
         }
 
-        .agent-admin-modal-backdrop {
-                position: fixed;
-                inset: 0;
-                z-index: 9000;
-                display: none;
-                align-items: center;
-                justify-content: center;
-                padding: 24px;
-                background: rgba(0, 0, 0, 0.35);
-        }
 
-        .agent-admin-modal-backdrop.is-open {
-                display: flex;
-        }
-
-        .agent-admin-modal {
-                display: grid;
-                grid-template-rows: auto 1fr auto;
-                gap: 12px;
+        .agent-admin-dialog-surface {
                 width: min(1180px, 100%);
                 max-height: min(900px, 100%);
-                border: 1px solid #d6d6d6;
-                border-radius: 8px;
-                background: #fff;
-                box-shadow: 0 16px 50px rgba(0, 0, 0, 0.20);
-                padding: 16px;
         }
 
-        .agent-admin-modal-header,
-        .agent-admin-modal-footer {
-                display: flex;
-                align-items: flex-start;
-                justify-content: space-between;
+        .agent-admin-runner-dialog-surface {
+                width: min(860px, 100%);
+                max-height: min(760px, 100%);
+        }
+
+        .agent-admin-editor-content,
+        .agent-admin-runner-content {
+                display: grid;
                 gap: 12px;
+                min-width: 0;
         }
 
-        .agent-admin-modal-footer {
-                align-items: center;
+        #agent-admin-editor-content[hidden],
+        #agent-admin-runner-content[hidden] {
+                display: none !important;
         }
 
-        .agent-admin-modal-title {
-                font-size: 18px;
-                line-height: 1.25;
-                font-weight: 600;
-                color: #222;
-        }
-
-        .agent-admin-modal-body {
+        .agent-admin-dialog-surface .md-shell-body,
+        .agent-admin-runner-dialog-surface .md-shell-body {
                 min-height: 0;
                 overflow: auto;
         }
@@ -380,17 +371,17 @@
                 font-size: 12px;
         }
 
-        .agent-admin-modal-status {
+        .agent-admin-dialog-status {
                 min-height: 18px;
                 font-size: 12px;
                 color: #666;
         }
 
-        .agent-admin-modal-status-error {
+        .agent-admin-dialog-status-error {
                 color: #8a1f1f;
         }
 
-        .agent-admin-modal-status-ok {
+        .agent-admin-dialog-status-ok {
                 color: #276028;
         }
 
@@ -459,12 +450,8 @@
                 Manage configured MissionBay agents that can be executed by worker timing policies. The editor uses the agent configuration form and stores records in SettingsStore group <code><?php echo $e($settingsGroup); ?></code>.
         </p>
 
-        <div class="agent-admin-grid">
-                <div class="agent-admin-top-actions">
-                        <button type="button" id="agent-admin-add" class="agent-admin-button agent-admin-button-primary">Add agent</button>
-                        <button type="button" id="agent-admin-reload" class="agent-admin-button">Reload</button>
-                </div>
 
+        <div class="agent-admin-grid">
                 <div id="agent-admin-grid" class="agent-admin-grid-shell">
                         <div class="agent-admin-startup">Loading Agent Admin display...</div>
                 </div>
@@ -476,67 +463,38 @@
         </div>
 </div>
 
-<div id="agent-admin-editor" class="agent-admin-modal-backdrop" aria-hidden="true">
-        <div class="agent-admin-modal" role="dialog" aria-modal="true" aria-labelledby="agent-admin-editor-title">
-                <div class="agent-admin-modal-header">
-                        <div id="agent-admin-editor-title" class="agent-admin-modal-title">Agent editor</div>
-                        <button type="button" class="agent-admin-button" data-editor-close="1">Close</button>
-                </div>
-                <div class="agent-admin-modal-body">
-                        <form id="base3_agent_admin_editor_form">
-                                <input type="hidden" name="mode" value="save" />
-                                <input type="hidden" name="old_id" />
-                                <div class="agent-admin-form-header">
-                                        <div>
-                                                <label class="agent-admin-label">Agent ID</label>
-                                                <input type="text" name="agent_id" class="agent-admin-input" />
-                                                <p class="agent-admin-help">SettingsStore name inside the fixed group <code><?php echo $e($settingsGroup); ?></code>. Existing records keep their ID while editing.</p>
-                                        </div>
-                                </div>
-<?php include DIR_PLUGIN . 'MissionBay/tpl/Content/AgentFormFields.php'; ?>
-                        </form>
-                </div>
-                <div class="agent-admin-modal-footer">
-                        <div id="agent-admin-editor-status" class="agent-admin-modal-status">Save is enabled.</div>
+<div id="agent-admin-editor-content" class="agent-admin-editor-content" hidden>
+        <form id="base3_agent_admin_editor_form">
+                <input type="hidden" name="mode" value="save" />
+                <input type="hidden" name="old_id" />
+                <div class="agent-admin-form-header">
                         <div>
-                                <button type="button" class="agent-admin-button" id="agent-admin-copy-payload">Copy payload</button>
-                                <button type="button" class="agent-admin-button agent-admin-button-primary" id="agent-admin-save">Save</button>
+                                <label class="agent-admin-label">Agent ID</label>
+                                <input type="text" name="agent_id" class="agent-admin-input" />
+                                <p class="agent-admin-help">SettingsStore name inside the fixed group <code><?php echo $e($settingsGroup); ?></code>. Existing records keep their ID while editing.</p>
                         </div>
                 </div>
-        </div>
+<?php include DIR_PLUGIN . 'MissionBay/tpl/Content/AgentFormFields.php'; ?>
+        </form>
 </div>
 
-<div id="agent-admin-runner" class="agent-admin-modal-backdrop" aria-hidden="true">
-        <div class="agent-admin-modal" role="dialog" aria-modal="true" aria-labelledby="agent-admin-runner-title">
-                <div class="agent-admin-modal-header">
-                        <div id="agent-admin-runner-title" class="agent-admin-modal-title">Run agent</div>
-                        <button type="button" class="agent-admin-button" data-run-close="1">Close</button>
-                </div>
-                <div class="agent-admin-modal-body">
-                        <input type="hidden" id="agent-admin-runner-id" />
-                        <label class="agent-admin-label" for="agent-admin-runner-prompt">User prompt</label>
-                        <textarea id="agent-admin-runner-prompt" class="agent-admin-run-prompt"></textarea>
-                        <p class="agent-admin-help">The configured user prompt is loaded here and can be adjusted for this manual run.</p>
-                        <pre id="agent-admin-runner-result" class="agent-admin-run-result">Result will appear here.</pre>
-                        <details class="agent-admin-run-details">
-                                <summary>Raw flow output</summary>
-                                <pre id="agent-admin-runner-output" class="agent-admin-run-result">Raw output will appear here.</pre>
-                        </details>
-                </div>
-                <div class="agent-admin-modal-footer">
-                        <div id="agent-admin-runner-status" class="agent-admin-modal-status">Ready.</div>
-                        <div>
-                                <button type="button" class="agent-admin-button" data-run-close="1">Close</button>
-                                <button type="button" class="agent-admin-button agent-admin-button-primary" id="agent-admin-runner-run">Run agent</button>
-                        </div>
-                </div>
-        </div>
+<div id="agent-admin-runner-content" class="agent-admin-runner-content" hidden>
+        <input type="hidden" id="agent-admin-runner-id" />
+        <label class="agent-admin-label" for="agent-admin-runner-prompt">User prompt</label>
+        <textarea id="agent-admin-runner-prompt" class="agent-admin-run-prompt"></textarea>
+        <p class="agent-admin-help">The configured user prompt is loaded here and can be adjusted for this manual run.</p>
+        <pre id="agent-admin-runner-result" class="agent-admin-run-result">Result will appear here.</pre>
+        <details class="agent-admin-run-details">
+                <summary>Raw flow output</summary>
+                <pre id="agent-admin-runner-output" class="agent-admin-run-result">Raw output will appear here.</pre>
+        </details>
 </div>
 
 <script>
 (function() {
         const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
         const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+        const MODULAR_DIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
         const DEFAULT_RECORD = <?php echo json_encode($defaultRecord, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
         const POLICY_OPTIONS = <?php echo json_encode(array_values($policyOptions), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
         const SETTINGS_GROUP = <?php echo json_encode($settingsGroup, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -555,6 +513,22 @@
         };
 
         let grid = null;
+        let editorDialog = null;
+        let runnerDialog = null;
+        let currentEditorAgentId = '';
+
+        const ENABLED_FILTER_OPTIONS = [
+                { value: '', label: 'All states' },
+                { value: '1', label: 'Enabled' },
+                { value: '0', label: 'Disabled' }
+        ];
+
+        const POLICY_FILTER_OPTIONS = [{ value: '', label: 'All policies' }].concat(
+                (POLICY_OPTIONS || []).map((option) => ({
+                        value: String(option.id || ''),
+                        label: String(option.label || option.id || '')
+                })).filter((option) => option.value !== '')
+        );
 
         const layout = {
                 type: 'stack',
@@ -562,8 +536,13 @@
                 children: [
                         {
                                 type: 'zone',
-                                key: 'topLine',
-                                className: 'agent-admin-panel'
+                                key: 'topLine1',
+                                className: 'agent-admin-panel agent-admin-panel--main'
+                        },
+                        {
+                                type: 'zone',
+                                key: 'topLine2',
+                                className: 'agent-admin-panel agent-admin-panel--filters'
                         },
                         {
                                 type: 'view',
@@ -640,6 +619,15 @@
                 }
 
                 return element;
+        }
+
+        function createButton(className, text) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = className;
+                button.textContent = text;
+
+                return button;
         }
 
         function getText(value, placeholder = '-') {
@@ -763,6 +751,20 @@
                 return createElement('agent-admin-cell-main', getText(row.component_count, '0'));
         }
 
+        function buildFilterPayload(filters) {
+                const result = {};
+
+                Object.entries(filters || {}).forEach(([key, value]) => {
+                        if (value === '' || value === null || value === undefined) {
+                                return;
+                        }
+
+                        result[key] = value;
+                });
+
+                return result;
+        }
+
         function getAgentIdFromRow(row) {
                 if (!row || typeof row !== 'object') {
                         return '';
@@ -839,40 +841,36 @@
                 return wrapper;
         }
 
+
         function getEditorElements() {
+                const content = document.getElementById('agent-admin-editor-content');
+
                 return {
-                        modal: document.getElementById('agent-admin-editor'),
-                        form: document.getElementById('base3_agent_admin_editor_form'),
-                        status: document.getElementById('agent-admin-editor-status')
+                        content,
+                        form: document.getElementById('base3_agent_admin_editor_form')
                 };
         }
 
         function getRunnerElements() {
                 return {
-                        modal: document.getElementById('agent-admin-runner'),
+                        content: document.getElementById('agent-admin-runner-content'),
                         id: document.getElementById('agent-admin-runner-id'),
                         prompt: document.getElementById('agent-admin-runner-prompt'),
                         result: document.getElementById('agent-admin-runner-result'),
-                        output: document.getElementById('agent-admin-runner-output'),
-                        status: document.getElementById('agent-admin-runner-status'),
-                        runButton: document.getElementById('agent-admin-runner-run')
+                        output: document.getElementById('agent-admin-runner-output')
                 };
         }
 
-        function setEditorStatus(message, type = '') {
-                const elements = getEditorElements();
 
-                if (!elements.status) {
+        function setEditorStatus(message, type = '') {
+                if (!editorDialog || typeof editorDialog.execute !== 'function') {
                         return;
                 }
 
-                elements.status.className = 'agent-admin-modal-status';
-
-                if (type) {
-                        elements.status.classList.add('agent-admin-modal-status-' + type);
-                }
-
-                elements.status.textContent = message || '';
+                editorDialog.execute('setStatus', {
+                        message: message || '',
+                        type
+                });
         }
 
         function setFormValue(form, name, value) {
@@ -1238,10 +1236,96 @@
                 updateAgentConfigFallback(form, values);
         }
 
+
+        function buildEditorButtons(isExisting = false) {
+                const buttons = [];
+
+                if (isExisting) {
+                        buttons.push({
+                                key: 'delete-agent-current',
+                                label: 'Delete',
+                                danger: true,
+                                async action() {
+                                        await deleteCurrentAgentFromEditor();
+                                }
+                        });
+                }
+
+                buttons.push(
+                        {
+                                key: 'copy-payload',
+                                label: 'Copy payload',
+                                async action() {
+                                        await copyEditorPayload();
+                                }
+                        },
+                        {
+                                key: 'cancel',
+                                label: 'Cancel',
+                                action: 'close'
+                        },
+                        {
+                                key: 'save-agent',
+                                label: 'Save',
+                                primary: true,
+                                busyLabel: 'Saving...',
+                                async action() {
+                                        await saveEditorPayload();
+                                }
+                        }
+                );
+
+                return buttons;
+        }
+
+        function initEditorDialog(modularDialogModule) {
+                if (editorDialog) {
+                        return editorDialog;
+                }
+
+                if (!modularDialogModule || typeof modularDialogModule.createStandardDialog !== 'function') {
+                        throw new Error('ModularDialog createStandardDialog export not found.');
+                }
+
+                const content = document.getElementById('agent-admin-editor-content');
+
+                if (!content) {
+                        throw new Error('Agent editor content not found.');
+                }
+
+                content.hidden = false;
+
+                editorDialog = modularDialogModule.createStandardDialog({
+                        id: 'agent-admin-editor-dialog',
+                        className: 'agent-admin-editor-dialog',
+                        surfaceClassName: 'agent-admin-dialog-surface',
+                        size: 'large',
+                        title: 'Agent editor',
+                        content,
+                        status: '',
+                        closeButtonPlugin: {
+                                label: 'Close'
+                        },
+                        statusPlugin: {
+                                renderEmpty: true
+                        },
+                        buttons: buildEditorButtons(false)
+                });
+
+                editorDialog.on('afterClose', () => {
+                        currentEditorAgentId = '';
+                        setEditorStatus('', '');
+                });
+
+                editorDialog.init();
+
+                return editorDialog;
+        }
+
         function updateEditorForm(record) {
                 const elements = getEditorElements();
 
-                if (!elements.modal || !elements.form) {
+                if (!editorDialog || !elements.content || !elements.form) {
                         setLog('Agent editor elements not found.');
                         return;
                 }
@@ -1254,6 +1338,7 @@
 
                 const oldId = String(record.old_id || record.agent_id || record.id || '').trim();
                 const currentId = String(record.agent_id || record.id || '').trim();
+                currentEditorAgentId = oldId;
                 setFormValue(form, 'old_id', oldId);
                 setFormValue(form, 'agent_id', currentId);
 
@@ -1281,9 +1366,10 @@
 
                 updateAgentFormFallback(form, values);
 
-                elements.modal.classList.add('is-open');
-                elements.modal.setAttribute('aria-hidden', 'false');
+                editorDialog.execute('setTitle', oldId === '' ? 'Add agent' : 'Edit agent');
+                editorDialog.execute('setButtons', buildEditorButtons(oldId !== ''));
                 setEditorStatus(oldId === '' ? 'New agent. Enter an ID, then save.' : 'Editor opened. Save is enabled.', 'ok');
+                editorDialog.open({ source: 'agentEditor', agentId: currentId });
                 setLog('Opened editor for ' + getText(currentId, 'new agent'));
         }
 
@@ -1300,14 +1386,11 @@
         }
 
         function closeEditor() {
-                const elements = getEditorElements();
-
-                if (!elements.modal) {
+                if (!editorDialog) {
                         return;
                 }
 
-                elements.modal.classList.remove('is-open');
-                elements.modal.setAttribute('aria-hidden', 'true');
+                editorDialog.close({ source: 'agentEditor' });
                 setLog('Closed editor.');
         }
 
@@ -1321,27 +1404,77 @@
                 }
         }
 
-        function setRunnerStatus(message, type = '') {
-                const elements = getRunnerElements();
 
-                if (!elements.status) {
+        function setRunnerStatus(message, type = '') {
+                if (!runnerDialog || typeof runnerDialog.execute !== 'function') {
                         return;
                 }
 
-                elements.status.className = 'agent-admin-modal-status';
+                runnerDialog.execute('setStatus', {
+                        message: message || '',
+                        type
+                });
+        }
 
-                if (type) {
-                        elements.status.classList.add('agent-admin-modal-status-' + type);
+        function initRunnerDialog(modularDialogModule) {
+                if (runnerDialog) {
+                        return runnerDialog;
                 }
 
-                elements.status.textContent = message || '';
+                if (!modularDialogModule || typeof modularDialogModule.createStandardDialog !== 'function') {
+                        throw new Error('ModularDialog createStandardDialog export not found.');
+                }
+
+                const content = document.getElementById('agent-admin-runner-content');
+
+                if (!content) {
+                        throw new Error('Agent runner content not found.');
+                }
+
+                content.hidden = false;
+
+                runnerDialog = modularDialogModule.createStandardDialog({
+                        id: 'agent-admin-runner-dialog',
+                        className: 'agent-admin-runner-dialog',
+                        surfaceClassName: 'agent-admin-runner-dialog-surface',
+                        size: 'large',
+                        title: 'Run agent',
+                        content,
+                        status: 'Ready.',
+                        closeButtonPlugin: {
+                                label: 'Close'
+                        },
+                        statusPlugin: {
+                                renderEmpty: true
+                        },
+                        buttons: [
+                                {
+                                        key: 'close-runner',
+                                        label: 'Close',
+                                        action: 'close'
+                                },
+                                {
+                                        key: 'run-agent',
+                                        label: 'Run agent',
+                                        primary: true,
+                                        busyLabel: 'Running...',
+                                        async action() {
+                                                await runAgentFromDialog();
+                                        }
+                                }
+                        ]
+                });
+
+                runnerDialog.init();
+
+                return runnerDialog;
         }
 
         function updateRunnerForm(record) {
                 const elements = getRunnerElements();
                 record = record && typeof record === 'object' ? record : {};
 
-                if (!elements.modal || !elements.id || !elements.prompt || !elements.result) {
+                if (!runnerDialog || !elements.content || !elements.id || !elements.prompt || !elements.result) {
                         setLog('Agent runner elements not found.');
                         return;
                 }
@@ -1357,14 +1490,9 @@
                         elements.output.textContent = 'Raw output will appear here.';
                 }
 
-                const title = document.getElementById('agent-admin-runner-title');
-                if (title) {
-                        title.textContent = 'Run agent: ' + getText(label);
-                }
-
-                elements.modal.classList.add('is-open');
-                elements.modal.setAttribute('aria-hidden', 'false');
+                runnerDialog.execute('setTitle', 'Run agent: ' + getText(label));
                 setRunnerStatus('Ready.', 'ok');
+                runnerDialog.open({ source: 'agentRunner', agentId: id });
                 setLog('Opened runner for ' + getText(id));
         }
 
@@ -1379,21 +1507,18 @@
         }
 
         function closeRunner() {
-                const elements = getRunnerElements();
-
-                if (!elements.modal) {
+                if (!runnerDialog) {
                         return;
                 }
 
-                elements.modal.classList.remove('is-open');
-                elements.modal.setAttribute('aria-hidden', 'true');
+                runnerDialog.close({ source: 'agentRunner' });
                 setLog('Closed runner.');
         }
 
         async function runAgentFromDialog() {
                 const elements = getRunnerElements();
 
-                if (!elements.id || !elements.prompt || !elements.result || !elements.runButton) {
+                if (!elements.id || !elements.prompt || !elements.result) {
                         setLog('Run failed: agent runner elements not found.');
                         return;
                 }
@@ -1405,7 +1530,6 @@
                         return;
                 }
 
-                elements.runButton.disabled = true;
                 elements.result.textContent = 'Running...';
                 setRunnerStatus('Running agent...', '');
                 setLog('Running agent ' + id);
@@ -1434,8 +1558,6 @@
 
                         setRunnerStatus(message, 'error');
                         setLog('Run failed: ' + message);
-                } finally {
-                        elements.runButton.disabled = false;
                 }
         }
 
@@ -1661,6 +1783,31 @@
                 }
         }
 
+        async function deleteCurrentAgentFromEditor() {
+                const elements = getEditorElements();
+                const id = currentEditorAgentId || (elements.form ? getFormFieldValue(elements.form, 'old_id') : '');
+
+                if (!id) {
+                        setEditorStatus('Only existing agents can be deleted from the editor.', 'error');
+                        return;
+                }
+
+                if (!window.confirm('Delete agent "' + id + '"?')) {
+                        setEditorStatus('Delete cancelled.', '');
+                        return;
+                }
+
+                try {
+                        setEditorStatus('Deleting agent...', '');
+                        const response = await deleteAgentById(id);
+                        closeEditor();
+                        await refreshGrid();
+                        setLog('Deleted agent ' + getText(response.id || id, id) + '.');
+                } catch (error) {
+                        setEditorStatus(getText(error && error.message ? error.message : error), 'error');
+                }
+        }
+
         async function reloadStore() {
                 try {
                         setLog('Reloading agent store.');
@@ -1679,13 +1826,9 @@
                 }
         }
 
+
         function bindEditorEvents() {
-                const addButton = document.getElementById('agent-admin-add');
-                const reloadButton = document.getElementById('agent-admin-reload');
-                const copyButton = document.getElementById('agent-admin-copy-payload');
-                const saveButton = document.getElementById('agent-admin-save');
                 const elements = getEditorElements();
-                const runnerElements = getRunnerElements();
 
                 if (elements.form) {
                         elements.form.addEventListener('submit', (event) => {
@@ -1702,81 +1845,63 @@
                         }
                 }
 
-                if (addButton) {
-                        addButton.addEventListener('click', (event) => {
-                                event.preventDefault();
-                                openNewEditor();
-                        });
-                }
-
-                if (reloadButton) {
-                        reloadButton.addEventListener('click', (event) => {
-                                event.preventDefault();
-                                reloadStore();
-                        });
-                }
-
-                if (copyButton) {
-                        copyButton.addEventListener('click', (event) => {
-                                event.preventDefault();
-                                copyEditorPayload();
-                        });
-                }
-
-                if (saveButton) {
-                        saveButton.addEventListener('click', (event) => {
-                                event.preventDefault();
-                                saveEditorPayload();
-                        });
-                }
-
-                if (elements.modal) {
-                        elements.modal.querySelectorAll('[data-editor-close]').forEach((button) => {
-                                button.addEventListener('click', (event) => {
-                                        event.preventDefault();
-                                        closeEditor();
-                                });
-                        });
-
-                        elements.modal.addEventListener('click', (event) => {
-                                if (event.target === elements.modal) {
-                                        closeEditor();
-                                }
-                        });
-                }
-
-                if (runnerElements.runButton) {
-                        runnerElements.runButton.addEventListener('click', (event) => {
-                                event.preventDefault();
-                                runAgentFromDialog();
-                        });
-                }
-
-                if (runnerElements.modal) {
-                        runnerElements.modal.querySelectorAll('[data-run-close]').forEach((button) => {
-                                button.addEventListener('click', (event) => {
-                                        event.preventDefault();
-                                        closeRunner();
-                                });
-                        });
-
-                        runnerElements.modal.addEventListener('click', (event) => {
-                                if (event.target === runnerElements.modal) {
-                                        closeRunner();
-                                }
-                        });
-                }
-
                 log('editor events bound');
         }
 
-        async function initGrid(modularGridModule) {
+        function createAgentAdminActionsPlugin() {
+                return {
+                        name: 'agentAdminActions',
+
+                        layoutContributions() {
+                                return [
+                                        {
+                                                zone: 'topLine1',
+                                                order: 5,
+                                                render() {
+                                                        const wrapper = document.createElement('div');
+                                                        wrapper.className = 'agent-admin-top-actions';
+
+                                                        const addButton = createButton(
+                                                                'agent-admin-button agent-admin-button-primary',
+                                                                'Add agent'
+                                                        );
+
+                                                        const reloadButton = createButton(
+                                                                'agent-admin-button',
+                                                                'Reload'
+                                                        );
+
+                                                        addButton.addEventListener('click', (event) => {
+                                                                event.preventDefault();
+                                                                openNewEditor();
+                                                        });
+
+                                                        reloadButton.addEventListener('click', (event) => {
+                                                                event.preventDefault();
+                                                                reloadStore();
+                                                        });
+
+                                                        wrapper.appendChild(addButton);
+                                                        wrapper.appendChild(reloadButton);
+
+                                                        return wrapper;
+                                                }
+                                        }
+                                ];
+                        }
+                };
+        }
+
+        async function initGrid(modularGridModule, modularDialogModule) {
                 log('initGrid start');
+                initEditorDialog(modularDialogModule);
+                initRunnerDialog(modularDialogModule);
                 bindEditorEvents();
 
                 const {
                         AjaxAdapter,
                         ColumnVisibilityPlugin,
+                        FiltersPlugin,
                         HeaderMenuPlugin,
                         InfoPlugin,
                         InfiniteScrollPlugin,
@@ -1797,6 +1922,8 @@
                         rowsPath: 'data',
                         totalPath: 'total',
                         mapRequest(request) {
+                                const state = grid ? grid.getState() : {};
+                                const filters = buildFilterPayload(state.filters || {});
                                 const sortKey = request.sortKey || 'agent_id';
                                 const sortDirection = request.sortDirection || 'asc';
                                 const payload = {
@@ -1811,7 +1938,7 @@
                                                         type: SORT_TYPES[sortKey] || 'string'
                                                 }
                                         ],
-                                        filters: {}
+                                        filters
                                 };
 
                                 log('mapRequest payload', payload);
@@ -1823,6 +1950,7 @@
                 log('selected exports', {
                         AjaxAdapter: !!AjaxAdapter,
                         ColumnVisibilityPlugin: !!ColumnVisibilityPlugin,
+                        FiltersPlugin: !!FiltersPlugin,
                         HeaderMenuPlugin: !!HeaderMenuPlugin,
                         InfoPlugin: !!InfoPlugin,
                         InfiniteScrollPlugin: !!InfiniteScrollPlugin,
@@ -1841,7 +1969,7 @@
                         dataMode: 'server',
                         server: {
                                 searchDebounceMs: 220,
-                                watchStateKeys: ['query']
+                                watchStateKeys: ['query', 'filters']
                         },
                         features: {
                                 paging: false
@@ -1852,7 +1980,9 @@
                                 direction: 'asc'
                         },
                         plugins: [
+                                createAgentAdminActionsPlugin(),
                                 SearchPlugin,
+                                FiltersPlugin,
                                 HeaderMenuPlugin,
                                 InfoPlugin,
                                 ColumnVisibilityPlugin,
@@ -1863,10 +1993,38 @@
                         ].filter(Boolean),
                         pluginOptions: {
                                 search: {
-                                        zone: 'topLine',
+                                        zone: 'topLine1',
                                         order: 10,
                                         label: 'Search',
                                         placeholder: 'Search agent id, policy or prompt'
+                                },
+                                filters: {
+                                        zone: 'topLine2',
+                                        order: 10,
+                                        stateKey: 'filters',
+                                        showClearButton: true,
+                                        clearLabel: 'Clear filters',
+                                        fields: [
+                                                {
+                                                        key: 'enabled',
+                                                        label: 'State',
+                                                        type: 'select',
+                                                        options: ENABLED_FILTER_OPTIONS
+                                                },
+                                                {
+                                                        key: 'policy',
+                                                        label: 'Policy',
+                                                        type: 'select',
+                                                        options: POLICY_FILTER_OPTIONS
+                                                },
+                                                {
+                                                        key: 'llm',
+                                                        label: 'LLM',
+                                                        type: 'text',
+                                                        placeholder: 'LLM',
+                                                        width: 220
+                                                }
+                                        ]
                                 },
                                 headerMenu: {
                                         showSortActions: true,
@@ -1877,10 +2035,10 @@
                                         zone: ''
                                 },
                                 reset: {
-                                        zone: 'topLine',
+                                        zone: 'topLine1',
                                         order: 20,
                                         label: 'Reset',
-                                        sections: ['query', 'columns', 'detailView']
+                                        sections: ['query', 'filters', 'columns', 'detailView']
                                 },
                                 info: {
                                         zone: 'statusZone',
@@ -2078,7 +2236,8 @@
                         rootFound: !!root,
                         initialized: root ? root.dataset.initialized || '' : null,
                         endpoint: ENDPOINT_URL,
-                        modularGridUrl: MODULARGRID_URL
+                        modularGridUrl: MODULARGRID_URL,
+                        modularDialogUrl: MODULAR_DIALOG_URL
                 });
 
                 if (!root || root.dataset.initialized === '1') {
@@ -2093,9 +2252,10 @@
                                 throw new Error('Missing Agent Admin endpoint URL.');
                         }
 
-                        const module = await importFirst(MODULARGRID_URL, 'ModularGrid');
+                        const modularGridModule = await importFirst(MODULARGRID_URL, 'ModularGrid');
+                        const modularDialogModule = await importFirst(MODULAR_DIALOG_URL, 'ModularDialog');
                         setStartupStatus('Initializing agent grid.');
-                        await initGrid(module);
+                        await initGrid(modularGridModule, modularDialogModule);
                 } catch (error) {
                         const message = error && error.message ? error.message : String(error);
                         setStartupStatus('Agent Admin could not be initialized.', message, true);

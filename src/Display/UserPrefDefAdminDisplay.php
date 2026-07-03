@@ -82,6 +82,16 @@ final class UserPrefDefAdminDisplay implements IDisplay {
 			$this->assetResolver->resolve('plugin/ClientStack/assets/modulargrid/index.js')
 		);
 
+		$this->view->assign(
+			'modularDialogCssUrl',
+			$this->assetResolver->resolve('plugin/ClientStack/assets/modulardialog/styles/modulardialog.css')
+		);
+
+		$this->view->assign(
+			'modularDialogJsUrl',
+			$this->assetResolver->resolve('plugin/ClientStack/assets/modulardialog/index.js')
+		);
+
 		$this->view->assign('valueTypeOptions', $this->getValueTypeOptions(true));
 		$this->view->assign('scopeOptions', $this->getScopeOptions(true));
 		$this->view->assign('enabledOptions', $this->getEnabledOptions(true));

@@ -10,10 +10,13 @@ $riskOptions = ['none', 'read_external_url', 'reads_context', 'writes_memory', '
 $capabilityOptions = ['memory', 'tool'];
 $modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
 $modularGridJsUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/index.js');
+$modularDialogCssUrl = (string) $resolve('plugin/ClientStack/assets/modulardialog/styles/modulardialog.css');
+$modularDialogJsUrl = (string) $resolve('plugin/ClientStack/assets/modulardialog/index.js');
 $timestamp = date('c');
 $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 <link rel="stylesheet" href="<?php echo $e($modularGridCssUrl); ?>" />
+<link rel="stylesheet" href="<?php echo $e($modularDialogCssUrl); ?>" />
 
 <style>
 	.agent-component-preset-step5-shell {
@@ -46,6 +49,12 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 		border-radius: 8px;
 		background: #fff;
 		overflow-x: auto;
+	}
+
+	.agent-component-preset-step5-grid .agent-component-preset-step5-panel--filters {
+		flex-wrap: wrap;
+		align-items: flex-start;
+		overflow-x: visible;
 	}
 
 	.agent-component-preset-step5-grid .agent-component-preset-step5-panel > * {
@@ -123,7 +132,13 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 		text-align: center;
 	}
 
-	.agent-component-preset-step5-top-actions,
+	.agent-component-preset-step5-top-actions {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		flex: 0 0 auto;
+	}
+
 	.agent-component-preset-step5-detail-actions {
 		display: flex;
 		align-items: center;
@@ -313,13 +328,13 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 	}
 
 	.agent-component-preset-step5-button-primary {
-		background: #222;
-		border-color: #222;
+		background: #2f5d91;
+		border-color: #2f5d91;
 		color: #fff;
 	}
 
 	.agent-component-preset-step5-button-primary:hover {
-		background: #444;
+		background: #284f7c;
 	}
 
 	.agent-component-preset-step5-button-danger {
@@ -331,58 +346,18 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 		background: #fff0f0;
 	}
 
-	.agent-component-preset-step5-modal-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 9000;
-		display: none;
-		align-items: center;
-		justify-content: center;
-		padding: 24px;
-		background: rgba(0, 0, 0, 0.35);
-	}
-
-	.agent-component-preset-step5-modal-backdrop.is-open {
-		display: flex;
-	}
-
-	.agent-component-preset-step5-modal {
-		display: grid;
-		grid-template-rows: auto 1fr auto;
-		gap: 12px;
+	.agent-component-preset-step5-dialog-surface {
 		width: min(1120px, 100%);
 		max-height: min(860px, 100%);
-		border: 1px solid #d6d6d6;
-		border-radius: 8px;
-		background: #fff;
-		box-shadow: 0 16px 50px rgba(0, 0, 0, 0.20);
-		padding: 16px;
 	}
 
-	.agent-component-preset-step5-modal-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.agent-component-preset-step5-modal-footer {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.agent-component-preset-step5-modal-title {
-		font-size: 18px;
-		line-height: 1.25;
-		font-weight: 600;
-		color: #222;
-	}
-
-	.agent-component-preset-step5-modal-body {
+	.agent-component-preset-step5-dialog-surface .md-shell-body {
 		min-height: 0;
 		overflow: auto;
+	}
+
+	.agent-component-preset-step5-editor-content {
+		min-width: 0;
 	}
 
 	.agent-component-preset-step5-form {
@@ -437,20 +412,6 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 		gap: 10px;
 		min-height: 32px;
 		font-size: 13px;
-	}
-
-	.agent-component-preset-step5-modal-status {
-		min-height: 18px;
-		font-size: 12px;
-		color: #666;
-	}
-
-	.agent-component-preset-step5-modal-status-error {
-		color: #8a1f1f;
-	}
-
-	.agent-component-preset-step5-modal-status-ok {
-		color: #276028;
 	}
 
 	.agent-component-preset-step5-resource-info {
@@ -549,11 +510,6 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 	</p>
 
 	<div class="agent-component-preset-step5-grid">
-		<div class="agent-component-preset-step5-top-actions">
-			<button type="button" id="agent-component-preset-step5-add" class="agent-component-preset-step5-button agent-component-preset-step5-button-primary">Add preset</button>
-			<button type="button" id="agent-component-preset-step5-reload" class="agent-component-preset-step5-button">Reload defaults</button>
-		</div>
-
 		<div id="agent-component-preset-step5-grid" class="agent-component-preset-step5-grid-shell">
 			<div class="agent-component-preset-step5-startup">Loading Agent Component Preset Admin display...</div>
 		</div>
@@ -565,30 +521,25 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 	</div>
 </div>
 
-<div id="agent-component-preset-step5-editor" class="agent-component-preset-step5-modal-backdrop" aria-hidden="true">
-	<div class="agent-component-preset-step5-modal" role="dialog" aria-modal="true" aria-labelledby="agent-component-preset-step5-editor-title">
-		<div class="agent-component-preset-step5-modal-header">
-			<div id="agent-component-preset-step5-editor-title" class="agent-component-preset-step5-modal-title">Preset editor</div>
-			<button type="button" class="agent-component-preset-step5-button" data-editor-close="1">Close</button>
-		</div>
-		<div class="agent-component-preset-step5-modal-body">
-			<form id="agent-component-preset-step5-form" class="agent-component-preset-step5-form">
-				<input type="hidden" name="old_id" />
+<template id="agent-component-preset-step5-editor-template">
+	<div id="agent-component-preset-step5-editor-content" class="agent-component-preset-step5-editor-content">
+		<form id="agent-component-preset-step5-form" class="agent-component-preset-step5-form">
+			<input type="hidden" name="old_id" />
 
-				<div>
-					<label class="agent-component-preset-step5-label">Preset ID</label>
-					<input type="text" name="id" class="agent-component-preset-step5-input" />
-				</div>
+			<div>
+			<label class="agent-component-preset-step5-label">Preset ID</label>
+			<input type="text" name="id" class="agent-component-preset-step5-input" />
+			</div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Label</label>
-					<input type="text" name="label" class="agent-component-preset-step5-input" />
-				</div>
+			<div>
+			<label class="agent-component-preset-step5-label">Label</label>
+			<input type="text" name="label" class="agent-component-preset-step5-input" />
+			</div>
 
-				<div>
-					<label class="agent-component-preset-step5-label">Resource type</label>
-					<select name="type" class="agent-component-preset-step5-select">
-						<option value="">Select resource type</option>
+			<div>
+			<label class="agent-component-preset-step5-label">Resource type</label>
+			<select name="type" class="agent-component-preset-step5-select">
+				<option value="">Select resource type</option>
 <?php foreach($resourceOptions as $resourceOption): ?>
 <?php
 	$resourceId = is_array($resourceOption) ? (string)($resourceOption['id'] ?? '') : (string)$resourceOption;
@@ -597,89 +548,81 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 		continue;
 	}
 ?>
-						<option value="<?php echo $e($resourceId); ?>" title="<?php echo $e($resourceClass); ?>"><?php echo $e($resourceId); ?></option>
+				<option value="<?php echo $e($resourceId); ?>" title="<?php echo $e($resourceClass); ?>"><?php echo $e($resourceId); ?></option>
 <?php endforeach; ?>
-					</select>
-					<div id="agent-component-preset-step5-resource-info" class="agent-component-preset-step5-resource-info">No resource type selected.</div>
-				</div>
-
-				<div>
-					<label class="agent-component-preset-step5-label">Enabled</label>
-					<label class="agent-component-preset-step5-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
-				</div>
-
-				<div>
-					<label class="agent-component-preset-step5-label">Capabilities</label>
-					<div id="agent-component-preset-step5-capability-info" class="agent-component-preset-step5-resource-info">No resource type selected.</div>
-				</div>
-
-				<div>
-					<label class="agent-component-preset-step5-label">Category</label>
-					<select name="category" class="agent-component-preset-step5-select">
-						<option value="">Select category</option>
-<?php foreach($categoryOptions as $categoryOption): ?>
-						<option value="<?php echo $e($categoryOption); ?>"><?php echo $e($categoryOption); ?></option>
-<?php endforeach; ?>
-					</select>
-				</div>
-
-				<div>
-					<label class="agent-component-preset-step5-label">Status</label>
-					<select name="status" class="agent-component-preset-step5-select">
-						<option value="">Select status</option>
-<?php foreach($statusOptions as $statusOption): ?>
-						<option value="<?php echo $e($statusOption); ?>"><?php echo $e($statusOption); ?></option>
-<?php endforeach; ?>
-					</select>
-				</div>
-
-				<div>
-					<label class="agent-component-preset-step5-label">Risk</label>
-					<select name="risk" class="agent-component-preset-step5-select">
-						<option value="">Select risk</option>
-<?php foreach($riskOptions as $riskOption): ?>
-						<option value="<?php echo $e($riskOption); ?>"><?php echo $e($riskOption); ?></option>
-<?php endforeach; ?>
-					</select>
-				</div>
-
-				<div>
-					<label class="agent-component-preset-step5-label">Version</label>
-					<input type="text" name="version" class="agent-component-preset-step5-input" />
-				</div>
-
-				<div class="agent-component-preset-step5-field-full">
-					<label class="agent-component-preset-step5-label">Description</label>
-					<textarea name="description" class="agent-component-preset-step5-textarea"></textarea>
-				</div>
-
-				<div class="agent-component-preset-step5-field-full">
-					<label class="agent-component-preset-step5-label">Configuration</label>
-					<div id="agent-component-preset-step5-config-fields" class="agent-component-preset-step5-definition-fields"></div>
-					<textarea name="config_json" class="agent-component-preset-step5-hidden-contract-field" hidden></textarea>
-				</div>
-
-				<div class="agent-component-preset-step5-field-full">
-					<label class="agent-component-preset-step5-label">Docks</label>
-					<div id="agent-component-preset-step5-dock-fields" class="agent-component-preset-step5-definition-fields"></div>
-					<textarea name="docks_json" class="agent-component-preset-step5-hidden-contract-field" hidden></textarea>
-				</div>
-
-				<div class="agent-component-preset-step5-field-full">
-					<label class="agent-component-preset-step5-label">Meta JSON</label>
-					<textarea name="meta_json" class="agent-component-preset-step5-textarea"></textarea>
-				</div>
-			</form>
-		</div>
-		<div class="agent-component-preset-step5-modal-footer">
-			<div id="agent-component-preset-step5-editor-status" class="agent-component-preset-step5-modal-status">Save is enabled.</div>
-			<div>
-				<button type="button" class="agent-component-preset-step5-button" id="agent-component-preset-step5-copy-payload">Copy payload</button>
-				<button type="button" class="agent-component-preset-step5-button agent-component-preset-step5-button-primary" id="agent-component-preset-step5-save">Save</button>
+			</select>
+			<div id="agent-component-preset-step5-resource-info" class="agent-component-preset-step5-resource-info">No resource type selected.</div>
 			</div>
-		</div>
+
+			<div>
+			<label class="agent-component-preset-step5-label">Enabled</label>
+			<label class="agent-component-preset-step5-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
+			</div>
+
+			<div>
+			<label class="agent-component-preset-step5-label">Capabilities</label>
+			<div id="agent-component-preset-step5-capability-info" class="agent-component-preset-step5-resource-info">No resource type selected.</div>
+			</div>
+
+			<div>
+			<label class="agent-component-preset-step5-label">Category</label>
+			<select name="category" class="agent-component-preset-step5-select">
+				<option value="">Select category</option>
+<?php foreach($categoryOptions as $categoryOption): ?>
+				<option value="<?php echo $e($categoryOption); ?>"><?php echo $e($categoryOption); ?></option>
+<?php endforeach; ?>
+			</select>
+			</div>
+
+			<div>
+			<label class="agent-component-preset-step5-label">Status</label>
+			<select name="status" class="agent-component-preset-step5-select">
+				<option value="">Select status</option>
+<?php foreach($statusOptions as $statusOption): ?>
+				<option value="<?php echo $e($statusOption); ?>"><?php echo $e($statusOption); ?></option>
+<?php endforeach; ?>
+			</select>
+			</div>
+
+			<div>
+			<label class="agent-component-preset-step5-label">Risk</label>
+			<select name="risk" class="agent-component-preset-step5-select">
+				<option value="">Select risk</option>
+<?php foreach($riskOptions as $riskOption): ?>
+				<option value="<?php echo $e($riskOption); ?>"><?php echo $e($riskOption); ?></option>
+<?php endforeach; ?>
+			</select>
+			</div>
+
+			<div>
+			<label class="agent-component-preset-step5-label">Version</label>
+			<input type="text" name="version" class="agent-component-preset-step5-input" />
+			</div>
+
+			<div class="agent-component-preset-step5-field-full">
+			<label class="agent-component-preset-step5-label">Description</label>
+			<textarea name="description" class="agent-component-preset-step5-textarea"></textarea>
+			</div>
+
+			<div class="agent-component-preset-step5-field-full">
+			<label class="agent-component-preset-step5-label">Configuration</label>
+			<div id="agent-component-preset-step5-config-fields" class="agent-component-preset-step5-definition-fields"></div>
+			<textarea name="config_json" class="agent-component-preset-step5-hidden-contract-field" hidden></textarea>
+			</div>
+
+			<div class="agent-component-preset-step5-field-full">
+			<label class="agent-component-preset-step5-label">Docks</label>
+			<div id="agent-component-preset-step5-dock-fields" class="agent-component-preset-step5-definition-fields"></div>
+			<textarea name="docks_json" class="agent-component-preset-step5-hidden-contract-field" hidden></textarea>
+			</div>
+
+			<div class="agent-component-preset-step5-field-full">
+			<label class="agent-component-preset-step5-label">Meta JSON</label>
+			<textarea name="meta_json" class="agent-component-preset-step5-textarea"></textarea>
+			</div>
+		</form>
 	</div>
-</div>
+</template>
 
 
 <script>
@@ -688,8 +631,32 @@ console.log('[AgentComponentPresetAdmin] script entered');
 
 const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+const MODULARDIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const RESOURCE_OPTIONS = <?php echo json_encode($resourceOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const PRESET_OPTIONS = <?php echo json_encode($presetOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+const RESOURCE_TYPE_FILTER_OPTIONS = [
+	{ value: '', label: 'All resource types' },
+	...RESOURCE_OPTIONS
+		.map((entry) => ({ value: String(entry && entry.id ? entry.id : ''), label: String(entry && entry.id ? entry.id : '') }))
+		.filter((entry) => entry.value !== '')
+];
+const CATEGORY_FILTER_OPTIONS = [
+	{ value: '', label: 'All categories' },
+	...<?php echo json_encode($categoryOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>.map((value) => ({ value, label: value }))
+];
+const STATUS_FILTER_OPTIONS = [
+	{ value: '', label: 'All statuses' },
+	...<?php echo json_encode($statusOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>.map((value) => ({ value, label: value }))
+];
+const CAPABILITY_FILTER_OPTIONS = [
+	{ value: '', label: 'All capabilities' },
+	...<?php echo json_encode($capabilityOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>.map((value) => ({ value, label: value }))
+];
+const ENABLED_FILTER_OPTIONS = [
+	{ value: '', label: 'All states' },
+	{ value: '1', label: 'Enabled' },
+	{ value: '0', label: 'Disabled' }
+];
 const GRID_SELECTOR = '#agent-component-preset-step5-grid';
 const LOG_SELECTOR = '#agent-component-preset-step5-log';
 const OUTPUT_SELECTOR = '#agent-component-preset-step5-output';
@@ -705,6 +672,9 @@ const SORT_TYPES = {
 };
 
 let grid = null;
+let editorDialog = null;
+let editorContent = null;
+let currentEditorPresetId = '';
 
 const layout = {
 	type: 'stack',
@@ -713,7 +683,12 @@ const layout = {
 		{
 			type: 'zone',
 			key: 'topLine',
-			className: 'agent-component-preset-step5-panel'
+			className: 'agent-component-preset-step5-panel agent-component-preset-step5-panel--main'
+		},
+		{
+			type: 'zone',
+			key: 'topLine2',
+			className: 'agent-component-preset-step5-panel agent-component-preset-step5-panel--filters'
 		},
 		{
 			type: 'view',
@@ -798,6 +773,20 @@ function getText(value, placeholder = '-') {
 	}
 
 	return String(value);
+}
+
+function buildFilterPayload(filters) {
+	const result = {};
+
+	Object.entries(filters || {}).forEach(([key, value]) => {
+		if (value === '' || value === null || value === undefined) {
+			return;
+		}
+
+		result[key] = value;
+	});
+
+	return result;
 }
 
 function getResourceOption(type) {
@@ -1599,28 +1588,47 @@ function renderPresetDetail(context) {
 }
 
 
+function createEditorContent() {
+	if (editorContent) {
+		return editorContent;
+	}
+
+	const template = document.getElementById('agent-component-preset-step5-editor-template');
+
+	if (!template || !template.content) {
+		throw new Error('Preset editor template not found.');
+	}
+
+	const fragment = template.content.cloneNode(true);
+	const content = fragment.querySelector('#agent-component-preset-step5-editor-content');
+
+	if (!content) {
+		throw new Error('Preset editor content not found.');
+	}
+
+	editorContent = content;
+
+	return editorContent;
+}
+
 function getEditorElements() {
+	const root = editorContent;
+
 	return {
-		modal: document.getElementById('agent-component-preset-step5-editor'),
-		form: document.getElementById('agent-component-preset-step5-form'),
-		status: document.getElementById('agent-component-preset-step5-editor-status')
+		root,
+		form: root ? root.querySelector('#agent-component-preset-step5-form') : null
 	};
 }
 
 function setEditorStatus(message, type = '') {
-	const elements = getEditorElements();
-
-	if (!elements.status) {
+	if (!editorDialog || typeof editorDialog.execute !== 'function') {
 		return;
 	}
 
-	elements.status.className = 'agent-component-preset-step5-modal-status';
-
-	if (type) {
-		elements.status.classList.add('agent-component-preset-step5-modal-status-' + type);
-	}
-
-	elements.status.textContent = message || '';
+	editorDialog.execute('setStatus', {
+		message: message || '',
+		type
+	});
 }
 
 function setFormValue(form, name, value) {
@@ -1694,11 +1702,85 @@ function buildMetaJsonFromForm(form) {
 	return meta;
 }
 
+
+function buildEditorButtons(isExisting = false) {
+	const buttons = [
+		{
+			key: 'copy-payload',
+			label: 'Copy payload',
+			async action() {
+				await copyEditorPayload();
+			}
+		},
+		{
+			key: 'save',
+			label: 'Save',
+			primary: true,
+			busyLabel: 'Saving...',
+			async action() {
+				await saveEditorPayload();
+			}
+		}
+	];
+
+	if (isExisting) {
+		buttons.unshift({
+			key: 'delete-current-preset',
+			label: 'Delete',
+			danger: true,
+			busyLabel: 'Deleting...',
+			async action() {
+				await deleteCurrentPresetFromEditor();
+			}
+		});
+	}
+
+	return buttons;
+}
+
+function initEditorDialog(modularDialogModule) {
+	if (editorDialog) {
+		return editorDialog;
+	}
+
+	if (!modularDialogModule || typeof modularDialogModule.createStandardDialog !== 'function') {
+		throw new Error('ModularDialog createStandardDialog export not found.');
+	}
+
+	const content = createEditorContent();
+
+	editorDialog = modularDialogModule.createStandardDialog({
+		id: 'agent-component-preset-step5-editor-dialog',
+		className: 'agent-component-preset-step5-dialog',
+		surfaceClassName: 'agent-component-preset-step5-dialog-surface',
+		size: 'large',
+		title: 'Preset editor',
+		content,
+		status: 'Save is enabled.',
+		closeButtonPlugin: {
+			label: 'Close'
+		},
+		statusPlugin: {
+			renderEmpty: false
+		},
+		buttons: buildEditorButtons()
+	});
+
+	editorDialog.on('afterClose', () => {
+		currentEditorPresetId = '';
+		setLog('Closed editor.');
+	});
+
+	editorDialog.init();
+
+	return editorDialog;
+}
+
 function openPresetEditor(record) {
 	const elements = getEditorElements();
 
-	if (!elements.modal || !elements.form) {
-		setLog('Preset editor elements not found.');
+	if (!editorDialog || !elements.form) {
+		setLog('Preset editor is not available.');
 		return;
 	}
 
@@ -1708,6 +1790,7 @@ function openPresetEditor(record) {
 	record = record && typeof record === 'object' ? record : {};
 
 	const oldIdValue = Object.prototype.hasOwnProperty.call(record, 'old_id') ? record.old_id : (record.preset_id || record.id || '');
+	currentEditorPresetId = String(oldIdValue || '').trim();
 	setFormValue(form, 'old_id', oldIdValue);
 	setFormValue(form, 'id', record.preset_id || record.id || '');
 	setFormValue(form, 'label', record.label || '');
@@ -1733,8 +1816,8 @@ function openPresetEditor(record) {
 	} catch (error) {
 		renderError = error;
 		renderResourceInfo(form);
-		const configRoot = document.getElementById('agent-component-preset-step5-config-fields');
-		const dockRoot = document.getElementById('agent-component-preset-step5-dock-fields');
+		const configRoot = form.querySelector('#agent-component-preset-step5-config-fields');
+		const dockRoot = form.querySelector('#agent-component-preset-step5-dock-fields');
 
 		if (configRoot) {
 			configRoot.replaceChildren(createElement('agent-component-preset-step5-definition-empty', 'Configuration controls could not be rendered: ' + getText(error && error.message, String(error))));
@@ -1748,14 +1831,30 @@ function openPresetEditor(record) {
 		setLog('Editor render failed: ' + getText(error && error.message, String(error)));
 	}
 
-	elements.modal.classList.add('is-open');
-	elements.modal.setAttribute('aria-hidden', 'false');
+	editorDialog.execute('setTitle', record.preset_id || record.id ? 'Edit preset' : 'Add preset');
+	editorDialog.execute('setButtons', buildEditorButtons(currentEditorPresetId !== ''));
 
 	if (renderError) {
 		setEditorStatus('Editor opened, but generated controls need attention: ' + getText(renderError && renderError.message, String(renderError)), 'error');
 	} else {
 		setEditorStatus('Editor opened. Save is enabled.', 'ok');
 	}
+
+	editorDialog.open({ source: 'agentComponentPresetEditor', record });
+
+	window.setTimeout(() => {
+		const idField = form.elements.namedItem('id');
+
+		if (idField && idField.value === '') {
+			idField.focus();
+			return;
+		}
+
+		const typeField = form.elements.namedItem('type');
+		if (typeField) {
+			typeField.focus();
+		}
+	}, 0);
 
 	setLog('Opened editor for ' + getText(record.preset_id || record.id, 'new preset'));
 }
@@ -1802,15 +1901,11 @@ function createDuplicatePresetRecord(record) {
 }
 
 function closePresetEditor() {
-	const elements = getEditorElements();
-
-	if (!elements.modal) {
+	if (!editorDialog) {
 		return;
 	}
 
-	elements.modal.classList.remove('is-open');
-	elements.modal.setAttribute('aria-hidden', 'true');
-	setLog('Closed editor.');
+	editorDialog.close({ source: 'agentComponentPresetEditor' });
 }
 
 function getFormFieldValue(form, name) {
@@ -1980,6 +2075,42 @@ async function deletePresetById(id) {
 	return response;
 }
 
+async function deleteCurrentPresetFromEditor() {
+	const elements = getEditorElements();
+	const form = elements.form;
+
+	if (!form) {
+		setLog('Delete failed: preset editor form not found.');
+		return;
+	}
+
+	const id = String(currentEditorPresetId || getFormFieldValue(form, 'old_id') || getFormFieldValue(form, 'id') || '').trim();
+
+	if (!id) {
+		setEditorStatus('Missing preset id.', 'error');
+		return;
+	}
+
+	if (!window.confirm('Delete preset "' + id + '"?')) {
+		setLog('Delete cancelled for ' + id);
+		return;
+	}
+
+	try {
+		setEditorStatus('Deleting preset...', '');
+		setLog('Deleting preset ' + id);
+
+		const response = await deletePresetById(id);
+
+		closePresetEditor();
+		await refreshGrid();
+		setLog('Deleted preset ' + getText(response.id || id, id) + '.');
+	} catch (error) {
+		setEditorStatus(error && error.message ? error.message : String(error), 'error');
+		setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
+	}
+}
+
 async function deletePresetFromRow(row) {
 	try {
 		const id = getPresetIdFromRow(row);
@@ -2057,10 +2188,6 @@ async function openDuplicateEditorFromRow(row) {
 }
 
 function bindEditorEvents() {
-	const addButton = document.getElementById('agent-component-preset-step5-add');
-	const reloadButton = document.getElementById('agent-component-preset-step5-reload');
-	const copyButton = document.getElementById('agent-component-preset-step5-copy-payload');
-	const saveButton = document.getElementById('agent-component-preset-step5-save');
 	const elements = getEditorElements();
 
 	if (elements.form) {
@@ -2080,59 +2207,64 @@ function bindEditorEvents() {
 		});
 	}
 
-	if (addButton) {
-		addButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			openNewPresetEditor();
-		});
-	}
-
-	if (reloadButton) {
-		reloadButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			reloadPresetDefaults();
-		});
-	}
-
-	if (copyButton) {
-		copyButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			copyEditorPayload();
-		});
-	}
-
-	if (saveButton) {
-		saveButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			saveEditorPayload();
-		});
-	}
-
-	if (elements.modal) {
-		elements.modal.querySelectorAll('[data-editor-close]').forEach((button) => {
-			button.addEventListener('click', (event) => {
-				event.preventDefault();
-				closePresetEditor();
-			});
-		});
-
-		elements.modal.addEventListener('click', (event) => {
-			if (event.target === elements.modal) {
-				closePresetEditor();
-			}
-		});
-	}
-
 	log('editor events bound');
+}
+
+function createPresetActionsPlugin() {
+	return {
+		name: 'agentComponentPresetActions',
+
+		layoutContributions() {
+			return [
+				{
+					zone: 'topLine',
+					order: 5,
+					render() {
+						const wrapper = document.createElement('div');
+						wrapper.className = 'agent-component-preset-step5-top-actions';
+
+						const addButton = document.createElement('button');
+						addButton.type = 'button';
+						addButton.className = 'agent-component-preset-step5-button agent-component-preset-step5-button-primary';
+						addButton.textContent = 'Add preset';
+						addButton.addEventListener('click', () => openNewPresetEditor());
+
+						const reloadButton = document.createElement('button');
+						reloadButton.type = 'button';
+						reloadButton.className = 'agent-component-preset-step5-button';
+						reloadButton.textContent = 'Reload defaults';
+						reloadButton.addEventListener('click', () => reloadPresetDefaults());
+
+						wrapper.appendChild(addButton);
+						wrapper.appendChild(reloadButton);
+
+						return wrapper;
+					}
+				}
+			];
+		}
+	};
 }
 
 async function initGrid(modularGridModule) {
 	log('initGrid start');
-	bindEditorEvents();
+
+	let editorInitializationError = '';
+
+	try {
+		const modularDialogModule = await importFirst(MODULARDIALOG_URL, 'ModularDialog');
+		initEditorDialog(modularDialogModule);
+		bindEditorEvents();
+	} catch (error) {
+		console.error('Agent Component Preset editor dialog failed:', error);
+		editorInitializationError = 'Preset editor failed: ' + getText(error && error.message ? error.message : error);
+		setLog(editorInitializationError);
+	}
 
 	const {
 		AjaxAdapter,
 		ColumnVisibilityPlugin,
+		FiltersPlugin,
 		HeaderMenuPlugin,
 		InfoPlugin,
 		InfiniteScrollPlugin,
@@ -2146,6 +2278,7 @@ async function initGrid(modularGridModule) {
 	log('selected exports', {
 		AjaxAdapter: !!AjaxAdapter,
 		ColumnVisibilityPlugin: !!ColumnVisibilityPlugin,
+		FiltersPlugin: !!FiltersPlugin,
 		HeaderMenuPlugin: !!HeaderMenuPlugin,
 		InfoPlugin: !!InfoPlugin,
 		InfiniteScrollPlugin: !!InfiniteScrollPlugin,
@@ -2166,6 +2299,8 @@ async function initGrid(modularGridModule) {
 		rowsPath: 'data',
 		totalPath: 'total',
 		mapRequest(request) {
+			const state = grid ? grid.getState() : {};
+			const filters = buildFilterPayload(state.filters || {});
 			const sortKey = request.sortKey || 'preset_id';
 			const sortDirection = request.sortDirection || 'asc';
 			const payload = {
@@ -2180,7 +2315,7 @@ async function initGrid(modularGridModule) {
 						type: SORT_TYPES[sortKey] || 'string'
 					}
 				],
-				filters: {}
+				filters
 			};
 
 			log('mapRequest payload', payload);
@@ -2197,7 +2332,7 @@ async function initGrid(modularGridModule) {
 		dataMode: 'server',
 		server: {
 			searchDebounceMs: 220,
-			watchStateKeys: ['query']
+			watchStateKeys: ['query', 'filters']
 		},
 		features: {
 			paging: false
@@ -2208,7 +2343,9 @@ async function initGrid(modularGridModule) {
 			direction: 'asc'
 		},
 		plugins: [
+			createPresetActionsPlugin(),
 			SearchPlugin,
+			FiltersPlugin,
 			HeaderMenuPlugin,
 			InfoPlugin,
 			ColumnVisibilityPlugin,
@@ -2224,6 +2361,45 @@ async function initGrid(modularGridModule) {
 				label: 'Search',
 				placeholder: 'Search preset id, label or type'
 			},
+			filters: {
+				zone: 'topLine2',
+				order: 10,
+				stateKey: 'filters',
+				showClearButton: true,
+				clearLabel: 'Clear filters',
+				fields: [
+					{
+						key: 'type',
+						label: 'Type',
+						type: 'select',
+						options: RESOURCE_TYPE_FILTER_OPTIONS
+					},
+					{
+						key: 'capability',
+						label: 'Capability',
+						type: 'select',
+						options: CAPABILITY_FILTER_OPTIONS
+					},
+					{
+						key: 'category',
+						label: 'Category',
+						type: 'select',
+						options: CATEGORY_FILTER_OPTIONS
+					},
+					{
+						key: 'status',
+						label: 'Status',
+						type: 'select',
+						options: STATUS_FILTER_OPTIONS
+					},
+					{
+						key: 'enabled',
+						label: 'State',
+						type: 'select',
+						options: ENABLED_FILTER_OPTIONS
+					}
+				]
+			},
 			headerMenu: {
 				showSortActions: true,
 				showClearSortAction: true,
@@ -2236,7 +2412,7 @@ async function initGrid(modularGridModule) {
 				zone: 'topLine',
 				order: 20,
 				label: 'Reset',
-				sections: ['query', 'columns', 'detailView']
+				sections: ['query', 'filters', 'columns', 'detailView']
 			},
 			info: {
 				zone: 'statusZone',
@@ -2442,6 +2618,11 @@ async function initGrid(modularGridModule) {
 	log('grid.init start');
 	await grid.init();
 	log('grid.init finished');
+	if (editorInitializationError !== '') {
+		setLog(editorInitializationError);
+		return;
+	}
+
 	setLog('Agent Component Preset Admin loaded. Column visibility and infinite scroll are enabled.');
 }
 
@@ -2452,7 +2633,8 @@ async function initGrid(modularGridModule) {
 		rootFound: !!root,
 		initialized: root ? root.dataset.initialized || '' : null,
 		endpoint: ENDPOINT_URL,
-		modularGridUrl: MODULARGRID_URL
+		modularGridUrl: MODULARGRID_URL,
+		modularDialogUrl: MODULARDIALOG_URL
 	});
 
 	if (!root || root.dataset.initialized === '1') {

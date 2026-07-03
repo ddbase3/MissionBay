@@ -1,12 +1,15 @@
 <?php
 $modularGridCssUrl = (string) $this->_['modularGridCssUrl'];
 $modularGridJsUrl = (string) $this->_['modularGridJsUrl'];
+$modularDialogCssUrl = (string) $this->_['modularDialogCssUrl'];
+$modularDialogJsUrl = (string) $this->_['modularDialogJsUrl'];
 $serviceUrl = (string) $this->_['service'];
 $valueTypeOptions = $this->_['valueTypeOptions'];
 $scopeOptions = $this->_['scopeOptions'];
 $enabledOptions = $this->_['enabledOptions'];
 ?>
 <link rel="stylesheet" href="<?php echo htmlspecialchars($modularGridCssUrl, ENT_QUOTES); ?>" />
+<link rel="stylesheet" href="<?php echo htmlspecialchars($modularDialogCssUrl, ENT_QUOTES); ?>" />
 
 <style>
 	.userpref-def-admin-shell {
@@ -233,53 +236,29 @@ $enabledOptions = $this->_['enabledOptions'];
 		color: #7a3333;
 	}
 
-	.userpref-def-admin-modal {
-		position: fixed;
-		inset: 0;
-		z-index: 9000;
-		display: none;
-		align-items: center;
-		justify-content: center;
-		padding: 24px;
-		background: rgba(0, 0, 0, 0.35);
-	}
 
-	.userpref-def-admin-modal.is-open {
-		display: flex;
-	}
-
-	.userpref-def-admin-dialog {
-		display: grid;
-		grid-template-rows: auto 1fr auto;
-		gap: 12px;
+	.userpref-def-admin-dialog-surface {
 		width: min(980px, 100%);
 		max-height: min(820px, 100%);
-		border: 1px solid #d6d6d6;
-		border-radius: 8px;
-		background: #fff;
-		box-shadow: 0 16px 50px rgba(0, 0, 0, 0.20);
-		padding: 16px;
 	}
 
-	.userpref-def-admin-dialog-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.userpref-def-admin-dialog-title {
-		margin: 0;
-		font-size: 18px;
-		line-height: 1.25;
-		font-weight: 600;
-	}
-
-	.userpref-def-admin-dialog-body {
+	.userpref-def-admin-dialog-surface .md-shell-body {
 		display: grid;
 		gap: 12px;
-		min-height: 0;
-		overflow: auto;
+	}
+
+	.userpref-def-admin-dialog-surface .md-close-button {
+		width: auto;
+		min-height: 28px;
+		padding: 4px 10px;
+		font-size: 13px;
+		line-height: 1.3;
+	}
+
+	.userpref-def-admin-editor {
+		display: grid;
+		gap: 12px;
+		min-width: 0;
 	}
 
 	.userpref-def-admin-form-row {
@@ -338,19 +317,6 @@ $enabledOptions = $this->_['enabledOptions'];
 		line-height: 1.35;
 	}
 
-	.userpref-def-admin-dialog-footer {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-	}
-
-	.userpref-def-admin-dialog-footer-main,
-	.userpref-def-admin-dialog-footer-extra {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
 
 	.userpref-def-admin-error {
 		display: none;
@@ -387,95 +353,81 @@ $enabledOptions = $this->_['enabledOptions'];
 	</div>
 </div>
 
-<div id="userpref-def-admin-modal" class="userpref-def-admin-modal" aria-hidden="true">
-	<div class="userpref-def-admin-dialog" role="dialog" aria-modal="true" aria-labelledby="userpref-def-admin-modal-title">
-		<div class="userpref-def-admin-dialog-header">
-			<h2 id="userpref-def-admin-modal-title" class="userpref-def-admin-dialog-title">Preference definition</h2>
-			<button type="button" id="userpref-def-admin-close" class="userpref-def-admin-button">Close</button>
-		</div>
 
-		<div class="userpref-def-admin-dialog-body">
-			<div id="userpref-def-admin-error" class="userpref-def-admin-error"></div>
+<template id="userpref-def-admin-editor-template">
+	<div id="userpref-def-admin-editor" class="userpref-def-admin-editor">
 
-			<input type="hidden" id="userpref-def-admin-id" />
+		<div id="userpref-def-admin-error" class="userpref-def-admin-error"></div>
 
-			<div class="userpref-def-admin-form-row-inline">
-				<label class="userpref-def-admin-form-row">
-					<span class="userpref-def-admin-form-label">Preference key</span>
-					<input type="text" id="userpref-def-admin-pref-key" class="userpref-def-admin-form-input" autocomplete="off" placeholder="answer_style" />
-				</label>
+		<input type="hidden" id="userpref-def-admin-id" />
 
-				<label class="userpref-def-admin-form-row">
-					<span class="userpref-def-admin-form-label">Description</span>
-					<input type="text" id="userpref-def-admin-description" class="userpref-def-admin-form-input" autocomplete="off" placeholder="Short admin description" />
-				</label>
-			</div>
-
-			<div class="userpref-def-admin-form-row-inline-four">
-				<label class="userpref-def-admin-form-row">
-					<span class="userpref-def-admin-form-label">Value type</span>
-					<select id="userpref-def-admin-value-type" class="userpref-def-admin-form-select">
-						<option value="string">String</option>
-						<option value="enum">Enum</option>
-						<option value="bool">Boolean</option>
-					</select>
-				</label>
-
-				<label class="userpref-def-admin-form-row">
-					<span class="userpref-def-admin-form-label">Default scope</span>
-					<select id="userpref-def-admin-default-scope" class="userpref-def-admin-form-select">
-						<option value="user">User</option>
-						<option value="session">Session</option>
-					</select>
-				</label>
-
-				<label class="userpref-def-admin-form-row">
-					<span class="userpref-def-admin-form-label">Sort order</span>
-					<input type="number" id="userpref-def-admin-sort-order" class="userpref-def-admin-form-input" value="100" />
-				</label>
-
-				<label class="userpref-def-admin-form-row">
-					<span class="userpref-def-admin-form-label">State</span>
-					<select id="userpref-def-admin-enabled" class="userpref-def-admin-form-select">
-						<option value="1">Enabled</option>
-						<option value="0">Disabled</option>
-					</select>
-				</label>
-			</div>
-
+		<div class="userpref-def-admin-form-row-inline">
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">System template</span>
-				<textarea id="userpref-def-admin-system-template" class="userpref-def-admin-form-textarea userpref-def-admin-form-textarea-large" spellcheck="false" placeholder="Antworte im Stil: {{value}}."></textarea>
-				<span class="userpref-def-admin-form-hint">Use {{value}} for string and enum values. Boolean templates are injected only when the value is true.</span>
+				<span class="userpref-def-admin-form-label">Preference key</span>
+				<input type="text" id="userpref-def-admin-pref-key" class="userpref-def-admin-form-input" autocomplete="off" placeholder="answer_style" />
 			</label>
 
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">Allowed values</span>
-				<textarea id="userpref-def-admin-allowed-values" class="userpref-def-admin-form-textarea" spellcheck="false" placeholder="[
+				<span class="userpref-def-admin-form-label">Description</span>
+				<input type="text" id="userpref-def-admin-description" class="userpref-def-admin-form-input" autocomplete="off" placeholder="Short admin description" />
+			</label>
+		</div>
+
+		<div class="userpref-def-admin-form-row-inline-four">
+			<label class="userpref-def-admin-form-row">
+				<span class="userpref-def-admin-form-label">Value type</span>
+				<select id="userpref-def-admin-value-type" class="userpref-def-admin-form-select">
+					<option value="string">String</option>
+					<option value="enum">Enum</option>
+					<option value="bool">Boolean</option>
+				</select>
+			</label>
+
+			<label class="userpref-def-admin-form-row">
+				<span class="userpref-def-admin-form-label">Default scope</span>
+				<select id="userpref-def-admin-default-scope" class="userpref-def-admin-form-select">
+					<option value="user">User</option>
+					<option value="session">Session</option>
+				</select>
+			</label>
+
+			<label class="userpref-def-admin-form-row">
+				<span class="userpref-def-admin-form-label">Sort order</span>
+				<input type="number" id="userpref-def-admin-sort-order" class="userpref-def-admin-form-input" value="100" />
+			</label>
+
+			<label class="userpref-def-admin-form-row">
+				<span class="userpref-def-admin-form-label">State</span>
+				<select id="userpref-def-admin-enabled" class="userpref-def-admin-form-select">
+					<option value="1">Enabled</option>
+					<option value="0">Disabled</option>
+				</select>
+			</label>
+		</div>
+
+		<label class="userpref-def-admin-form-row">
+			<span class="userpref-def-admin-form-label">System template</span>
+			<textarea id="userpref-def-admin-system-template" class="userpref-def-admin-form-textarea userpref-def-admin-form-textarea-large" spellcheck="false" placeholder="Antworte im Stil: {{value}}."></textarea>
+			<span class="userpref-def-admin-form-hint">Use {{value}} for string and enum values. Boolean templates are injected only when the value is true.</span>
+		</label>
+
+		<label class="userpref-def-admin-form-row">
+			<span class="userpref-def-admin-form-label">Allowed values</span>
+			<textarea id="userpref-def-admin-allowed-values" class="userpref-def-admin-form-textarea" spellcheck="false" placeholder="[
 	&quot;kurz&quot;,
 	&quot;normal&quot;,
 	&quot;ausführlich&quot;
 ]"></textarea>
-				<span id="userpref-def-admin-allowed-values-hint" class="userpref-def-admin-form-hint"></span>
-			</label>
-		</div>
-
-		<div class="userpref-def-admin-dialog-footer">
-			<div class="userpref-def-admin-dialog-footer-extra">
-				<button type="button" id="userpref-def-admin-delete-current" class="userpref-def-admin-button userpref-def-admin-button-danger">Delete</button>
-			</div>
-			<div class="userpref-def-admin-dialog-footer-main">
-				<button type="button" id="userpref-def-admin-cancel" class="userpref-def-admin-button">Cancel</button>
-				<button type="button" id="userpref-def-admin-save" class="userpref-def-admin-button userpref-def-admin-button-primary">Save</button>
-			</div>
-		</div>
+			<span id="userpref-def-admin-allowed-values-hint" class="userpref-def-admin-form-hint"></span>
+		</label>
 	</div>
-</div>
+</template>
 
 <script>
 	(function() {
 		const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 		const MODULAR_GRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+		const MODULAR_DIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 		const VALUE_TYPE_OPTIONS = <?php echo json_encode($valueTypeOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 		const SCOPE_OPTIONS = <?php echo json_encode($scopeOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 		const ENABLED_OPTIONS = <?php echo json_encode($enabledOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -484,6 +436,8 @@ $enabledOptions = $this->_['enabledOptions'];
 		const BATCH_SIZE = 50;
 
 		let grid = null;
+		let editorDialog = null;
+		let editorContent = null;
 		let currentEditorRecord = null;
 
 		function getText(value, placeholder = '-') {
@@ -654,38 +608,84 @@ $enabledOptions = $this->_['enabledOptions'];
 			window.location.reload();
 		}
 
-		function getModalElement() {
-			return document.querySelector('#userpref-def-admin-modal');
+		function createEditorContent() {
+			if(editorContent) {
+				return editorContent;
+			}
+
+			const template = document.querySelector('#userpref-def-admin-editor-template');
+
+			if(!template || !template.content) {
+				throw new Error('Preference definition editor template not found.');
+			}
+
+			const fragment = template.content.cloneNode(true);
+			const content = fragment.querySelector('#userpref-def-admin-editor');
+
+			if(!content) {
+				throw new Error('Preference definition editor content not found.');
+			}
+
+			editorContent = content;
+
+			return editorContent;
 		}
 
 		function getEditorElements() {
+			const root = editorContent;
+
 			return {
-				modal: document.querySelector('#userpref-def-admin-modal'),
-				title: document.querySelector('#userpref-def-admin-modal-title'),
-				error: document.querySelector('#userpref-def-admin-error'),
-				id: document.querySelector('#userpref-def-admin-id'),
-				prefKey: document.querySelector('#userpref-def-admin-pref-key'),
-				description: document.querySelector('#userpref-def-admin-description'),
-				valueType: document.querySelector('#userpref-def-admin-value-type'),
-				defaultScope: document.querySelector('#userpref-def-admin-default-scope'),
-				sortOrder: document.querySelector('#userpref-def-admin-sort-order'),
-				enabled: document.querySelector('#userpref-def-admin-enabled'),
-				systemTemplate: document.querySelector('#userpref-def-admin-system-template'),
-				allowedValues: document.querySelector('#userpref-def-admin-allowed-values'),
-				allowedValuesHint: document.querySelector('#userpref-def-admin-allowed-values-hint'),
-				deleteButton: document.querySelector('#userpref-def-admin-delete-current')
+				root,
+				error: root ? root.querySelector('#userpref-def-admin-error') : null,
+				id: root ? root.querySelector('#userpref-def-admin-id') : null,
+				prefKey: root ? root.querySelector('#userpref-def-admin-pref-key') : null,
+				description: root ? root.querySelector('#userpref-def-admin-description') : null,
+				valueType: root ? root.querySelector('#userpref-def-admin-value-type') : null,
+				defaultScope: root ? root.querySelector('#userpref-def-admin-default-scope') : null,
+				sortOrder: root ? root.querySelector('#userpref-def-admin-sort-order') : null,
+				enabled: root ? root.querySelector('#userpref-def-admin-enabled') : null,
+				systemTemplate: root ? root.querySelector('#userpref-def-admin-system-template') : null,
+				allowedValues: root ? root.querySelector('#userpref-def-admin-allowed-values') : null,
+				allowedValuesHint: root ? root.querySelector('#userpref-def-admin-allowed-values-hint') : null
 			};
+		}
+
+		function clearEditorErrorElement() {
+			const elements = getEditorElements();
+
+			if(elements.error) {
+				elements.error.textContent = '';
+				elements.error.classList.remove('is-visible');
+			}
+
+			if(editorDialog && typeof editorDialog.execute === 'function') {
+				editorDialog.execute('setStatus', '');
+			}
+		}
+
+		function setEditorStatus(message, type = '') {
+			if(!editorDialog || typeof editorDialog.execute !== 'function') {
+				return;
+			}
+
+			editorDialog.execute('setStatus', {
+				message: getText(message, ''),
+				type
+			});
 		}
 
 		function setEditorError(message) {
 			const elements = getEditorElements();
+			const errorText = getText(message, '');
 
-			if(!elements.error) {
-				return;
+			if(elements.error) {
+				elements.error.textContent = errorText;
+				elements.error.classList.toggle('is-visible', errorText !== '');
 			}
 
-			elements.error.textContent = getText(message, '');
-			elements.error.classList.toggle('is-visible', getText(message, '') !== '');
+			if(errorText !== '') {
+				setEditorStatus(errorText, 'error');
+			}
 		}
 
 		function updateAllowedValuesHint() {
@@ -716,19 +716,90 @@ $enabledOptions = $this->_['enabledOptions'];
 			elements.allowedValuesHint.textContent = 'Optional for string. Leave empty to allow any non-empty scalar value.';
 		}
 
+		function buildEditorButtons(isExisting) {
+			return [
+				{
+					key: 'delete',
+					label: 'Delete',
+					danger: true,
+					hidden: !isExisting,
+					async action() {
+						await deleteCurrentEditorRecord();
+					}
+				},
+				{
+					key: 'cancel',
+					label: 'Cancel',
+					action: 'close'
+				},
+				{
+					key: 'save',
+					label: 'Save',
+					primary: true,
+					busyLabel: 'Saving...',
+					async action() {
+						await saveEditor();
+					}
+				}
+			];
+		}
+
+		function initEditorDialog(modularDialogModule) {
+			if(editorDialog) {
+				return editorDialog;
+			}
+
+			if(!modularDialogModule || typeof modularDialogModule.createStandardDialog !== 'function') {
+				throw new Error('ModularDialog createStandardDialog export not found.');
+			}
+
+			const content = createEditorContent();
+
+			editorDialog = modularDialogModule.createStandardDialog({
+				id: 'userpref-def-admin-editor-dialog',
+				className: 'userpref-def-admin-dialog',
+				surfaceClassName: 'userpref-def-admin-dialog-surface',
+				size: 'large',
+				title: 'Preference definition',
+				content,
+				status: '',
+				closeButtonPlugin: {
+					label: 'Close',
+					className: 'userpref-def-admin-dialog-close'
+				},
+				statusPlugin: {
+					renderEmpty: false
+				},
+				buttons: buildEditorButtons(false)
+			});
+
+			editorDialog.on('afterClose', () => {
+				currentEditorRecord = null;
+				clearEditorErrorElement();
+			});
+
+			editorDialog.init();
+
+			return editorDialog;
+		}
+
 		function openEditor(record = null) {
 			const elements = getEditorElements();
 
-			if(!elements.modal) {
+			if(!editorDialog || !elements.root) {
+				setLog('Preference definition editor is not available.');
 				return;
 			}
 
 			currentEditorRecord = record;
-			setEditorError('');
+			clearEditorErrorElement();
 
 			const isExisting = !!record;
 
-			elements.title.textContent = isExisting ? 'Edit preference definition' : 'Add preference definition';
+			editorDialog.execute('setTitle', isExisting ? 'Edit preference definition' : 'Add preference definition');
+			editorDialog.execute('setButtons', buildEditorButtons(isExisting));
+			editorDialog.execute('setStatus', '');
+
 			elements.id.value = isExisting ? getText(record.id, '') : '';
 			elements.prefKey.value = isExisting ? getText(record.pref_key, '') : '';
 			elements.description.value = isExisting ? getText(record.description, '') : '';
@@ -738,12 +809,9 @@ $enabledOptions = $this->_['enabledOptions'];
 			elements.enabled.value = isExisting ? getText(record.enabled, '1') : '1';
 			elements.systemTemplate.value = isExisting ? getText(record.system_template, '') : '';
 			elements.allowedValues.value = isExisting ? getText(record.allowed_values_edit, '') : '';
-			elements.deleteButton.hidden = !isExisting;
 
 			updateAllowedValuesHint();
-
-			elements.modal.classList.add('is-open');
-			elements.modal.setAttribute('aria-hidden', 'false');
+			editorDialog.open({ source: 'userPrefDefinitionEditor', record });
 
 			window.setTimeout(() => {
 				if(elements.prefKey.value === '') {
@@ -756,16 +824,11 @@ $enabledOptions = $this->_['enabledOptions'];
 		}
 
 		function closeEditor() {
-			const modal = getModalElement();
-
-			if(!modal) {
+			if(!editorDialog) {
 				return;
 			}
 
-			currentEditorRecord = null;
-			setEditorError('');
-			modal.classList.remove('is-open');
-			modal.setAttribute('aria-hidden', 'true');
+			editorDialog.close({ source: 'display' });
 		}
 
 		async function loadRecord(row) {
@@ -870,28 +933,7 @@ $enabledOptions = $this->_['enabledOptions'];
 		}
 
 		function bindEditorEvents() {
-			const closeButton = document.querySelector('#userpref-def-admin-close');
-			const cancelButton = document.querySelector('#userpref-def-admin-cancel');
-			const saveButton = document.querySelector('#userpref-def-admin-save');
-			const deleteButton = document.querySelector('#userpref-def-admin-delete-current');
-			const modal = getModalElement();
 			const elements = getEditorElements();
-
-			if(closeButton) {
-				closeButton.addEventListener('click', () => closeEditor());
-			}
-
-			if(cancelButton) {
-				cancelButton.addEventListener('click', () => closeEditor());
-			}
-
-			if(saveButton) {
-				saveButton.addEventListener('click', () => saveEditor());
-			}
-
-			if(deleteButton) {
-				deleteButton.addEventListener('click', () => deleteCurrentEditorRecord());
-			}
 
 			if(elements.valueType) {
 				elements.valueType.addEventListener('change', () => updateAllowedValuesHint());
@@ -919,21 +961,6 @@ $enabledOptions = $this->_['enabledOptions'];
 					}
 				});
 			}
-
-			if(modal) {
-				modal.addEventListener('click', (event) => {
-					if(event.target === modal) {
-						closeEditor();
-					}
-				});
-			}
-
-			document.addEventListener('keydown', (event) => {
-				if(event.key === 'Escape' && modal && modal.classList.contains('is-open')) {
-					event.preventDefault();
-					closeEditor();
-				}
-			});
 		}
 
 		function createPreferenceActionsPlugin() {
@@ -973,9 +1000,19 @@ $enabledOptions = $this->_['enabledOptions'];
 			}
 
 			root.dataset.initialized = '1';
-			bindEditorEvents();
 
 			const modularGridModule = await import(MODULAR_GRID_URL);
+			let editorInitializationError = '';
+
+			try {
+				const modularDialogModule = await import(MODULAR_DIALOG_URL);
+				initEditorDialog(modularDialogModule);
+				bindEditorEvents();
+			}
+			catch(error) {
+				console.error('User preference definition editor dialog failed:', error);
+				editorInitializationError = 'Preference definition editor failed: ' + getText(error && error.message, String(error));
+			}
 
 			const {
 				AjaxAdapter,
@@ -983,6 +1020,7 @@ $enabledOptions = $this->_['enabledOptions'];
 				FiltersPlugin,
 				HeaderMenuPlugin,
 				InfoPlugin,
+				InfiniteScrollPlugin,
 				ModularGrid,
 				ResetPlugin,
 				RowActionsPlugin,
@@ -1064,7 +1102,7 @@ $enabledOptions = $this->_['enabledOptions'];
 					watchStateKeys: ['query', 'filters']
 				},
 				features: {
-					paging: true
+					paging: false
 				},
 				pageSize: BATCH_SIZE,
 				sort: {
@@ -1080,7 +1118,8 @@ $enabledOptions = $this->_['enabledOptions'];
 					RowActionsPlugin,
 					ColumnVisibilityPlugin,
 					ResetPlugin,
-					SessionStoragePlugin
+					SessionStoragePlugin,
+					InfiniteScrollPlugin
 				],
 				pluginOptions: {
 					search: {
@@ -1145,6 +1184,11 @@ $enabledOptions = $this->_['enabledOptions'];
 						zone: 'statusZone',
 						order: 10,
 						displayMode: 'loaded'
+					},
+					infiniteScroll: {
+						threshold: 180,
+						pageSize: BATCH_SIZE,
+						containerSelector: '.mg-table-scroll'
 					},
 					rowActions: {
 						headerMenu: {
@@ -1272,6 +1316,12 @@ $enabledOptions = $this->_['enabledOptions'];
 			});
 
 			await grid.init();
+
+			if(editorInitializationError !== '') {
+				setLog(editorInitializationError);
+				return;
+			}
+
 			setLog('Initial preference definitions loaded.');
 		}
 
