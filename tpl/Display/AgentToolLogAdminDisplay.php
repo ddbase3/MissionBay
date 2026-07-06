@@ -435,32 +435,14 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		color: #667587;
 	}
 
-	.agent-tool-log-filter-picker {
-		order: -100;
+	.agent-tool-log-grid .mg-compact-filters {
+		align-items: center;
+		flex-wrap: wrap;
+		row-gap: 8px;
 	}
 
-	.agent-tool-log-filter-picker .mg-select {
+	.agent-tool-log-grid .mg-compact-filter-picker .mg-select {
 		min-width: 170px;
-	}
-
-	.agent-tool-log-optional-filter-remove {
-		appearance: none;
-		border: 1px solid #d4d4d4;
-		border-radius: 999px;
-		background: #fff;
-		color: #555;
-		cursor: pointer;
-		font: inherit;
-		font-size: 11px;
-		line-height: 1;
-		min-height: 22px;
-		min-width: 22px;
-		padding: 0 6px;
-	}
-
-	.agent-tool-log-optional-filter-remove:hover {
-		background: #f5f5f5;
-		color: #222;
 	}
 
 	@media (max-width: 980px) {
@@ -500,7 +482,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		AjaxAdapter,
 		BulkActionsPlugin,
 		ColumnVisibilityPlugin,
-		FiltersPlugin,
+		CompactFiltersPlugin,
 		GroupingPlugin,
 		HeaderMenuPlugin,
 		InfoPlugin,
@@ -566,29 +548,90 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		direction: 'desc',
 		type: 'datetime'
 	};
-	const CHRONO_FILTER_FIELDS = [
-		{ key: 'created_from', label: 'Created from' },
-		{ key: 'created_to', label: 'Created to' }
-	];
 	const FILTER_FIELDS = [
-		{ key: 'tool_name', label: 'Tool', defaultValue: '', alwaysVisible: true },
-		{ key: 'user', label: 'User', defaultValue: '', alwaysVisible: true },
-		{ key: 'status', label: 'Status', defaultValue: '' },
-		{ key: 'turn_id', label: 'Turn', defaultValue: '' },
-		{ key: 'chatbot_key', label: 'Chatbot', defaultValue: '' },
-		{ key: 'config_name', label: 'Config', defaultValue: '' },
-		{ key: 'node_id', label: 'Node', defaultValue: '' },
-		{ key: 'created_from', label: 'Created from', defaultValue: '' },
-		{ key: 'created_to', label: 'Created to', defaultValue: '' }
+		{
+			key: 'tool_name',
+			label: 'Tool',
+			type: 'select',
+			defaultValue: '',
+			visibility: 'always',
+			options: TOOL_OPTIONS
+		},
+		{
+			key: 'user',
+			label: 'User',
+			type: 'text',
+			defaultValue: '',
+			visibility: 'always',
+			placeholder: 'User id or login',
+			width: 160
+		},
+		{
+			key: 'status',
+			label: 'Status',
+			type: 'select',
+			defaultValue: '',
+			visibility: 'optional',
+			options: STATUS_OPTIONS
+		},
+		{
+			key: 'turn_id',
+			label: 'Turn',
+			type: 'text',
+			defaultValue: '',
+			visibility: 'optional',
+			placeholder: 'Turn id',
+			width: 190
+		},
+		{
+			key: 'chatbot_key',
+			label: 'Chatbot',
+			type: 'text',
+			defaultValue: '',
+			visibility: 'optional',
+			placeholder: 'Chatbot key',
+			width: 190
+		},
+		{
+			key: 'config_name',
+			label: 'Config',
+			type: 'text',
+			defaultValue: '',
+			visibility: 'optional',
+			placeholder: 'Config name',
+			width: 180
+		},
+		{
+			key: 'node_id',
+			label: 'Node',
+			type: 'text',
+			defaultValue: '',
+			visibility: 'optional',
+			placeholder: 'Node id',
+			width: 140
+		},
+		{
+			key: 'created_from',
+			label: 'Created from',
+			type: 'custom',
+			defaultValue: '',
+			visibility: 'optional',
+			placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
+			width: 190,
+			renderControl: renderChronoFilterControl
+		},
+		{
+			key: 'created_to',
+			label: 'Created to',
+			type: 'custom',
+			defaultValue: '',
+			visibility: 'optional',
+			placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
+			width: 190,
+			renderControl: renderChronoFilterControl
+		}
 	];
-	const OPTIONAL_FILTER_FIELDS = FILTER_FIELDS.filter((field) => !field.alwaysVisible);
-	const FILTER_DEFAULTS = FILTER_FIELDS.reduce((carry, field) => {
-		carry[field.key] = field.defaultValue || '';
-		return carry;
-	}, {});
-
 	const chronoPickerBindings = new Map();
-	const visibleOptionalFilters = new Set();
 
 	const SORT_TYPES = {
 		id: 'int',
@@ -1705,49 +1748,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		};
 	}
 
-	function findChronoFilterInput(root, field, fallbackIndex) {
-		const exactSelector = [
-			'name="' + field.key + '"',
-			'data-key="' + field.key + '"',
-			'data-filter-key="' + field.key + '"',
-			'data-field-key="' + field.key + '"'
-		].map((part) => 'input[' + part + ']').join(',');
-		const exactInput = root.querySelector(exactSelector);
-
-		if (exactInput instanceof HTMLInputElement) {
-			return exactInput;
-		}
-
-		const groups = Array.from(root.querySelectorAll('.mg-control-group, label'));
-		for (const group of groups) {
-			const label = group.querySelector('.mg-label');
-			const labelText = label ? label.textContent.trim() : '';
-
-			if (labelText === field.label) {
-				const input = group.querySelector('input.mg-input, input');
-
-				if (input instanceof HTMLInputElement) {
-					return input;
-				}
-			}
-		}
-
-		const dateInputs = Array.from(root.querySelectorAll('input.mg-input, input')).filter((input) => {
-			if (!(input instanceof HTMLInputElement)) {
-				return false;
-			}
-
-			return String(input.placeholder || '').includes('YYYY-MM-DD');
-		});
-
-		return dateInputs[fallbackIndex] || null;
-	}
-
-	function dispatchFilterInputChanged(input) {
-		input.dispatchEvent(new Event('input', { bubbles: true }));
-		input.dispatchEvent(new Event('change', { bubbles: true }));
-	}
-
 	function repositionChronoPicker(binding) {
 		if (!binding || !binding.input || !binding.picker) {
 			return;
@@ -1785,24 +1785,17 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		window.removeEventListener('resize', binding.repositionHandler);
 		document.removeEventListener('scroll', binding.repositionHandler, true);
 
+		if (binding.input) {
+			binding.input.removeEventListener('change', binding.inputChangeHandler);
+			binding.input.removeEventListener('keydown', binding.inputKeyDownHandler);
+			delete binding.input._agentToolLogChronoPicker;
+		}
+
 		if (binding.picker && typeof binding.picker.destroy === 'function') {
 			binding.picker.destroy();
 		}
 
-		if (binding.input) {
-			delete binding.input.dataset.agentToolLogChronoPicker;
-			delete binding.input._agentToolLogChronoPicker;
-		}
-
 		chronoPickerBindings.delete(fieldKey);
-	}
-
-	function cleanupChronoPickerBindings() {
-		Array.from(chronoPickerBindings.values()).forEach((binding) => {
-			if (!binding.input || !binding.input.isConnected) {
-				destroyChronoPickerBinding(binding.fieldKey);
-			}
-		});
 	}
 
 	function scheduleChronoPickerFilterCommit(binding) {
@@ -1816,38 +1809,39 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		binding.commitTimer = window.setTimeout(() => {
 			binding.commitTimer = null;
-			dispatchFilterInputChanged(binding.input);
+			binding.setValue(binding.input.value || '');
 		}, 80);
 	}
 
-	function bindChronoPickerInput(root, field, index) {
-		const input = findChronoFilterInput(root, field, index);
+	function renderChronoFilterControl(api) {
+		const input = document.createElement('input');
+		input.type = 'text';
+		input.className = 'mg-input mg-compact-filter-control cp-input-bound';
+		input.placeholder = api.field.placeholder || '';
+		input.value = api.value || '';
+		input.name = api.field.name || api.field.key;
+		input.dataset.key = api.field.key;
+		input.dataset.filterKey = api.field.key;
+		input.dataset.mgFocusKey = 'filter-filters-' + api.field.key;
 
-		if (!(input instanceof HTMLInputElement)) {
-			return false;
+		if (api.field.width) {
+			input.style.width = String(api.field.width) + 'px';
 		}
-
-		const existingBinding = chronoPickerBindings.get(field.key);
-		if (existingBinding && existingBinding.input === input) {
-			return false;
-		}
-
-		if (existingBinding) {
-			destroyChronoPickerBinding(field.key);
-		}
-
-		input.dataset.agentToolLogChronoPicker = '1';
-		input.dataset.filterKey = field.key;
-		input.name = input.name || field.key;
-		input.classList.add('cp-input-bound');
 
 		const binding = {
-			fieldKey: field.key,
+			fieldKey: api.field.key,
 			input,
 			picker: null,
 			commitTimer: null,
-			repositionHandler: null
+			repositionHandler: null,
+			inputChangeHandler: null,
+			inputKeyDownHandler: null,
+			setValue: api.setValue
 		};
+
+		if (chronoPickerBindings.has(api.field.key)) {
+			destroyChronoPickerBinding(api.field.key);
+		}
 
 		const picker = new ChronoPicker(input, {
 			mode: 'datetime',
@@ -1882,267 +1876,31 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			return result;
 		};
 
-		picker.init();
 		binding.picker = picker;
 		binding.repositionHandler = () => repositionChronoPicker(binding);
+		binding.inputChangeHandler = () => api.setValue(input.value || '');
+		binding.inputKeyDownHandler = (event) => {
+			if (event.key === 'Enter') {
+				api.setValue(input.value || '');
+			}
+		};
 
+		input.addEventListener('change', binding.inputChangeHandler);
+		input.addEventListener('keydown', binding.inputKeyDownHandler);
 		window.addEventListener('resize', binding.repositionHandler);
 		document.addEventListener('scroll', binding.repositionHandler, true);
 
+		picker.init();
 		input._agentToolLogChronoPicker = picker;
-		chronoPickerBindings.set(field.key, binding);
 
-		return true;
-	}
+		chronoPickerBindings.set(api.field.key, binding);
 
-	function bindChronoPickerFilters(root) {
-		cleanupChronoPickerBindings();
-
-		CHRONO_FILTER_FIELDS.forEach((field, index) => {
-			bindChronoPickerInput(root, field, index);
-		});
-	}
-
-	function watchChronoPickerFilters(root) {
-		bindChronoPickerFilters(root);
-
-		const observer = new MutationObserver(() => {
-			bindChronoPickerFilters(root);
-		});
-
-		observer.observe(root, {
-			childList: true,
-			subtree: true
-		});
-	}
-
-	function getFilterPanel(root) {
-		return root.querySelector('.agent-tool-log-panel--filters');
-	}
-
-	function getFilterFieldByKey(key) {
-		return FILTER_FIELDS.find((field) => field.key === key) || null;
-	}
-
-	function getFilterFieldByLabel(label) {
-		return FILTER_FIELDS.find((field) => field.label === label) || null;
-	}
-
-	function getControlValue(control) {
-		if (!control) {
-			return '';
-		}
-
-		return String(control.value || '');
-	}
-
-	function isFilterValueDefault(key, value) {
-		return getControlValue({ value }) === String(FILTER_DEFAULTS[key] || '');
-	}
-
-	function getFilterControlFromGroup(group) {
-		const control = group.querySelector('select, input');
-
-		if (control instanceof HTMLSelectElement || control instanceof HTMLInputElement) {
-			return control;
-		}
-
-		return null;
-	}
-
-	function getFilterKeyFromGroup(group) {
-		const control = getFilterControlFromGroup(group);
-
-		if (control) {
-			const key = control.getAttribute('name')
-				|| control.dataset.key
-				|| control.dataset.filterKey
-				|| control.dataset.fieldKey
-				|| '';
-
-			if (key && getFilterFieldByKey(key)) {
-				return key;
+		return {
+			element: input,
+			destroy() {
+				destroyChronoPickerBinding(api.field.key);
 			}
-		}
-
-		const label = group.querySelector('.mg-label');
-		const labelText = label ? label.textContent.trim() : '';
-		const field = getFilterFieldByLabel(labelText);
-
-		return field ? field.key : '';
-	}
-
-	function dispatchFilterControlChanged(control) {
-		control.dispatchEvent(new Event('input', { bubbles: true }));
-		control.dispatchEvent(new Event('change', { bubbles: true }));
-	}
-
-	function resetFilterGroup(group, key) {
-		const control = getFilterControlFromGroup(group);
-
-		if (!control) {
-			return;
-		}
-
-		control.value = String(FILTER_DEFAULTS[key] || '');
-		dispatchFilterControlChanged(control);
-	}
-
-	function ensureOptionalFilterPicker(panel) {
-		let picker = panel.querySelector('.agent-tool-log-filter-picker');
-
-		if (picker) {
-			return picker;
-		}
-
-		picker = document.createElement('label');
-		picker.className = 'mg-control-group agent-tool-log-filter-picker';
-
-		const label = document.createElement('span');
-		label.className = 'mg-label';
-		label.textContent = 'Add filter';
-
-		const select = document.createElement('select');
-		select.className = 'mg-select';
-
-		picker.appendChild(label);
-		picker.appendChild(select);
-		panel.prepend(picker);
-
-		select.addEventListener('change', () => {
-			const key = select.value;
-
-			if (key !== '') {
-				visibleOptionalFilters.add(key);
-				applyOptionalFilterVisibility(panel);
-			}
-
-			select.value = '';
-		});
-
-		return picker;
-	}
-
-	function updateOptionalFilterPickerOptions(panel) {
-		const picker = ensureOptionalFilterPicker(panel);
-		const select = picker.querySelector('select');
-
-		if (!(select instanceof HTMLSelectElement)) {
-			return;
-		}
-
-		const optionKeys = OPTIONAL_FILTER_FIELDS
-			.filter((field) => !visibleOptionalFilters.has(field.key))
-			.map((field) => field.key);
-		const signature = optionKeys.join('|');
-
-		if (select.dataset.optionSignature === signature) {
-			return;
-		}
-
-		const current = select.value;
-		select.replaceChildren();
-
-		const placeholder = document.createElement('option');
-		placeholder.value = '';
-		placeholder.textContent = 'Select optional filter';
-		select.appendChild(placeholder);
-
-		optionKeys.forEach((key) => {
-			const field = getFilterFieldByKey(key);
-
-			if (!field) {
-				return;
-			}
-
-			const option = document.createElement('option');
-			option.value = field.key;
-			option.textContent = field.label;
-			select.appendChild(option);
-		});
-
-		select.dataset.optionSignature = signature;
-		select.value = optionKeys.includes(current) ? current : '';
-	}
-
-	function ensureOptionalFilterRemoveButton(group, key, panel) {
-		if (group.querySelector('.agent-tool-log-optional-filter-remove')) {
-			return;
-		}
-
-		const button = document.createElement('button');
-		button.type = 'button';
-		button.className = 'agent-tool-log-optional-filter-remove';
-		button.title = 'Remove this filter';
-		button.textContent = '×';
-		button.addEventListener('click', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-
-			resetFilterGroup(group, key);
-			visibleOptionalFilters.delete(key);
-			applyOptionalFilterVisibility(panel);
-		});
-
-		group.appendChild(button);
-	}
-
-	function applyOptionalFilterVisibility(panel) {
-		if (!panel) {
-			return;
-		}
-
-		ensureOptionalFilterPicker(panel);
-
-		Array.from(panel.querySelectorAll('.mg-control-group')).forEach((group) => {
-			if (group.classList.contains('agent-tool-log-filter-picker')) {
-				return;
-			}
-
-			const key = getFilterKeyFromGroup(group);
-			const field = key !== '' ? getFilterFieldByKey(key) : null;
-
-			if (!field) {
-				return;
-			}
-
-			const control = getFilterControlFromGroup(group);
-			const value = getControlValue(control);
-			const hasNonDefaultValue = !isFilterValueDefault(key, value);
-
-			if (field.alwaysVisible) {
-				group.style.display = '';
-				return;
-			}
-
-			if (hasNonDefaultValue) {
-				visibleOptionalFilters.add(key);
-			}
-
-			ensureOptionalFilterRemoveButton(group, key, panel);
-			group.style.display = visibleOptionalFilters.has(key) ? '' : 'none';
-		});
-
-		updateOptionalFilterPickerOptions(panel);
-	}
-
-	function watchOptionalFilterControls(root) {
-		const panel = getFilterPanel(root);
-
-		if (!panel) {
-			return;
-		}
-
-		applyOptionalFilterVisibility(panel);
-
-		const observer = new MutationObserver(() => {
-			applyOptionalFilterVisibility(panel);
-		});
-
-		observer.observe(panel, {
-			childList: true,
-			subtree: true
-		});
+		};
 	}
 
 	let grid = null;
@@ -2203,7 +1961,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			},
 			plugins: [
 				SearchPlugin,
-				FiltersPlugin,
+				CompactFiltersPlugin,
 				GroupingPlugin,
 				HeaderMenuPlugin,
 				InfoPlugin,
@@ -2223,75 +1981,17 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					label: 'Search',
 					placeholder: 'Search id, turn, user, chatbot, call id, tool, label, status, error'
 				},
-				filters: {
+				compactFilters: {
 					zone: 'topLine2',
 					order: 10,
 					stateKey: 'filters',
+					visibilityStateKey: 'filterVisibility',
 					showClearButton: true,
 					clearLabel: 'Clear filters',
-					fields: [
-						{
-							key: 'tool_name',
-							label: 'Tool',
-							type: 'select',
-							options: TOOL_OPTIONS
-						},
-						{
-							key: 'user',
-							label: 'User',
-							type: 'text',
-							placeholder: 'User id or login',
-							width: 160
-						},
-						{
-							key: 'status',
-							label: 'Status',
-							type: 'select',
-							options: STATUS_OPTIONS
-						},
-						{
-							key: 'turn_id',
-							label: 'Turn',
-							type: 'text',
-							placeholder: 'Turn id',
-							width: 190
-						},
-						{
-							key: 'chatbot_key',
-							label: 'Chatbot',
-							type: 'text',
-							placeholder: 'Chatbot key',
-							width: 190
-						},
-						{
-							key: 'config_name',
-							label: 'Config',
-							type: 'text',
-							placeholder: 'Config name',
-							width: 180
-						},
-						{
-							key: 'node_id',
-							label: 'Node',
-							type: 'text',
-							placeholder: 'Node id',
-							width: 140
-						},
-						{
-							key: 'created_from',
-							label: 'Created from',
-							type: 'text',
-							placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
-							width: 190
-						},
-						{
-							key: 'created_to',
-							label: 'Created to',
-							type: 'text',
-							placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
-							width: 190
-						}
-					]
+					addLabel: 'Add filter',
+					addPlaceholder: 'Select optional filter',
+					removeLabel: 'Remove this filter',
+					fields: FILTER_FIELDS
 				},
 				grouping: {
 					zone: 'topLine1',
@@ -2358,11 +2058,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					zone: 'topLine1',
 					order: 40,
 					label: 'Reset',
-					sections: ['query', 'filters', 'columns', 'selection', 'detailView', 'toolLogGrouping']
+					sections: ['query', 'filters', 'filterVisibility', 'columns', 'selection', 'detailView', 'toolLogGrouping']
 				},
 				sessionStorage: {
 					key: 'agent-tool-log-grid',
-					sections: ['query', 'filters', 'columns', 'selection', 'detailView', 'toolLogGrouping']
+					sections: ['query', 'filters', 'filterVisibility', 'columns', 'selection', 'detailView', 'toolLogGrouping']
 				},
 				info: {
 					zone: 'statusZone',
@@ -2666,8 +2366,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 
 		await grid.init();
-		watchChronoPickerFilters(root);
-		watchOptionalFilterControls(root);
 		setLog('Initial batch loaded. Use grouping by Turn for request-level debugging.');
 	})();
 </script>
