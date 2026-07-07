@@ -41,15 +41,11 @@ class Mcp implements IOutput {
 			header('Content-Type: application/json; charset=utf-8');
 		}
 
-		if(!$this->isPostRequest()) {
-			if($final) {
-				http_response_code(405);
-				header('Allow: POST');
-			}
+		$guard = $this->createHttpGuard();
+		$guardError = $guard->checkBeforePayload();
 
-			return $this->encode([
-				'error' => 'Method not allowed. Use POST with MCP JSON-RPC payload.'
-			]);
+		if($guardError !== null) {
+			return $this->guardErrorResponse($guardError, $final);
 		}
 
 		$profileId = trim((string)$this->request->get('profile', ''));
@@ -109,10 +105,24 @@ class Mcp implements IOutput {
 			]);
 		}
 
+		$guardError = $guard->checkAfterPayload($payload);
+
+		if($guardError !== null) {
+			return $this->guardErrorResponse($guardError, $final);
+		}
+
 		$handler = $this->createHandler();
 		$responses = [];
 
 		if($this->isList($payload)) {
+			if($payload === []) {
+				if($final) {
+					http_response_code(400);
+				}
+
+				return $this->encode($this->jsonRpcError(null, -32600, 'Invalid Request: empty batch.'));
+			}
+
 			foreach($payload as $entry) {
 				if(!is_array($entry)) {
 					$responses[] = $this->jsonRpcError(null, -32600, 'Invalid Request.');
@@ -129,6 +139,7 @@ class Mcp implements IOutput {
 			if($responses === []) {
 				if($final) {
 					http_response_code(202);
+					header('Content-Length: 0');
 				}
 
 				return '';
@@ -150,12 +161,42 @@ class Mcp implements IOutput {
 		if($response === null) {
 			if($final) {
 				http_response_code(202);
+				header('Content-Length: 0');
 			}
 
 			return '';
 		}
 
 		return $this->encode($response);
+	}
+
+
+	/**
+	 * @param array<string,mixed> $error
+	 */
+	private function guardErrorResponse(array $error, bool $final): string {
+		$body = $error['body'] ?? [
+			'jsonrpc' => '2.0',
+			'id' => null,
+			'error' => [
+				'code' => -32000,
+				'message' => 'MCP HTTP request rejected.'
+			]
+		];
+
+		$response = $this->encode($body);
+
+		if($final) {
+			http_response_code((int)($error['status'] ?? 400));
+
+			foreach(($error['headers'] ?? []) as $name => $value) {
+				header((string)$name . ': ' . (string)$value);
+			}
+
+			header('Content-Length: ' . strlen($response));
+		}
+
+		return $response;
 	}
 
 
@@ -182,6 +223,10 @@ class Mcp implements IOutput {
 		return new McpBearerAuthenticator($this->logger);
 	}
 
+	private function createHttpGuard(): McpHttpGuard {
+		return new McpHttpGuard($this->request, $this->logger);
+	}
+
 	private function createProfileRepository(): McpToolProfileRepository {
 		return new McpToolProfileRepository($this->settingsStore);
 	}
@@ -197,24 +242,22 @@ class Mcp implements IOutput {
 			$this->logger
 		);
 
+		$confirmationService = new McpConfirmationService(
+			new McpConfirmationStore($this->settingsStore),
+			$this->logger
+		);
+
 		return new McpJsonRpcHandler(
 			$profileRepository,
 			$materializer,
 			$definitionMapper,
 			$resultMapper,
+			$confirmationService,
+			$this->classMap,
 			$this->logger
 		);
 	}
 
-	private function isPostRequest(): bool {
-		$method = strtoupper((string)$this->request->server('REQUEST_METHOD', ''));
-
-		if($method !== '') {
-			return $method === 'POST';
-		}
-
-		return $this->request->getContext() === IRequest::CONTEXT_WEB_POST;
-	}
 
 	/**
 	 * @return mixed

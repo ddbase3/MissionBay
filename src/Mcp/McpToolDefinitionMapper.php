@@ -41,11 +41,56 @@ class McpToolDefinitionMapper {
 		];
 
 		$label = trim((string)($definition['label'] ?? ''));
+		$outputSchema = $this->getOutputSchema($definition, $function);
 
 		if($label !== '') {
 			$tool['title'] = $label;
 		}
 
+		if($outputSchema !== []) {
+			$tool['outputSchema'] = $outputSchema;
+		}
+
+		$annotations = $this->getAnnotations($definition, $function);
+
+		if($annotations !== []) {
+			$tool['annotations'] = $annotations;
+		}
+
 		return $tool;
+	}
+
+	/**
+	 * @param array<string,mixed> $definition
+	 * @param array<string,mixed> $function
+	 * @return array<string,mixed>
+	 */
+	private function getOutputSchema(array $definition, array $function): array {
+		if(is_array($definition['outputSchema'] ?? null)) {
+			return $definition['outputSchema'];
+		}
+
+		if(is_array($function['outputSchema'] ?? null)) {
+			return $function['outputSchema'];
+		}
+
+		return [];
+	}
+
+	/**
+	 * @param array<string,mixed> $definition
+	 * @param array<string,mixed> $function
+	 * @return array<string,mixed>
+	 */
+	private function getAnnotations(array $definition, array $function): array {
+		if(is_array($definition['annotations'] ?? null)) {
+			return $definition['annotations'];
+		}
+
+		if(is_array($function['annotations'] ?? null)) {
+			return $function['annotations'];
+		}
+
+		return [];
 	}
 }

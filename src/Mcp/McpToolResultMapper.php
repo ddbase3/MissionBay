@@ -21,7 +21,7 @@ class McpToolResultMapper {
 	 * @return array<string,mixed>
 	 */
 	public function success(mixed $result): array {
-		return [
+		$response = [
 			'content' => [
 				[
 					'type' => 'text',
@@ -29,6 +29,14 @@ class McpToolResultMapper {
 				]
 			]
 		];
+
+		$structuredContent = $this->structuredContent($result);
+
+		if($structuredContent !== []) {
+			$response['structuredContent'] = $structuredContent;
+		}
+
+		return $response;
 	}
 
 	/**
@@ -44,6 +52,33 @@ class McpToolResultMapper {
 				]
 			]
 		];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function structuredContent(mixed $value): array {
+		if(is_array($value)) {
+			if($this->isList($value)) {
+				return [];
+			}
+
+			return $value;
+		}
+
+		if($value instanceof \JsonSerializable) {
+			$json = $value->jsonSerialize();
+
+			if(is_array($json) && !$this->isList($json)) {
+				return $json;
+			}
+		}
+
+		if($value instanceof \stdClass) {
+			return (array)$value;
+		}
+
+		return [];
 	}
 
 	private function stringify(mixed $value): string {
@@ -70,5 +105,26 @@ class McpToolResultMapper {
 		}
 
 		return (string)print_r($value, true);
+	}
+
+	/**
+	 * @param array<mixed> $value
+	 */
+	private function isList(array $value): bool {
+		if(function_exists('array_is_list')) {
+			return array_is_list($value);
+		}
+
+		$expected = 0;
+
+		foreach($value as $key => $_) {
+			if($key !== $expected) {
+				return false;
+			}
+
+			$expected++;
+		}
+
+		return true;
 	}
 }

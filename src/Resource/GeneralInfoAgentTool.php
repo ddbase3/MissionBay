@@ -21,6 +21,8 @@ use Base3\Api\IClassMap;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentInfoTopicProvider;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Api\IAgentResourceProvider;
+use MissionBay\Api\IAgentPromptProvider;
 use MissionBay\Dto\AgentInfoRequest;
 use MissionBay\Dto\AgentInfoResult;
 
@@ -33,7 +35,7 @@ use MissionBay\Dto\AgentInfoResult;
  * topic-specific logic to IAgentInfoTopicProvider implementations discovered
  * through the BASE3 class map.
  */
-class GeneralInfoAgentTool extends AbstractAgentResource implements IAgentTool {
+class GeneralInfoAgentTool extends AbstractAgentResource implements IAgentTool, IAgentResourceProvider, IAgentPromptProvider {
 
 	private const TOOL_NAME = 'general_info';
 
@@ -161,6 +163,189 @@ class GeneralInfoAgentTool extends AbstractAgentResource implements IAgentTool {
 		}
 	}
 
+
+	/**
+	 * @return array<int, array<string, mixed>>
+	 */
+	public function getResourceDefinitions(IAgentContext $context): array {
+		$resources = [
+			[
+				'uri' => 'generalinfo://topics',
+				'name' => 'generalinfo-topics',
+				'title' => 'General Info Topics',
+				'description' => 'Lists all read-only General Info topics available in this MissionBay runtime.',
+				'mimeType' => 'application/json'
+			],
+			[
+				'uriTemplate' => 'generalinfo://topic/{topic}',
+				'name' => 'generalinfo-topic-template',
+				'title' => 'General Info Topic',
+				'description' => 'Reads metadata for one General Info topic. Replace {topic} with a topic id from generalinfo://topics.',
+				'mimeType' => 'application/json'
+			]
+		];
+
+		foreach ($this->listTopicMetadata() as $topic) {
+			$id = $this->normalizeToken((string)($topic['id'] ?? ''));
+
+			if ($id === '') {
+				continue;
+			}
+
+			$resources[] = [
+				'uri' => 'generalinfo://topic/' . rawurlencode($id),
+				'name' => 'generalinfo-topic-' . $id,
+				'title' => (string)($topic['title'] ?? $id),
+				'description' => (string)($topic['subtitle'] ?? ''),
+				'mimeType' => 'application/json'
+			];
+		}
+
+		return $resources;
+	}
+
+	/**
+	 * @return array<string, mixed>|null
+	 */
+	public function readResource(string $uri, IAgentContext $context): ?array {
+		if ($uri === 'generalinfo://topics') {
+			return $this->createResourceReadResult($uri, [
+				'topic' => self::TOPIC_DISCOVERY,
+				'message' => 'Available General Info topics.',
+				'items' => $this->listTopicMetadata()
+			]);
+		}
+
+		$prefix = 'generalinfo://topic/';
+
+		if (!str_starts_with($uri, $prefix)) {
+			return null;
+		}
+
+		$topic = $this->normalizeToken(rawurldecode(substr($uri, strlen($prefix))));
+		$provider = $this->resolveProvider($topic);
+
+		if (!$provider) {
+			return $this->createResourceReadResult($uri, [
+				'topic' => $topic,
+				'ok' => false,
+				'code' => 'unknown_topic',
+				'message' => 'Unsupported topic: ' . $topic,
+				'suggestions' => $this->suggestTopics($topic)
+			]);
+		}
+
+		return $this->createResourceReadResult($uri, [
+			'topic' => $this->normalizeToken($provider->getTopic()),
+			'title' => $provider->getTitle(),
+			'description' => $provider->getDescription(),
+			'aliases' => $this->normalizeAliases($provider->getTopicAliases()),
+			'priority' => $provider->getPriority(),
+			'provider' => $provider::getName()
+		]);
+	}
+
+
+	/**
+	 * @return array<int, array<string, mixed>>
+	 */
+	public function getPromptDefinitions(IAgentContext $context): array {
+		return [
+			[
+				'name' => 'generalinfo_discover_topics',
+				'title' => 'Discover General Info Topics',
+				'description' => 'Guide the model to discover available read-only General Info topics before choosing a topic-specific lookup.',
+				'arguments' => []
+			],
+			[
+				'name' => 'generalinfo_lookup',
+				'title' => 'Use General Info Lookup',
+				'description' => 'Guide the model to use the general_info tool for a specific read-only information request.',
+				'arguments' => [
+					[
+						'name' => 'topic',
+						'description' => 'Optional known General Info topic name. Use topics discovery when unknown.',
+						'required' => false
+					],
+					[
+						'name' => 'query',
+						'description' => 'Optional user request, identifier, title fragment, login, email, ref id or search text.',
+						'required' => false
+					],
+					[
+						'name' => 'scope',
+						'description' => 'Optional scope: find, summary, detail or link.',
+						'required' => false
+					]
+				]
+			]
+		];
+	}
+
+	/**
+	 * @return array<string, mixed>|null
+	 */
+	public function getPrompt(string $name, array $arguments, IAgentContext $context): ?array {
+		$name = $this->normalizeToken($name);
+
+		if ($name === 'generalinfo_discover_topics') {
+			return $this->createPromptResult(
+				'Discover available General Info topics.',
+				'Use the MissionBay general_info tool with topic "topics", scope "summary" and a small limit first. Then choose the best matching topic for the user request and continue with a second general_info call if needed.'
+			);
+		}
+
+		if ($name !== 'generalinfo_lookup') {
+			return null;
+		}
+
+		$topic = $this->normalizeToken((string)($arguments['topic'] ?? ''));
+		$query = trim((string)($arguments['query'] ?? ''));
+		$scope = $this->normalizeToken((string)($arguments['scope'] ?? self::DEFAULT_SCOPE));
+
+		if ($scope === '' || !in_array($scope, self::ALLOWED_SCOPES, true)) {
+			$scope = self::DEFAULT_SCOPE;
+		}
+
+		$lines = [
+			'Use the MissionBay general_info tool to answer the user request with read-only system information.',
+			'If the topic is unknown, first call general_info with topic "topics" to discover available topics.',
+			'Use the smallest useful scope and limit. Prefer scope "summary" before "detail" unless the user explicitly needs details.'
+		];
+
+		if ($topic !== '') {
+			$lines[] = 'Preferred topic: ' . $topic;
+		}
+
+		if ($query !== '') {
+			$lines[] = 'User request or lookup query: ' . $query;
+		}
+
+		$lines[] = 'Preferred scope: ' . $scope;
+
+		return $this->createPromptResult(
+			'Use the General Info lookup workflow.',
+			implode("\n", $lines)
+		);
+	}
+
+	/**
+	 * @return array<string, mixed>
+	 */
+	private function createPromptResult(string $description, string $text): array {
+		return [
+			'description' => $description,
+			'messages' => [[
+				'role' => 'user',
+				'content' => [
+					'type' => 'text',
+					'text' => $text
+				]
+			]]
+		];
+	}
+
+
 	/**
 	 * @param array<string, mixed> $arguments
 	 * @return AgentInfoRequest|AgentInfoResult
@@ -210,33 +395,7 @@ class GeneralInfoAgentTool extends AbstractAgentResource implements IAgentTool {
 	}
 
 	private function handleTopicDiscovery(AgentInfoRequest $request): AgentInfoResult {
-		$this->loadProviders();
-
-		$items = [];
-		foreach ($this->providers as $provider) {
-			$aliases = $this->normalizeAliases($provider->getTopicAliases());
-
-			$item = [
-				'id' => $this->normalizeToken($provider->getTopic()),
-				'title' => $provider->getTitle(),
-				'subtitle' => $provider->getDescription(),
-				'priority' => $provider->getPriority(),
-				'provider' => $provider::getName()
-			];
-
-			if ($aliases !== []) {
-				$item['aliases'] = $aliases;
-			}
-
-			$items[] = $item;
-		}
-
-		usort($items, static function(array $a, array $b): int {
-			if ((int)$a['priority'] !== (int)$b['priority']) {
-				return (int)$b['priority'] <=> (int)$a['priority'];
-			}
-			return strcmp((string)$a['id'], (string)$b['id']);
-		});
+		$items = $this->listTopicMetadata();
 
 		$total = count($items);
 		$items = array_slice($items, $request->offset, $request->limit);
@@ -278,6 +437,61 @@ class GeneralInfoAgentTool extends AbstractAgentResource implements IAgentTool {
 
 		return $candidates[0];
 	}
+
+
+	/**
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function listTopicMetadata(): array {
+		$this->loadProviders();
+
+		$items = [];
+
+		foreach ($this->providers as $provider) {
+			$aliases = $this->normalizeAliases($provider->getTopicAliases());
+
+			$item = [
+				'id' => $this->normalizeToken($provider->getTopic()),
+				'title' => $provider->getTitle(),
+				'subtitle' => $provider->getDescription(),
+				'priority' => $provider->getPriority(),
+				'provider' => $provider::getName()
+			];
+
+			if ($aliases !== []) {
+				$item['aliases'] = $aliases;
+			}
+
+			$items[] = $item;
+		}
+
+		usort($items, static function(array $a, array $b): int {
+			if ((int)$a['priority'] !== (int)$b['priority']) {
+				return (int)$b['priority'] <=> (int)$a['priority'];
+			}
+
+			return strcmp((string)$a['id'], (string)$b['id']);
+		});
+
+		return $items;
+	}
+
+	/**
+	 * @param array<string, mixed> $data
+	 * @return array<string, mixed>
+	 */
+	private function createResourceReadResult(string $uri, array $data): array {
+		$json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+		return [
+			'contents' => [[
+				'uri' => $uri,
+				'mimeType' => 'application/json',
+				'text' => is_string($json) ? $json : '{}'
+			]]
+		];
+	}
+
 
 	private function loadProviders(): void {
 		if ($this->providersLoaded) {

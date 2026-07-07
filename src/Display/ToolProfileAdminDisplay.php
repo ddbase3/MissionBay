@@ -204,6 +204,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 				'id' => $row['id'],
 				'profile_id' => $row['profile_id'],
 				'label' => $row['label'],
+				'description' => $row['description'],
 				'type' => $row['type'],
 				'enabled' => $row['enabled'],
 				'enabled_label' => $row['enabled_label'],
@@ -271,6 +272,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		$oldId = $this->normalizeTechnicalKey((string)($payload['old_id'] ?? ''));
 		$id = $this->normalizeTechnicalKey((string)($payload['id'] ?? ''));
 		$label = trim((string)($payload['label'] ?? ''));
+		$description = trim((string)($payload['description'] ?? ''));
 		$type = $this->normalizeTechnicalKey((string)($payload['type'] ?? 'mcp'));
 		$enabled = $this->toBool($payload['enabled'] ?? true);
 		$token = trim((string)($payload['token'] ?? ''));
@@ -305,6 +307,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		$profile = [
 			'id' => $id,
 			'label' => $label,
+			'description' => $description,
 			'type' => $type,
 			'enabled' => $enabled,
 			'token' => $token,
@@ -420,6 +423,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 	private function normalizeRow(string $id, array $settings): array {
 		$id = $this->normalizeTechnicalKey((string)($settings['id'] ?? $id));
 		$label = trim((string)($settings['label'] ?? ''));
+		$description = trim((string)($settings['description'] ?? ''));
 		$type = $this->normalizeTechnicalKey((string)($settings['type'] ?? 'mcp'));
 		$enabled = $this->toBool($settings['enabled'] ?? true);
 		$token = trim((string)($settings['token'] ?? ''));
@@ -437,6 +441,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		$profile = [
 			'id' => $id,
 			'label' => $label,
+			'description' => $description,
 			'type' => $type,
 			'enabled' => $enabled,
 			'token' => $token,
@@ -448,6 +453,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			'profile_id' => $id,
 			'old_id' => $id,
 			'label' => $label,
+			'description' => $description,
 			'type' => $type,
 			'enabled' => $enabled,
 			'enabled_label' => $enabled ? 'enabled' : 'disabled',
@@ -470,6 +476,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		$allowedKeys = [
 			'profile_id',
 			'label',
+			'description',
 			'type',
 			'enabled_label',
 			'token_configured_label',
@@ -546,6 +553,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			$haystack = implode("\n", [
 				(string)($row['profile_id'] ?? ''),
 				(string)($row['label'] ?? ''),
+				(string)($row['description'] ?? ''),
 				(string)($row['type'] ?? ''),
 				(string)($row['enabled_label'] ?? ''),
 				(string)($row['token_configured_label'] ?? ''),

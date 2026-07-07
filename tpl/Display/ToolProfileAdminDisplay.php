@@ -494,6 +494,12 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 				<input type="text" name="label" class="tool-profile-admin-input" />
 			</div>
 
+			<div class="tool-profile-admin-field-full">
+				<label class="tool-profile-admin-label">Description</label>
+				<textarea name="description" class="tool-profile-admin-input" rows="3"></textarea>
+				<div class="tool-profile-admin-form-hint">Short description exposed as missionbay://profile resource. Do not include secrets.</div>
+			</div>
+
 			<div>
 				<label class="tool-profile-admin-label">Type</label>
 				<select name="type" class="tool-profile-admin-select">
@@ -1109,6 +1115,7 @@ function openProfileEditor(record) {
 	setFormValue(form, 'old_id', oldIdValue);
 	setFormValue(form, 'id', record.profile_id || record.id || '');
 	setFormValue(form, 'label', record.label || '');
+	setFormValue(form, 'description', record.description || '');
 	setSelectValue(form, 'type', record.type || 'mcp');
 	setFormValue(form, 'token', record.token || '');
 	setToolCheckboxValues(form, Array.isArray(record.tools) ? record.tools : []);
@@ -1145,6 +1152,7 @@ function openNewProfileEditor() {
 		profile_id: '',
 		id: '',
 		label: '',
+		description: '',
 		type: 'mcp',
 		enabled: true,
 		token: '',
@@ -1257,6 +1265,7 @@ function buildEditorPayload(options = {}) {
 		old_id: getFormFieldValue(form, 'old_id'),
 		id: getFormFieldValue(form, 'id'),
 		label: getFormFieldValue(form, 'label'),
+		description: getFormFieldValue(form, 'description'),
 		type: getFormFieldValue(form, 'type'),
 		enabled: form.elements.namedItem('enabled').checked,
 		token: getFormFieldValue(form, 'token'),

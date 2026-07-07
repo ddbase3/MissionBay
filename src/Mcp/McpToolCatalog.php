@@ -6,9 +6,11 @@
 
 namespace MissionBay\Mcp;
 
+use Base3\Api\IOutputSchemaProvider;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Api\IConfirmableAgentTool;
 
 /**
  * McpToolCatalog
@@ -55,11 +57,15 @@ class McpToolCatalog {
 	 * @param array<string,mixed> $arguments
 	 */
 	public function call(string $name, array $arguments, IAgentContext $context): mixed {
+		return $this->getTool($name)->callTool($name, $arguments, $context);
+	}
+
+	public function getTool(string $name): IAgentTool {
 		if(!isset($this->toolsByName[$name])) {
 			throw new \InvalidArgumentException('Unknown MCP tool: ' . $name);
 		}
 
-		return $this->toolsByName[$name]->callTool($name, $arguments, $context);
+		return $this->toolsByName[$name];
 	}
 
 	/**
@@ -70,6 +76,8 @@ class McpToolCatalog {
 			if(!$tool instanceof IAgentTool) {
 				continue;
 			}
+
+			$outputSchemas = $this->getOutputSchemas($tool);
 
 			foreach($tool->getToolDefinitions() as $definition) {
 				if(!is_array($definition)) {
@@ -89,10 +97,92 @@ class McpToolCatalog {
 					]);
 				}
 
+				$definition = $this->withOutputSchema($definition, $outputSchemas[$name] ?? []);
+				$definition = $this->withDefaultAnnotations($definition, $tool);
+
 				$this->definitions[] = $definition;
 				$this->toolsByName[$name] = $tool;
 			}
 		}
+	}
+
+	/**
+	 * @return array<string,array<string,mixed>>
+	 */
+	private function getOutputSchemas(IAgentTool $tool): array {
+		if(!$tool instanceof IOutputSchemaProvider) {
+			return [];
+		}
+
+		$schemas = [];
+
+		foreach($tool->getOutputSchemas() as $name => $schema) {
+			$name = trim((string)$name);
+
+			if($name === '' || !is_array($schema)) {
+				continue;
+			}
+
+			$schemas[$name] = $schema;
+		}
+
+		return $schemas;
+	}
+
+	/**
+	 * @param array<string,mixed> $definition
+	 * @param array<string,mixed> $outputSchema
+	 * @return array<string,mixed>
+	 */
+	private function withOutputSchema(array $definition, array $outputSchema): array {
+		if($outputSchema === []) {
+			return $definition;
+		}
+
+		if(isset($definition['outputSchema']) && is_array($definition['outputSchema'])) {
+			return $definition;
+		}
+
+		if(isset($definition['function']) && is_array($definition['function'])) {
+			if(isset($definition['function']['outputSchema']) && is_array($definition['function']['outputSchema'])) {
+				return $definition;
+			}
+
+			$definition['function']['outputSchema'] = $outputSchema;
+			return $definition;
+		}
+
+		$definition['outputSchema'] = $outputSchema;
+
+		return $definition;
+	}
+
+	/**
+	 * @param array<string,mixed> $definition
+	 * @return array<string,mixed>
+	 */
+	private function withDefaultAnnotations(array $definition, IAgentTool $tool): array {
+		if(!$tool instanceof IConfirmableAgentTool) {
+			return $definition;
+		}
+
+		$annotations = [
+			'readOnlyHint' => false,
+			'destructiveHint' => true,
+			'idempotentHint' => false,
+			'openWorldHint' => true
+		];
+
+		if(isset($definition['function']) && is_array($definition['function'])) {
+			$existing = is_array($definition['function']['annotations'] ?? null) ? $definition['function']['annotations'] : [];
+			$definition['function']['annotations'] = array_merge($annotations, $existing);
+			return $definition;
+		}
+
+		$existing = is_array($definition['annotations'] ?? null) ? $definition['annotations'] : [];
+		$definition['annotations'] = array_merge($annotations, $existing);
+
+		return $definition;
 	}
 
 	/**
