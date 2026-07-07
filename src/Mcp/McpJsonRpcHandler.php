@@ -20,13 +20,14 @@ use MissionBay\Api\IAgentPromptProvider;
 class McpJsonRpcHandler {
 
 	private const LOG_SCOPE = 'missionbay_mcp';
-	private const PROTOCOL_VERSION = '2025-06-18';
+	private const PROTOCOL_VERSION = '2025-11-25';
 	private const PAGE_SIZE = 50;
 
 	/**
 	 * @var array<int,string>
 	 */
 	private const SUPPORTED_PROTOCOL_VERSIONS = [
+		'2025-11-25',
 		'2025-06-18',
 		'2025-03-26'
 	];

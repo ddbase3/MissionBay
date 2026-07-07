@@ -5,6 +5,7 @@ URL="${1:-}"
 TOKEN="${2:-}"
 PROFILE_ID="${3:-}"
 REQUIRE_ILIAS_CONTEXT="${MCP_REQUIRE_ILIAS_CONTEXT:-0}"
+PROTOCOL_VERSION="${MCP_PROTOCOL_VERSION:-2025-11-25}"
 
 if [ "$PROFILE_ID" = "--require-ilias-context" ]; then
 	PROFILE_ID=""
@@ -199,79 +200,79 @@ print_debug() {
 
 COMMON_ACCEPT='application/json, text/event-stream'
 
-run_request initialize POST "$TOKEN" "$COMMON_ACCEPT" '' '' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"mcp-smoke","version":"1"}}}'
+run_request initialize POST "$TOKEN" "$COMMON_ACCEPT" '' '' "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"$PROTOCOL_VERSION\",\"capabilities\":{},\"clientInfo\":{\"name\":\"mcp-smoke\",\"version\":\"1\"}}}"
 assert_status initialize 200
-assert_json_value initialize result.protocolVersion '2025-06-18'
+assert_json_value initialize result.protocolVersion "$PROTOCOL_VERSION"
 assert_json_value initialize result.serverInfo.version '1.0.0'
 
-run_request initialized POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
+run_request initialized POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
 assert_status initialized 202
 assert_body_empty initialized
 
-run_request cancelled POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"smoke-cancel","reason":"smoke test"}}'
+run_request cancelled POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"smoke-cancel","reason":"smoke test"}}'
 assert_status cancelled 202
 assert_body_empty cancelled
 
-run_request ping POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":19,"method":"ping","params":{}}'
+run_request ping POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":19,"method":"ping","params":{}}'
 assert_status ping 200
 assert_json_value ping jsonrpc '2.0'
 assert_json_value ping result '{}'
 
-run_request tools_list POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+run_request tools_list POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 assert_status tools_list 200
 assert_json_value tools_list jsonrpc '2.0'
 assert_json_value tools_list result.tools.0.name 'missionbay_confirm_action'
 assert_json_value tools_list result.tools.0.annotations.destructiveHint 'true'
 assert_json_value tools_list result.tools.0.outputSchema.type 'object'
 
-run_request tools_list_cursor POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":21,"method":"tools/list","params":{"cursor":"0"}}'
+run_request tools_list_cursor POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":21,"method":"tools/list","params":{"cursor":"0"}}'
 assert_status tools_list_cursor 200
 assert_json_value tools_list_cursor jsonrpc '2.0'
 assert_body_contains tools_list_cursor 'missionbay_confirm_action'
 
-run_request invalid_tools_cursor POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":22,"method":"tools/list","params":{"cursor":"not-a-cursor"}}'
+run_request invalid_tools_cursor POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":22,"method":"tools/list","params":{"cursor":"not-a-cursor"}}'
 assert_status invalid_tools_cursor 200
 assert_json_value invalid_tools_cursor error.code '-32602'
 assert_body_contains invalid_tools_cursor 'Invalid tools/list cursor'
 
-run_request general_info POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"general_info","arguments":{"topic":"topics","scope":"summary","limit":1}}}'
+run_request general_info POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"general_info","arguments":{"topic":"topics","scope":"summary","limit":1}}}'
 assert_status general_info 200
 assert_json_value general_info jsonrpc '2.0'
 assert_json_value general_info result.content.0.type 'text'
 
-run_request empty_batch POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '[]'
+run_request empty_batch POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '[]'
 assert_status empty_batch 400
 assert_json_value empty_batch error.code '-32600'
 assert_body_contains empty_batch 'empty batch'
 
-run_request missing_confirmation POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"missionbay_confirm_action","arguments":{"confirmation_id":"mcp-cnf-does-not-exist","decision":"accept"}}}'
+run_request missing_confirmation POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":15,"method":"tools/call","params":{"name":"missionbay_confirm_action","arguments":{"confirmation_id":"mcp-cnf-does-not-exist","decision":"accept"}}}'
 assert_status missing_confirmation 200
 assert_json_value missing_confirmation result.isError 'true'
 assert_body_contains missing_confirmation 'Confirmation not found'
 
-run_request resources_list POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":10,"method":"resources/list","params":{}}'
+run_request resources_list POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":10,"method":"resources/list","params":{}}'
 assert_status resources_list 200
 assert_json_value resources_list jsonrpc '2.0'
 assert_body_contains resources_list 'generalinfo://topics'
 
-run_request resource_templates_list POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":17,"method":"resources/templates/list","params":{}}'
+run_request resource_templates_list POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":17,"method":"resources/templates/list","params":{}}'
 assert_status resource_templates_list 200
 assert_json_value resource_templates_list jsonrpc '2.0'
 assert_body_contains resource_templates_list 'generalinfo://topic/{topic}'
 
-run_request resource_topics POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":11,"method":"resources/read","params":{"uri":"generalinfo://topics"}}'
+run_request resource_topics POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":11,"method":"resources/read","params":{"uri":"generalinfo://topics"}}'
 assert_status resource_topics 200
 assert_json_value resource_topics result.contents.0.uri 'generalinfo://topics'
 
 if [ -n "$PROFILE_ID" ]; then
-	run_request resource_profile POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"resources/read\",\"params\":{\"uri\":\"missionbay://profile/$PROFILE_ID\"}}"
+	run_request resource_profile POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"resources/read\",\"params\":{\"uri\":\"missionbay://profile/$PROFILE_ID\"}}"
 	assert_status resource_profile 200
 	assert_json_value resource_profile result.contents.0.uri "missionbay://profile/$PROFILE_ID"
 fi
 
 
 if grep -q 'ilias://context/current' "$TMP_DIR/resources_list.body"; then
-	run_request resource_ilias_context POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":16,"method":"resources/read","params":{"uri":"ilias://context/current"}}'
+	run_request resource_ilias_context POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":16,"method":"resources/read","params":{"uri":"ilias://context/current"}}'
 	assert_status resource_ilias_context 200
 	assert_json_value resource_ilias_context result.contents.0.uri 'ilias://context/current'
 else
@@ -285,35 +286,35 @@ else
 fi
 
 
-run_request prompts_list POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":13,"method":"prompts/list","params":{}}'
+run_request prompts_list POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":13,"method":"prompts/list","params":{}}'
 assert_status prompts_list 200
 assert_json_value prompts_list jsonrpc '2.0'
 assert_body_contains prompts_list 'generalinfo_lookup'
 
-run_request prompts_list_cursor POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":18,"method":"prompts/list","params":{"cursor":"0"}}'
+run_request prompts_list_cursor POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":18,"method":"prompts/list","params":{"cursor":"0"}}'
 assert_status prompts_list_cursor 200
 assert_json_value prompts_list_cursor jsonrpc '2.0'
 assert_body_contains prompts_list_cursor 'generalinfo_lookup'
 
-run_request prompt_generalinfo POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":14,"method":"prompts/get","params":{"name":"generalinfo_lookup","arguments":{"topic":"topics","scope":"summary"}}}'
+run_request prompt_generalinfo POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":14,"method":"prompts/get","params":{"name":"generalinfo_lookup","arguments":{"topic":"topics","scope":"summary"}}}'
 assert_status prompt_generalinfo 200
 assert_json_value prompt_generalinfo result.messages.0.role 'user'
 assert_json_value prompt_generalinfo result.messages.0.content.type 'text'
 
 
-run_request wrong_token POST 'wrong-token' "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}'
+run_request wrong_token POST 'wrong-token' "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}}'
 assert_status wrong_token 401
 assert_json_value wrong_token error.message 'Unauthorized'
 
-run_request unknown_method POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":5,"method":"does/not/exist","params":{}}'
+run_request unknown_method POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":5,"method":"does/not/exist","params":{}}'
 assert_status unknown_method 200
 assert_json_value unknown_method error.code '-32601'
 
-run_request unknown_tool POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"does_not_exist","arguments":{}}}'
+run_request unknown_tool POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"does_not_exist","arguments":{}}}'
 assert_status unknown_tool 200
 assert_json_value unknown_tool result.isError 'true'
 
-run_request get_rejected GET "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' '' ''
+run_request get_rejected GET "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" '' ''
 assert_status get_rejected 405
 assert_body_contains get_rejected 'Method not allowed'
 
@@ -321,11 +322,11 @@ run_request invalid_protocol POST "$TOKEN" "$COMMON_ACCEPT" '1900-01-01' '' '{"j
 assert_status invalid_protocol 400
 assert_body_contains invalid_protocol 'Unsupported MCP-Protocol-Version'
 
-run_request invalid_accept POST "$TOKEN" 'text/html' '2025-06-18' '' '{"jsonrpc":"2.0","id":8,"method":"tools/list","params":{}}'
+run_request invalid_accept POST "$TOKEN" 'text/html' "$PROTOCOL_VERSION" '' '{"jsonrpc":"2.0","id":8,"method":"tools/list","params":{}}'
 assert_status invalid_accept 406
 assert_body_contains invalid_accept 'Not acceptable'
 
-run_request foreign_origin POST "$TOKEN" "$COMMON_ACCEPT" '2025-06-18' 'https://evil.example' '{"jsonrpc":"2.0","id":9,"method":"tools/list","params":{}}'
+run_request foreign_origin POST "$TOKEN" "$COMMON_ACCEPT" "$PROTOCOL_VERSION" 'https://evil.example' '{"jsonrpc":"2.0","id":9,"method":"tools/list","params":{}}'
 assert_status foreign_origin 403
 assert_body_contains foreign_origin 'Forbidden Origin'
 

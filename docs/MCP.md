@@ -57,10 +57,10 @@ Clients should send:
 Authorization: Bearer <profile-token>
 Content-Type: application/json
 Accept: application/json, text/event-stream
-MCP-Protocol-Version: 2025-06-18
+MCP-Protocol-Version: 2025-11-25
 ```
 
-Missing `MCP-Protocol-Version` is tolerated for compatibility. Unsupported protocol versions are rejected.
+Missing `MCP-Protocol-Version` is tolerated for compatibility. Supported protocol versions are `2025-11-25`, `2025-06-18` and `2025-03-26`. Unsupported protocol versions are rejected.
 
 ## Supported MCP methods
 
