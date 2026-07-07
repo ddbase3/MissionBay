@@ -53,9 +53,6 @@ use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IAgentToolOrchestratorFactory;
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
 use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Orchestrator\AgentToolOrchestratorFactory;
 use MissionBay\Profile\AgentAssistantToolSetupFactory;
@@ -117,26 +114,19 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentAssistantToolSetupFactory::class),
 				$c->get(IAgentToolOrchestratorFactory::class),
 				$c->get(IAgentAssistantFallbackBuilder::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+
+			->set(MissionBayToolEventDisplayListener::class, fn($c) => new MissionBayToolEventDisplayListener(
+				$c->get(IDatabase::class),
+				$c->get(IUsermanager::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE);
-
-		// Events
-		$listener = new MissionBayToolEventDisplayListener(
-			$this->container->get(IDatabase::class),
-			$this->container->get(IUsermanager::class)
-		);
-
-		$eventManager = $this->container->get(IEventManager::class);
-
-		$eventManager->on(MissionBayToolStartedEvent::class, [$listener, 'onToolStarted']);
-		$eventManager->on(MissionBayToolFinishedEvent::class, [$listener, 'onToolFinished']);
-		$eventManager->on(MissionBayToolFailedEvent::class, [$listener, 'onToolFailed']);
 	}
 
 	// Implementation of ICheck
 
 	public function checkDependencies() {
 		return array(
-			'assistantfoundationplugin_installed' => $this->container->get('assistantfoundationplugin') ? 'Ok' : 'assistantfoundationplugin not installed'
+			'assistantfoundationplugin_installed' => $this->container->has('assistantfoundationplugin') ? 'Ok' : 'assistantfoundationplugin not installed'
 		);
 	}
 }
