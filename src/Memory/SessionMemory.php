@@ -17,7 +17,7 @@
 
 namespace MissionBay\Memory;
 
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 use Base3\Session\Api\ISession;
 
 class SessionMemory implements IAgentMemory {

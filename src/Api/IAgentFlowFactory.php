@@ -17,7 +17,7 @@
 
 namespace MissionBay\Api;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 
 /**
  * Factory interface for creating agent flows from definitions or templates.

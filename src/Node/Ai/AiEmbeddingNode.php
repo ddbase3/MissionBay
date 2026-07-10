@@ -18,7 +18,7 @@
 namespace MissionBay\Node\Ai;
 
 use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentVectorStore;
 use MissionBay\Api\IAgentContentExtractor;
 use MissionBay\Api\IAgentContentParser;

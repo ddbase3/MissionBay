@@ -19,7 +19,7 @@ namespace MissionBay\Resource;
 
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
 use stdClass;
 

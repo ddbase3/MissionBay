@@ -21,9 +21,9 @@ use Base3\Api\ISchemaProvider;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentKnowledgeService;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentTool;
 
 class KnowledgeAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool, ISchemaProvider {

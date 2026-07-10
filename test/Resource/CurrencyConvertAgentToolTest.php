@@ -29,8 +29,8 @@ use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\CurrencyConvertAgentTool;
 use MissionBay\Resource\FakeHttpState;
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
 
 class CurrencyConvertAgentToolTest extends TestCase {
 

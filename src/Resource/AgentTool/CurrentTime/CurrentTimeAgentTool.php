@@ -18,7 +18,7 @@
 namespace MissionBay\Resource\AgentTool\CurrentTime;
 
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Resource\AbstractAgentResource;
 
 /**

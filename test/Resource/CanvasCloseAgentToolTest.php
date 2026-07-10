@@ -4,9 +4,9 @@ namespace MissionBay\Resource\Test;
 
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\CanvasCloseAgentTool;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 
 class CanvasCloseAgentToolTest extends TestCase {
 

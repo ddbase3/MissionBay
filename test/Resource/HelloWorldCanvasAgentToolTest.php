@@ -4,8 +4,8 @@ namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\HelloWorldCanvasAgentTool;
-use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
 
 /**
  * @covers \MissionBay\Resource\HelloWorldCanvasAgentTool

@@ -50,7 +50,7 @@ This file describes all available node types with names, classes, inputs, output
 namespace MissionBay\Node;
 
 use MissionBay\Agent\AgentNodePort;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 
 class StringReverserNode extends AbstractAgentNode {
 

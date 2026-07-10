@@ -7,7 +7,7 @@ use Base3\Api\IOutput;
 use Base3\Api\IRequest;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 
 class ChatbotService implements IOutput {
 

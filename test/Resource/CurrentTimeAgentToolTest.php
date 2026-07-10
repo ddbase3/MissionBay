@@ -5,8 +5,8 @@ namespace MissionBay\Resource\Test;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\CurrentTimeAgentTool;
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
 
 class CurrentTimeAgentToolTest extends TestCase {
 
@@ -127,11 +127,11 @@ if (!class_exists(\MissionBay\Resource\CurrentTimeAgentTool::class)) {
 }
 
 // Minimal context implementation
-$ctx = new class implements \MissionBay\Api\IAgentContext {
+$ctx = new class implements \AssistantFoundation\Api\IAgentContext {
 	public static function getName(): string { return 'ct_subprocess_context'; }
 
-	public function getMemory(): \MissionBay\Api\IAgentMemory {
-		return new class implements \MissionBay\Api\IAgentMemory {
+	public function getMemory(): \AssistantFoundation\Api\IAgentMemory {
+		return new class implements \AssistantFoundation\Api\IAgentMemory {
 			public static function getName(): string { return 'ct_subprocess_memory'; }
 			public function loadNodeHistory(string $nodeId): array { return []; }
 			public function appendNodeHistory(string $nodeId, array $message): void {}
@@ -141,7 +141,7 @@ $ctx = new class implements \MissionBay\Api\IAgentContext {
 		};
 	}
 
-	public function setMemory(\MissionBay\Api\IAgentMemory $memory): void {}
+	public function setMemory(\AssistantFoundation\Api\IAgentMemory $memory): void {}
 	public function setVar(string $key, mixed $value): void {}
 	public function getVar(string $key): mixed { return null; }
 	public function forgetVar(string $key): void {}

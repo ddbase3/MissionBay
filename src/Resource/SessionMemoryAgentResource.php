@@ -22,8 +22,8 @@ use Base3\Logger\Api\ILogger;
 use Base3\Session\Api\ISession;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
 
 class SessionMemoryAgentResource extends AbstractAgentResource implements IAgentMemory, ISchemaProvider {
 

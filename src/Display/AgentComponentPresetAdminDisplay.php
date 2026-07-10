@@ -26,7 +26,7 @@ use Base3\Api\IRequest;
 use Base3\Api\ISchemaProvider;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;
 use Throwable;

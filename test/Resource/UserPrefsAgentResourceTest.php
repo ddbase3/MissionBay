@@ -8,7 +8,7 @@ use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
 use Base3\Session\Api\ISession;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Resource\UserPrefsAgentResource;
 
 /**

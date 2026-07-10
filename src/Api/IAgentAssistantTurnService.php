@@ -17,6 +17,8 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Api\IAgentContext;
+
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;

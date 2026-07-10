@@ -8,7 +8,7 @@ namespace MissionBay\Mcp;
 
 use Base3\Api\IOutputSchemaProvider;
 use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IConfirmableAgentTool;
 

@@ -20,7 +20,7 @@ namespace MissionBay\Service\Assistant;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentAssistantMemoryService;
 use MissionBay\Api\IAgentAssistantMessageFactory;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 
 final class AgentAssistantMemoryService implements IAgentAssistantMemoryService {
 

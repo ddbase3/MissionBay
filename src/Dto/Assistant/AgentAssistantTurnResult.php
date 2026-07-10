@@ -17,7 +17,7 @@
 
 namespace MissionBay\Dto\Assistant;
 
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 
 final class AgentAssistantTurnResult {

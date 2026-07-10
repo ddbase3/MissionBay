@@ -4,7 +4,7 @@ namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\DummyExtractorAgentResource;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Dto\AgentContentItem;
 
 /**

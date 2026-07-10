@@ -17,7 +17,7 @@
 
 namespace MissionBay\Node\Core;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
 use Base3\Configuration\Api\IConfiguration;
 use MissionBay\Node\AbstractAgentNode;

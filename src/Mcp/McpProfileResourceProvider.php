@@ -6,7 +6,7 @@
 
 namespace MissionBay\Mcp;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentResourceProvider;
 
 /**

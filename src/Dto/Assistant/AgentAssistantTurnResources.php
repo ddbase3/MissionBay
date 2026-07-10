@@ -19,7 +19,7 @@ namespace MissionBay\Dto\Assistant;
 
 use AssistantFoundation\Api\IAiChatModel;
 use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentProfileSelector;
 use MissionBay\Api\IAgentTool;
 

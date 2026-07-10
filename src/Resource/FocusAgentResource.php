@@ -24,8 +24,8 @@ use Base3\Session\Api\ISession;
 use Base3\Usermanager\Api\IUsermanager;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentTool;
 
 class FocusAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool {

@@ -22,7 +22,7 @@ use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\ISearchService;
 use MissionBay\Connection\ConnectionConfig;

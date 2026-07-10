@@ -17,9 +17,9 @@
 
 namespace MissionBay\Resource;
 
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Agent\AgentNodeDock;
 use Base3\Database\Api\IDatabase;
 use Base3\Accesscontrol\Api\IAccesscontrol;

@@ -17,6 +17,8 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Api\IAgentMemory;
+
 use Base3\Logger\Api\ILogger;
 
 interface IAgentAssistantMemoryService {

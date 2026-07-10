@@ -17,7 +17,7 @@
 
 namespace MissionBay\Context;
 
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 
 /**
  * Extended context for subflows, with prioritized lookup in extraVars.

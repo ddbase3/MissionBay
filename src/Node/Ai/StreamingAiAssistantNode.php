@@ -26,7 +26,7 @@ use MissionBay\Api\IAgentAssistantFallbackBuilder;
 use MissionBay\Api\IAgentAssistantFinalResponseService;
 use MissionBay\Api\IAgentAssistantMemoryService;
 use MissionBay\Api\IAgentAssistantTurnService;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
 
 /**

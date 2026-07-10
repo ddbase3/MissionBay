@@ -17,6 +17,8 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Api\IAgentContext;
+
 use MissionBay\Dto\AgentContentItem;
 
 /**

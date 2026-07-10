@@ -9,7 +9,7 @@ namespace MissionBay\Mcp;
 use Base3\Api\IClassMap;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;

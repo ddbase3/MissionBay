@@ -4,7 +4,7 @@ namespace MissionBay\Resource\Test;
 
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\AbstractAgentResource;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 
 class AbstractAgentResourceTest extends TestCase {
 

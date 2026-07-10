@@ -17,7 +17,7 @@
 
 namespace MissionBay\Memory;
 
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 
 class VolatileMemory implements IAgentMemory {
 

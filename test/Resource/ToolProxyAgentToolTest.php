@@ -3,7 +3,7 @@
 namespace MissionBay\Test\Resource;
 
 use PHPUnit\Framework\TestCase;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Resource\ToolProxyAgentTool;
 

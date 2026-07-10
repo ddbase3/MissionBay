@@ -2,7 +2,7 @@
 
 namespace MissionBay\Node;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
 
 class SimpleOpenAiNode extends AbstractAgentNode {

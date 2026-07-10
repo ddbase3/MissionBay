@@ -22,7 +22,7 @@ use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 
 final class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
 

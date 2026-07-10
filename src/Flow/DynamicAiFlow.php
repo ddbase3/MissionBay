@@ -18,7 +18,7 @@
 namespace MissionBay\Flow;
 
 use MissionBay\Api\IAgentFlow;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentNode;
 use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentResource;

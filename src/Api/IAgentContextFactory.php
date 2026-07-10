@@ -17,6 +17,9 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
+
 /**
  * Factory interface for creating agent context instances.
  */

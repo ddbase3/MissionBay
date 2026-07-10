@@ -17,9 +17,9 @@
 
 namespace MissionBay\Agent;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentMemory;
 use Base3\Api\IClassMap;
 
 class AgentContextFactory implements IAgentContextFactory {

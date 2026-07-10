@@ -20,7 +20,7 @@ namespace MissionBay\Resource;
 use AssistantFoundation\Api\IAiChatModel;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentResource;
 

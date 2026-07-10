@@ -5,7 +5,7 @@ namespace MissionBay\Resource\Test;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\CrmProductXrmExtractorAgentResource;
 use MissionBay\Api\IAgentContentExtractor;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Dto\AgentContentItem;
 use ResourceFoundation\Api\IEntityDataService;
 

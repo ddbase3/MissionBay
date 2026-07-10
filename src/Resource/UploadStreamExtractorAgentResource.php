@@ -18,7 +18,7 @@
 namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentContentExtractor;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Dto\AgentContentItem;
 
 /**

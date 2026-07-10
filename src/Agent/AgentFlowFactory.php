@@ -21,7 +21,7 @@ use Base3\Api\IClassMap;
 use MissionBay\Api\IAgentFlow;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Api\IAgentNodeFactory;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 
 class AgentFlowFactory implements IAgentFlowFactory {
 

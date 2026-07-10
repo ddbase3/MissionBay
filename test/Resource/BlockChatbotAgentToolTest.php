@@ -4,7 +4,7 @@ namespace MissionBay\Resource\Test;
 
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\BlockChatbotAgentTool;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
 
 class BlockChatbotAgentToolTest extends TestCase {

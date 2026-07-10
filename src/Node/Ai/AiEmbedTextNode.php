@@ -19,7 +19,7 @@ namespace MissionBay\Node\Ai;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Node\AbstractAgentNode;

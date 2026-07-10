@@ -17,8 +17,8 @@
 
 namespace MissionBay\Resource\AgentMemory\Time;
 
-use MissionBay\Api\IAgentMemory;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Resource\AbstractAgentResource;
 

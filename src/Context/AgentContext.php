@@ -17,8 +17,8 @@
 
 namespace MissionBay\Context;
 
-use MissionBay\Api\IAgentContext;
-use MissionBay\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Router\StrictConnectionRouter;
 use MissionBay\Memory\NoMemory;
 

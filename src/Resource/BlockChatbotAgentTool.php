@@ -18,7 +18,7 @@
 namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 
 /**
  * BlockChatbotAgentTool

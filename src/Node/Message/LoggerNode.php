@@ -17,7 +17,7 @@
 
 namespace MissionBay\Node\Message;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Agent\AgentNodePort;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Node\AbstractAgentNode;

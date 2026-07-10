@@ -18,7 +18,7 @@
 namespace MissionBay\Resource\AgentTool\WebFetchText;
 
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Resource\AbstractAgentResource;
 
 final class WebFetchTextAgentTool extends AbstractAgentResource implements IAgentTool {

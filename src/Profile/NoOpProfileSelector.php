@@ -17,7 +17,7 @@
 
 namespace MissionBay\Profile;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentProfileSelector;
 
 final class NoOpProfileSelector implements IAgentProfileSelector {

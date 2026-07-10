@@ -18,7 +18,7 @@
 namespace MissionBay\Node;
 
 use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Agent\AgentNodeDock;
 
 abstract class AbstractAgentNode implements IAgentNode {

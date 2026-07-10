@@ -18,7 +18,7 @@
 namespace MissionBay\Profile;
 
 use MissionBay\Api\IAgentAssistantToolSetupFactory;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentProfileSelector;
 use MissionBay\Dto\Assistant\AgentAssistantToolSetup;
 

@@ -17,7 +17,7 @@
 
 namespace MissionBay\Resource;
 
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Agent\AgentNodeDock;
 

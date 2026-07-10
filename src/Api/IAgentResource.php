@@ -17,6 +17,8 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Api\IAgentContext;
+
 use Base3\Api\IBase;
 use MissionBay\Agent\AgentNodeDock;
 

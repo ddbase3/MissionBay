@@ -18,7 +18,7 @@
 namespace MissionBay\Resource;
 
 use Base3\Api\IClassMap;
-use MissionBay\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentInfoTopicProvider;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IAgentResourceProvider;
