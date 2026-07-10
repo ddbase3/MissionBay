@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use AssistantFoundation\Api\IAiProvider;
 use Base3\Api\IClassMap;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -41,6 +42,8 @@ use MissionBay\Transport\OpenAiTransport;
  *   if it responds to a preceding assistant message that declared matching tool_calls.
  */
 class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 	protected IClassMap $classMap;
@@ -96,13 +99,7 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 	}
 
 	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-
-		if(!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException('Malformed OpenAI chat response: ' . json_encode($result));
-		}
-
-		return (string)$result['choices'][0]['message']['content'];
+		return $this->complete($messages)->getContent();
 	}
 
 	public function raw(array $messages, array $tools = []): mixed {

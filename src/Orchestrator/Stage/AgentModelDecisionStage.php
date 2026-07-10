@@ -22,6 +22,7 @@ use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentStageResult;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Ai\AgentChatMessageAdapter;
 
 /**
  * AgentModelDecisionStage
@@ -83,9 +84,9 @@ final class AgentModelDecisionStage implements IAgentStage {
 		$this->log($logger, 'Tool phase iteration ' . $iteration . ' started.');
 
 		try {
-			$result = $model->raw($messages, $toolDefinitions);
+			$result = $model->complete($messages, $toolDefinitions);
 		} catch (\Throwable $e) {
-			$this->logError($logger, 'Model raw call failed: ' . $e->getMessage());
+			$this->logError($logger, 'Model completion call failed: ' . $e->getMessage());
 
 			return $this->failure(
 				'model_raw_error',
@@ -98,28 +99,20 @@ final class AgentModelDecisionStage implements IAgentStage {
 			);
 		}
 
-		if (
-			!is_array($result) ||
-			!isset($result['choices'][0]['message']) ||
-			!is_array($result['choices'][0]['message'])
-		) {
-			$this->logError($logger, 'Malformed model response during tool orchestration.');
-
-			return $this->failure(
-				'malformed_model_response',
-				'Model returned a malformed response during tool orchestration.',
-				[]
-			);
-		}
-
-		$assistant = $result['choices'][0]['message'];
+		$assistant = AgentChatMessageAdapter::assistantMessage($result);
 		$toolCalls = $assistant['tool_calls'] ?? [];
+		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
+		if (!is_array($modelResults)) {
+			$modelResults = [];
+		}
+		$modelResults[] = $result->getMetadata()->toArray();
 
 		if (empty($toolCalls) || !is_array($toolCalls)) {
 			$this->log($logger, 'Tool phase completed after ' . $iteration . ' iteration(s).');
 
 			return AgentStageResult::patch([
 				AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE => $assistant,
+				AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
 				AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
 				AgentToolLoopContextKeys::COMPLETED => true,
 				AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_COMPLETE
@@ -130,6 +123,7 @@ final class AgentModelDecisionStage implements IAgentStage {
 
 		return AgentStageResult::patch([
 			AgentToolLoopContextKeys::MESSAGES => $messages,
+			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $toolCalls,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_TOOLS
 		]);

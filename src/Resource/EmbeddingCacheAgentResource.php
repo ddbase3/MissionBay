@@ -18,6 +18,9 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
+use AssistantFoundation\Dto\AiEmbeddingResult;
+use AssistantFoundation\Dto\AiResultMetadata;
+use AssistantFoundation\Dto\AiUsage;
 use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
@@ -114,8 +117,27 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 	// ---------------------------------------------------------
 
 	public function embed(array $texts): array {
+		return $this->embedResult($texts)->getEmbeddings();
+	}
+
+	public function embedResult(array $texts): AiEmbeddingResult {
+		$startedAt = microtime(true);
 		if (empty($texts)) {
-			return [];
+			return new AiEmbeddingResult(
+				[],
+				new AiResultMetadata(
+					'embedding',
+					'',
+					$this->getModelScope(),
+					'',
+					null,
+					0.0,
+					null,
+					new AiUsage(metrics: ['requested_items' => 0, 'output_vectors' => 0, 'cache_hits' => 0, 'cache_misses' => 0]),
+					['adapter' => static::getName()]
+				),
+				null
+			);
 		}
 		if (!$this->embedding) {
 			throw new \RuntimeException('EmbeddingCacheAgentResource: Missing dock "embedding".');
@@ -146,7 +168,8 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 		if (!empty($missingTexts)) {
 			$this->log('Cache miss: ' . count($missingTexts) . ' / ' . count($texts));
 
-			$embedded = $this->embedding->embed($missingTexts);
+			$embeddedResult = $this->embedding->embedResult($missingTexts);
+			$embedded = $embeddedResult->getEmbeddings();
 
 			foreach ($missingIndexMap as $k => $originalIndex) {
 				$vector = $embedded[$k] ?? [];
@@ -165,7 +188,35 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 
 		$this->touchRows($hashes, $model);
 
-		return $result;
+		$cacheHits = count($texts) - count($missingTexts);
+		$sourceMetadata = isset($embeddedResult) ? $embeddedResult->getMetadata() : null;
+		$sourceUsage = $sourceMetadata instanceof AiResultMetadata ? $sourceMetadata->getUsage() : AiUsage::none();
+		$usage = $sourceUsage->merge(new AiUsage(metrics: [
+			'requested_items' => count($texts),
+			'output_vectors' => count($result),
+			'cache_hits' => $cacheHits,
+			'cache_misses' => count($missingTexts)
+		]));
+
+		return new AiEmbeddingResult(
+			$result,
+			new AiResultMetadata(
+				'embedding',
+				$sourceMetadata instanceof AiResultMetadata ? $sourceMetadata->getProvider() : '',
+				$sourceMetadata instanceof AiResultMetadata && $sourceMetadata->getModel() !== '' ? $sourceMetadata->getModel() : $model,
+				$sourceMetadata instanceof AiResultMetadata ? $sourceMetadata->getRequestId() : '',
+				$sourceMetadata instanceof AiResultMetadata ? $sourceMetadata->getCreatedAt() : null,
+				max(0.0, (microtime(true) - $startedAt) * 1000),
+				$sourceMetadata instanceof AiResultMetadata ? $sourceMetadata->getFinishReason() : null,
+				$usage,
+				[
+					'adapter' => static::getName(),
+					'cache_table' => $this->table,
+					'upstream' => $sourceMetadata instanceof AiResultMetadata ? $sourceMetadata->toArray() : null
+				]
+			),
+			isset($embeddedResult) ? $embeddedResult->getRaw() : null
+		);
 	}
 
 	public function setOptions(array $options): void {

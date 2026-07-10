@@ -19,7 +19,9 @@ namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Api\IAiProvider;
+use AssistantFoundation\Dto\AiEmbeddingResult;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiResultNormalizer;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Transport\OpenAiTransport;
 
@@ -83,8 +85,23 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 	}
 
 	public function embed(array $texts): array {
+		return $this->embedResult($texts)->getEmbeddings();
+	}
+
+	public function embedResult(array $texts): AiEmbeddingResult {
+		$startedAt = microtime(true);
+
 		if(empty($texts)) {
-			return [];
+			return new AiEmbeddingResult(
+				[],
+				AiResultNormalizer::aggregateMetadata('embedding', [], [
+					'provider' => OpenAiTransport::getName(),
+					'model' => (string)($this->resolvedOptions['model'] ?? ''),
+					'adapter' => static::getName(),
+					'usage_metrics' => ['input_items' => 0, 'output_vectors' => 0]
+				], $startedAt),
+				[]
+			);
 		}
 
 		$model = $this->resolvedOptions['model'] ?? 'text-embedding-3-small';
@@ -98,13 +115,27 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 			throw new \RuntimeException('Malformed OpenAI embedding response.');
 		}
 
-		return array_map(function($item): array {
+		$embeddings = array_map(function($item): array {
 			if(!is_array($item)) {
 				return [];
 			}
 
 			return is_array($item['embedding'] ?? null) ? $item['embedding'] : [];
 		}, $result['data']);
+
+		return new AiEmbeddingResult(
+			$embeddings,
+			AiResultNormalizer::metadata('embedding', $result, [
+				'provider' => OpenAiTransport::getName(),
+				'model' => (string)$model,
+				'adapter' => static::getName(),
+				'usage_metrics' => [
+					'input_items' => count($texts),
+					'output_vectors' => count($embeddings)
+				]
+			], $startedAt),
+			$result
+		);
 	}
 
 	private function getProvider(): OpenAiTransport {

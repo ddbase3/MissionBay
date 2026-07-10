@@ -18,9 +18,12 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
+use MissionBay\EmbeddingModel\DefaultEmbeddingResultTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 class DummyEmbeddingModelAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
+
+	use DefaultEmbeddingResultTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 

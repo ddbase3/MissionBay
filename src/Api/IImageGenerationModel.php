@@ -17,9 +17,17 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Dto\AiImageResult;
 use Base3\Api\IBase;
 
 interface IImageGenerationModel extends IBase {
+
+	/**
+	 * Generates images and returns normalized provider and usage metadata.
+	 *
+	 * @param array<string,mixed> $options
+	 */
+	public function generateResult(string $prompt, array $options = []): AiImageResult;
 
 	/**
 	 * @param array<string,mixed> $options

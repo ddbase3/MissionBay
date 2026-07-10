@@ -17,6 +17,7 @@
 
 namespace MissionBay\Node\Ai;
 
+use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiChatModel;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
@@ -180,6 +181,14 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			$assistantMessage,
 			$this->logger
 		);
+	}
+
+	protected function storeModelResults(IAgentContext $context, AgentAssistantTurnResult $turnResult): void {
+		try {
+			$context->setVar('agent_model_results', $turnResult->getModelResults());
+		} catch(\Throwable $e) {
+			$this->logError('Model result metadata could not be stored: ' . $e->getMessage());
+		}
 	}
 
 	protected function createAssistantMessageId(): string {

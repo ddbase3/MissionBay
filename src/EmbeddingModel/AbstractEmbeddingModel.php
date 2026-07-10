@@ -19,8 +19,10 @@ namespace MissionBay\EmbeddingModel;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Api\IAiProvider;
+use AssistantFoundation\Dto\AiEmbeddingResult;
 use Base3\Api\IBase;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiResultNormalizer;
 use RuntimeException;
 
 abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {
@@ -65,13 +67,29 @@ abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {
 	}
 
 	public function embed(array $texts): array {
+		return $this->embedResult($texts)->getEmbeddings();
+	}
+
+	public function embedResult(array $texts): AiEmbeddingResult {
+		$startedAt = microtime(true);
+
 		if(empty($texts)) {
-			return [];
+			return new AiEmbeddingResult(
+				[],
+				AiResultNormalizer::aggregateMetadata('embedding', [], [
+					'provider' => $this->getProviderName(),
+					'model' => $this->getModel(),
+					'adapter' => static::getName(),
+					'usage_metrics' => ['input_items' => 0, 'output_vectors' => 0, 'batch_count' => 0]
+				], $startedAt),
+				[]
+			);
 		}
 
 		$texts = $this->normalizeTexts($texts);
 		$batches = array_chunk($texts, $this->getBatchSize());
 		$out = [];
+		$rawResponses = [];
 
 		foreach($batches as $batch) {
 			$result = $this->getProvider()->request(
@@ -80,14 +98,28 @@ abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {
 				$this->buildRequestOptions()
 			);
 
+			$rawResponses[] = $result;
 			$out = array_merge($out, $this->extractEmbeddings($result));
 		}
 
 		if($this->shouldNormalizeVectors()) {
-			return array_map(fn(array $vector): array => $this->normalizeVector($vector), $out);
+			$out = array_map(fn(array $vector): array => $this->normalizeVector($vector), $out);
 		}
 
-		return $out;
+		return new AiEmbeddingResult(
+			$out,
+			AiResultNormalizer::aggregateMetadata('embedding', $rawResponses, [
+				'provider' => $this->getProviderName(),
+				'model' => $this->getModel(),
+				'adapter' => static::getName(),
+				'usage_metrics' => [
+					'input_items' => count($texts),
+					'output_vectors' => count($out),
+					'batch_count' => count($rawResponses)
+				]
+			], $startedAt),
+			$rawResponses
+		);
 	}
 
 	protected function getProvider(): IAiProvider {

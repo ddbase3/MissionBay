@@ -33,6 +33,7 @@ class AgentToolOrchestratorResult {
 	 * @param ?array<string,mixed> $finalAssistantMessage
 	 * @param array<int,array<string,mixed>> $toolCalls
 	 * @param array<string,mixed> $failureDetail
+	 * @param array<int,array<string,mixed>> $modelResults
 	 */
 	public function __construct(
 		private array $messages,
@@ -42,7 +43,8 @@ class AgentToolOrchestratorResult {
 		private array $toolCalls = [],
 		private string $failureCode = '',
 		private string $failureMessage = '',
-		private array $failureDetail = []
+		private array $failureDetail = [],
+		private array $modelResults = []
 	) {
 	}
 
@@ -102,6 +104,15 @@ class AgentToolOrchestratorResult {
 	 */
 	public function getFailureDetail(): array {
 		return $this->failureDetail;
+	}
+
+	/**
+	 * Returns normalized metadata for every model call performed by the loop.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function getModelResults(): array {
+		return $this->modelResults;
 	}
 
 	public function hasFailure(): bool {

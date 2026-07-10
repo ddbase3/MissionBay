@@ -18,9 +18,13 @@
 namespace MissionBay\Dto\Assistant;
 
 use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Dto\AiResultMetadata;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 
 final class AgentAssistantTurnResult {
+
+	/** @var array<int,array<string,mixed>> */
+	private array $modelResults = [];
 
 	/**
 	 * @param array<int,array<string,mixed>> $messages
@@ -83,6 +87,21 @@ final class AgentAssistantTurnResult {
 
 	public function getFallbackContent(): ?string {
 		return $this->fallbackContent;
+	}
+
+	public function addModelResult(AiResultMetadata $metadata): void {
+		$this->modelResults[] = $metadata->toArray();
+	}
+
+	/**
+	 * Returns normalized metadata for all non-streaming model calls in this turn.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	public function getModelResults(): array {
+		$orchestratorResults = $this->orchestrationResult?->getModelResults() ?? [];
+
+		return array_merge($orchestratorResults, $this->modelResults);
 	}
 
 	/**

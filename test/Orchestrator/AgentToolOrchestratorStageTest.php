@@ -6,6 +6,7 @@ use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentStageResult;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Context\AgentContext;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
@@ -54,6 +55,8 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 
 		$this->assertTrue($result->isCompleted());
 		$this->assertSame(1, $result->getIterations());
+		$this->assertCount(1, $result->getModelResults());
+		$this->assertSame('chat', $result->getModelResults()[0]['operation']);
 		$this->assertSame($messages, $result->getMessages());
 		$this->assertSame('done', $result->getFinalAssistantMessage()['content']);
 		$this->assertSame([], $result->getToolCalls());
@@ -182,6 +185,8 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 }
 
 final class QueueChatModel implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	/**
 	 * @var array<int,mixed>

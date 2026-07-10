@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -33,6 +34,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * Suitable for OpenAI, Fireworks, Mistral, Ollama, LM Studio, etc.
  */
 class GenericChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -91,13 +94,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 	 * Basic convenience wrapper → return only assistant text.
 	 */
 	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-
-		if (!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException("Malformed chat response: " . json_encode($result));
-		}
-
-		return $result['choices'][0]['message']['content'];
+		return $this->complete($messages)->getContent();
 	}
 
 	/**

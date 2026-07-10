@@ -18,9 +18,12 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 class MistralChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -82,9 +85,7 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 	}
 
 	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-
-		return $result['choices'][0]['message']['content'] ?? '';
+		return $this->complete($messages)->getContent();
 	}
 
 	public function raw(array $messages, array $tools = []): mixed {

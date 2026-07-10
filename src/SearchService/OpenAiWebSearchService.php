@@ -17,6 +17,8 @@
 
 namespace MissionBay\SearchService;
 
+use AssistantFoundation\Dto\AiSearchResult;
+use MissionBay\Ai\AiResultNormalizer;
 use MissionBay\Transport\OpenAiTransport;
 use RuntimeException;
 
@@ -39,6 +41,19 @@ class OpenAiWebSearchService extends AbstractSearchService {
 	}
 
 	public function search(string $query, array $options = []): array {
+		$result = $this->searchResult($query, $options);
+
+		return [
+			'query' => $result->getQuery(),
+			'answer' => $result->getAnswer(),
+			'results' => $result->getResults(),
+			'citations' => $result->getCitations(),
+			'raw' => $result->getRaw()
+		];
+	}
+
+	public function searchResult(string $query, array $options = []): AiSearchResult {
+		$startedAt = microtime(true);
 		$query = trim($query);
 
 		if($query === '') {
@@ -52,7 +67,25 @@ class OpenAiWebSearchService extends AbstractSearchService {
 			$this->buildRequestOptions($runtimeOptions)
 		);
 
-		return $this->normalizeResponse($query, $result);
+		$normalized = $this->normalizeResponse($query, $result);
+
+		return new AiSearchResult(
+			$query,
+			(string)($normalized['answer'] ?? ''),
+			is_array($normalized['results'] ?? null) ? $normalized['results'] : [],
+			is_array($normalized['citations'] ?? null) ? $normalized['citations'] : [],
+			AiResultNormalizer::metadata('search', $result, [
+				'provider' => $this->getProviderName(),
+				'model' => $this->getModel($runtimeOptions),
+				'adapter' => static::getName(),
+				'started_at' => $startedAt,
+				'usage_metrics' => [
+					'search_queries' => 1,
+					'search_results' => count(is_array($normalized['results'] ?? null) ? $normalized['results'] : [])
+				]
+			], $startedAt),
+			$result
+		);
 	}
 
 	/**

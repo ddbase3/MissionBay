@@ -32,7 +32,10 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 			return $turnResult->getFallbackContent() ?? '';
 		}
 
-		return $this->messageFactory->normalizeContent($model->chat($turnResult->getMessages()));
+		$result = $model->complete($turnResult->getMessages());
+		$turnResult->addModelResult($result->getMetadata());
+
+		return $this->messageFactory->normalizeContent($result->getContent());
 	}
 
 	public function createStreamingResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult, callable $onData, ?callable $onMeta = null): string {
@@ -45,20 +48,16 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 			return $content;
 		}
 
-		$finalContent = '';
-		$metaCallback = $onMeta ?? function (array $meta): void {};
-
-		$model->stream(
+		$metaCallback = $onMeta ?? function(array $meta): void {};
+		$result = $model->streamResult(
 			$turnResult->getMessages(),
 			[],
-			function (string $delta) use (&$finalContent, $onData) {
-				$finalContent .= $delta;
-				$onData($delta);
-			},
+			$onData,
 			$metaCallback
 		);
+		$turnResult->addModelResult($result->getMetadata());
 
-		return $finalContent;
+		return $result->getContent();
 	}
 
 	public function createAssistantMessage(AgentAssistantTurnResult $turnResult, string $content): array {

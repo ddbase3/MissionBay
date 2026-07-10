@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -36,6 +37,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  *   in THIS outgoing payload.
  */
 class OpenRouterChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -105,9 +108,7 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 	 * -------------------------------------------------------
 	 */
 	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-
-		return $result['choices'][0]['message']['content'] ?? '';
+		return $this->complete($messages)->getContent();
 	}
 
 	/**

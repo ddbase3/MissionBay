@@ -179,6 +179,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context->setVar('orchestrator_iterations', 0);
 			$context->setVar('orchestrator_completed', true);
 			$context->setVar('orchestrator_failure_code', '');
+			$context->setVar('orchestrator_model_results', []);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
@@ -191,6 +192,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context->setVar('orchestrator_iterations', $orchestrationResult->getIterations());
 			$context->setVar('orchestrator_completed', $orchestrationResult->isCompleted());
 			$context->setVar('orchestrator_failure_code', $orchestrationResult->getFailureCode());
+			$context->setVar('orchestrator_model_results', $orchestrationResult->getModelResults());
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}

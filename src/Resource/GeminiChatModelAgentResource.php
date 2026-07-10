@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -38,6 +39,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - Function calling uses functionCall and functionResponse parts. :contentReference[oaicite:1]{index=1}
  */
 class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -92,13 +95,7 @@ class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiC
 	}
 
 	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-
-		if (!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException("Malformed Gemini(OpenAI-mode) response: " . json_encode($result));
-		}
-
-		return (string)$result['choices'][0]['message']['content'];
+		return $this->complete($messages)->getContent();
 	}
 
 	/**
@@ -249,10 +246,14 @@ class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		}
 
 		return [
+			'id' => is_string($data['responseId'] ?? null) ? $data['responseId'] : '',
+			'model' => is_string($data['modelVersion'] ?? null) ? $data['modelVersion'] : $model,
 			'choices' => [[
 				'message' => $message,
 				'finish_reason' => $candidate['finishReason'] ?? 'stop'
-			]]
+			]],
+			'usageMetadata' => is_array($data['usageMetadata'] ?? null) ? $data['usageMetadata'] : [],
+			'provider_raw' => $data
 		];
 	}
 
@@ -373,7 +374,10 @@ class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiC
 				if ($onMeta !== null && isset($candidate['finishReason']) && $candidate['finishReason'] !== null) {
 					$onMeta([
 						'event' => 'meta',
-						'finish_reason' => $candidate['finishReason']
+						'finish_reason' => $candidate['finishReason'],
+						'modelVersion' => $json['modelVersion'] ?? $model,
+						'responseId' => $json['responseId'] ?? '',
+						'usageMetadata' => is_array($json['usageMetadata'] ?? null) ? $json['usageMetadata'] : []
 					]);
 				}
 			}

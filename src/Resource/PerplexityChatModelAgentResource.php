@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -28,6 +29,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * and prevents orphaned tool messages from being sent upstream.
  */
 class PerplexityChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -76,13 +79,7 @@ class PerplexityChatModelAgentResource extends AbstractAgentResource implements 
 	}
 
 	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-
-		if (!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException("Malformed Perplexity chat response: " . json_encode($result));
-		}
-
-		return (string)$result['choices'][0]['message']['content'];
+		return $this->complete($messages)->getContent();
 	}
 
 	// ----------------------------------------------------

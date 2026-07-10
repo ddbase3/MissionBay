@@ -181,6 +181,7 @@ class AgentToolOrchestrator {
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
 			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => [],
 			AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE => null,
+			AgentToolLoopContextKeys::MODEL_RESULTS => [],
 			AgentToolLoopContextKeys::COMPLETED => false,
 			AgentToolLoopContextKeys::FAILURE_CODE => '',
 			AgentToolLoopContextKeys::FAILURE_MESSAGE => '',
@@ -203,6 +204,7 @@ class AgentToolOrchestrator {
 		$finalAssistantMessage = $context->getVar(AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE);
 		$executedToolCalls = $context->getVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS);
 		$failureDetail = $context->getVar(AgentToolLoopContextKeys::FAILURE_DETAIL);
+		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
 
 		return new AgentToolOrchestratorResult(
 			is_array($messages) ? $messages : [],
@@ -212,7 +214,8 @@ class AgentToolOrchestrator {
 			is_array($executedToolCalls) ? $executedToolCalls : [],
 			(string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? ''),
 			(string)($context->getVar(AgentToolLoopContextKeys::FAILURE_MESSAGE) ?? ''),
-			is_array($failureDetail) ? $failureDetail : []
+			is_array($failureDetail) ? $failureDetail : [],
+			is_array($modelResults) ? $modelResults : []
 		);
 	}
 

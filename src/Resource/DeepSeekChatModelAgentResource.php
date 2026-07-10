@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -35,6 +36,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  *   because this resource does not support tool calling but memory/history may contain it.
  */
 class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 	protected array $resolvedOptions = [];
@@ -88,9 +91,7 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 	 * Chat wrapper → returns assistant text only
 	 */
 	public function chat(array $messages): string {
-		$raw = $this->raw($messages);
-		$content = $raw['choices'][0]['message']['content'] ?? '';
-		return is_string($content) ? $content : json_encode($content);
+		return $this->complete($messages)->getContent();
 	}
 
 	/**

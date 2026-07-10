@@ -136,6 +136,7 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 			);
 
 			if (!$turnResult->isCompleted()) {
+				$this->storeModelResults($context, $turnResult);
 				return $this->handleIncompleteTurn($stream, $turnResult);
 			}
 
@@ -150,6 +151,7 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 
 			$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 			$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
+			$this->storeModelResults($context, $turnResult);
 
 			return [
 				'stream_ready' => true

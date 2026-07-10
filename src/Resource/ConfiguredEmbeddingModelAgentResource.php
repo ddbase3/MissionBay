@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
+use AssistantFoundation\Dto\AiEmbeddingResult;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -71,6 +72,10 @@ class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAge
 
 	public function embed(array $texts): array {
 		return $this->ensureModel()->embed($texts);
+	}
+
+	public function embedResult(array $texts): AiEmbeddingResult {
+		return $this->ensureModel()->embedResult($texts);
 	}
 
 	protected function ensureConfigured(): void {

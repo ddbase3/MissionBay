@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
+use MissionBay\EmbeddingModel\DefaultEmbeddingResultTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -26,6 +27,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * A no-operation embedding resource that returns empty vectors.
  */
 class NoEmbeddingModelAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
+
+	use DefaultEmbeddingResultTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 

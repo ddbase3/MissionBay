@@ -17,9 +17,18 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Dto\AiSearchResult;
 use Base3\Api\IBase;
 
 interface ISearchService extends IBase {
+
+	/**
+	 * Executes a model-backed search and returns normalized provider and usage
+	 * metadata together with answer, results, and citations.
+	 *
+	 * @param array<string,mixed> $options
+	 */
+	public function searchResult(string $query, array $options = []): AiSearchResult;
 
 	/**
 	 * @param array<string,mixed> $options

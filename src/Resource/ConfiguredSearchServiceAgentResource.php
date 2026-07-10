@@ -23,6 +23,7 @@ use Base3\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Dto\AiSearchResult;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\ISearchService;
 use MissionBay\Connection\ConnectionConfig;
@@ -116,6 +117,10 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 		return $this->ensureService()->search($query, $options);
 	}
 
+	public function searchResult(string $query, array $options = []): AiSearchResult {
+		return $this->ensureService()->searchResult($query, $options);
+	}
+
 	public function getToolDefinitions(): array {
 		return [[
 			'type' => 'function',
@@ -165,7 +170,7 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 		$options = $this->buildToolSearchOptions($arguments);
 
 		try {
-			$result = $this->search($query, $options);
+			$result = $this->searchResult($query, $options)->toArray($this->includeRawResult);
 		} catch(\Throwable $e) {
 			return $this->errorResult(
 				'Web search failed: ' . $e->getMessage(),

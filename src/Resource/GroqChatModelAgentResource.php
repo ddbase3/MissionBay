@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -35,6 +36,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  *	 otherwise Groq/OpenAI-compatible endpoints can throw 400 errors.
  */
 class GroqChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 	protected array $resolvedOptions = [];
@@ -91,13 +94,7 @@ class GroqChatModelAgentResource extends AbstractAgentResource implements IAiCha
 	 * Basic chat → return assistant text only.
 	 */
 	public function chat(array $messages): string {
-		$raw = $this->raw($messages);
-
-		if (!isset($raw['choices'][0]['message']['content'])) {
-			throw new \RuntimeException("Malformed Groq chat response: " . json_encode($raw));
-		}
-
-		return (string)$raw['choices'][0]['message']['content'];
+		return $this->complete($messages)->getContent();
 	}
 
 	/**

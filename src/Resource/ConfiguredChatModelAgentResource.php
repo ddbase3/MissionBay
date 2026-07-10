@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AiChatResult;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -35,6 +36,7 @@ use RuntimeException;
  * IAiChatModel adapter.
  */
 class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentResource implements IAiChatModel {
+
 
 	private const LLM_SETTINGS_GROUP = 'service-llm';
 	private const CONNECTION_SETTINGS_GROUP = 'connection';
@@ -70,12 +72,25 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 		$this->configureModel();
 	}
 
+	public function complete(array $messages, array $tools = []): AiChatResult {
+		return $this->ensureModel()->complete($messages, $tools);
+	}
+
 	public function chat(array $messages): string {
-		return $this->ensureModel()->chat($messages);
+		return $this->complete($messages)->getContent();
 	}
 
 	public function raw(array $messages, array $tools = []): mixed {
 		return $this->ensureModel()->raw($messages, $tools);
+	}
+
+	public function streamResult(
+		array $messages,
+		array $tools,
+		callable $onData,
+		callable $onMeta = null
+	): AiChatResult {
+		return $this->ensureModel()->streamResult($messages, $tools, $onData, $onMeta);
 	}
 
 	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {

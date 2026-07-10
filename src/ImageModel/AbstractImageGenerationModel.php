@@ -18,7 +18,9 @@
 namespace MissionBay\ImageModel;
 
 use AssistantFoundation\Api\IAiProvider;
+use AssistantFoundation\Dto\AiImageResult;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiResultNormalizer;
 use MissionBay\Api\IImageGenerationModel;
 use RuntimeException;
 
@@ -64,6 +66,11 @@ abstract class AbstractImageGenerationModel implements IImageGenerationModel {
 	}
 
 	public function generate(string $prompt, array $options = []): array {
+		return $this->generateResult($prompt, $options)->getImages();
+	}
+
+	public function generateResult(string $prompt, array $options = []): AiImageResult {
+		$startedAt = microtime(true);
 		$prompt = trim($prompt);
 
 		if($prompt === '') {
@@ -76,8 +83,22 @@ abstract class AbstractImageGenerationModel implements IImageGenerationModel {
 			$this->buildPayload($prompt, $runtimeOptions),
 			$this->buildRequestOptions($runtimeOptions)
 		);
+		$images = $this->extractImages($result, $runtimeOptions);
 
-		return $this->extractImages($result, $runtimeOptions);
+		return new AiImageResult(
+			$images,
+			AiResultNormalizer::metadata('image', $result, [
+				'provider' => $this->getProviderName(),
+				'model' => $this->getModel($runtimeOptions),
+				'adapter' => static::getName(),
+				'started_at' => $startedAt,
+				'usage_metrics' => [
+					'input_prompts' => 1,
+					'output_images' => count($images)
+				]
+			], $startedAt),
+			$result
+		);
 	}
 
 	protected function getProvider(): IAiProvider {

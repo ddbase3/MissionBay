@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -34,6 +35,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  *	 and filters orphaned tool messages to avoid API 400 errors.
  */
 class FireworksChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 	protected array $resolvedOptions = [];
@@ -86,8 +89,7 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 	}
 
 	public function chat(array $messages): string {
-		$r = $this->raw($messages);
-		return $r['choices'][0]['message']['content'] ?? '';
+		return $this->complete($messages)->getContent();
 	}
 
 	public function raw(array $messages, array $tools = []): mixed {

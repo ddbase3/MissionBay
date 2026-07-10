@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -38,6 +39,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  *   https://api.anthropic.com/v1/messages
  */
 class AnthropicChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 	protected array $resolvedOptions = [];
@@ -91,8 +94,7 @@ class AnthropicChatModelAgentResource extends AbstractAgentResource implements I
 	 * Non-streaming chat wrapper
 	 */
 	public function chat(array $messages): string {
-		$raw = $this->raw($messages);
-		return $raw['content'][0]['text'] ?? '';
+		return $this->complete($messages)->getContent();
 	}
 
 	/**

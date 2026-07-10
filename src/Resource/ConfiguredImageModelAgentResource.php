@@ -17,6 +17,7 @@
 
 namespace MissionBay\Resource;
 
+use AssistantFoundation\Dto\AiImageResult;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -71,6 +72,10 @@ class ConfiguredImageModelAgentResource extends AbstractConfiguredServiceAgentRe
 
 	public function generate(string $prompt, array $options = []): array {
 		return $this->ensureModel()->generate($prompt, $options);
+	}
+
+	public function generateResult(string $prompt, array $options = []): AiImageResult {
+		return $this->ensureModel()->generateResult($prompt, $options);
 	}
 
 	protected function ensureConfigured(): void {

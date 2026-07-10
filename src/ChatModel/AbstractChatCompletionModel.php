@@ -24,6 +24,8 @@ use Base3\Api\IClassMap;
 
 abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 
+	use NormalizedChatModelTrait;
+
 	/**
 	 * @var array<string,mixed>
 	 */
@@ -78,13 +80,7 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 	}
 
 	public function chat(array $messages): string {
-		$result = $this->raw($messages);
-
-		if(!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException('Malformed chat response: ' . json_encode($result));
-		}
-
-		return (string)$result['choices'][0]['message']['content'];
+		return $this->complete($messages)->getContent();
 	}
 
 	public function raw(array $messages, array $tools = []): mixed {

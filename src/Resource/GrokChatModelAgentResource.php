@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -33,6 +34,8 @@ use MissionBay\Api\IAgentConfigValueResolver;
  * - Tool messages and assistant tool_calls are filtered out defensively.
  */
 class GrokChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
+	use NormalizedChatModelTrait;
 
 	protected IAgentConfigValueResolver $resolver;
 	protected array $resolvedOptions = [];
@@ -89,14 +92,7 @@ class GrokChatModelAgentResource extends AbstractAgentResource implements IAiCha
 	 * Chat → assistant text only.
 	 */
 	public function chat(array $messages): string {
-		$raw = $this->raw($messages);
-
-		$content = $raw['choices'][0]['message']['content'] ?? '';
-		if (!is_string($content)) {
-			return '';
-		}
-
-		return $content;
+		return $this->complete($messages)->getContent();
 	}
 
 	/**

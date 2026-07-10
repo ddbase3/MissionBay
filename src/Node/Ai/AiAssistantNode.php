@@ -123,6 +123,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 			);
 
 			if (!$turnResult->isCompleted()) {
+				$this->storeModelResults($context, $turnResult);
 				return $this->handleIncompleteTurn($turnResult);
 			}
 
@@ -133,6 +134,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				$finalContent = $this->buildDirectFailureFallback($turnResult);
 				$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 				$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
+				$this->storeModelResults($context, $turnResult);
 
 				return [
 					'message' => $assistantMessage,
@@ -143,6 +145,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 
 			$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 			$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
+			$this->storeModelResults($context, $turnResult);
 
 			if ($isSuggestions) {
 				$this->log('Suggestions mode: memory write skipped.');

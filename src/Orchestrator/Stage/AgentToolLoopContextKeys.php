@@ -46,6 +46,7 @@ final class AgentToolLoopContextKeys {
 	public const PENDING_TOOL_CALLS = self::PREFIX . 'pending_tool_calls';
 	public const EXECUTED_TOOL_CALLS = self::PREFIX . 'executed_tool_calls';
 	public const FINAL_ASSISTANT_MESSAGE = self::PREFIX . 'final_assistant_message';
+	public const MODEL_RESULTS = self::PREFIX . 'model_results';
 	public const COMPLETED = self::PREFIX . 'completed';
 	public const FAILURE_CODE = self::PREFIX . 'failure_code';
 	public const FAILURE_MESSAGE = self::PREFIX . 'failure_message';

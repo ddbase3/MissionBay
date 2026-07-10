@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AiChatResult;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use AssistantFoundation\Api\IAgentContext;
@@ -41,6 +42,7 @@ use MissionBay\Api\IAgentResource;
  *   preventing OpenAI-compatible backends from rejecting requests.
  */
 class RoutingChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -209,12 +211,27 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 	// IAiChatModel
 	// ----------------------------------------------------
 
-	public function chat(array $messages): string {
-		$result = $this->raw($messages, []);
-		if (!isset($result['choices'][0]['message']['content'])) {
-			throw new \RuntimeException("Malformed chat response (router): " . json_encode($result));
+	public function complete(array $messages, array $tools = []): AiChatResult {
+		$needsTools = !empty($tools);
+		$sendMessages = $needsTools ? $messages : $this->stripOrphanedToolMessages($messages);
+
+		$result = $this->routeCall(
+			op: 'complete',
+			requiredCap: $needsTools ? 'tools' : null,
+			fn: function(IAiChatModel $target) use ($sendMessages, $tools): AiChatResult {
+				return $target->complete($sendMessages, $tools);
+			}
+		);
+
+		if(!$result instanceof AiChatResult) {
+			throw new \RuntimeException('Chat model router returned no normalized result.');
 		}
-		return (string)$result['choices'][0]['message']['content'];
+
+		return $result;
+	}
+
+	public function chat(array $messages): string {
+		return $this->complete($messages)->getContent();
 	}
 
 	public function raw(array $messages, array $tools = []): mixed {
@@ -230,6 +247,28 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 				return $target->raw($sendMessages, $tools);
 			}
 		);
+	}
+
+	public function streamResult(
+		array $messages,
+		array $tools,
+		callable $onData,
+		callable $onMeta = null
+	): AiChatResult {
+		$sendMessages = $this->stripOrphanedToolMessages($messages);
+		$result = $this->routeCall(
+			op: 'stream_result',
+			requiredCap: 'stream',
+			fn: function(IAiChatModel $target) use ($sendMessages, $tools, $onData, $onMeta): AiChatResult {
+				return $target->streamResult($sendMessages, $tools, $onData, $onMeta);
+			}
+		);
+
+		if(!$result instanceof AiChatResult) {
+			throw new \RuntimeException('Chat model router returned no normalized stream result.');
+		}
+
+		return $result;
 	}
 
 	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
