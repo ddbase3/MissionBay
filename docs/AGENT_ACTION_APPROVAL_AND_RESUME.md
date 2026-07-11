@@ -17,19 +17,21 @@ The harness requests and validates user interaction.
 model-decision
   -> action-policy
        -> allow / deny / require_approval / require_clarification / require_dry_run
-       -> action review service creates exact requests and suspension
-  -> return awaiting_approval or awaiting_input
+       -> review service persists an exact server-owned suspension
+  -> return awaiting_approval or awaiting_input plus opaque resume_handle
 
 external transport
   -> shows exact tool name and structured input
   -> collects approve, deny, or submit
-  -> sends AgentResume
+  -> sends resume_handle plus explicit responses
 
 orchestrator resume service
-  -> validates suspension and one response per request
+  -> atomically claims the handle
+  -> restores the suspension from server state
+  -> validates one response per request
   -> validates action id, tool name, arguments, and fingerprint
+  -> consumes the handle before approved execution
   -> restores approved/revised calls or normalized denials
-  -> returns them to action-policy
   -> continues with tool-execution
 ```
 
@@ -51,7 +53,9 @@ New mutation tools must declare this metadata. Tool-name guessing is intentional
 
 ## Exact review binding
 
-`AgentActionFingerprint` binds approval to the exact action type, tool name, and canonical input. Changed arguments require a new review. The fingerprint detects inconsistencies but is not a signature or authorization token.
+`AgentActionFingerprint` binds approval to the exact action type, tool name, and canonical input. Changed arguments require a new review.
+
+The suspension itself stays server-side behind `IAgentSuspensionRepository`. The client cannot replace the reviewed action by returning a modified suspension payload.
 
 ## Statuses
 
@@ -62,12 +66,15 @@ awaiting_input
 
 Both are suspension outcomes, not failures. Denial becomes a normalized tool observation so the model can continue without executing the mutation.
 
-## Production work still required
+## Durable resume
 
-The current DTO path can transport suspension state, but production mutation safety still needs:
+The default repository uses `IStateStore`, a 15-minute suspension TTL, a short claim lease, one-time consumption, and a replay marker. Details are documented in [AGENT_DURABLE_SUSPENSIONS.md](AGENT_DURABLE_SUSPENSIONS.md).
 
-- server-owned suspension persistence;
-- opaque or authenticated resume handles;
-- expiry and one-time consumption;
-- authorization and resource-version recheck immediately before mutation;
-- audit events for request, decision, resume, and result.
+## Remaining production work
+
+The next mutation-safety boundary is a final commit guard immediately before tool invocation:
+
+- reauthorize the current user;
+- compare an expected resource version or ETag;
+- reject stale writes;
+- emit typed audit events for review, decision, execution, and failure.

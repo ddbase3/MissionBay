@@ -17,9 +17,8 @@
 
 namespace MissionBay\Orchestrator\Service;
 
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentExecutionStatus;
@@ -28,14 +27,26 @@ use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
+use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 use MissionBay\Orchestrator\AgentActionFingerprint;
+use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 
-/** Converts policy review decisions into a transport-neutral suspension. */
+/** Converts policy review decisions into a durable, transport-neutral suspension. */
 final class AgentActionReviewService {
 
+	private IAgentSuspensionRepository $suspensionRepository;
+
 	public function __construct(
-		private readonly AgentActionFingerprint $fingerprint
-	) {}
+		private readonly AgentActionFingerprint $fingerprint,
+		?IAgentSuspensionRepository $suspensionRepository = null,
+		private readonly int $suspensionTtlSeconds = 900
+	) {
+		$this->suspensionRepository = $suspensionRepository ?? new UnavailableAgentSuspensionRepository();
+		if ($suspensionTtlSeconds < 1) {
+			throw new \InvalidArgumentException('Agent suspension TTL must be greater than zero.');
+		}
+	}
 
 	public function review(IAgentContext $context, array $projectedPatch = []): AgentStageResult {
 		$candidates = $projectedPatch[AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES]
@@ -105,9 +116,26 @@ final class AgentActionReviewService {
 			]
 		);
 
+		try {
+			$resumeHandle = $this->suspensionRepository->create($suspension, $this->suspensionTtlSeconds);
+		} catch (AgentSuspensionRepositoryException $e) {
+			return $this->failure(
+				'suspension_persistence_failed',
+				$e->getMessage(),
+				['reason' => $e->getReason()]
+			);
+		} catch (\Throwable $e) {
+			return $this->failure(
+				'suspension_persistence_failed',
+				'Agent suspension could not be persisted.',
+				['type' => get_class($e), 'message' => $e->getMessage()]
+			);
+		}
+
 		return AgentStageResult::patch(array_merge($projectedPatch, [
 			AgentToolLoopContextKeys::INTERACTION_REQUESTS => $requests,
-			AgentToolLoopContextKeys::SUSPENSION => $suspension,
+			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME_HANDLE => $resumeHandle,
 			AgentToolLoopContextKeys::EXECUTION_STATUS => $status,
 			AgentToolLoopContextKeys::SUSPENDED => true,
 			AgentToolLoopContextKeys::PHASE => $status === AgentExecutionStatus::AWAITING_INPUT
@@ -117,7 +145,8 @@ final class AgentActionReviewService {
 		]), [
 			'suspension_id' => $suspension->getId(),
 			'status' => $status,
-			'request_count' => count($requests)
+			'request_count' => count($requests),
+			'ttl_seconds' => $this->suspensionTtlSeconds
 		]);
 	}
 
@@ -174,11 +203,12 @@ final class AgentActionReviewService {
 		}
 	}
 
-	private function failure(string $code, string $message): AgentStageResult {
+	/** @param array<string,mixed> $detail */
+	private function failure(string $code, string $message, array $detail = []): AgentStageResult {
 		return AgentStageResult::patch([
 			AgentToolLoopContextKeys::FAILURE_CODE => $code,
 			AgentToolLoopContextKeys::FAILURE_MESSAGE => $message,
-			AgentToolLoopContextKeys::FAILURE_DETAIL => [],
+			AgentToolLoopContextKeys::FAILURE_DETAIL => $detail,
 			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::FAILED,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED,
 			AgentToolLoopContextKeys::COMPLETED => false

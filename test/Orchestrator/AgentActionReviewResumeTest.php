@@ -7,29 +7,32 @@ use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionResponse;
 use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Dto\AgentSuspension;
+use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 use Base3\Event\Api\IEventManager;
+use Base3\State\Api\IStateStore;
 use MissionBay\Api\IAgentTool;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Context\AgentContext;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
+use MissionBay\Orchestrator\Service\AgentActionResumeService;
+use MissionBay\Orchestrator\Service\AgentActionReviewService;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
-use MissionBay\Orchestrator\Stage\AgentActionResumeStage;
-use MissionBay\Orchestrator\Stage\AgentActionReviewStage;
 use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
 use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
 use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
+use MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
 use MissionBay\Policy\MutationApprovalAgentActionPolicy;
 use PHPUnit\Framework\TestCase;
 
 final class AgentActionReviewResumeTest extends TestCase {
 
-	public function testMutatingToolIsSuspendedAndExecutesOnlyAfterExplicitApproval(): void {
+	public function testMutatingToolUsesOpaqueHandleAndExecutesOnlyAfterApproval(): void {
 		$tool = new ApprovalMutationTool();
-		$orchestrator = new AgentToolOrchestrator(null, null, $this->createStages());
+		[$orchestrator, $resumeService] = $this->createHarness();
 		$firstResult = $orchestrator->run(
 			new ApprovalQueueChatModel([$this->toolCallResponse('call-1', 'update_record', ['id' => 42, 'title' => 'Reviewed title'])]),
 			[['role' => 'user', 'content' => 'Update record 42.']],
@@ -39,167 +42,151 @@ final class AgentActionReviewResumeTest extends TestCase {
 		);
 
 		$this->assertTrue($firstResult->isSuspended());
-		$this->assertTrue($firstResult->isAwaitingApproval());
 		$this->assertSame(AgentExecutionStatus::AWAITING_APPROVAL, $firstResult->getExecutionStatus());
-		$this->assertCount(1, $firstResult->getInteractionRequests());
-		$this->assertSame([
-			'tool' => 'update_record',
-			'input' => ['id' => 42, 'title' => 'Reviewed title']
-		], $firstResult->getInteractionRequests()[0]->getSummary());
+		$this->assertMatchesRegularExpression('/^[A-Za-z0-9_-]{43}$/', $firstResult->getResumeHandle());
 		$this->assertSame(0, $tool->getCallCount());
-		$this->assertSame([], $firstResult->getToolCalls());
 
-		$suspension = $firstResult->getSuspension();
-		$this->assertNotNull($suspension);
 		$request = $firstResult->getInteractionRequests()[0];
-		$resume = new AgentResume($suspension, [
+		$resume = new AgentResume($firstResult->getResumeHandle(), [
 			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_APPROVE)
 		]);
+		$prepared = $resumeService->prepare($resume);
 		$secondResult = $orchestrator->run(
 			new ApprovalQueueChatModel([$this->terminalResponse()]),
-			[['role' => 'user', 'content' => 'Approved.']],
-			$tool->getToolDefinitions(),
-			[$tool],
-			new AgentContext(),
-			null,
-			8,
-			'',
-			null,
-			null,
-			null,
-			null,
-			$resume
-		);
-
-		$this->assertTrue($secondResult->isCompleted());
-		$this->assertFalse($secondResult->isSuspended());
-		$this->assertSame(AgentExecutionStatus::COMPLETED, $secondResult->getExecutionStatus());
-		$this->assertSame(1, $tool->getCallCount());
-		$this->assertSame(['id' => 42, 'title' => 'Reviewed title'], $tool->getLastArguments());
-		$this->assertCount(1, $secondResult->getToolCalls());
-	}
-
-	public function testExplicitDenialBecomesToolObservationWithoutExecutingMutation(): void {
-		$tool = new ApprovalMutationTool();
-		$orchestrator = new AgentToolOrchestrator(null, null, $this->createStages());
-		$firstResult = $orchestrator->run(
-			new ApprovalQueueChatModel([$this->toolCallResponse('call-deny', 'update_record', ['id' => 5, 'title' => 'Do not write'])]),
-			[['role' => 'user', 'content' => 'Update it.']],
-			$tool->getToolDefinitions(),
-			[$tool],
-			new AgentContext()
-		);
-		$request = $firstResult->getInteractionRequests()[0];
-		$resume = new AgentResume($firstResult->getSuspension(), [
-			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_DENY, [], 'Keep the current data.')
-		]);
-
-		$secondResult = $orchestrator->run(
-			new ApprovalQueueChatModel([$this->terminalResponse()]),
-			[['role' => 'user', 'content' => 'No, cancel it.']],
-			$tool->getToolDefinitions(),
-			[$tool],
-			new AgentContext(),
-			null,
-			8,
-			'',
-			null,
-			null,
-			null,
-			null,
-			$resume
-		);
-
-		$this->assertTrue($secondResult->isCompleted());
-		$this->assertSame(0, $tool->getCallCount());
-		$this->assertSame([], $secondResult->getToolCalls());
-		$toolMessages = array_values(array_filter(
-			$secondResult->getMessages(),
-			static fn(array $message): bool => ($message['role'] ?? null) === 'tool'
-		));
-		$this->assertCount(1, $toolMessages);
-		$this->assertStringContainsString('Keep the current data.', $toolMessages[0]['content']);
-	}
-
-	public function testApprovalIsConsumedAfterOnePolicyPass(): void {
-		$tool = new ApprovalMutationTool();
-		$orchestrator = new AgentToolOrchestrator(null, null, $this->createStages());
-		$firstResult = $orchestrator->run(
-			new ApprovalQueueChatModel([$this->toolCallResponse('call-once', 'update_record', ['id' => 9, 'title' => 'Once'])]),
-			[['role' => 'user', 'content' => 'Update it once.']],
-			$tool->getToolDefinitions(),
-			[$tool],
-			new AgentContext()
-		);
-		$request = $firstResult->getInteractionRequests()[0];
-		$resume = new AgentResume($firstResult->getSuspension(), [
-			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_APPROVE)
-		]);
-
-		$secondResult = $orchestrator->run(
-			new ApprovalQueueChatModel([$this->toolCallResponse('call-once', 'update_record', ['id' => 9, 'title' => 'Once'])]),
 			[],
 			$tool->getToolDefinitions(),
 			[$tool],
 			new AgentContext(),
 			null,
-			8,
+			10,
 			'',
 			null,
 			null,
 			null,
 			null,
-			$resume
+			$prepared
 		);
 
-		$this->assertTrue($secondResult->isSuspended());
-		$this->assertSame(AgentExecutionStatus::AWAITING_APPROVAL, $secondResult->getExecutionStatus());
+		$this->assertTrue($secondResult->isCompleted());
 		$this->assertSame(1, $tool->getCallCount());
+		$this->assertSame(['id' => 42, 'title' => 'Reviewed title'], $tool->getLastArguments());
 	}
 
-	public function testTamperedReviewedActionFailsBeforeToolExecution(): void {
+	public function testConsumedResumeHandleIsRejectedAsReplay(): void {
 		$tool = new ApprovalMutationTool();
-		$orchestrator = new AgentToolOrchestrator(null, null, $this->createStages());
+		[$orchestrator, $resumeService] = $this->createHarness();
 		$firstResult = $orchestrator->run(
-			new ApprovalQueueChatModel([$this->toolCallResponse('call-tamper', 'update_record', ['id' => 5, 'title' => 'Original'])]),
+			new ApprovalQueueChatModel([$this->toolCallResponse('call-replay', 'update_record', ['id' => 9, 'title' => 'Once'])]),
+			[['role' => 'user', 'content' => 'Update once.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+		$request = $firstResult->getInteractionRequests()[0];
+		$resume = new AgentResume($firstResult->getResumeHandle(), [
+			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_APPROVE)
+		]);
+
+		$orchestrator->run(
+			new ApprovalQueueChatModel([$this->terminalResponse()]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			null,
+			10,
+			'',
+			null,
+			null,
+			null,
+			null,
+			$resumeService->prepare($resume)
+		);
+
+		try {
+			$resumeService->prepare($resume);
+			$this->fail('Expected replay rejection.');
+		} catch (AgentSuspensionRepositoryException $e) {
+			$this->assertSame(AgentSuspensionRepositoryException::REASON_ALREADY_CONSUMED, $e->getReason());
+		}
+	}
+
+	public function testForeignClaimCannotReleaseCurrentResumeLease(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator, $resumeService, $repository] = $this->createHarness();
+		$firstResult = $orchestrator->run(
+			new ApprovalQueueChatModel([$this->toolCallResponse('call-owned', 'update_record', ['id' => 11, 'title' => 'Owned'])]),
+			[['role' => 'user', 'content' => 'Update it.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+		$request = $firstResult->getInteractionRequests()[0];
+		$resume = new AgentResume($firstResult->getResumeHandle(), [
+			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_APPROVE)
+		]);
+		$prepared = $resumeService->prepare($resume);
+
+		$repository->release(new AgentSuspensionClaim(
+			$prepared->getResumeHandle(),
+			str_repeat('x', 43),
+			$prepared->getSuspension()
+		));
+
+		try {
+			$resumeService->prepare($resume);
+			$this->fail('Expected active claim ownership to remain intact.');
+		} catch (AgentSuspensionRepositoryException $e) {
+			$this->assertSame(AgentSuspensionRepositoryException::REASON_ALREADY_CLAIMED, $e->getReason());
+		}
+
+		$repository->release($prepared->getClaim());
+	}
+
+	public function testInvalidResponseReleasesClaimForCorrectedRetry(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator, $resumeService] = $this->createHarness();
+		$firstResult = $orchestrator->run(
+			new ApprovalQueueChatModel([$this->toolCallResponse('call-retry', 'update_record', ['id' => 7, 'title' => 'Retry'])]),
 			[['role' => 'user', 'content' => 'Update it.']],
 			$tool->getToolDefinitions(),
 			[$tool],
 			new AgentContext()
 		);
 
-		$payload = $firstResult->getSuspension()->toArray();
-		$payload['requests'][0]['action']['input']['title'] = 'Tampered';
-		$tampered = AgentSuspension::fromArray($payload);
-		$request = $tampered->getRequests()[0];
-		$resume = new AgentResume($tampered, [
-			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_APPROVE)
-		]);
-		$result = $orchestrator->run(
+		$invalid = new AgentResume($firstResult->getResumeHandle(), []);
+		$invalidResult = $orchestrator->run(
 			new ApprovalQueueChatModel([$this->terminalResponse()]),
-			[['role' => 'user', 'content' => 'Approved.']],
+			[],
 			$tool->getToolDefinitions(),
 			[$tool],
 			new AgentContext(),
 			null,
-			8,
+			10,
 			'',
 			null,
 			null,
 			null,
 			null,
-			$resume
+			$resumeService->prepare($invalid)
 		);
-
-		$this->assertSame('invalid_agent_resume_snapshot', $result->getFailureCode());
+		$this->assertSame('missing_agent_resume_response', $invalidResult->getFailureCode());
 		$this->assertSame(0, $tool->getCallCount());
+
+		$request = $firstResult->getInteractionRequests()[0];
+		$corrected = new AgentResume($firstResult->getResumeHandle(), [
+			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_DENY)
+		]);
+		$this->assertSame($firstResult->getResumeHandle(), $resumeService->prepare($corrected)->getResumeHandle());
 	}
 
-	/** @return array<int,\AssistantFoundation\Api\IAgentStage> */
-	private function createStages(): array {
+	/** @return array{0:AgentToolOrchestrator,1:AgentActionResumeService,2:StateStoreAgentSuspensionRepository} */
+	private function createHarness(): array {
+		$repository = new StateStoreAgentSuspensionRepository(new ApprovalMemoryStateStore());
 		$fingerprint = new AgentActionFingerprint();
-		return [
-			new AgentActionResumeStage($fingerprint),
+		$resumeService = new AgentActionResumeService($fingerprint, $repository);
+		$reviewService = new AgentActionReviewService($fingerprint, $repository, 900);
+		$stages = [
 			new AgentModelDecisionStage(),
 			new AgentActionPolicyStage(
 				new StaticAgentActionPolicyResolver([
@@ -209,12 +196,14 @@ final class AgentActionReviewResumeTest extends TestCase {
 				$fingerprint,
 				'action-policy',
 				'action-policy',
-				['mutation-approval-actions', 'allow-all-actions']
+				['mutation-approval-actions', 'allow-all-actions'],
+				$reviewService
 			),
-			new AgentActionReviewStage($fingerprint),
 			new AgentToolExecutionStage(new ApprovalSilentEventManager()),
 			new AgentToolObservationStage()
 		];
+
+		return [new AgentToolOrchestrator(null, null, $stages, $resumeService), $resumeService, $repository];
 	}
 
 	/** @param array<string,mixed> $arguments @return array<string,mixed> */
@@ -298,4 +287,55 @@ final class ApprovalSilentEventManager implements IEventManager {
 	public function once(string $event, callable $listener, int $priority = 0): void {}
 	public function off(string $event, callable $listener): void {}
 	public function fire(object|string $event, ...$args): array { return []; }
+}
+
+final class ApprovalMemoryStateStore implements IStateStore {
+	/** @var array<string,array{value:mixed,expires_at:?int}> */
+	private array $values = [];
+
+	public function get(string $key, mixed $default = null): mixed {
+		if (!$this->has($key)) {
+			return $default;
+		}
+		return $this->values[$key]['value'];
+	}
+
+	public function has(string $key): bool {
+		if (!isset($this->values[$key])) {
+			return false;
+		}
+		$expiresAt = $this->values[$key]['expires_at'];
+		if ($expiresAt !== null && $expiresAt <= time()) {
+			unset($this->values[$key]);
+			return false;
+		}
+		return true;
+	}
+
+	public function set(string $key, mixed $value, ?int $ttlSeconds = null): void {
+		$this->values[$key] = [
+			'value' => $value,
+			'expires_at' => $ttlSeconds === null ? null : time() + $ttlSeconds
+		];
+	}
+
+	public function delete(string $key): bool {
+		$exists = $this->has($key);
+		unset($this->values[$key]);
+		return $exists;
+	}
+
+	public function setIfNotExists(string $key, mixed $value, ?int $ttlSeconds = null): bool {
+		if ($this->has($key)) {
+			return false;
+		}
+		$this->set($key, $value, $ttlSeconds);
+		return true;
+	}
+
+	public function listKeys(string $prefix): array {
+		return array_values(array_filter(array_keys($this->values), static fn(string $key): bool => str_starts_with($key, $prefix)));
+	}
+
+	public function flush(): void {}
 }

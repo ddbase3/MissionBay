@@ -97,9 +97,9 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 				required: false
 			),
 			new AgentNodePort(
-				name: 'suspension',
-				description: 'Serializable agent suspension state used for a later resume call.',
-				type: 'array',
+				name: 'resume_handle',
+				description: 'Opaque one-time handle used to resume the suspended agent turn.',
+				type: 'string',
 				default: null,
 				required: false
 			),
@@ -162,13 +162,13 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 					static fn($request): array => $request->toArray(),
 					$turnResult->getInteractionRequests()
 				);
-				$suspension = $turnResult->getSuspension()?->toArray();
+				$resumeHandle = $turnResult->getResumeHandle();
 
 				if (!$stream->isDisconnected()) {
 					$stream->push('agent.interaction.required', [
 						'status' => $turnResult->getExecutionStatus(),
 						'interaction_requests' => $requests,
-						'suspension' => $suspension
+						'resume_handle' => $resumeHandle
 					]);
 					$stream->push('done', ['status' => $turnResult->getExecutionStatus()]);
 				}
@@ -177,7 +177,7 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 					'stream_ready' => true,
 					'status' => $turnResult->getExecutionStatus(),
 					'interaction_requests' => $requests,
-					'suspension' => $suspension
+					'resume_handle' => $resumeHandle
 				];
 			}
 

@@ -80,9 +80,9 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				required: false
 			),
 			new AgentNodePort(
-				name: 'suspension',
-				description: 'Serializable agent suspension state used for a later resume call.',
-				type: 'array',
+				name: 'resume_handle',
+				description: 'Opaque one-time handle used to resume the suspended agent turn.',
+				type: 'string',
 				default: null,
 				required: false
 			),
@@ -151,7 +151,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 						static fn($request): array => $request->toArray(),
 						$turnResult->getInteractionRequests()
 					),
-					'suspension' => $turnResult->getSuspension()?->toArray(),
+					'resume_handle' => $turnResult->getResumeHandle(),
 					'tool_calls' => $turnResult->getToolCalls()
 				];
 			}

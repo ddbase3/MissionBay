@@ -21,7 +21,6 @@ use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
-use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentBudgetAssessment;
 use AssistantFoundation\Dto\AgentContextCompaction;
 use AssistantFoundation\Dto\AgentContinuationDecision;
@@ -86,7 +85,7 @@ class AgentToolOrchestratorResult {
 		private array $progressAssessments = [],
 		private string $executionStatus = AgentExecutionStatus::RUNNING,
 		private array $interactionRequests = [],
-		private ?AgentSuspension $suspension = null
+		private string $resumeHandle = ''
 	) {
 		if (!in_array($this->executionStatus, AgentExecutionStatus::all(), true)) {
 			throw new \InvalidArgumentException('Unsupported execution status: ' . $this->executionStatus);
@@ -99,11 +98,8 @@ class AgentToolOrchestratorResult {
 		}
 
 		if (AgentExecutionStatus::isSuspended($this->executionStatus)) {
-			if ($this->suspension === null || $this->interactionRequests === []) {
-				throw new \InvalidArgumentException('Suspended orchestration results require a suspension and interaction requests.');
-			}
-			if ($this->suspension->getStatus() !== $this->executionStatus) {
-				throw new \InvalidArgumentException('Suspension status does not match orchestration result status.');
+			if (trim($this->resumeHandle) === '' || $this->interactionRequests === []) {
+				throw new \InvalidArgumentException('Suspended orchestration results require a resume handle and interaction requests.');
 			}
 		}
 		if (!in_array($this->finalResponseMode, [
@@ -329,8 +325,8 @@ class AgentToolOrchestratorResult {
 		return $this->interactionRequests;
 	}
 
-	public function getSuspension(): ?AgentSuspension {
-		return $this->suspension;
+	public function getResumeHandle(): string {
+		return $this->resumeHandle;
 	}
 
 	public function hasFailure(): bool {

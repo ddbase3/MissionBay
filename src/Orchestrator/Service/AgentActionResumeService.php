@@ -17,34 +17,56 @@
 
 namespace MissionBay\Orchestrator\Service;
 
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
 use AssistantFoundation\Dto\AgentInteractionResponse;
 use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentStageResult;
+use AssistantFoundation\Dto\AgentSuspensionClaim;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
+use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
+use MissionBay\Dto\Assistant\PreparedAgentResume;
 use MissionBay\Orchestrator\AgentActionFingerprint;
+use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 
-/** Applies explicit responses to a suspended action batch. */
+/** Claims, validates, and consumes a durable one-time agent resume handle. */
 final class AgentActionResumeService {
 
+	private IAgentSuspensionRepository $suspensionRepository;
+
 	public function __construct(
-		private readonly AgentActionFingerprint $fingerprint
-	) {}
+		private readonly AgentActionFingerprint $fingerprint,
+		?IAgentSuspensionRepository $suspensionRepository = null
+	) {
+		$this->suspensionRepository = $suspensionRepository ?? new UnavailableAgentSuspensionRepository();
+	}
+
+	public function prepare(AgentResume $resume): PreparedAgentResume {
+		return new PreparedAgentResume(
+			$resume,
+			$this->suspensionRepository->claim($resume->getResumeHandle())
+		);
+	}
 
 	public function resume(IAgentContext $context): AgentStageResult {
-		$resume = $context->getVar(AgentToolLoopContextKeys::RESUME);
-		if (!$resume instanceof AgentResume) {
-			return $this->failure('invalid_agent_resume', 'Agent resume payload is missing.');
+		$prepared = $context->getVar(AgentToolLoopContextKeys::RESUME);
+		if (!$prepared instanceof PreparedAgentResume) {
+			return $this->failure('invalid_agent_resume', 'Prepared agent resume state is missing.');
 		}
+
+		$resume = $prepared->getResume();
 		$responses = [];
 		foreach ($resume->getResponses() as $response) {
 			if (isset($responses[$response->getRequestId()])) {
-				return $this->failure('duplicate_agent_resume_response', 'Duplicate response for interaction request: ' . $response->getRequestId());
+				return $this->releaseFailure(
+					$prepared,
+					'duplicate_agent_resume_response',
+					'Duplicate response for interaction request: ' . $response->getRequestId()
+				);
 			}
 			$responses[$response->getRequestId()] = $response;
 		}
@@ -59,14 +81,18 @@ final class AgentActionResumeService {
 		$deniedCount = 0;
 		$submittedCount = 0;
 
-		foreach ($resume->getSuspension()->getRequests() as $request) {
+		foreach ($prepared->getSuspension()->getRequests() as $request) {
 			$validationError = $this->validateRequestIntegrity($request);
 			if ($validationError !== null) {
-				return $this->failure('invalid_agent_resume_snapshot', $validationError);
+				return $this->releaseFailure($prepared, 'invalid_agent_resume_snapshot', $validationError);
 			}
 			$response = $responses[$request->getId()] ?? null;
 			if (!$response instanceof AgentInteractionResponse) {
-				return $this->failure('missing_agent_resume_response', 'Missing explicit response for interaction request: ' . $request->getId());
+				return $this->releaseFailure(
+					$prepared,
+					'missing_agent_resume_response',
+					'Missing explicit response for interaction request: ' . $request->getId()
+				);
 			}
 			unset($responses[$request->getId()]);
 
@@ -77,7 +103,11 @@ final class AgentActionResumeService {
 			}
 			if ($response->getDecision() === AgentInteractionResponse::DECISION_APPROVE) {
 				if ($request->getKind() !== AgentInteractionRequest::KIND_APPROVAL) {
-					return $this->failure('invalid_agent_resume_decision', 'Only approval requests accept the approve decision: ' . $request->getId());
+					return $this->releaseFailure(
+						$prepared,
+						'invalid_agent_resume_decision',
+						'Only approval requests accept the approve decision: ' . $request->getId()
+					);
 				}
 				$pendingCalls[] = $this->readToolCall($request);
 				$preapproved[$request->getAction()->getId()] = $request->getActionFingerprint();
@@ -86,7 +116,11 @@ final class AgentActionResumeService {
 			}
 			if ($response->getDecision() === AgentInteractionResponse::DECISION_SUBMIT) {
 				if (!in_array($request->getKind(), [AgentInteractionRequest::KIND_CLARIFICATION, AgentInteractionRequest::KIND_DRY_RUN], true)) {
-					return $this->failure('invalid_agent_resume_decision', 'The submit decision is valid only for clarification or dry-run requests: ' . $request->getId());
+					return $this->releaseFailure(
+						$prepared,
+						'invalid_agent_resume_decision',
+						'The submit decision is valid only for clarification or dry-run requests: ' . $request->getId()
+					);
 				}
 				$originalCall = $this->readToolCall($request);
 				$metadata = $originalCall->getMetadata();
@@ -95,11 +129,33 @@ final class AgentActionResumeService {
 				$submittedCount++;
 				continue;
 			}
-			return $this->failure('invalid_agent_resume_decision', 'Unsupported resume decision.');
+			return $this->releaseFailure($prepared, 'invalid_agent_resume_decision', 'Unsupported resume decision.');
 		}
 
 		if ($responses !== []) {
-			return $this->failure('unknown_agent_resume_response', 'Resume payload contains responses for unknown interaction requests.');
+			return $this->releaseFailure(
+				$prepared,
+				'unknown_agent_resume_response',
+				'Resume payload contains responses for unknown interaction requests.'
+			);
+		}
+
+		try {
+			$this->suspensionRepository->consume($prepared->getClaim());
+		} catch (AgentSuspensionRepositoryException $e) {
+			$this->releaseBestEffort($prepared->getClaim());
+			return $this->failure(
+				'agent_resume_consume_failed',
+				$e->getMessage(),
+				['reason' => $e->getReason()]
+			);
+		} catch (\Throwable $e) {
+			$this->releaseBestEffort($prepared->getClaim());
+			return $this->failure(
+				'agent_resume_consume_failed',
+				'Agent resume handle could not be consumed.',
+				['type' => get_class($e), 'message' => $e->getMessage()]
+			);
 		}
 
 		return AgentStageResult::patch([
@@ -109,12 +165,18 @@ final class AgentActionResumeService {
 			AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES => [],
 			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
 			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME_HANDLE => '',
 			AgentToolLoopContextKeys::SUSPENDED => false,
 			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::RUNNING,
 			AgentToolLoopContextKeys::PHASE => $pendingCalls === []
 				? AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
 				: AgentToolLoopContextKeys::PHASE_TOOLS
-		], ['approved' => $approvedCount, 'denied' => $deniedCount, 'submitted' => $submittedCount]);
+		], [
+			'approved' => $approvedCount,
+			'denied' => $deniedCount,
+			'submitted' => $submittedCount,
+			'resume_handle_consumed' => true
+		]);
 	}
 
 	private function validateRequestIntegrity(AgentInteractionRequest $request): ?string {
@@ -158,11 +220,29 @@ final class AgentActionResumeService {
 		);
 	}
 
-	private function failure(string $code, string $message): AgentStageResult {
+	private function releaseFailure(
+		PreparedAgentResume $prepared,
+		string $code,
+		string $message,
+		array $detail = []
+	): AgentStageResult {
+		$this->releaseBestEffort($prepared->getClaim());
+		return $this->failure($code, $message, $detail);
+	}
+
+	private function releaseBestEffort(AgentSuspensionClaim $claim): void {
+		try {
+			$this->suspensionRepository->release($claim);
+		} catch (\Throwable) {
+		}
+	}
+
+	/** @param array<string,mixed> $detail */
+	private function failure(string $code, string $message, array $detail = []): AgentStageResult {
 		return AgentStageResult::patch([
 			AgentToolLoopContextKeys::FAILURE_CODE => $code,
 			AgentToolLoopContextKeys::FAILURE_MESSAGE => $message,
-			AgentToolLoopContextKeys::FAILURE_DETAIL => [],
+			AgentToolLoopContextKeys::FAILURE_DETAIL => $detail,
 			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::FAILED,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED,
 			AgentToolLoopContextKeys::COMPLETED => false,

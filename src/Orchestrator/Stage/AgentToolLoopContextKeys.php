@@ -53,6 +53,7 @@ final class AgentToolLoopContextKeys {
 	public const PREAPPROVED_ACTIONS = self::PREFIX . 'preapproved_actions';
 	public const INTERACTION_REQUESTS = self::PREFIX . 'interaction_requests';
 	public const SUSPENSION = self::PREFIX . 'suspension';
+	public const RESUME_HANDLE = self::PREFIX . 'resume_handle';
 	public const RESUME = self::PREFIX . 'resume';
 	public const SUSPENDED = self::PREFIX . 'suspended';
 	public const EXECUTION_STATUS = self::PREFIX . 'execution_status';
@@ -120,6 +121,7 @@ final class AgentToolLoopContextKeys {
 			self::PREAPPROVED_ACTIONS,
 			self::INTERACTION_REQUESTS,
 			self::SUSPENSION,
+			self::RESUME_HANDLE,
 			self::RESUME,
 			self::SUSPENDED,
 			self::EXECUTION_STATUS,

@@ -35,6 +35,7 @@ use Base3\Usermanager\Api\IUsermanager;
 use AssistantFoundation\Api\IAgentActionPolicy;
 use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Api\IAgentStage;
+use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Api\IAgentToolResultCache;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
@@ -77,6 +78,8 @@ use MissionBay\Orchestrator\Service\AgentResultVerificationService;
 use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
 use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
+use MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository;
+use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 use MissionBay\Orchestrator\Stage\AgentContextCompactionStage;
 use MissionBay\Orchestrator\Stage\AgentFinalAnswerStage;
 use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
@@ -163,11 +166,21 @@ class MissionBayPlugin implements IPlugin, ICheck {
 
 				return new NullAgentToolResultCache();
 			}, IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentSuspensionRepository::class, function($c): IAgentSuspensionRepository {
+				if ($c->has(IStateStore::class)) {
+					return new StateStoreAgentSuspensionRepository($c->get(IStateStore::class));
+				}
+
+				return new UnavailableAgentSuspensionRepository();
+			}, IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionResumeService::class, fn($c) => new AgentActionResumeService(
-				$c->get(AgentActionFingerprint::class)
+				$c->get(AgentActionFingerprint::class),
+				$c->get(IAgentSuspensionRepository::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionReviewService::class, fn($c) => new AgentActionReviewService(
-				$c->get(AgentActionFingerprint::class)
+				$c->get(AgentActionFingerprint::class),
+				$c->get(IAgentSuspensionRepository::class),
+				900
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentBudgetGuardService::class, fn() => new AgentBudgetGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentContextAssessmentService::class, fn() => new AgentContextAssessmentService(), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -200,6 +213,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentAssistantToolSetupFactory::class),
 				$c->get(AgentStagePipelineResolver::class),
 				$c->get(AgentToolOrchestrator::class),
+				$c->get(AgentActionResumeService::class),
 				$c->get(IAgentAssistantFallbackBuilder::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 

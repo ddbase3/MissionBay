@@ -2,7 +2,7 @@
 
 ## Purpose
 
-MissionBay keeps only semantic, replaceable orchestration steps as configured `IAgentStage` components. Guards, cache operations, validation, resume handling, and control-flow bookkeeping are internal services or orchestrator checkpoints.
+MissionBay keeps only semantic, replaceable orchestration steps as configured `IAgentStage` components. Guards, cache operations, validation, durable resume handling, and control-flow bookkeeping are internal services or orchestrator checkpoints.
 
 ## Active default pipeline
 
@@ -44,7 +44,7 @@ These concerns are intentionally not visible stages:
 
 | Service/checkpoint | Placement |
 |---|---|
-| action resume | Orchestrator entry before a new model decision |
+| action resume and durable handle claim | Orchestrator entry before a new model decision |
 | action review | Inside `action-policy` |
 | model/final/tool budget checks | Orchestrator checkpoints and execution boundary |
 | tool cache lookup/store | Inside `tool-execution` |
@@ -96,3 +96,7 @@ Use a service, adapter, decorator, or checkpoint for infrastructure mechanics th
 ## Compatibility
 
 The previous small guard/cache/verification stage classes remain in the source tree for compatibility with explicit custom pipelines. They are no longer registered in the MissionBay default composition.
+
+## Durable suspension boundary
+
+The action-policy stage may stop the pipeline with an opaque `resume_handle`. The complete suspension stays server-side and is restored by the orchestrator entry checkpoint. See [AGENT_DURABLE_SUSPENSIONS.md](AGENT_DURABLE_SUSPENSIONS.md).

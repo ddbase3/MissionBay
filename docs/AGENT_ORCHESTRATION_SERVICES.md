@@ -18,6 +18,7 @@ A service does not become a stage merely because it changes context. It becomes 
 MissionBay registers the following services through the BASE3 container:
 
 ```text
+IAgentSuspensionRepository
 AgentActionResumeService
 AgentActionReviewService
 AgentBudgetGuardService
@@ -31,9 +32,11 @@ AgentToolResultCacheService
 
 ### Action lifecycle
 
-`AgentActionReviewService` is called by `AgentActionPolicyStage`. It creates exact interaction requests and a serializable suspension before any reviewed action reaches execution.
+`AgentActionReviewService` is called by `AgentActionPolicyStage`. It creates exact interaction requests, stores the complete suspension through `IAgentSuspensionRepository`, and returns only an opaque resume handle.
 
-`AgentActionResumeService` is called by `AgentToolOrchestrator` before the normal loop. It validates the suspension and structured responses, restores state, and returns approved, denied, or revised actions to policy evaluation.
+`AgentActionResumeService` is called by `AgentToolOrchestrator` before the normal loop. It claims the handle, restores the server-owned suspension, validates the structured responses, consumes the claim, and returns approved, denied, or revised actions to policy evaluation.
+
+The default repository is `StateStoreAgentSuspensionRepository`. It uses `IStateStore` for TTL state and atomic claim creation. `UnavailableAgentSuspensionRepository` fails closed when no runtime-state backend is configured.
 
 ### Execution boundary
 
@@ -48,6 +51,8 @@ cache lookup
 ```
 
 These operations must remain atomic from the pipeline's point of view. Exposing them as separately reorderable stages allowed unsafe or nonsensical combinations.
+
+The next internal execution checkpoint should be a mutation commit guard directly before tool invocation. It belongs inside the execution boundary, not in the public stage list.
 
 ### Context boundary
 

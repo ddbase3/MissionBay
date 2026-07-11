@@ -26,12 +26,15 @@ use MissionBay\Api\IAgentAssistantTurnService;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentResume;
+use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use MissionBay\Dto\Assistant\PreparedAgentResume;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
+use MissionBay\Orchestrator\Service\AgentActionResumeService;
 
 final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
@@ -41,6 +44,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		private IAgentAssistantToolSetupFactory $toolSetupFactory,
 		private AgentStagePipelineResolver $stagePipelineResolver,
 		private AgentToolOrchestrator $orchestrator,
+		private AgentActionResumeService $actionResumeService,
 		private IAgentAssistantFallbackBuilder $fallbackBuilder
 	) {
 	}
@@ -53,7 +57,8 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$prompt = $options->getPrompt();
 		$system = $options->getSystem();
 		$resume = $options->getResume();
-		$selectionPrompt = $this->resolveSelectionPrompt($prompt, $resume);
+		$preparedResume = $this->prepareResume($resume);
+		$selectionPrompt = $this->resolveSelectionPrompt($prompt, $preparedResume);
 
 		if ($prompt === '' && $resume === null) {
 			throw new \RuntimeException('Prompt is required for a new agent turn.');
@@ -102,9 +107,9 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 		$this->log($logger, 'Max tool loops: ' . $options->getMaxToolLoops() . '.');
 
-		if ($resume !== null) {
-			$messages = $this->readResumeMessages($resume);
-			$userMessage = $this->resolveResumeUserMessage($resume);
+		if ($preparedResume !== null) {
+			$messages = $this->readResumeMessages($preparedResume);
+			$userMessage = $this->resolveResumeUserMessage($preparedResume);
 		} else {
 			$messages = $this->memoryService->buildInitialMessages($system, $memories, $nodeId, $logger);
 			$userMessage = $this->messageFactory->createUserMessage($prompt);
@@ -145,7 +150,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$stages,
 			$options->getBudget(),
 			$options->getToolCacheConfig(),
-			$resume
+			$preparedResume
 		);
 
 		$this->storeOrchestratorContext($context, $orchestrationResult, $logger);
@@ -210,7 +215,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context->setVar('orchestrator_progress_assessments', []);
 			$context->setVar('orchestrator_execution_status', AgentExecutionStatus::COMPLETED);
 			$context->setVar('orchestrator_interaction_requests', []);
-			$context->setVar('orchestrator_suspension', null);
+			$context->setVar('orchestrator_resume_handle', '');
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
@@ -268,21 +273,37 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				static fn($entry): array => $entry->toArray(),
 				$orchestrationResult->getInteractionRequests()
 			));
-			$context->setVar('orchestrator_suspension', $orchestrationResult->getSuspension()?->toArray());
+			$context->setVar('orchestrator_resume_handle', $orchestrationResult->getResumeHandle());
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
 	}
 
+	private function prepareResume(?AgentResume $resume): ?PreparedAgentResume {
+		if ($resume === null) {
+			return null;
+		}
+
+		try {
+			return $this->actionResumeService->prepare($resume);
+		} catch (AgentSuspensionRepositoryException $e) {
+			throw new \RuntimeException(
+				'Agent resume failed (' . $e->getReason() . '): ' . $e->getMessage(),
+				0,
+				$e
+			);
+		}
+	}
+
 	/** @return array<int,array<string,mixed>> */
-	private function readResumeMessages(AgentResume $resume): array {
+	private function readResumeMessages(PreparedAgentResume $resume): array {
 		$messages = $resume->getSuspension()->getState()['messages'] ?? [];
 
 		return is_array($messages) ? $messages : [];
 	}
 
 	/** @return array<string,mixed> */
-	private function resolveResumeUserMessage(AgentResume $resume): array {
+	private function resolveResumeUserMessage(PreparedAgentResume $resume): array {
 		$messages = $this->readResumeMessages($resume);
 		for ($index = count($messages) - 1; $index >= 0; $index--) {
 			$message = $messages[$index] ?? null;
@@ -294,7 +315,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		return $this->messageFactory->createUserMessage('');
 	}
 
-	private function resolveSelectionPrompt(string $prompt, ?AgentResume $resume): string {
+	private function resolveSelectionPrompt(string $prompt, ?PreparedAgentResume $resume): string {
 		if ($resume === null) {
 			return $prompt;
 		}

@@ -22,7 +22,7 @@ use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
 use AssistantFoundation\Dto\AgentInteractionResponse;
-use AssistantFoundation\Dto\AgentResume;
+use MissionBay\Dto\Assistant\PreparedAgentResume;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
@@ -47,15 +47,16 @@ final class AgentActionResumeStage implements IAgentStage {
 
 	public function supports(IAgentContext $context): bool {
 		return $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_RESUME
-			&& $context->getVar(AgentToolLoopContextKeys::RESUME) instanceof AgentResume
+			&& $context->getVar(AgentToolLoopContextKeys::RESUME) instanceof PreparedAgentResume
 			&& (string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '') === '';
 	}
 
 	public function process(IAgentContext $context): AgentStageResult {
-		$resume = $context->getVar(AgentToolLoopContextKeys::RESUME);
-		if (!$resume instanceof AgentResume) {
+		$prepared = $context->getVar(AgentToolLoopContextKeys::RESUME);
+		if (!$prepared instanceof PreparedAgentResume) {
 			return $this->failure('invalid_agent_resume', 'Agent resume payload is missing.');
 		}
+		$resume = $prepared->getResume();
 		$responses = [];
 		foreach ($resume->getResponses() as $response) {
 			if (isset($responses[$response->getRequestId()])) {
@@ -74,7 +75,7 @@ final class AgentActionResumeStage implements IAgentStage {
 		$deniedCount = 0;
 		$submittedCount = 0;
 
-		foreach ($resume->getSuspension()->getRequests() as $request) {
+		foreach ($prepared->getSuspension()->getRequests() as $request) {
 			$validationError = $this->validateRequestIntegrity($request);
 			if ($validationError !== null) {
 				return $this->failure('invalid_agent_resume_snapshot', $validationError);

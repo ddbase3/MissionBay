@@ -24,8 +24,8 @@ use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentBudget;
 use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentSuspension;
+use MissionBay\Dto\Assistant\PreparedAgentResume;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
 use AssistantFoundation\Dto\AgentToolResult;
@@ -37,6 +37,7 @@ use MissionBay\Orchestrator\Service\AgentActionResumeService;
 use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
 use MissionBay\Orchestrator\Service\AgentLoopProgressService;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 
 /**
  * AgentToolOrchestrator
@@ -79,7 +80,10 @@ class AgentToolOrchestrator {
 			? []
 			: $this->normalizeStages($stages);
 		$this->actionResumeService = $actionResumeService
-			?? new AgentActionResumeService(new AgentActionFingerprint());
+			?? new AgentActionResumeService(
+				new AgentActionFingerprint(),
+				new UnavailableAgentSuspensionRepository()
+			);
 		$this->budgetGuardService = $budgetGuardService ?? new AgentBudgetGuardService();
 		$this->loopProgressService = $loopProgressService ?? new AgentLoopProgressService();
 	}
@@ -106,7 +110,7 @@ class AgentToolOrchestrator {
 		?array $stages = null,
 		?AgentBudget $budget = null,
 		?AgentToolCacheConfig $toolCacheConfig = null,
-		?AgentResume $resume = null
+		?PreparedAgentResume $resume = null
 	): AgentToolOrchestratorResult {
 		$effectiveLogger = $logger ?? $this->logger;
 		$effectiveStages = $stages === null
@@ -254,7 +258,7 @@ class AgentToolOrchestrator {
 		?ILogger $logger,
 		AgentBudget $budget,
 		AgentToolCacheConfig $toolCacheConfig,
-		?AgentResume $resume
+		?PreparedAgentResume $resume
 	): void {
 		$values = [
 			AgentToolLoopContextKeys::MODEL => $model,
@@ -279,6 +283,7 @@ class AgentToolOrchestrator {
 			AgentToolLoopContextKeys::PREAPPROVED_ACTIONS => [],
 			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
 			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME_HANDLE => '',
 			AgentToolLoopContextKeys::RESUME => $resume,
 			AgentToolLoopContextKeys::SUSPENDED => false,
 			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::RUNNING,
@@ -519,7 +524,7 @@ class AgentToolOrchestrator {
 		$toolCacheRecords = $context->getVar(AgentToolLoopContextKeys::TOOL_CACHE_RECORDS);
 		$progressAssessments = $context->getVar(AgentToolLoopContextKeys::PROGRESS_ASSESSMENTS);
 		$interactionRequests = $context->getVar(AgentToolLoopContextKeys::INTERACTION_REQUESTS);
-		$suspension = $context->getVar(AgentToolLoopContextKeys::SUSPENSION);
+		$resumeHandle = $context->getVar(AgentToolLoopContextKeys::RESUME_HANDLE);
 		$executionStatus = $this->resolveExecutionStatus($context);
 
 		return new AgentToolOrchestratorResult(
@@ -546,7 +551,7 @@ class AgentToolOrchestrator {
 			is_array($progressAssessments) ? $progressAssessments : [],
 			$executionStatus,
 			is_array($interactionRequests) ? $interactionRequests : [],
-			$suspension instanceof AgentSuspension ? $suspension : null
+			is_scalar($resumeHandle) ? trim((string)$resumeHandle) : ''
 		);
 	}
 

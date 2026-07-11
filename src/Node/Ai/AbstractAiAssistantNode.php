@@ -65,7 +65,7 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			),
 			new AgentNodePort(
 				name: 'resume',
-				description: 'Optional structured AgentResume payload returned after an approval or clarification request.',
+				description: 'Optional AgentResume payload containing the opaque resume_handle and explicit responses.',
 				type: 'array',
 				default: [],
 				required: false
