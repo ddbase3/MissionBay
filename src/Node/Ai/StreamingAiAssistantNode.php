@@ -135,9 +135,16 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 				$this->buildStreamEventCallback($stream)
 			);
 
-			if (!$turnResult->isCompleted()) {
+			if (!$turnResult->canGenerateFinalResponse()) {
 				$this->storeModelResults($context, $turnResult);
 				return $this->handleIncompleteTurn($stream, $turnResult);
+			}
+
+			if ($turnResult->isPartialFinalResponse() && !$stream->isDisconnected()) {
+				$stream->push('response.partial', [
+					'reason' => $turnResult->getFailureCode(),
+					'message' => $turnResult->getFailureMessage()
+				]);
 			}
 
 			try {
@@ -153,9 +160,17 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 			$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
 			$this->storeModelResults($context, $turnResult);
 
-			return [
+			$output = [
 				'stream_ready' => true
 			];
+
+			if ($turnResult->isPartialFinalResponse()) {
+				$output['warning'] = $turnResult->getFailureCode() !== ''
+					? $turnResult->getFailureCode()
+					: 'partial_response';
+			}
+
+			return $output;
 
 		} catch (\Throwable $e) {
 			$this->logError($e->getMessage());
@@ -214,8 +229,29 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 			}
 		);
 
+		$status = 'complete';
+		if (trim($finalContent) === '' && !$stream->isDisconnected()) {
+			$this->logError('Streaming response completed without visible content. Starting one buffered recovery request.');
+			$status = 'recovered_empty_stream';
+
+			try {
+				$recoveredContent = $this->finalResponseService->createDirectResponse($model, $turnResult);
+			} catch (\Throwable $e) {
+				$this->logError('Buffered final-response recovery failed: ' . $e->getMessage());
+				$recoveredContent = '';
+			}
+
+			if (trim($recoveredContent) === '') {
+				$recoveredContent = $this->buildStreamingFailureFallback($turnResult);
+				$status = 'fallback_empty_stream';
+			}
+
+			$finalContent = $recoveredContent;
+			$stream->push('token', ['text' => $finalContent]);
+		}
+
 		if (!$stream->isDisconnected()) {
-			$stream->push('done', ['status' => 'complete']);
+			$stream->push('done', ['status' => $status]);
 		}
 
 		return $finalContent;

@@ -20,6 +20,8 @@ namespace MissionBay\Orchestrator\Stage;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentStageResult;
+use AssistantFoundation\Dto\AgentToolResult;
+use AssistantFoundation\Dto\AiToolCall;
 use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentTool;
@@ -30,13 +32,17 @@ use MissionBay\Event\MissionBayToolStartedEvent;
 /**
  * AgentToolExecutionStage
  *
- * Executes the tool calls produced by the preceding model decision stage
- * and appends every tool result to the working message stack.
+ * Executes the provider-neutral tool calls produced by the preceding model
+ * decision stage and records structured AgentToolResult observations.
+ *
+ * This stage deliberately does not add tool output to the model message stack.
+ * Following stages may assess, filter, compact, or transform the tool results
+ * before an observation stage materializes them as model context.
  */
 final class AgentToolExecutionStage implements IAgentStage {
 
 	public function __construct(
-		private readonly ?IEventManager $eventManager = null,
+		private readonly IEventManager $eventManager,
 		private readonly string $id = 'tool-execution',
 		private readonly string $stageName = 'tool-execution'
 	) {}
@@ -53,6 +59,14 @@ final class AgentToolExecutionStage implements IAgentStage {
 		return $this->stageName;
 	}
 
+	public function getDescription(): string {
+		return 'Executes the normalized tool calls selected by the model and records provider-neutral tool results.';
+	}
+
+	public function getAiUsage(): string {
+		return IAgentStage::AI_USAGE_NONE;
+	}
+
 	public function supports(IAgentContext $context): bool {
 		$toolCalls = $context->getVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS);
 
@@ -66,8 +80,9 @@ final class AgentToolExecutionStage implements IAgentStage {
 	public function process(IAgentContext $context): AgentStageResult {
 		$toolCalls = $context->getVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS);
 		$tools = $context->getVar(AgentToolLoopContextKeys::TOOLS);
-		$messages = $context->getVar(AgentToolLoopContextKeys::MESSAGES);
+		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
 		$executedToolCalls = $context->getVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS);
+		$toolCallIndexes = $context->getVar(AgentToolLoopContextKeys::TOOL_CALL_INDEXES);
 		$eventCallback = $context->getVar(AgentToolLoopContextKeys::EVENT_CALLBACK);
 		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
 		$callIndex = (int)($context->getVar(AgentToolLoopContextKeys::CALL_INDEX) ?? 0);
@@ -79,16 +94,40 @@ final class AgentToolExecutionStage implements IAgentStage {
 			$toolCalls = [];
 		}
 
+		foreach ($toolCalls as $call) {
+			if (!$call instanceof AiToolCall) {
+				return $this->failure(
+					'invalid_tool_call',
+					'Tool execution stage received a non-normalized tool call.',
+					['type' => get_debug_type($call)]
+				);
+			}
+		}
+
 		if (!is_array($tools)) {
 			$tools = [];
 		}
 
-		if (!is_array($messages)) {
-			$messages = [];
+		if (!is_array($toolResults)) {
+			$toolResults = [];
+		}
+
+		foreach ($toolResults as $toolResult) {
+			if (!$toolResult instanceof AgentToolResult) {
+				return $this->failure(
+					'invalid_tool_result',
+					'Tool execution stage received a non-normalized existing tool result.',
+					['type' => get_debug_type($toolResult)]
+				);
+			}
 		}
 
 		if (!is_array($executedToolCalls)) {
 			$executedToolCalls = [];
+		}
+
+		if (!is_array($toolCallIndexes)) {
+			$toolCallIndexes = [];
 		}
 
 		if (!is_callable($eventCallback)) {
@@ -100,16 +139,23 @@ final class AgentToolExecutionStage implements IAgentStage {
 		}
 
 		foreach ($toolCalls as $call) {
-			$callIndex++;
+			$assignedCallIndex = (int)($toolCallIndexes[$call->getId()] ?? 0);
 
-			$this->handleToolCall(
+			if ($assignedCallIndex > 0) {
+				$effectiveCallIndex = $assignedCallIndex;
+				$callIndex = max($callIndex, $assignedCallIndex);
+			} else {
+				$callIndex++;
+				$effectiveCallIndex = $callIndex;
+			}
+
+			$toolResults[] = $this->handleToolCall(
 				$call,
 				$tools,
-				$messages,
 				$context,
 				$eventCallback,
 				$iteration,
-				$callIndex,
+				$effectiveCallIndex,
 				$executedToolCalls,
 				$nodeId,
 				$trace,
@@ -118,8 +164,8 @@ final class AgentToolExecutionStage implements IAgentStage {
 		}
 
 		return AgentStageResult::patch([
-			AgentToolLoopContextKeys::MESSAGES => $messages,
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
+			AgentToolLoopContextKeys::TOOL_RESULTS => $toolResults,
 			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => $executedToolCalls,
 			AgentToolLoopContextKeys::CALL_INDEX => $callIndex,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
@@ -127,17 +173,14 @@ final class AgentToolExecutionStage implements IAgentStage {
 	}
 
 	/**
-	 * @param array<string,mixed> $call
 	 * @param array<int,mixed> $tools
-	 * @param array<int,array<string,mixed>> $messages
 	 * @param array<int,array<string,mixed>> $executedToolCalls
 	 * @param ?callable $eventCallback
 	 * @param array<string,mixed> $trace
 	 */
 	private function handleToolCall(
-		array $call,
+		AiToolCall $call,
 		array $tools,
-		array &$messages,
 		IAgentContext $context,
 		?callable $eventCallback,
 		int $iteration,
@@ -146,11 +189,14 @@ final class AgentToolExecutionStage implements IAgentStage {
 		string $nodeId,
 		array $trace,
 		mixed $logger
-	): void {
-		$callId = (string)($call['id'] ?? uniqid('toolcall_', true));
-		$toolName = (string)($call['function']['name'] ?? '');
-		$args = $this->decodeArguments($call['function']['arguments'] ?? '{}');
+	): AgentToolResult {
+		$callId = trim($call->getId());
+		if ($callId === '') {
+			$callId = uniqid('toolcall_', true);
+		}
 
+		$toolName = trim($call->getName());
+		$args = $call->getArguments();
 		$label = $toolName;
 		$toolObj = $this->findTool($tools, $toolName, $logger);
 
@@ -166,6 +212,13 @@ final class AgentToolExecutionStage implements IAgentStage {
 				$this->logError($logger, 'Reading tool definitions failed (' . $toolName . '): ' . $e->getMessage());
 			}
 		}
+
+		$metadata = [
+			'label' => $label,
+			'iteration' => $iteration,
+			'call_index' => $callIndex,
+			'tool_call' => $call->getMetadata()
+		];
 
 		$this->emitEvent($eventCallback, 'tool.started', $this->buildUiPayload([
 			'call_id' => $callId,
@@ -225,17 +278,21 @@ final class AgentToolExecutionStage implements IAgentStage {
 				$logger
 			);
 
-			$messages[] = [
-				'role' => 'tool',
-				'tool_call_id' => $callId,
-				'content' => $this->encodeContent([
-					'ok' => false,
-					'error_code' => 'tool_not_found',
-					'error' => $warn
-				])
+			$errorOutput = [
+				'ok' => false,
+				'error_code' => 'tool_not_found',
+				'error' => $warn
 			];
 
-			return;
+			return AgentToolResult::failure(
+				$callId,
+				$toolName,
+				$args,
+				'tool_not_found',
+				$warn,
+				$metadata + ['error_type' => \RuntimeException::class, 'error_code_value' => 0],
+				$errorOutput
+			);
 		}
 
 		try {
@@ -272,16 +329,17 @@ final class AgentToolExecutionStage implements IAgentStage {
 
 			$this->log($logger, 'Tool finished: ' . $toolName . ' [' . $callId . ']');
 
-			$messages[] = [
-				'role' => 'tool',
-				'tool_call_id' => $callId,
-				'content' => $this->encodeContent($result)
-			];
-
+			return AgentToolResult::success(
+				$callId,
+				$toolName,
+				$args,
+				$result,
+				$metadata
+			);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Tool failed (' . $toolName . '): ' . $e->getMessage());
 
-			$errorResult = [
+			$errorOutput = [
 				'ok' => false,
 				'error_code' => 'tool_exception',
 				'error' => $e->getMessage(),
@@ -324,11 +382,15 @@ final class AgentToolExecutionStage implements IAgentStage {
 				$logger
 			);
 
-			$messages[] = [
-				'role' => 'tool',
-				'tool_call_id' => $callId,
-				'content' => $this->encodeContent($errorResult)
-			];
+			return AgentToolResult::failure(
+				$callId,
+				$toolName,
+				$args,
+				'tool_exception',
+				$e->getMessage(),
+				$metadata + ['error_type' => get_class($e), 'error_code_value' => $e->getCode()],
+				$errorOutput
+			);
 		}
 	}
 
@@ -356,32 +418,16 @@ final class AgentToolExecutionStage implements IAgentStage {
 	}
 
 	/**
-	 * @return array<string,mixed>
+	 * @param array<string,mixed> $detail
 	 */
-	private function decodeArguments(mixed $rawArguments): array {
-		if (is_array($rawArguments)) {
-			return $rawArguments;
-		}
-
-		if (!is_string($rawArguments) || trim($rawArguments) === '') {
-			return [];
-		}
-
-		$decoded = json_decode($rawArguments, true);
-		return is_array($decoded) ? $decoded : [];
-	}
-
-	private function encodeContent(mixed $value): string {
-		if (is_string($value)) {
-			return $value;
-		}
-
-		$json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-		if ($json === false) {
-			return '{}';
-		}
-
-		return $json;
+	private function failure(string $code, string $message, array $detail): AgentStageResult {
+		return AgentStageResult::patch([
+			AgentToolLoopContextKeys::FAILURE_CODE => $code,
+			AgentToolLoopContextKeys::FAILURE_MESSAGE => $message,
+			AgentToolLoopContextKeys::FAILURE_DETAIL => $detail,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED
+		]);
 	}
 
 	/**
@@ -423,10 +469,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 		array $trace,
 		mixed $logger
 	): void {
-		if ($this->eventManager === null) {
-			return;
-		}
-
 		try {
 			$this->eventManager->fire(
 				new MissionBayToolStartedEvent(
@@ -462,10 +504,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 		array $trace,
 		mixed $logger
 	): void {
-		if ($this->eventManager === null) {
-			return;
-		}
-
 		try {
 			$this->eventManager->fire(
 				new MissionBayToolFinishedEvent(
@@ -504,10 +542,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 		array $trace,
 		mixed $logger
 	): void {
-		if ($this->eventManager === null) {
-			return;
-		}
-
 		try {
 			$this->eventManager->fire(
 				new MissionBayToolFailedEvent(

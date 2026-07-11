@@ -19,6 +19,8 @@ namespace MissionBay\Node\Ai;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentToolCacheConfig;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
@@ -72,6 +74,27 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 				description: 'Maximum number of tool orchestration loops.',
 				type: 'int',
 				default: 8,
+				required: false
+			),
+			new AgentNodePort(
+				name: 'stages',
+				description: 'Ordered configured IAgentStage component ids. An empty list uses the MissionBay default pipeline.',
+				type: 'array',
+				default: [],
+				required: false
+			),
+			new AgentNodePort(
+				name: 'budget',
+				description: 'Optional per-run agent budget. Supports token, AI-operation, tool-call, elapsed-time, and generic normalized usage-metric limits.',
+				type: 'array',
+				default: [],
+				required: false
+			),
+			new AgentNodePort(
+				name: 'toolcache',
+				description: 'Optional explicit tool-result cache configuration with scoped TTL rules. Disabled unless enabled and rules are provided.',
+				type: 'array',
+				default: [],
 				required: false
 			)
 		];
@@ -166,7 +189,10 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			memoryWriteEnabled: $memoryWriteEnabled,
 			mode: $mode,
 			nodeId: $this->getId(),
-			assistantMessageId: $assistantMessageId
+			assistantMessageId: $assistantMessageId,
+			stageIds: $this->readStageIds($inputs),
+			budget: $this->readBudget($inputs),
+			toolCacheConfig: $this->readToolCacheConfig($inputs)
 		);
 	}
 
@@ -231,6 +257,51 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		}
 
 		return $maxToolLoops;
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	protected function readStageIds(array $inputs): array {
+		$value = $inputs['stages'] ?? [];
+
+		if ($value === null || $value === '') {
+			return [];
+		}
+
+		if (!is_array($value)) {
+			throw new \RuntimeException('Input stages must be an array of configured stage ids.');
+		}
+
+		return $value;
+	}
+
+	protected function readBudget(array $inputs): AgentBudget {
+		$value = $inputs['budget'] ?? [];
+
+		if ($value === null || $value === '') {
+			return AgentBudget::unlimited();
+		}
+
+		if (!is_array($value)) {
+			throw new \RuntimeException('Input budget must be an associative array.');
+		}
+
+		return AgentBudget::fromArray($value);
+	}
+
+	protected function readToolCacheConfig(array $inputs): AgentToolCacheConfig {
+		$value = $inputs['toolcache'] ?? [];
+
+		if ($value === null || $value === '') {
+			return AgentToolCacheConfig::disabled();
+		}
+
+		if (!is_array($value)) {
+			throw new \RuntimeException('Input toolcache must be an associative array.');
+		}
+
+		return AgentToolCacheConfig::fromArray($value);
 	}
 
 	protected function log(string $msg): void {

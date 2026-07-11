@@ -122,7 +122,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				null
 			);
 
-			if (!$turnResult->isCompleted()) {
+			if (!$turnResult->canGenerateFinalResponse()) {
 				$this->storeModelResults($context, $turnResult);
 				return $this->handleIncompleteTurn($turnResult);
 			}
@@ -151,10 +151,18 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				$this->log('Suggestions mode: memory write skipped.');
 			}
 
-			return [
+			$output = [
 				'message' => $assistantMessage,
 				'tool_calls' => $turnResult->getToolCalls()
 			];
+
+			if ($turnResult->isPartialFinalResponse()) {
+				$output['warning'] = $turnResult->getFailureCode() !== ''
+					? $turnResult->getFailureCode()
+					: 'partial_response';
+			}
+
+			return $output;
 
 		} catch (\Throwable $e) {
 			$this->logError($e->getMessage());

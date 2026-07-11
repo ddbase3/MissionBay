@@ -15,12 +15,23 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace MissionBay\Orchestrator\Policy;
 
-use Base3\Logger\Api\ILogger;
-use MissionBay\Orchestrator\AgentToolOrchestrator;
+use AssistantFoundation\Api\IAgentActionPolicy;
 
-interface IAgentToolOrchestratorFactory {
+/**
+ * Interface IAgentActionPolicyResolver
+ *
+ * Resolves an explicitly ordered list of configured action policy ids.
+ *
+ * This is an internal MissionBay runtime contract. Public policy
+ * implementations continue to depend only on AssistantFoundation.
+ */
+interface IAgentActionPolicyResolver {
 
-	public function create(?ILogger $logger = null): AgentToolOrchestrator;
+	/**
+	 * @param array<int,string> $policyIds
+	 * @return array<int,IAgentActionPolicy>
+	 */
+	public function resolve(array $policyIds): array;
 }

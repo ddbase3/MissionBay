@@ -17,16 +17,30 @@
 
 namespace MissionBay\Orchestrator;
 
+use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionDecision;
+use AssistantFoundation\Dto\AgentBudgetAssessment;
+use AssistantFoundation\Dto\AgentContextCompaction;
+use AssistantFoundation\Dto\AgentContinuationDecision;
+use AssistantFoundation\Dto\AgentProgressAssessment;
+use AssistantFoundation\Dto\AgentResultVerification;
+use AssistantFoundation\Dto\AgentStageTraceEntry;
+use AssistantFoundation\Dto\AgentToolCacheRecord;
+
 /**
- * Result of the non-stream tool orchestration phase.
+ * Result of the complete MissionBay agent stage pipeline.
  *
  * Important:
  * - messages contains the exact working message stack after the last tool result
- * - finalAssistantMessage stores the terminal assistant stop message from phase 1
- * - non-stream callers can directly use finalAssistantMessage as output
+ * - finalAssistantMessage stores the terminal model response
+ * - finalOutputContent stores the response published by final-answer
  * - incomplete results still carry messages and tool calls for graceful recovery
  */
 class AgentToolOrchestratorResult {
+
+	public const FINAL_RESPONSE_NONE = 'none';
+	public const FINAL_RESPONSE_COMPLETE = 'complete';
+	public const FINAL_RESPONSE_PARTIAL = 'partial';
 
 	/**
 	 * @param array<int,array<string,mixed>> $messages
@@ -34,6 +48,15 @@ class AgentToolOrchestratorResult {
 	 * @param array<int,array<string,mixed>> $toolCalls
 	 * @param array<string,mixed> $failureDetail
 	 * @param array<int,array<string,mixed>> $modelResults
+	 * @param array<int,AgentStageTraceEntry> $stageTrace
+	 * @param array<int,AgentContextCompaction> $contextCompactions
+	 * @param array<int,AgentResultVerification> $resultVerifications
+	 * @param array<int,AgentAction> $actions
+	 * @param array<int,AgentActionDecision> $actionDecisions
+	 * @param array<int,AgentBudgetAssessment> $budgetAssessments
+	 * @param array<int,AgentContinuationDecision> $continuationDecisions
+	 * @param array<int,AgentToolCacheRecord> $toolCacheRecords
+	 * @param array<int,AgentProgressAssessment> $progressAssessments
 	 */
 	public function __construct(
 		private array $messages,
@@ -44,8 +67,27 @@ class AgentToolOrchestratorResult {
 		private string $failureCode = '',
 		private string $failureMessage = '',
 		private array $failureDetail = [],
-		private array $modelResults = []
+		private array $modelResults = [],
+		private array $stageTrace = [],
+		private array $contextCompactions = [],
+		private array $resultVerifications = [],
+		private array $actions = [],
+		private array $actionDecisions = [],
+		private array $budgetAssessments = [],
+		private string $finalOutputContent = '',
+		private string $finalResponseMode = self::FINAL_RESPONSE_NONE,
+		private array $continuationDecisions = [],
+		private string $finalResponseInstruction = '',
+		private array $toolCacheRecords = [],
+		private array $progressAssessments = []
 	) {
+		if (!in_array($this->finalResponseMode, [
+			self::FINAL_RESPONSE_NONE,
+			self::FINAL_RESPONSE_COMPLETE,
+			self::FINAL_RESPONSE_PARTIAL
+		], true)) {
+			throw new \InvalidArgumentException('Unsupported final response mode: ' . $this->finalResponseMode);
+		}
 	}
 
 	/**
@@ -74,8 +116,36 @@ class AgentToolOrchestratorResult {
 		return $this->finalAssistantMessage;
 	}
 
+
+	/**
+	 * Returns the visible answer produced by the final-answer stage.
+	 */
+	public function getFinalOutputContent(): string {
+		return $this->finalOutputContent;
+	}
+
 	public function isCompleted(): bool {
 		return $this->completed;
+	}
+
+	public function getFinalResponseMode(): string {
+		return $this->finalResponseMode;
+	}
+
+	public function canGenerateFinalResponse(): bool {
+		if ($this->finalResponseMode === self::FINAL_RESPONSE_COMPLETE) {
+			return $this->completed && !$this->hasFailure();
+		}
+
+		if ($this->finalResponseMode === self::FINAL_RESPONSE_PARTIAL) {
+			return $this->messages !== [];
+		}
+
+		return false;
+	}
+
+	public function isPartialFinalResponse(): bool {
+		return $this->finalResponseMode === self::FINAL_RESPONSE_PARTIAL;
 	}
 
 	public function getIterations(): int {
@@ -113,6 +183,100 @@ class AgentToolOrchestratorResult {
 	 */
 	public function getModelResults(): array {
 		return $this->modelResults;
+	}
+
+	/**
+	 * Returns one trace entry for every configured stage decision.
+	 *
+	 * Supported stages are recorded as completed or failed. Stages whose
+	 * supports() method returned false are recorded as skipped.
+	 *
+	 * @return array<int,AgentStageTraceEntry>
+	 */
+	public function getStageTrace(): array {
+		return $this->stageTrace;
+	}
+
+	/**
+	 * Returns all attempted context compactions performed during the run.
+	 *
+	 * @return array<int,AgentContextCompaction>
+	 */
+	public function getContextCompactions(): array {
+		return $this->contextCompactions;
+	}
+
+	/**
+	 * Returns deterministic and semantic result verification records.
+	 *
+	 * @return array<int,AgentResultVerification>
+	 */
+	public function getResultVerifications(): array {
+		return $this->resultVerifications;
+	}
+
+	/**
+	 * Returns the semantic actions proposed during the run.
+	 *
+	 * @return array<int,AgentAction>
+	 */
+	public function getActions(): array {
+		return $this->actions;
+	}
+
+	/**
+	 * Returns every configured policy decision in evaluation order.
+	 *
+	 * @return array<int,AgentActionDecision>
+	 */
+	public function getActionDecisions(): array {
+		return $this->actionDecisions;
+	}
+
+
+	/**
+	 * Returns every model and tool budget checkpoint recorded by the run.
+	 *
+	 * @return array<int,AgentBudgetAssessment>
+	 */
+	public function getBudgetAssessments(): array {
+		return $this->budgetAssessments;
+	}
+
+
+	/**
+	 * Returns deterministic loop-control decisions in execution order.
+	 *
+	 * @return array<int,AgentContinuationDecision>
+	 */
+	public function getContinuationDecisions(): array {
+		return $this->continuationDecisions;
+	}
+
+	/**
+	 * Returns an optional transient instruction for the final response request.
+	 */
+	public function getFinalResponseInstruction(): string {
+		return $this->finalResponseInstruction;
+	}
+
+
+	/**
+	 * Returns cache lookup and store decisions in execution order.
+	 *
+	 * @return array<int,AgentToolCacheRecord>
+	 */
+	public function getToolCacheRecords(): array {
+		return $this->toolCacheRecords;
+	}
+
+	/**
+	 * Returns deterministic loop progress assessments.
+	 *
+	 * @return array<int,AgentProgressAssessment>
+	 */
+	public function getProgressAssessments(): array {
+		return $this->progressAssessments;
 	}
 
 	public function hasFailure(): bool {

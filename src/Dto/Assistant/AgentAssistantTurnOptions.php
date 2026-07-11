@@ -17,6 +17,9 @@
 
 namespace MissionBay\Dto\Assistant;
 
+use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentToolCacheConfig;
+
 final class AgentAssistantTurnOptions {
 
 	public function __construct(
@@ -28,13 +31,17 @@ final class AgentAssistantTurnOptions {
 		private bool $memoryWriteEnabled = true,
 		private string $mode = 'chat',
 		private string $nodeId = '',
-		private string $assistantMessageId = ''
+		private string $assistantMessageId = '',
+		private array $stageIds = [],
+		private ?AgentBudget $budget = null,
+		private ?AgentToolCacheConfig $toolCacheConfig = null
 	) {
 		$this->prompt = trim($this->prompt);
 		$this->system = trim($this->system);
 		$this->mode = strtolower(trim($this->mode));
 		$this->nodeId = trim($this->nodeId);
 		$this->assistantMessageId = trim($this->assistantMessageId);
+		$this->stageIds = $this->normalizeStageIds($this->stageIds);
 
 		if ($this->system === '') {
 			$this->system = 'You are a helpful assistant.';
@@ -87,5 +94,55 @@ final class AgentAssistantTurnOptions {
 
 	public function getAssistantMessageId(): string {
 		return $this->assistantMessageId;
+	}
+
+
+	public function getBudget(): AgentBudget {
+		return $this->budget ?? AgentBudget::unlimited();
+	}
+
+
+	public function getToolCacheConfig(): AgentToolCacheConfig {
+		return $this->toolCacheConfig ?? AgentToolCacheConfig::disabled();
+	}
+
+	/**
+	 * Returns the ordered configured IAgentStage component ids.
+	 *
+	 * An empty list selects the MissionBay default pipeline.
+	 *
+	 * @return array<int,string>
+	 */
+	public function getStageIds(): array {
+		return $this->stageIds;
+	}
+
+	/**
+	 * @param array<int,mixed> $stageIds
+	 * @return array<int,string>
+	 */
+	private function normalizeStageIds(array $stageIds): array {
+		$result = [];
+		$known = [];
+
+		foreach ($stageIds as $stageId) {
+			if (!is_string($stageId)) {
+				throw new \RuntimeException('Agent stage ids must be strings.');
+			}
+
+			$stageId = trim($stageId);
+			if ($stageId === '') {
+				throw new \RuntimeException('Agent stage ids must not be empty.');
+			}
+
+			if (isset($known[$stageId])) {
+				throw new \RuntimeException('Duplicate agent stage id: ' . $stageId);
+			}
+
+			$known[$stageId] = true;
+			$result[] = $stageId;
+		}
+
+		return $result;
 	}
 }

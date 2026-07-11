@@ -35,6 +35,8 @@ use MissionBay\Ai\AgentChatMessageAdapter;
  */
 final class AgentModelDecisionStage implements IAgentStage {
 
+	private const TERMINAL_SIGNAL = 'TOOL_PHASE_COMPLETE';
+
 	public function __construct(
 		private readonly string $id = 'model-decision',
 		private readonly string $stageName = 'model-decision'
@@ -52,6 +54,14 @@ final class AgentModelDecisionStage implements IAgentStage {
 		return $this->stageName;
 	}
 
+	public function getDescription(): string {
+		return 'Calls the active chat model once to request tools or return a short tool-phase completion signal.';
+	}
+
+	public function getAiUsage(): string {
+		return IAgentStage::AI_USAGE_REQUIRED;
+	}
+
 	public function supports(IAgentContext $context): bool {
 		return $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_MODEL
 			&& $context->getVar(AgentToolLoopContextKeys::COMPLETED) !== true
@@ -64,6 +74,7 @@ final class AgentModelDecisionStage implements IAgentStage {
 		$toolDefinitions = $context->getVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS);
 		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
 		$logger = $context->getVar(AgentToolLoopContextKeys::LOGGER);
+		$continuationHint = $context->getVar(AgentToolLoopContextKeys::CONTINUATION_HINT);
 
 		if (!$model instanceof IAiChatModel) {
 			return $this->failure(
@@ -84,7 +95,13 @@ final class AgentModelDecisionStage implements IAgentStage {
 		$this->log($logger, 'Tool phase iteration ' . $iteration . ' started.');
 
 		try {
-			$result = $model->complete($messages, $toolDefinitions);
+			$result = $model->complete(
+				$this->buildDecisionMessages(
+					$messages,
+					is_scalar($continuationHint) ? trim((string)$continuationHint) : ''
+				),
+				$toolDefinitions
+			);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Model completion call failed: ' . $e->getMessage());
 
@@ -100,22 +117,24 @@ final class AgentModelDecisionStage implements IAgentStage {
 		}
 
 		$assistant = AgentChatMessageAdapter::assistantMessage($result);
-		$toolCalls = $assistant['tool_calls'] ?? [];
+		$toolCalls = $result->getToolCalls();
 		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
 		if (!is_array($modelResults)) {
 			$modelResults = [];
 		}
 		$modelResults[] = $result->getMetadata()->toArray();
 
-		if (empty($toolCalls) || !is_array($toolCalls)) {
-			$this->log($logger, 'Tool phase completed after ' . $iteration . ' iteration(s).');
+		if ($toolCalls === []) {
+			$this->log($logger, 'Tool phase completed after ' . $iteration . ' iteration(s). Final answer phase starts.');
 
 			return AgentStageResult::patch([
 				AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE => $assistant,
+				AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_COMPLETE,
 				AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
+				AgentToolLoopContextKeys::CONTINUATION_HINT => '',
 				AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
 				AgentToolLoopContextKeys::COMPLETED => true,
-				AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_COMPLETE
+				AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FINAL
 			]);
 		}
 
@@ -124,9 +143,51 @@ final class AgentModelDecisionStage implements IAgentStage {
 		return AgentStageResult::patch([
 			AgentToolLoopContextKeys::MESSAGES => $messages,
 			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
+			AgentToolLoopContextKeys::CONTINUATION_HINT => '',
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $toolCalls,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_TOOLS
 		]);
+	}
+
+	/**
+	 * Adds a control-only instruction to the current model request without
+	 * persisting it in the working message stack. The dedicated final response
+	 * call therefore receives the original system prompt and observations.
+	 *
+	 * @param array<int,array<string,mixed>> $messages
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function buildDecisionMessages(array $messages, string $continuationHint = ''): array {
+		$instruction = 'You are in the tool-decision phase. Request additional tools only when they are expected to add materially new evidence. When no further tool call is required, do not write the user-facing answer. Return exactly ' . self::TERMINAL_SIGNAL . ' and nothing else. The final answer is generated in a separate response phase.';
+
+		if ($continuationHint !== '') {
+			$instruction .= "\n\n" . $continuationHint;
+		}
+		$result = $messages;
+
+		foreach ($result as $index => $message) {
+			if (
+				!is_array($message) ||
+				($message['role'] ?? null) !== 'system' ||
+				!is_scalar($message['content'] ?? null)
+			) {
+				continue;
+			}
+
+			$content = trim((string)$message['content']);
+			$result[$index]['content'] = $content === ''
+				? $instruction
+				: $content . "\n\n" . $instruction;
+
+			return $result;
+		}
+
+		array_unshift($result, [
+			'role' => 'system',
+			'content' => $instruction
+		]);
+
+		return $result;
 	}
 
 	/**

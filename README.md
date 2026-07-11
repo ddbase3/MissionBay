@@ -2,6 +2,10 @@
 
 MissionBay is a modular flow engine for the BASE3 Framework, enabling declarative agent flows based on reusable nodes, connections, and a runtime memory context.
 
+## Agent stage pipeline
+
+The current assistant tool-loop stage order, context prerequisites, phase transitions, and postconditions are documented in [docs/AGENT_STAGE_PIPELINE.md](docs/AGENT_STAGE_PIPELINE.md).
+
 ## Overview
 
 * **Flow Structure**: JSON-based definition of nodes and connections

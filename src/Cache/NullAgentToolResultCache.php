@@ -15,18 +15,29 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator;
+namespace MissionBay\Cache;
 
-use Base3\Event\Api\IEventManager;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentToolOrchestratorFactory;
+use AssistantFoundation\Api\IAgentToolResultCache;
+use AssistantFoundation\Dto\AgentToolCacheEntry;
 
-final class AgentToolOrchestratorFactory implements IAgentToolOrchestratorFactory {
+/**
+ * No-op fallback used when the runtime has no state-store backend.
+ */
+final class NullAgentToolResultCache implements IAgentToolResultCache {
 
-	public function __construct(private ?IEventManager $eventManager = null) {
+	public function isAvailable(): bool {
+		return false;
 	}
 
-	public function create(?ILogger $logger = null): AgentToolOrchestrator {
-		return new AgentToolOrchestrator($logger, $this->eventManager);
+
+	public function get(string $key): ?AgentToolCacheEntry {
+		return null;
+	}
+
+	public function put(string $key, AgentToolCacheEntry $entry, int $ttlSeconds): void {
+	}
+
+	public function delete(string $key): bool {
+		return false;
 	}
 }

@@ -39,14 +39,37 @@ final class AgentToolLoopContextKeys {
 	public const NODE_ID = self::PREFIX . 'node_id';
 	public const TRACE = self::PREFIX . 'trace';
 	public const MAX_LOOPS = self::PREFIX . 'max_loops';
+	public const BUDGET = self::PREFIX . 'budget';
+	public const TOOL_CACHE_CONFIG = self::PREFIX . 'tool_cache_config';
+	public const RUN_STARTED_AT = self::PREFIX . 'run_started_at';
 
 	public const PHASE = self::PREFIX . 'phase';
 	public const ITERATION = self::PREFIX . 'iteration';
 	public const CALL_INDEX = self::PREFIX . 'call_index';
 	public const PENDING_TOOL_CALLS = self::PREFIX . 'pending_tool_calls';
+	public const ACTIONS = self::PREFIX . 'actions';
+	public const ACTION_DECISIONS = self::PREFIX . 'action_decisions';
+	public const TOOL_RESULTS = self::PREFIX . 'tool_results';
+	public const OBSERVATIONS = self::PREFIX . 'observations';
 	public const EXECUTED_TOOL_CALLS = self::PREFIX . 'executed_tool_calls';
+	public const TOOL_CALL_INDEXES = self::PREFIX . 'tool_call_indexes';
+	public const TOOL_CACHE_PLANS = self::PREFIX . 'tool_cache_plans';
+	public const TOOL_CACHE_RECORDS = self::PREFIX . 'tool_cache_records';
+	public const PROGRESS_ASSESSMENTS = self::PREFIX . 'progress_assessments';
+	public const CONSECUTIVE_STALLED_ITERATIONS = self::PREFIX . 'consecutive_stalled_iterations';
+	public const LOOP_PROGRESS_TERMINATED = self::PREFIX . 'loop_progress_terminated';
 	public const FINAL_ASSISTANT_MESSAGE = self::PREFIX . 'final_assistant_message';
+	public const FINAL_OUTPUT_CONTENT = self::PREFIX . 'final_output_content';
+	public const FINAL_RESPONSE_MODE = self::PREFIX . 'final_response_mode';
 	public const MODEL_RESULTS = self::PREFIX . 'model_results';
+	public const CONTEXT_ASSESSMENTS = self::PREFIX . 'context_assessments';
+	public const CONTEXT_COMPACTIONS = self::PREFIX . 'context_compactions';
+	public const RESULT_VERIFICATIONS = self::PREFIX . 'result_verifications';
+	public const CONTINUATION_DECISIONS = self::PREFIX . 'continuation_decisions';
+	public const CONTINUATION_HINT = self::PREFIX . 'continuation_hint';
+	public const FINAL_RESPONSE_INSTRUCTION = self::PREFIX . 'final_response_instruction';
+	public const BUDGET_ASSESSMENTS = self::PREFIX . 'budget_assessments';
+	public const STAGE_TRACE = self::PREFIX . 'stage_trace';
 	public const COMPLETED = self::PREFIX . 'completed';
 	public const FAILURE_CODE = self::PREFIX . 'failure_code';
 	public const FAILURE_MESSAGE = self::PREFIX . 'failure_message';
@@ -55,8 +78,14 @@ final class AgentToolLoopContextKeys {
 	public const PHASE_MODEL = 'model';
 	public const PHASE_TOOLS = 'tools';
 	public const PHASE_AFTER_TOOLS = 'after-tools';
+	public const PHASE_OBSERVED = 'observed';
+	public const PHASE_FINAL = 'final';
 	public const PHASE_COMPLETE = 'complete';
 	public const PHASE_FAILED = 'failed';
+
+	public const FINAL_RESPONSE_NONE = 'none';
+	public const FINAL_RESPONSE_COMPLETE = 'complete';
+	public const FINAL_RESPONSE_PARTIAL = 'partial';
 
 	/**
 	 * Returns the temporary runtime keys that should not remain in the
@@ -73,7 +102,17 @@ final class AgentToolLoopContextKeys {
 			self::LOGGER,
 			self::NODE_ID,
 			self::TRACE,
-			self::MAX_LOOPS
+			self::MAX_LOOPS,
+			self::BUDGET,
+			self::TOOL_CACHE_CONFIG,
+			self::RUN_STARTED_AT,
+			self::TOOL_RESULTS,
+			self::TOOL_CALL_INDEXES,
+			self::TOOL_CACHE_PLANS,
+			self::CONSECUTIVE_STALLED_ITERATIONS,
+			self::LOOP_PROGRESS_TERMINATED,
+			self::CONTINUATION_HINT,
+			self::FINAL_RESPONSE_INSTRUCTION
 		];
 	}
 }

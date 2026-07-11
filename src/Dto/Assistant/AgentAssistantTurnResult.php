@@ -85,9 +85,26 @@ final class AgentAssistantTurnResult {
 		return $this->completed;
 	}
 
+	public function canGenerateFinalResponse(): bool {
+		if ($this->orchestrationResult === null) {
+			return $this->completed;
+		}
+
+		return $this->orchestrationResult->canGenerateFinalResponse();
+	}
+
+	public function isPartialFinalResponse(): bool {
+		return $this->orchestrationResult?->isPartialFinalResponse() ?? false;
+	}
+
 	public function getFallbackContent(): ?string {
 		return $this->fallbackContent;
 	}
+
+	public function getFinalOutputContent(): string {
+		return $this->orchestrationResult?->getFinalOutputContent() ?? '';
+	}
+
 
 	public function addModelResult(AiResultMetadata $metadata): void {
 		$this->modelResults[] = $metadata->toArray();
@@ -121,6 +138,54 @@ final class AgentAssistantTurnResult {
 		}
 
 		return $this->orchestrationResult->getIterations();
+	}
+
+	/**
+	 * @return array<int,\AssistantFoundation\Dto\AgentStageTraceEntry>
+	 */
+	public function getStageTrace(): array {
+		return $this->orchestrationResult?->getStageTrace() ?? [];
+	}
+
+	/**
+	 * @return array<int,\AssistantFoundation\Dto\AgentContextCompaction>
+	 */
+	public function getContextCompactions(): array {
+		return $this->orchestrationResult?->getContextCompactions() ?? [];
+	}
+
+	/**
+	 * @return array<int,\AssistantFoundation\Dto\AgentResultVerification>
+	 */
+	public function getResultVerifications(): array {
+		return $this->orchestrationResult?->getResultVerifications() ?? [];
+	}
+
+
+
+	/**
+	 * @return array<int,\AssistantFoundation\Dto\AgentContinuationDecision>
+	 */
+	public function getContinuationDecisions(): array {
+		return $this->orchestrationResult?->getContinuationDecisions() ?? [];
+	}
+
+	/**
+	 * @return array<int,\AssistantFoundation\Dto\AgentProgressAssessment>
+	 */
+	public function getProgressAssessments(): array {
+		return $this->orchestrationResult?->getProgressAssessments() ?? [];
+	}
+
+	public function getFinalResponseInstruction(): string {
+		return $this->orchestrationResult?->getFinalResponseInstruction() ?? '';
+	}
+
+	/**
+	 * @return array<int,\AssistantFoundation\Dto\AgentBudgetAssessment>
+	 */
+	public function getBudgetAssessments(): array {
+		return $this->orchestrationResult?->getBudgetAssessments() ?? [];
 	}
 
 	public function getFailureCode(): string {

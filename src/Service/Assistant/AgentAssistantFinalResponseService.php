@@ -28,18 +28,18 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 	}
 
 	public function createDirectResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult): string {
-		if (!$turnResult->isCompleted()) {
+		if (!$turnResult->canGenerateFinalResponse()) {
 			return $turnResult->getFallbackContent() ?? '';
 		}
 
-		$result = $model->complete($turnResult->getMessages());
+		$result = $model->complete($this->buildFinalResponseMessages($turnResult));
 		$turnResult->addModelResult($result->getMetadata());
 
 		return $this->messageFactory->normalizeContent($result->getContent());
 	}
 
 	public function createStreamingResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult, callable $onData, ?callable $onMeta = null): string {
-		if (!$turnResult->isCompleted()) {
+		if (!$turnResult->canGenerateFinalResponse()) {
 			$content = $turnResult->getFallbackContent() ?? '';
 			if ($content !== '') {
 				$onData($content);
@@ -50,7 +50,7 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 
 		$metaCallback = $onMeta ?? function(array $meta): void {};
 		$result = $model->streamResult(
-			$turnResult->getMessages(),
+			$this->buildFinalResponseMessages($turnResult),
 			[],
 			$onData,
 			$metaCallback
@@ -58,6 +58,63 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 		$turnResult->addModelResult($result->getMetadata());
 
 		return $result->getContent();
+	}
+
+
+	/**
+	 * Adds a control-only recovery instruction when the tool loop ended with a
+	 * recoverable partial result. The instruction is not written to memory and
+	 * does not alter the preserved orchestration message stack.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function buildFinalResponseMessages(AgentAssistantTurnResult $turnResult): array {
+		$messages = $turnResult->getMessages();
+		$instructions = [];
+
+		if ($turnResult->isPartialFinalResponse()) {
+			$instructions[] = implode("\n", [
+				'The tool phase reached its configured loop limit.',
+				'Produce the most useful answer possible from the tool observations and conversation already available.',
+				'Clearly state which conclusions are incomplete, uncertain, or still require verification.',
+				'Do not claim that additional tools were executed and do not expose internal control codes or runtime details.'
+			]);
+		}
+
+		$continuationInstruction = trim($turnResult->getFinalResponseInstruction());
+		if ($continuationInstruction !== '') {
+			$instructions[] = $continuationInstruction;
+		}
+
+		if ($instructions === []) {
+			return $messages;
+		}
+
+		$instruction = implode("\n\n", $instructions);
+
+		foreach ($messages as $index => $message) {
+			if (
+				!is_array($message) ||
+				($message['role'] ?? null) !== 'system' ||
+				!is_scalar($message['content'] ?? null)
+			) {
+				continue;
+			}
+
+			$content = trim((string)$message['content']);
+			$messages[$index]['content'] = $content === ''
+				? $instruction
+				: $content . "\n\n" . $instruction;
+
+			return $messages;
+		}
+
+		array_unshift($messages, [
+			'role' => 'system',
+			'content' => $instruction
+		]);
+
+		return $messages;
 	}
 
 	public function createAssistantMessage(AgentAssistantTurnResult $turnResult, string $content): array {

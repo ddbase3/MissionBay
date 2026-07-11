@@ -24,10 +24,11 @@ use MissionBay\Api\IAgentAssistantMessageFactory;
 use MissionBay\Api\IAgentAssistantToolSetupFactory;
 use MissionBay\Api\IAgentAssistantTurnService;
 use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentToolOrchestratorFactory;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use MissionBay\Orchestrator\AgentStagePipelineResolver;
+use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 
 final class AgentAssistantTurnService implements IAgentAssistantTurnService {
@@ -36,7 +37,8 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		private IAgentAssistantMemoryService $memoryService,
 		private IAgentAssistantMessageFactory $messageFactory,
 		private IAgentAssistantToolSetupFactory $toolSetupFactory,
-		private IAgentToolOrchestratorFactory $orchestratorFactory,
+		private AgentStagePipelineResolver $stagePipelineResolver,
+		private AgentToolOrchestrator $orchestrator,
 		private IAgentAssistantFallbackBuilder $fallbackBuilder
 	) {
 	}
@@ -120,8 +122,8 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			);
 		}
 
-		$orchestrator = $this->orchestratorFactory->create($logger);
-		$orchestrationResult = $orchestrator->run(
+		$stages = $this->stagePipelineResolver->resolve($options->getStageIds());
+		$orchestrationResult = $this->orchestrator->run(
 			$model,
 			$messages,
 			$toolDefs,
@@ -129,7 +131,11 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context,
 			$eventCallback,
 			$options->getMaxToolLoops(),
-			$nodeId
+			$nodeId,
+			$logger,
+			$stages,
+			$options->getBudget(),
+			$options->getToolCacheConfig()
 		);
 
 		$this->storeOrchestratorContext($context, $orchestrationResult, $logger);
@@ -176,10 +182,22 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		try {
 			$context->setVar('orchestrator_messages', $messages);
 			$context->setVar('orchestrator_final_assistant', null);
+			$context->setVar('orchestrator_final_output', '');
+			$context->setVar('orchestrator_final_response_mode', 'complete');
 			$context->setVar('orchestrator_iterations', 0);
 			$context->setVar('orchestrator_completed', true);
 			$context->setVar('orchestrator_failure_code', '');
 			$context->setVar('orchestrator_model_results', []);
+			$context->setVar('orchestrator_stage_trace', []);
+			$context->setVar('orchestrator_context_compactions', []);
+			$context->setVar('orchestrator_result_verifications', []);
+			$context->setVar('orchestrator_continuation_decisions', []);
+			$context->setVar('orchestrator_final_response_instruction', '');
+			$context->setVar('orchestrator_budget_assessments', []);
+			$context->setVar('orchestrator_actions', []);
+			$context->setVar('orchestrator_action_decisions', []);
+			$context->setVar('orchestrator_tool_cache_records', []);
+			$context->setVar('orchestrator_progress_assessments', []);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
@@ -189,10 +207,49 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		try {
 			$context->setVar('orchestrator_messages', $orchestrationResult->getMessages());
 			$context->setVar('orchestrator_final_assistant', $orchestrationResult->getFinalAssistantMessage());
+			$context->setVar('orchestrator_final_output', $orchestrationResult->getFinalOutputContent());
+			$context->setVar('orchestrator_final_response_mode', $orchestrationResult->getFinalResponseMode());
 			$context->setVar('orchestrator_iterations', $orchestrationResult->getIterations());
 			$context->setVar('orchestrator_completed', $orchestrationResult->isCompleted());
 			$context->setVar('orchestrator_failure_code', $orchestrationResult->getFailureCode());
 			$context->setVar('orchestrator_model_results', $orchestrationResult->getModelResults());
+			$context->setVar('orchestrator_stage_trace', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getStageTrace()
+			));
+			$context->setVar('orchestrator_context_compactions', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getContextCompactions()
+			));
+			$context->setVar('orchestrator_result_verifications', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getResultVerifications()
+			));
+			$context->setVar('orchestrator_continuation_decisions', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getContinuationDecisions()
+			));
+			$context->setVar('orchestrator_final_response_instruction', $orchestrationResult->getFinalResponseInstruction());
+			$context->setVar('orchestrator_budget_assessments', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getBudgetAssessments()
+			));
+			$context->setVar('orchestrator_actions', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getActions()
+			));
+			$context->setVar('orchestrator_action_decisions', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getActionDecisions()
+			));
+			$context->setVar('orchestrator_tool_cache_records', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getToolCacheRecords()
+			));
+			$context->setVar('orchestrator_progress_assessments', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getProgressAssessments()
+			));
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
