@@ -22,11 +22,13 @@ use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
 use AssistantFoundation\Dto\AgentBudgetAssessment;
+use AssistantFoundation\Dto\AgentCapabilitySelection;
 use AssistantFoundation\Dto\AgentContextCompaction;
 use AssistantFoundation\Dto\AgentContinuationDecision;
 use AssistantFoundation\Dto\AgentProgressAssessment;
 use AssistantFoundation\Dto\AgentResultVerification;
 use AssistantFoundation\Dto\AgentStageTraceEntry;
+use AssistantFoundation\Dto\AgentToolContractValidation;
 use AssistantFoundation\Dto\AgentToolCacheRecord;
 
 /**
@@ -60,6 +62,8 @@ class AgentToolOrchestratorResult {
 	 * @param array<int,AgentToolCacheRecord> $toolCacheRecords
 	 * @param array<int,AgentProgressAssessment> $progressAssessments
 	 * @param array<int,AgentInteractionRequest> $interactionRequests
+	 * @param array<int,AgentToolContractValidation> $toolContractValidations
+	 * @param array<int,AgentCapabilitySelection> $capabilitySelections
 	 */
 	public function __construct(
 		private array $messages,
@@ -85,7 +89,9 @@ class AgentToolOrchestratorResult {
 		private array $progressAssessments = [],
 		private string $executionStatus = AgentExecutionStatus::RUNNING,
 		private array $interactionRequests = [],
-		private string $resumeHandle = ''
+		private string $resumeHandle = '',
+		private array $toolContractValidations = [],
+		private array $capabilitySelections = []
 	) {
 		if (!in_array($this->executionStatus, AgentExecutionStatus::all(), true)) {
 			throw new \InvalidArgumentException('Unsupported execution status: ' . $this->executionStatus);
@@ -94,6 +100,18 @@ class AgentToolOrchestratorResult {
 		foreach ($this->interactionRequests as $request) {
 			if (!$request instanceof AgentInteractionRequest) {
 				throw new \InvalidArgumentException('Interaction requests must contain only AgentInteractionRequest instances.');
+			}
+		}
+
+		foreach ($this->toolContractValidations as $validation) {
+			if (!$validation instanceof AgentToolContractValidation) {
+				throw new \InvalidArgumentException('Tool contract validations must contain only AgentToolContractValidation instances.');
+			}
+		}
+
+		foreach ($this->capabilitySelections as $selection) {
+			if (!$selection instanceof AgentCapabilitySelection) {
+				throw new \InvalidArgumentException('Capability selections must contain only AgentCapabilitySelection instances.');
 			}
 		}
 
@@ -327,6 +345,16 @@ class AgentToolOrchestratorResult {
 
 	public function getResumeHandle(): string {
 		return $this->resumeHandle;
+	}
+
+	/** @return array<int,AgentToolContractValidation> */
+	public function getToolContractValidations(): array {
+		return $this->toolContractValidations;
+	}
+
+	/** @return array<int,AgentCapabilitySelection> */
+	public function getCapabilitySelections(): array {
+		return $this->capabilitySelections;
 	}
 
 	public function hasFailure(): bool {

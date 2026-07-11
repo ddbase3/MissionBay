@@ -8,14 +8,27 @@
 - Mutation approval bound to exact tool input.
 - Durable server-owned suspension storage through `IStateStore`.
 - Opaque resume handles, short claim leases, one-time consumption, and replay rejection.
+- Final mutation commit guard with authorization revalidation, optimistic version checks, mutation cache bypass, and typed audit events.
+- Tool input validation before policy and output validation after execution or cache lookup, with structured correctable observations.
 - Partial final response when the tool-loop limit is reached.
-- Cleanup from 17 visible default stages to 6 semantic stages.
+- Cleanup from 17 visible default stages to a compact semantic pipeline.
+- Run-specific capability catalog with duplicate-name rejection, agent/profile hard boundaries, deterministic context ranking, bounded model exposure, and exact-selection execution enforcement.
+- Explicit per-agent configuration for tools, capability providers, modules, resource providers, and prompt providers.
+- Configured component resolution through `IComponentResolver` without granting unrelated global capabilities.
+- Module activation with run-local instructions, capabilities, resources, prompts, and semantic stage mounts.
+- Shared administration UI for capability source and tool-selection settings.
 - Budget, cache, result verification, resume, loop control, and continuation mechanics moved into services/checkpoints.
 - MissionBay documentation aligned with the compact pipeline.
+- Orchestrator profiles with a fixed canonical core-stage order, read-only built-in modes, bounded tool-loop and selection settings, and runtime validation.
+- Profile-centred agent administration: operators select an orchestrator profile and reusable tool profiles; direct components and low-level capability settings moved to an explicit expert/legacy section.
+- Tool profiles reusable by internal agents, MCP, or both, including preservation of presets that expose both tool and memory facets.
+- Base3IliasLab administration integration for orchestrator profiles.
 
 ## Current default stages
 
 ```text
+capability-discovery
+capability-selection
 model-decision
 action-policy
 tool-execution
@@ -26,19 +39,27 @@ semantic-verification
 
 ## Recommended next implementation
 
-### Mutation commit guard
+### Memory and context contributor profiles
 
-Approval says that the user accepted a reviewed action. It does not prove that the user is still authorized or that the target data is unchanged when execution begins.
+The current patch deliberately preserves resources that implement both `IAgentTool` and `IAgentMemory`, such as user preferences. The next design step should introduce a small operator-facing memory/context profile without mixing it into orchestration settings.
 
-The next patch should add a final checkpoint immediately before a mutating `callTool()`:
+Before implementation, evaluate a foundation-level contract split between conversation history and prompt/context contribution. This should remain backward compatible with `IAgentMemory` adapters and must not duplicate the underlying resource or storage.
 
-1. identify mutation calls through explicit tool metadata;
-2. recheck the current user and required permission;
-3. compare reviewed resource versions or ETags with current values;
-4. reject stale or no-longer-authorized writes without invoking the tool;
-5. emit typed audit events for requested, approved, denied, committed, and failed actions.
+### Profile diagnostics
 
-This is more important than adding further planning stages.
+Add a read-only effective-composition view that shows, for one agent:
+
+```text
+resolved orchestrator profile
+canonical stage sequence
+expanded tool profiles
+component presets and capability facets
+final capability pool
+selection limits
+configuration warnings
+```
+
+This is more useful to operators than exposing additional low-level fields in the agent form.
 
 ## Nice-to-have: visible model intent
 
@@ -49,14 +70,6 @@ The text should be one short user-facing sentence such as “I am checking the c
 ## Later semantic stages
 
 Only add these where an orchestrator profile actually needs them:
-
-### `capability-discovery`
-
-Build a run-specific immutable catalog from configured tools, modules, resource providers, prompt providers, and policies.
-
-### `module-activation`
-
-Activate configured `IAgentModule` components and mount their instructions, capabilities, policies, and optional stages.
 
 ### `task-normalization`
 
@@ -70,19 +83,11 @@ Use only for deliberate/planning profiles. Reactive profiles should retain the c
 
 Persist selected facts or summaries only after successful or explicitly partial visible completion.
 
-## Orchestrator profiles
+## Later capability work
 
-An agent profile should select a configured orchestrator profile containing:
-
-```text
-orchestrator component id
-ordered semantic stage ids
-module ids
-policy ids
-budget profile
-cache profile
-interaction policy
-verification policy
-```
-
-Multiple profiles may use the same implementation class with different component ids and configuration.
+- embedding-backed selection for very large catalogs;
+- dedicated small-model routing as an optional selector implementation;
+- dynamic MCP capability refresh and cache invalidation;
+- resource and prompt consumption stages for profiles that need them;
+- module dependency/conflict declarations;
+- administration diagnostics for unavailable remote providers.

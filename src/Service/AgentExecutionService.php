@@ -18,10 +18,15 @@
 namespace MissionBay\Service;
 
 use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Dto\AgentExecutionResult;
 use MissionBay\Api\IAgentComponentFlowBuilder;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
+use MissionBay\Orchestrator\Profile\AgentOrchestratorProfile;
+use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use MissionBay\Profile\AgentToolProfileResolver;
 
 /**
  * AgentExecutionService
@@ -45,7 +50,9 @@ class AgentExecutionService implements IAgentExecutionService {
 	public function __construct(
 		private readonly IAgentContextFactory $contextFactory,
 		private readonly IAgentFlowFactory $flowFactory,
-		private readonly IAgentComponentFlowBuilder $componentFlowBuilder
+		private readonly IAgentComponentFlowBuilder $componentFlowBuilder,
+		private readonly AgentOrchestratorProfileRepository $orchestratorProfileRepository,
+		private readonly AgentToolProfileResolver $toolProfileResolver
 	) {}
 
 	public static function getName(): string {
@@ -72,15 +79,29 @@ class AgentExecutionService implements IAgentExecutionService {
 			$flow = $this->applyLlmToAgentFlow($flow, $llm);
 		}
 
-		$components = $this->normalizeAgentComponents($agentSettings['agent_components'] ?? []);
+		$assistantNodeId = $this->normalizeAssistantNodeId($agentSettings['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID);
+		$profileId = trim((string)($agentSettings['orchestrator_profile'] ?? ''));
+		if ($profileId !== '') {
+			$profile = $this->orchestratorProfileRepository->getProfile($profileId);
+			$flow = $this->applyOrchestratorProfile($flow, $profile, $assistantNodeId);
+		}
+		$flow = $this->applyCapabilityConfiguration($flow, $agentSettings, $assistantNodeId);
+
+		$profileComponents = $this->toolProfileResolver->resolveComponents(
+			$this->normalizeStringIds($agentSettings['tool_profiles'] ?? [])
+		);
+		$legacyComponents = $this->normalizeAgentComponents($agentSettings['agent_components'] ?? []);
+		$components = $this->mergeAgentComponents($profileComponents, $legacyComponents);
 
 		if ($components === []) {
 			return $flow;
 		}
 
-		$assistantNodeId = $this->normalizeAssistantNodeId($agentSettings['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID);
 		$flow = $this->componentFlowBuilder->build($flow, $components, $assistantNodeId);
-		$this->warnings = $this->componentFlowBuilder->getWarnings();
+		$this->warnings = array_values(array_unique(array_merge(
+			$this->warnings,
+			$this->componentFlowBuilder->getWarnings()
+		)));
 
 		return $this->normalizePromptInputConnections($flow);
 	}
@@ -215,6 +236,149 @@ class AgentExecutionService implements IAgentExecutionService {
 		$flow['connections'] = $connections;
 
 		return $flow;
+	}
+
+
+	/**
+	 * Applies the reusable high-level agent capability configuration to the
+	 * assistant node without requiring callers to edit raw AgentFlow JSON.
+	 *
+	 * @param array<string,mixed> $flow
+	 * @param array<string,mixed> $settings
+	 * @return array<string,mixed>
+	 */
+	private function applyCapabilityConfiguration(array $flow, array $settings, string $assistantNodeId): array {
+		$nodeIndex = null;
+
+		foreach ($flow['nodes'] ?? [] as $index => $node) {
+			if (!is_array($node)) {
+				continue;
+			}
+			if ((string)($node['id'] ?? '') === $assistantNodeId) {
+				$nodeIndex = $index;
+				break;
+			}
+			if ($nodeIndex === null && in_array((string)($node['type'] ?? ''), ['aiassistantnode', 'streamingaiassistantnode'], true)) {
+				$nodeIndex = $index;
+			}
+		}
+
+		if ($nodeIndex === null) {
+			return $flow;
+		}
+
+		if (!isset($flow['nodes'][$nodeIndex]['inputs']) || !is_array($flow['nodes'][$nodeIndex]['inputs'])) {
+			$flow['nodes'][$nodeIndex]['inputs'] = [];
+		}
+
+		$legacyMode = !array_key_exists('orchestrator_profile', $settings);
+		$expertOverrides = $this->toBool($settings['expert_overrides_enabled'] ?? false);
+
+		if (($legacyMode || $expertOverrides) && array_key_exists('capability_sources', $settings)) {
+			$value = is_array($settings['capability_sources']) ? $settings['capability_sources'] : [];
+			$flow['nodes'][$nodeIndex]['inputs']['capabilitysources'] = AgentCapabilitySourceConfig::fromArray($value)->toArray();
+		}
+
+		if (($legacyMode || $expertOverrides) && array_key_exists('capability_selection', $settings)) {
+			$value = is_array($settings['capability_selection']) ? $settings['capability_selection'] : [];
+			$flow['nodes'][$nodeIndex]['inputs']['capabilityselection'] = AgentCapabilitySelectionConfig::fromArray($value)->toArray();
+		}
+
+		return $flow;
+	}
+
+	/**
+	 * Applies one validated profile to the assistant node. The profile provides
+	 * a canonical stage subsequence; operators never supply arbitrary ordering.
+	 *
+	 * @param array<string,mixed> $flow
+	 * @return array<string,mixed>
+	 */
+	private function applyOrchestratorProfile(array $flow, AgentOrchestratorProfile $profile, string $assistantNodeId): array {
+		$nodeIndex = $this->findAssistantNodeIndex($flow, $assistantNodeId);
+		if ($nodeIndex === null) {
+			$this->warnings[] = 'Assistant node not found for orchestrator profile: ' . $assistantNodeId;
+			return $flow;
+		}
+
+		if (!isset($flow['nodes'][$nodeIndex]['inputs']) || !is_array($flow['nodes'][$nodeIndex]['inputs'])) {
+			$flow['nodes'][$nodeIndex]['inputs'] = [];
+		}
+
+		$flow['nodes'][$nodeIndex]['inputs']['stages'] = $profile->getStageIds();
+		$flow['nodes'][$nodeIndex]['inputs']['maxtoolloops'] = $profile->getMaxToolLoops();
+		$flow['nodes'][$nodeIndex]['inputs']['capabilityselection'] = $profile->getCapabilitySelection()->toArray();
+		$flow['nodes'][$nodeIndex]['inputs']['orchestratorprofile'] = $profile->getId();
+
+		return $flow;
+	}
+
+	/** @param array<string,mixed> $flow */
+	private function findAssistantNodeIndex(array $flow, string $assistantNodeId): ?int {
+		$fallback = null;
+		foreach ($flow['nodes'] ?? [] as $index => $node) {
+			if (!is_array($node)) {
+				continue;
+			}
+			if ((string)($node['id'] ?? '') === $assistantNodeId) {
+				return (int)$index;
+			}
+			if ($fallback === null && in_array((string)($node['type'] ?? ''), ['aiassistantnode', 'streamingaiassistantnode'], true)) {
+				$fallback = (int)$index;
+			}
+		}
+		return $fallback;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $profileComponents
+	 * @param array<int,array<string,mixed>> $legacyComponents
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function mergeAgentComponents(array $profileComponents, array $legacyComponents): array {
+		$result = [];
+		foreach (array_merge($profileComponents, $legacyComponents) as $component) {
+			if (!is_array($component)) {
+				continue;
+			}
+			$preset = trim((string)($component['preset'] ?? ''));
+			if ($preset === '') {
+				continue;
+			}
+			if (!isset($result[$preset])) {
+				$result[$preset] = $component;
+				continue;
+			}
+			$existing = is_array($result[$preset]['attach_as'] ?? null) ? $result[$preset]['attach_as'] : [];
+			$additional = is_array($component['attach_as'] ?? null) ? $component['attach_as'] : [];
+			$result[$preset] = array_replace_recursive($result[$preset], $component);
+			$result[$preset]['attach_as'] = array_values(array_unique(array_merge($existing, $additional)));
+		}
+		return array_values($result);
+	}
+
+	/** @return array<int,string> */
+	private function normalizeStringIds(mixed $value): array {
+		if (is_string($value)) {
+			$value = preg_split('/[\r\n,]+/', $value) ?: [];
+		}
+		if (!is_array($value)) {
+			return [];
+		}
+		$result = [];
+		foreach ($value as $id) {
+			$id = $this->normalizeTechnicalKey((string)$id);
+			if ($id !== '') {
+				$result[$id] = $id;
+			}
+		}
+		return array_values($result);
+	}
+
+	private function toBool(mixed $value): bool {
+		if (is_bool($value)) return $value;
+		if (is_int($value)) return $value !== 0;
+		return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
 	}
 
 	/**

@@ -4,7 +4,6 @@ $resolve = $this->_['resolve'];
 $serviceUrl = (string) ($this->_['service'] ?? '');
 $settingsGroup = (string) ($this->_['settings_group'] ?? 'tool-profile');
 $toolPresetOptions = is_array($this->_['tool_preset_options'] ?? null) ? $this->_['tool_preset_options'] : [];
-$typeOptions = ['mcp'];
 $modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
 $modularGridJsUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/index.js');
 $modularDialogCssUrl = (string) $resolve('plugin/ClientStack/assets/modulardialog/styles/modulardialog.css');
@@ -464,7 +463,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 <div class="tool-profile-admin-shell">
 	<h1>Tool Profiles</h1>
 	<p>
-		Manage simple tool profiles. A profile only stores a named list of already configured tool preset ids.
+		Manage reusable tool profiles for internal MissionBay agents, MCP exposure, or both. Profiles reference configured component presets and preserve dual tool + memory capabilities.
 	</p>
 
 	<div class="tool-profile-admin-grid">
@@ -501,12 +500,9 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 			</div>
 
 			<div>
-				<label class="tool-profile-admin-label">Type</label>
-				<select name="type" class="tool-profile-admin-select">
-<?php foreach($typeOptions as $typeOption): ?>
-					<option value="<?php echo $e($typeOption); ?>"><?php echo $e($typeOption); ?></option>
-<?php endforeach; ?>
-				</select>
+				<label class="tool-profile-admin-label">Profile use</label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="internal_enabled" value="1" /> available to internal agents</label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_enabled" value="1" /> expose through MCP</label>
 			</div>
 
 			<div>
@@ -514,14 +510,14 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
 			</div>
 
-			<div class="tool-profile-admin-field-full">
+			<div class="tool-profile-admin-field-full" data-mcp-token-section>
 				<label class="tool-profile-admin-label">Bearer token</label>
 				<div class="tool-profile-admin-token-row">
 					<input type="text" name="token" class="tool-profile-admin-input" autocomplete="off" spellcheck="false" />
 					<button type="button" class="tool-profile-admin-button" data-action="generate-token">Generate</button>
 					<button type="button" class="tool-profile-admin-button" data-action="copy-token">Copy</button>
 				</div>
-				<div class="tool-profile-admin-form-hint">Used as Authorization: Bearer token for this profile.</div>
+				<div class="tool-profile-admin-form-hint">Used as Authorization: Bearer token when MCP exposure is enabled.</div>
 			</div>
 
 			<div class="tool-profile-admin-field-full">
@@ -532,6 +528,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 	$toolPresetId = is_array($toolPresetOption) ? (string)($toolPresetOption['id'] ?? '') : (string)$toolPresetOption;
 	$toolPresetLabel = is_array($toolPresetOption) ? (string)($toolPresetOption['label'] ?? $toolPresetId) : $toolPresetId;
 	$toolPresetType = is_array($toolPresetOption) ? (string)($toolPresetOption['type'] ?? '') : '';
+	$toolPresetCapabilities = is_array($toolPresetOption) ? (string)($toolPresetOption['capability_text'] ?? '') : '';
 	$toolPresetEnabled = !is_array($toolPresetOption) || (bool)($toolPresetOption['enabled'] ?? true);
 	if($toolPresetId === '') {
 		continue;
@@ -539,6 +536,9 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 	$subText = $toolPresetId;
 	if($toolPresetType !== '') {
 		$subText .= ' - ' . $toolPresetType;
+	}
+	if($toolPresetCapabilities !== '') {
+		$subText .= ' - ' . $toolPresetCapabilities;
 	}
 	if(!$toolPresetEnabled) {
 		$subText .= ' - disabled';
@@ -553,7 +553,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 					</label>
 <?php endforeach; ?>
 				</div>
-				<div class="tool-profile-admin-form-hint">Select the tool presets that belong to this profile. The profile stores preset ids only.</div>
+				<div class="tool-profile-admin-form-hint">Select component presets for this profile. Presets exposing tool + memory are attached in both roles for internal agents.</div>
 			</div>
 		</form>
 	</div>
@@ -567,9 +567,10 @@ const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE 
 const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const MODULARDIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const TOOL_PRESET_OPTIONS = <?php echo json_encode($toolPresetOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
-const TYPE_FILTER_OPTIONS = [
-	{ value: '', label: 'All types' },
-	{ value: 'mcp', label: 'mcp' }
+const BOOLEAN_FILTER_OPTIONS = [
+	{ value: '', label: 'All' },
+	{ value: '1', label: 'Yes' },
+	{ value: '0', label: 'No' }
 ];
 const ENABLED_FILTER_OPTIONS = [
 	{ value: '', label: 'All states' },
@@ -583,7 +584,7 @@ const BATCH_SIZE = 50;
 const SORT_TYPES = {
 	profile_id: 'string',
 	label: 'string',
-	type: 'string',
+	usage_text: 'string',
 	enabled_label: 'string',
 	tool_count: 'int',
 	tool_text: 'string'
@@ -720,14 +721,12 @@ function renderProfile(value, row) {
 	return wrapper;
 }
 
-function renderType(value, row) {
+function renderUsage(value, row) {
 	const wrapper = createElement('tool-profile-admin-cell-stack');
-	const main = renderPills(row.type || value);
+	const main = renderPills([row.internal_enabled ? 'internal' : '', row.mcp_enabled ? 'MCP' : ''].filter(Boolean));
 	const sub = createElement('tool-profile-admin-cell-sub', getText(row.enabled_label));
-
 	wrapper.appendChild(main);
 	wrapper.appendChild(sub);
-
 	return wrapper;
 }
 
@@ -912,9 +911,9 @@ function renderProfileDetail(context) {
 
 	left.appendChild(createElement('tool-profile-admin-detail-title', getText(record.label || record.profile_id)));
 	left.appendChild(createDetailRow('ID', record.profile_id || record.id));
-	left.appendChild(createDetailRow('Type', record.type));
+	left.appendChild(createDetailRow('Use', record.usage_text));
 	left.appendChild(createDetailRow('Enabled', record.enabled ? 'yes' : 'no'));
-	left.appendChild(createDetailRow('Token', record.token_configured ? 'configured' : 'missing'));
+	left.appendChild(createDetailRow('MCP token', record.mcp_enabled ? (record.token_configured ? 'configured' : 'missing') : 'not used'));
 	left.appendChild(createDetailRow('Tools', record.tool_text));
 
 	right.appendChild(createElement('tool-profile-admin-detail-title', 'Record JSON'));
@@ -1013,6 +1012,17 @@ function setSelectValue(form, name, value) {
 
 	ensureSelectOption(form, name, normalizedValue);
 	field.value = normalizedValue;
+}
+
+function setCheckboxValue(form, name, value) {
+	const field = form.elements.namedItem(name);
+	if (field) field.checked = value === true;
+}
+
+function updateMcpTokenVisibility(form) {
+	const section = form.querySelector('[data-mcp-token-section]');
+	const enabled = form.elements.namedItem('mcp_enabled');
+	if (section) section.hidden = !(enabled && enabled.checked);
 }
 
 function setToolCheckboxValues(form, values) {
@@ -1116,7 +1126,9 @@ function openProfileEditor(record) {
 	setFormValue(form, 'id', record.profile_id || record.id || '');
 	setFormValue(form, 'label', record.label || '');
 	setFormValue(form, 'description', record.description || '');
-	setSelectValue(form, 'type', record.type || 'mcp');
+	setCheckboxValue(form, 'internal_enabled', record.internal_enabled !== false);
+	setCheckboxValue(form, 'mcp_enabled', record.mcp_enabled === true);
+	updateMcpTokenVisibility(form);
 	setFormValue(form, 'token', record.token || '');
 	setToolCheckboxValues(form, Array.isArray(record.tools) ? record.tools : []);
 
@@ -1153,7 +1165,8 @@ function openNewProfileEditor() {
 		id: '',
 		label: '',
 		description: '',
-		type: 'mcp',
+		internal_enabled: true,
+		mcp_enabled: false,
 		enabled: true,
 		token: '',
 		tools: []
@@ -1232,7 +1245,8 @@ function getSelectedTools(form) {
 function validateEditorRequiredFields(form) {
 	const id = getFormFieldValue(form, 'id');
 	const label = getFormFieldValue(form, 'label');
-	const type = getFormFieldValue(form, 'type');
+	const internalEnabled = !!form.elements.namedItem('internal_enabled').checked;
+	const mcpEnabled = !!form.elements.namedItem('mcp_enabled').checked;
 
 	if (!id) {
 		throw new Error('Profile ID is required.');
@@ -1242,8 +1256,8 @@ function validateEditorRequiredFields(form) {
 		throw new Error('Label is required.');
 	}
 
-	if (!type) {
-		throw new Error('Type is required.');
+	if (!internalEnabled && !mcpEnabled) {
+		throw new Error('Enable internal agent use, MCP exposure, or both.');
 	}
 }
 
@@ -1266,7 +1280,8 @@ function buildEditorPayload(options = {}) {
 		id: getFormFieldValue(form, 'id'),
 		label: getFormFieldValue(form, 'label'),
 		description: getFormFieldValue(form, 'description'),
-		type: getFormFieldValue(form, 'type'),
+		internal_enabled: form.elements.namedItem('internal_enabled').checked,
+		mcp_enabled: form.elements.namedItem('mcp_enabled').checked,
 		enabled: form.elements.namedItem('enabled').checked,
 		token: getFormFieldValue(form, 'token'),
 		tools: getSelectedTools(form)
@@ -1399,6 +1414,10 @@ function bindEditorEvents() {
 	if (!form) {
 		return;
 	}
+
+	form.addEventListener('change', (event) => {
+		if (event.target && event.target.name === 'mcp_enabled') updateMcpTokenVisibility(form);
+	});
 
 	form.addEventListener('keydown', (event) => {
 		if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -1620,10 +1639,16 @@ async function initGrid(modularGridModule) {
 				clearLabel: 'Clear filters',
 				fields: [
 					{
-						key: 'type',
-						label: 'Type',
+						key: 'internal_enabled',
+						label: 'Internal',
 						type: 'select',
-						options: TYPE_FILTER_OPTIONS
+						options: BOOLEAN_FILTER_OPTIONS
+					},
+					{
+						key: 'mcp_enabled',
+						label: 'MCP',
+						type: 'select',
+						options: BOOLEAN_FILTER_OPTIONS
 					},
 					{
 						key: 'enabled',
@@ -1733,27 +1758,27 @@ async function initGrid(modularGridModule) {
 				}
 			},
 			{
-				key: 'type',
-				label: 'Type',
-				width: 180,
+				key: 'usage_text',
+				label: 'Use',
+				width: 210,
 				headerMenu: {
-					defaultSortKey: 'type',
+					defaultSortKey: 'usage_text',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'type', label: 'Type' },
+						{ key: 'usage_text', label: 'Use' },
 						{ key: 'enabled_label', label: 'State' }
 					]
 				},
 				render(value, row) {
-					return renderType(value, row);
+					return renderUsage(value, row);
 				}
 			},
 			{
 				key: 'token_configured_label',
 				label: 'Token',
 				width: 120,
-				render(value) {
-					return renderPills(value);
+				render(value, row) {
+					return renderPills(row.mcp_enabled ? value : 'not used');
 				}
 			},
 			{

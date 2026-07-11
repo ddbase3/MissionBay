@@ -18,6 +18,7 @@
 namespace MissionBay\Dto\Assistant;
 
 use MissionBay\Api\IAgentTool;
+use AssistantFoundation\Dto\AgentCapabilityCatalog;
 use MissionBay\Profile\ProfilePlan;
 use MissionBay\Profile\ToolFilterReport;
 
@@ -32,6 +33,7 @@ final class AgentAssistantToolSetup {
 	public function __construct(
 		private array $tools,
 		private array $toolDefs,
+		private AgentCapabilityCatalog $catalog,
 		private ProfilePlan $effectivePlan,
 		private ToolFilterReport $report,
 		private ?array $allowedToolNames,
@@ -52,6 +54,10 @@ final class AgentAssistantToolSetup {
 	 */
 	public function getToolDefs(): array {
 		return $this->toolDefs;
+	}
+
+	public function getCatalog(): AgentCapabilityCatalog {
+		return $this->catalog;
 	}
 
 	public function getEffectivePlan(): ProfilePlan {

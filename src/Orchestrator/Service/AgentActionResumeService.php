@@ -19,6 +19,7 @@ namespace MissionBay\Orchestrator\Service;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
+use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
 use AssistantFoundation\Dto\AgentInteractionResponse;
@@ -28,6 +29,8 @@ use AssistantFoundation\Dto\AgentSuspensionClaim;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
+use Base3\Event\Api\IEventManager;
+use MissionBay\Event\MissionBayAgentActionAuditEvent;
 use MissionBay\Dto\Assistant\PreparedAgentResume;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
@@ -40,7 +43,8 @@ final class AgentActionResumeService {
 
 	public function __construct(
 		private readonly AgentActionFingerprint $fingerprint,
-		?IAgentSuspensionRepository $suspensionRepository = null
+		?IAgentSuspensionRepository $suspensionRepository = null,
+		private readonly ?IEventManager $eventManager = null
 	) {
 		$this->suspensionRepository = $suspensionRepository ?? new UnavailableAgentSuspensionRepository();
 	}
@@ -80,6 +84,7 @@ final class AgentActionResumeService {
 		$approvedCount = 0;
 		$deniedCount = 0;
 		$submittedCount = 0;
+		$auditEvents = [];
 
 		foreach ($prepared->getSuspension()->getRequests() as $request) {
 			$validationError = $this->validateRequestIntegrity($request);
@@ -98,6 +103,12 @@ final class AgentActionResumeService {
 
 			if ($response->getDecision() === AgentInteractionResponse::DECISION_DENY) {
 				$toolResults[] = $this->createDeclinedResult($request, $response);
+				$auditEvents[] = [
+					'type' => MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED,
+					'action' => $request->getAction(),
+					'reason' => trim($response->getNote()) !== '' ? $response->getNote() : 'The user declined the pending action.',
+					'metadata' => ['interaction_request_id' => $request->getId()]
+				];
 				$deniedCount++;
 				continue;
 			}
@@ -109,8 +120,27 @@ final class AgentActionResumeService {
 						'Only approval requests accept the approve decision: ' . $request->getId()
 					);
 				}
-				$pendingCalls[] = $this->readToolCall($request);
+				$approvedCall = $this->readToolCall($request);
+				$callMetadata = $approvedCall->getMetadata();
+				$callMetadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_APPROVAL_FINGERPRINT] = $request->getActionFingerprint();
+				$callMetadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_INTERACTION_REQUEST] = $request->getId();
+				$commitSnapshot = $request->getMetadata()[AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT] ?? null;
+				if (is_array($commitSnapshot)) {
+					$callMetadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT] = $commitSnapshot;
+				}
+				$pendingCalls[] = new AiToolCall(
+					$approvedCall->getId(),
+					$approvedCall->getName(),
+					$approvedCall->getArguments(),
+					$callMetadata
+				);
 				$preapproved[$request->getAction()->getId()] = $request->getActionFingerprint();
+				$auditEvents[] = [
+					'type' => MissionBayAgentActionAuditEvent::TYPE_APPROVAL_GRANTED,
+					'action' => $request->getAction(),
+					'reason' => trim($response->getNote()) !== '' ? $response->getNote() : 'The user approved the exact pending action.',
+					'metadata' => ['interaction_request_id' => $request->getId()]
+				];
 				$approvedCount++;
 				continue;
 			}
@@ -155,6 +185,16 @@ final class AgentActionResumeService {
 				'agent_resume_consume_failed',
 				'Agent resume handle could not be consumed.',
 				['type' => get_class($e), 'message' => $e->getMessage()]
+			);
+		}
+
+		foreach ($auditEvents as $auditEvent) {
+			$this->emitAudit(
+				$auditEvent['type'],
+				$auditEvent['action'],
+				$auditEvent['reason'],
+				$context,
+				$auditEvent['metadata']
 			);
 		}
 
@@ -218,6 +258,30 @@ final class AgentActionResumeService {
 			['interaction_request_id' => $request->getId(), 'user_decision' => $response->toArray()],
 			['ok' => false, 'blocked' => true, 'decision' => 'deny', 'reason' => $message, 'action' => $request->getAction()->toArray()]
 		);
+	}
+
+	/** @param array<string,mixed> $metadata */
+	private function emitAudit(
+		string $type,
+		AgentAction $action,
+		string $reason,
+		IAgentContext $context,
+		array $metadata = []
+	): void {
+		if (!$this->eventManager instanceof IEventManager) {
+			return;
+		}
+		$trace = $context->getVar(AgentToolLoopContextKeys::TRACE);
+		try {
+			$this->eventManager->fire(new MissionBayAgentActionAuditEvent(
+				$type,
+				$action,
+				$reason,
+				is_array($trace) ? $trace : [],
+				$metadata
+			));
+		} catch (\Throwable) {
+		}
 	}
 
 	private function releaseFailure(

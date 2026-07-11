@@ -23,8 +23,13 @@ use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentCapability;
+use AssistantFoundation\Dto\AgentCapabilityCatalog;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentSuspension;
+use MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
 use MissionBay\Dto\Assistant\PreparedAgentResume;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
@@ -110,7 +115,11 @@ class AgentToolOrchestrator {
 		?array $stages = null,
 		?AgentBudget $budget = null,
 		?AgentToolCacheConfig $toolCacheConfig = null,
-		?PreparedAgentResume $resume = null
+		?PreparedAgentResume $resume = null,
+		?AgentCapabilityCatalog $capabilityCatalog = null,
+		?AgentCapabilityDiscoveryResult $capabilityDiscovery = null,
+		?AgentCapabilitySelectionConfig $capabilitySelectionConfig = null,
+		array $requiredToolNames = []
 	): AgentToolOrchestratorResult {
 		$effectiveLogger = $logger ?? $this->logger;
 		$effectiveStages = $stages === null
@@ -135,7 +144,14 @@ class AgentToolOrchestrator {
 			$effectiveLogger,
 			$budget ?? AgentBudget::unlimited(),
 			$toolCacheConfig ?? AgentToolCacheConfig::disabled(),
-			$resume
+			$resume,
+			$capabilityCatalog ?? $this->createFallbackCatalog($toolDefs),
+			$capabilityDiscovery ?? new AgentCapabilityDiscoveryResult(
+				new AgentCapabilitySourceConfig(),
+				tools: array_values(array_filter($tools, static fn(mixed $tool): bool => is_object($tool)))
+			),
+			$capabilitySelectionConfig ?? new AgentCapabilitySelectionConfig(),
+			$requiredToolNames
 		);
 
 		$resumePending = $resume !== null;
@@ -258,12 +274,28 @@ class AgentToolOrchestrator {
 		?ILogger $logger,
 		AgentBudget $budget,
 		AgentToolCacheConfig $toolCacheConfig,
-		?PreparedAgentResume $resume
+		?PreparedAgentResume $resume,
+		AgentCapabilityCatalog $capabilityCatalog,
+		AgentCapabilityDiscoveryResult $capabilityDiscovery,
+		AgentCapabilitySelectionConfig $capabilitySelectionConfig,
+		array $requiredToolNames
 	): void {
 		$values = [
 			AgentToolLoopContextKeys::MODEL => $model,
 			AgentToolLoopContextKeys::MESSAGES => $messages,
 			AgentToolLoopContextKeys::TOOL_DEFINITIONS => $toolDefs,
+			AgentToolLoopContextKeys::CAPABILITY_DISCOVERY => $capabilityDiscovery,
+			AgentToolLoopContextKeys::CAPABILITY_DISCOVERY_APPLIED => false,
+			AgentToolLoopContextKeys::CAPABILITY_SOURCE_CONFIG => $capabilityDiscovery->getSourceConfig(),
+			AgentToolLoopContextKeys::CAPABILITY_CATALOG => $capabilityCatalog,
+			AgentToolLoopContextKeys::RESOURCE_PROVIDERS => $capabilityDiscovery->getResourceProviders(),
+			AgentToolLoopContextKeys::PROMPT_PROVIDERS => $capabilityDiscovery->getPromptProviders(),
+			AgentToolLoopContextKeys::MODULE_INSTRUCTIONS => $capabilityDiscovery->getInstructions(),
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG => $capabilitySelectionConfig,
+			AgentToolLoopContextKeys::CAPABILITY_SELECTIONS => [],
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED => false,
+			AgentToolLoopContextKeys::SELECTED_TOOL_NAMES => [],
+			AgentToolLoopContextKeys::REQUIRED_TOOL_NAMES => $requiredToolNames,
 			AgentToolLoopContextKeys::TOOLS => $tools,
 			AgentToolLoopContextKeys::EVENT_CALLBACK => $eventCallback,
 			AgentToolLoopContextKeys::LOGGER => $logger,
@@ -288,6 +320,7 @@ class AgentToolOrchestrator {
 			AgentToolLoopContextKeys::SUSPENDED => false,
 			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::RUNNING,
 			AgentToolLoopContextKeys::TOOL_RESULTS => [],
+			AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS => [],
 			AgentToolLoopContextKeys::OBSERVATIONS => [],
 			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => [],
 			AgentToolLoopContextKeys::TOOL_CALL_INDEXES => [],
@@ -525,6 +558,8 @@ class AgentToolOrchestrator {
 		$progressAssessments = $context->getVar(AgentToolLoopContextKeys::PROGRESS_ASSESSMENTS);
 		$interactionRequests = $context->getVar(AgentToolLoopContextKeys::INTERACTION_REQUESTS);
 		$resumeHandle = $context->getVar(AgentToolLoopContextKeys::RESUME_HANDLE);
+		$toolContractValidations = $context->getVar(AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS);
+		$capabilitySelections = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTIONS);
 		$executionStatus = $this->resolveExecutionStatus($context);
 
 		return new AgentToolOrchestratorResult(
@@ -551,7 +586,9 @@ class AgentToolOrchestrator {
 			is_array($progressAssessments) ? $progressAssessments : [],
 			$executionStatus,
 			is_array($interactionRequests) ? $interactionRequests : [],
-			is_scalar($resumeHandle) ? trim((string)$resumeHandle) : ''
+			is_scalar($resumeHandle) ? trim((string)$resumeHandle) : '',
+			is_array($toolContractValidations) ? $toolContractValidations : [],
+			is_array($capabilitySelections) ? $capabilitySelections : []
 		);
 	}
 
@@ -599,6 +636,8 @@ class AgentToolOrchestrator {
 		$context->setVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS, is_array($state['executed_tool_calls'] ?? null) ? $state['executed_tool_calls'] : []);
 		$context->setVar(AgentToolLoopContextKeys::TOOL_CALL_INDEXES, is_array($state['tool_call_indexes'] ?? null) ? $state['tool_call_indexes'] : []);
 		$context->setVar(AgentToolLoopContextKeys::MODEL_RESULTS, is_array($state['model_results'] ?? null) ? $state['model_results'] : []);
+		$context->setVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES, is_array($state['selected_tool_names'] ?? null) ? $state['selected_tool_names'] : []);
+		$context->setVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED, (bool)($state['capability_selection_applied'] ?? false));
 		$context->setVar(AgentToolLoopContextKeys::TOOL_CACHE_RECORDS, []);
 		$context->setVar(AgentToolLoopContextKeys::PROGRESS_ASSESSMENTS, []);
 		$context->setVar(AgentToolLoopContextKeys::SUSPENSION, $suspension);
@@ -653,6 +692,51 @@ class AgentToolOrchestrator {
 			}
 		}
 		return $result;
+	}
+
+	/** @param array<int,array<string,mixed>> $toolDefinitions */
+	private function createFallbackCatalog(array $toolDefinitions): AgentCapabilityCatalog {
+		$capabilities = [];
+		foreach ($toolDefinitions as $definition) {
+			if (!is_array($definition)) {
+				continue;
+			}
+			$name = trim((string)($definition['function']['name'] ?? ''));
+			if ($name === '') {
+				continue;
+			}
+			$function = is_array($definition['function'] ?? null) ? $definition['function'] : [];
+			$tags = [];
+			foreach (is_array($definition['tags'] ?? null) ? $definition['tags'] : [] as $tag) {
+				if (is_scalar($tag) && trim((string)$tag) !== '') {
+					$tags[] = strtolower(trim((string)$tag));
+				}
+			}
+			$capabilities[] = new AgentCapability(
+				$name,
+				trim((string)($definition['label'] ?? $name)),
+				trim((string)($function['description'] ?? '')),
+				trim((string)($definition['category'] ?? '')),
+				array_values(array_unique($tags)),
+				is_numeric($definition['priority'] ?? null) ? (int)$definition['priority'] : 0,
+				$definition,
+				'',
+				'',
+				$this->toBool($definition['alwaysAvailable'] ?? $definition['always_available'] ?? false)
+			);
+		}
+		return new AgentCapabilityCatalog($capabilities);
+	}
+
+
+	private function toBool(mixed $value): bool {
+		if (is_bool($value)) {
+			return $value;
+		}
+		if (is_numeric($value)) {
+			return (int)$value !== 0;
+		}
+		return in_array(strtolower(trim((string)$value)), ['true', 'yes', 'on'], true);
 	}
 
 	/**

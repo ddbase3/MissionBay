@@ -18,9 +18,10 @@
 namespace MissionBay\Profile;
 
 use AssistantFoundation\Api\IAgentContext;
+use Base3\Api\IOutputSchemaProvider;
 use MissionBay\Api\IAgentTool;
 
-final class ToolGuardAgentTool implements IAgentTool {
+final class ToolGuardAgentTool implements IAgentTool, IOutputSchemaProvider {
 
 	/**
 	 * @var array<string,bool>
@@ -68,6 +69,26 @@ final class ToolGuardAgentTool implements IAgentTool {
 		}
 
 		return $this->inner->callTool($name, $arguments, $context);
+	}
+
+	public function getOutputSchemas(): array {
+		if (!$this->inner instanceof IOutputSchemaProvider) {
+			return [];
+		}
+
+		$schemas = $this->inner->getOutputSchemas();
+		$result = [];
+
+		foreach (is_array($schemas) ? $schemas : [] as $name => $schema) {
+			$name = trim((string)$name);
+			if ($name === '' || !$this->isAllowed($name)) {
+				continue;
+			}
+
+			$result[$name] = $schema;
+		}
+
+		return $result;
 	}
 
 	private function isAllowed(string $toolName): bool {

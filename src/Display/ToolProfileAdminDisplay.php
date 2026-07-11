@@ -206,6 +206,9 @@ final class ToolProfileAdminDisplay implements IDisplay {
 				'label' => $row['label'],
 				'description' => $row['description'],
 				'type' => $row['type'],
+				'internal_enabled' => $row['internal_enabled'],
+				'mcp_enabled' => $row['mcp_enabled'],
+				'usage_text' => $row['usage_text'],
 				'enabled' => $row['enabled'],
 				'enabled_label' => $row['enabled_label'],
 				'tools' => $row['tools'],
@@ -273,8 +276,10 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		$id = $this->normalizeTechnicalKey((string)($payload['id'] ?? ''));
 		$label = trim((string)($payload['label'] ?? ''));
 		$description = trim((string)($payload['description'] ?? ''));
-		$type = $this->normalizeTechnicalKey((string)($payload['type'] ?? 'mcp'));
 		$enabled = $this->toBool($payload['enabled'] ?? true);
+		$internalEnabled = $this->toBool($payload['internal_enabled'] ?? true);
+		$mcpEnabled = $this->toBool($payload['mcp_enabled'] ?? false);
+		$type = $this->deriveProfileType($internalEnabled, $mcpEnabled);
 		$token = trim((string)($payload['token'] ?? ''));
 		$tools = $this->normalizeToolList($payload['tools'] ?? []);
 
@@ -282,8 +287,8 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			return $this->buildErrorResponse('Profile id must not be empty.', 'save');
 		}
 
-		if($type === '') {
-			$type = 'mcp';
+		if(!$internalEnabled && !$mcpEnabled) {
+			return $this->buildErrorResponse('Enable the profile for internal agents, MCP exposure, or both.', 'save');
 		}
 
 		if($label === '') {
@@ -309,6 +314,8 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			'label' => $label,
 			'description' => $description,
 			'type' => $type,
+			'internal_enabled' => $internalEnabled,
+			'mcp_enabled' => $mcpEnabled,
 			'enabled' => $enabled,
 			'token' => $token,
 			'tools' => $tools
@@ -426,6 +433,13 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		$description = trim((string)($settings['description'] ?? ''));
 		$type = $this->normalizeTechnicalKey((string)($settings['type'] ?? 'mcp'));
 		$enabled = $this->toBool($settings['enabled'] ?? true);
+		$internalEnabled = array_key_exists('internal_enabled', $settings)
+			? $this->toBool($settings['internal_enabled'])
+			: true;
+		$mcpEnabled = array_key_exists('mcp_enabled', $settings)
+			? $this->toBool($settings['mcp_enabled'])
+			: in_array($type, ['mcp', 'hybrid'], true);
+		$type = $this->deriveProfileType($internalEnabled, $mcpEnabled);
 		$token = trim((string)($settings['token'] ?? ''));
 		$tools = $this->normalizeToolList($settings['tools'] ?? []);
 		$toolText = $this->buildToolText($tools);
@@ -434,19 +448,21 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			$label = $id;
 		}
 
-		if($type === '') {
-			$type = 'mcp';
-		}
-
 		$profile = [
 			'id' => $id,
 			'label' => $label,
 			'description' => $description,
 			'type' => $type,
 			'enabled' => $enabled,
+			'internal_enabled' => $internalEnabled,
+			'mcp_enabled' => $mcpEnabled,
 			'token' => $token,
 			'tools' => $tools
 		];
+
+		$usage = [];
+		if($internalEnabled) $usage[] = 'internal';
+		if($mcpEnabled) $usage[] = 'MCP';
 
 		return [
 			'id' => $id,
@@ -455,6 +471,9 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			'label' => $label,
 			'description' => $description,
 			'type' => $type,
+			'internal_enabled' => $internalEnabled,
+			'mcp_enabled' => $mcpEnabled,
+			'usage_text' => implode(' + ', $usage),
 			'enabled' => $enabled,
 			'enabled_label' => $enabled ? 'enabled' : 'disabled',
 			'token' => $token,
@@ -478,6 +497,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			'label',
 			'description',
 			'type',
+			'usage_text',
 			'enabled_label',
 			'token_configured_label',
 			'tool_count',
@@ -526,7 +546,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 
 		$out = [];
 
-		foreach(['enabled', 'type'] as $key) {
+		foreach(['enabled', 'internal_enabled', 'mcp_enabled'] as $key) {
 			if(!array_key_exists($key, $filters) || $filters[$key] === null || $filters[$key] === '') {
 				continue;
 			}
@@ -555,6 +575,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 				(string)($row['label'] ?? ''),
 				(string)($row['description'] ?? ''),
 				(string)($row['type'] ?? ''),
+				(string)($row['usage_text'] ?? ''),
 				(string)($row['enabled_label'] ?? ''),
 				(string)($row['token_configured_label'] ?? ''),
 				(string)($row['tool_text'] ?? ''),
@@ -605,13 +626,10 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			}
 		}
 
-		if(isset($filters['type'])) {
-			$value = $this->toLower((string)($row['type'] ?? ''));
-			$needle = $this->toLower((string)$filters['type']);
-
-			if($needle !== '' && !str_contains($value, $needle)) {
-				return false;
-			}
+		foreach(['internal_enabled', 'mcp_enabled'] as $key) {
+			if(!isset($filters[$key])) continue;
+			$value = $this->toBool($row[$key] ?? false) ? '1' : '0';
+			if($value !== (string)$filters[$key]) return false;
 		}
 
 		return true;
@@ -689,6 +707,8 @@ final class ToolProfileAdminDisplay implements IDisplay {
 				'id' => $optionId,
 				'label' => $label,
 				'type' => $type,
+				'capabilities' => $capabilities,
+				'capability_text' => implode(' + ', $capabilities),
 				'enabled' => $enabled,
 				'enabled_label' => $enabled ? 'enabled' : 'disabled'
 			];
@@ -747,6 +767,12 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		}
 
 		return implode(', ', $labels);
+	}
+
+	private function deriveProfileType(bool $internalEnabled, bool $mcpEnabled): string {
+		if($internalEnabled && $mcpEnabled) return 'hybrid';
+		if($mcpEnabled) return 'mcp';
+		return 'internal';
 	}
 
 	/**

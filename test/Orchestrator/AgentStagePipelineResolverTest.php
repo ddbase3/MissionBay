@@ -4,7 +4,9 @@ namespace MissionBay\Test\Orchestrator;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
+use AssistantFoundation\Dto\AgentStageMount;
 use AssistantFoundation\Dto\AgentStageResult;
+use AssistantFoundation\Dto\AgentStageSlot;
 use Base3\Api\IComponent;
 use Base3\Api\IComponentResolver;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
@@ -13,6 +15,8 @@ use PHPUnit\Framework\TestCase;
 final class AgentStagePipelineResolverTest extends TestCase {
 
 	private const DEFAULT_STAGE_IDS = [
+		'capability-discovery',
+		'capability-selection',
 		'model-decision',
 		'action-policy',
 		'tool-execution',
@@ -23,6 +27,8 @@ final class AgentStagePipelineResolverTest extends TestCase {
 
 	public function testEmptyConfigurationResolvesDefaultPipelineInOrder(): void {
 		$components = new RecordingAgentStageComponentResolver([
+			'capability-discovery' => new RecordingResolvedAgentStage('capability-discovery'),
+			'capability-selection' => new RecordingResolvedAgentStage('capability-selection'),
 			'model-decision' => new RecordingResolvedAgentStage('model-decision'),
 			'action-policy' => new RecordingResolvedAgentStage('action-policy'),
 			'tool-execution' => new RecordingResolvedAgentStage('tool-execution'),
@@ -38,52 +44,131 @@ final class AgentStagePipelineResolverTest extends TestCase {
 		$this->assertSame(self::DEFAULT_STAGE_IDS, $components->getRequestedIds());
 	}
 
-	public function testConfiguredPipelineResolvesStagesInExplicitOrder(): void {
+	public function testConfiguredPipelineAcceptsCanonicalOptionalSubset(): void {
 		$components = new RecordingAgentStageComponentResolver([
-			'budget-guard' => new RecordingResolvedAgentStage('budget-guard'),
+			'capability-selection' => new RecordingResolvedAgentStage('capability-selection'),
 			'model-decision' => new RecordingResolvedAgentStage('model-decision'),
-			'context-assessment' => new RecordingResolvedAgentStage('context-assessment'),
+			'action-policy' => new RecordingResolvedAgentStage('action-policy'),
 			'tool-execution' => new RecordingResolvedAgentStage('tool-execution'),
-			'tool-observation' => new RecordingResolvedAgentStage('tool-observation'),
-			'final-budget-guard' => new RecordingResolvedAgentStage('final-budget-guard')
+			'tool-observation' => new RecordingResolvedAgentStage('tool-observation')
 		]);
 		$resolver = new AgentStagePipelineResolver($components, self::DEFAULT_STAGE_IDS);
 
 		$stages = $resolver->resolve([
+			'capability-selection',
 			'model-decision',
+			'action-policy',
 			'tool-execution',
-			'context-assessment',
 			'tool-observation'
 		]);
 
 		$this->assertSame([
+			'capability-selection',
 			'model-decision',
+			'action-policy',
 			'tool-execution',
-			'context-assessment',
 			'tool-observation'
 		], array_map(fn(IAgentStage $stage) => $stage->id(), $stages));
 	}
 
+	public function testFreeReorderingIsRejected(): void {
+		$resolver = new AgentStagePipelineResolver(
+			new RecordingAgentStageComponentResolver([]),
+			self::DEFAULT_STAGE_IDS
+		);
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('Invalid agent stage order near: action-policy');
+
+		$resolver->resolve([
+			'model-decision',
+			'tool-execution',
+			'action-policy',
+			'tool-observation'
+		]);
+	}
+
 	public function testExplicitPipelineCanSelectSemanticVerification(): void {
 		$components = new RecordingAgentStageComponentResolver([
-			'result-verification' => new RecordingResolvedAgentStage('result-verification'),
-			'semantic-verification' => new RecordingResolvedAgentStage('semantic-verification'),
+			'model-decision' => new RecordingResolvedAgentStage('model-decision'),
+			'action-policy' => new RecordingResolvedAgentStage('action-policy'),
+			'tool-execution' => new RecordingResolvedAgentStage('tool-execution'),
 			'tool-observation' => new RecordingResolvedAgentStage('tool-observation'),
-			'final-budget-guard' => new RecordingResolvedAgentStage('final-budget-guard')
+			'semantic-verification' => new RecordingResolvedAgentStage('semantic-verification')
 		]);
 		$resolver = new AgentStagePipelineResolver($components, self::DEFAULT_STAGE_IDS);
 
 		$stages = $resolver->resolve([
-			'result-verification',
-			'semantic-verification',
-			'tool-observation'
+			'model-decision',
+			'action-policy',
+			'tool-execution',
+			'tool-observation',
+			'semantic-verification'
 		]);
 
 		$this->assertSame([
-			'result-verification',
-			'semantic-verification',
-			'tool-observation'
+			'model-decision',
+			'action-policy',
+			'tool-execution',
+			'tool-observation',
+			'semantic-verification'
 		], array_map(fn(IAgentStage $stage) => $stage->id(), $stages));
+	}
+
+
+	public function testRunLocalModuleStagesAreMountedIntoSemanticSlots(): void {
+		$components = new RecordingAgentStageComponentResolver([
+			'capability-discovery' => new RecordingResolvedAgentStage('capability-discovery'),
+			'capability-selection' => new RecordingResolvedAgentStage('capability-selection'),
+			'model-decision' => new RecordingResolvedAgentStage('model-decision'),
+			'action-policy' => new RecordingResolvedAgentStage('action-policy'),
+			'tool-execution' => new RecordingResolvedAgentStage('tool-execution'),
+			'context-compaction' => new RecordingResolvedAgentStage('context-compaction'),
+			'tool-observation' => new RecordingResolvedAgentStage('tool-observation'),
+			'semantic-verification' => new RecordingResolvedAgentStage('semantic-verification')
+		]);
+		$resolver = new AgentStagePipelineResolver($components, self::DEFAULT_STAGE_IDS);
+
+		$stages = $resolver->resolve([], [
+			new AgentStageMount(AgentStageSlot::BEFORE_TOOL_CALL, new RecordingResolvedAgentStage('module-before-tool'), 20),
+			new AgentStageMount(AgentStageSlot::BEFORE_TOOL_CALL, new RecordingResolvedAgentStage('module-before-tool-first'), 10),
+			new AgentStageMount(AgentStageSlot::AFTER_TOOL_CALL, new RecordingResolvedAgentStage('module-after-tool')),
+			new AgentStageMount(AgentStageSlot::BEFORE_FINAL_ANSWER, new RecordingResolvedAgentStage('module-before-final'))
+		]);
+
+		$this->assertSame([
+			'capability-discovery',
+			'capability-selection',
+			'model-decision',
+			'action-policy',
+			'module-before-tool-first',
+			'module-before-tool',
+			'tool-execution',
+			'module-after-tool',
+			'context-compaction',
+			'tool-observation',
+			'module-before-final',
+			'semantic-verification'
+		], array_map(fn(IAgentStage $stage) => $stage->id(), $stages));
+	}
+
+	public function testMountWithoutSelectedPipelineAnchorIsRejected(): void {
+		$resolver = new AgentStagePipelineResolver(
+			new RecordingAgentStageComponentResolver([
+				'model-decision' => new RecordingResolvedAgentStage('model-decision'),
+				'action-policy' => new RecordingResolvedAgentStage('action-policy'),
+				'tool-execution' => new RecordingResolvedAgentStage('tool-execution'),
+				'tool-observation' => new RecordingResolvedAgentStage('tool-observation')
+			]),
+			self::DEFAULT_STAGE_IDS
+		);
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('no anchor for slot: before_final_answer');
+
+		$resolver->resolve(['model-decision', 'action-policy', 'tool-execution', 'tool-observation'], [
+			new AgentStageMount(AgentStageSlot::BEFORE_FINAL_ANSWER, new RecordingResolvedAgentStage('module-before-final'))
+		]);
 	}
 
 	public function testMissingConfiguredStageIsRejected(): void {
@@ -93,9 +178,9 @@ final class AgentStagePipelineResolverTest extends TestCase {
 		);
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Configured agent stage could not be resolved: missing-stage');
+		$this->expectExceptionMessage('Configured agent stage could not be resolved: action-policy');
 
-		$resolver->resolve(['missing-stage']);
+		$resolver->resolve(['model-decision', 'action-policy', 'tool-execution', 'tool-observation']);
 	}
 
 	public function testDuplicateConfiguredStageIdsAreRejected(): void {

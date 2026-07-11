@@ -125,6 +125,11 @@ final class AgentAssistantTurnResult {
 		return $this->orchestrationResult?->getResumeHandle() ?? '';
 	}
 
+	/** @return array<int,\AssistantFoundation\Dto\AgentCapabilitySelection> */
+	public function getCapabilitySelections(): array {
+		return $this->orchestrationResult?->getCapabilitySelections() ?? [];
+	}
+
 
 	public function addModelResult(AiResultMetadata $metadata): void {
 		$this->modelResults[] = $metadata->toArray();
@@ -179,6 +184,13 @@ final class AgentAssistantTurnResult {
 	 */
 	public function getResultVerifications(): array {
 		return $this->orchestrationResult?->getResultVerifications() ?? [];
+	}
+
+	/**
+	 * @return array<int,\AssistantFoundation\Dto\AgentToolContractValidation>
+	 */
+	public function getToolContractValidations(): array {
+		return $this->orchestrationResult?->getToolContractValidations() ?? [];
 	}
 
 

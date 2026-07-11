@@ -21,8 +21,13 @@ use MissionBay\Api\IAgentAssistantToolSetupFactory;
 use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentProfileSelector;
 use MissionBay\Dto\Assistant\AgentAssistantToolSetup;
+use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 
 final class AgentAssistantToolSetupFactory implements IAgentAssistantToolSetupFactory {
+
+	public function __construct(
+		private readonly AgentCapabilityCatalogBuilder $catalogBuilder
+	) {}
 
 	public function create(array $tools, ?IAgentProfileSelector $profileSelector, string $prompt, string $system, IAgentContext $context): AgentAssistantToolSetup {
 		$effectivePlan = $this->buildEffectiveProfilePlan($profileSelector, $prompt, $system, $context);
@@ -50,9 +55,12 @@ final class AgentAssistantToolSetupFactory implements IAgentAssistantToolSetupFa
 			);
 		}
 
+		$catalog = $this->catalogBuilder->build($guardedTools, $filtered['toolDefs']);
+
 		return new AgentAssistantToolSetup(
 			tools: $guardedTools,
 			toolDefs: $filtered['toolDefs'],
+			catalog: $catalog,
 			effectivePlan: $effectivePlan,
 			report: $report,
 			allowedToolNames: $allowedToolNames,

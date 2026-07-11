@@ -260,6 +260,9 @@ final class AgentAdminDisplay implements IDisplay {
                                 'policy_label' => $row['policy_label'],
                                 'policy_data_text' => $row['policy_data_text'],
                                 'llm' => $row['llm'],
+                                'orchestrator_profile' => $row['orchestrator_profile'],
+                                'tool_profile_count' => $row['tool_profile_count'],
+                                'tool_profile_text' => $row['tool_profile_text'],
                                 'component_count' => $row['component_count'],
                                 'user_prompt_preview' => $row['user_prompt_preview']
                         ];
@@ -696,6 +699,8 @@ final class AgentAdminDisplay implements IDisplay {
                 $policyData = is_array($values['policy_data'] ?? null) ? $values['policy_data'] : [];
                 $label = $this->normalizeLabel((string)($values['label'] ?? ''));
                 $agentComponents = is_array($values['agent_components'] ?? null) ? $values['agent_components'] : [];
+                $toolProfiles = is_array($values['tool_profiles'] ?? null) ? array_values(array_map('strval', $values['tool_profiles'])) : [];
+                $orchestratorProfile = trim((string)($values['orchestrator_profile'] ?? 'standard'));
                 $settingsJson = $this->encodePrettyJson($settings);
 
                 return array_merge($values, [
@@ -709,6 +714,9 @@ final class AgentAdminDisplay implements IDisplay {
                         'policy' => $policyId,
                         'policy_label' => $this->getPolicyLabel($policyId),
                         'policy_data_text' => $this->formatPolicyDataText($policyData),
+                        'orchestrator_profile' => $orchestratorProfile !== '' ? $orchestratorProfile : 'standard',
+                        'tool_profile_count' => count($toolProfiles),
+                        'tool_profile_text' => implode(', ', $toolProfiles),
                         'component_count' => count($agentComponents),
                         'user_prompt_preview' => $this->shorten((string)($values['user_prompt'] ?? ''), 160),
                         'settings_json' => $settingsJson
@@ -768,6 +776,7 @@ final class AgentAdminDisplay implements IDisplay {
                         'enabled_label',
                         'policy_label',
                         'llm',
+                        'tool_profile_count',
                         'component_count',
                         'user_prompt_preview'
                 ];
@@ -795,7 +804,7 @@ final class AgentAdminDisplay implements IDisplay {
 
                 $dir = isset($first['dir']) ? strtolower((string)$first['dir']) : 'asc';
                 $dir = $dir === 'desc' ? 'desc' : 'asc';
-                $type = in_array($key, ['component_count'], true) ? 'int' : 'string';
+                $type = in_array($key, ['tool_profile_count', 'component_count'], true) ? 'int' : 'string';
 
                 return [
                         'key' => $key,
@@ -845,6 +854,8 @@ final class AgentAdminDisplay implements IDisplay {
                                 (string)($row['policy'] ?? ''),
                                 (string)($row['policy_label'] ?? ''),
                                 (string)($row['llm'] ?? ''),
+                                (string)($row['orchestrator_profile'] ?? ''),
+                                (string)($row['tool_profile_text'] ?? ''),
                                 (string)($row['user_prompt_preview'] ?? ''),
                                 (string)($row['settings_json'] ?? '')
                         ]);
@@ -902,7 +913,7 @@ final class AgentAdminDisplay implements IDisplay {
                 $dir = $sort['dir'] ?? 'asc';
 
                 usort($rows, function(array $left, array $right) use ($key, $dir): int {
-                        if(in_array($key, ['component_count'], true)) {
+                        if(in_array($key, ['tool_profile_count', 'component_count'], true)) {
                                 $result = ((int)($left[$key] ?? 0)) <=> ((int)($right[$key] ?? 0));
                         }
                         else {

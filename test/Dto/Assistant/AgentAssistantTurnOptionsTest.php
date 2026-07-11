@@ -3,6 +3,8 @@
 namespace MissionBay\Test\Dto\Assistant;
 
 use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
 use PHPUnit\Framework\TestCase;
 
@@ -53,6 +55,28 @@ final class AgentAssistantTurnOptionsTest extends TestCase {
 
 		$this->assertSame($budget, $options->getBudget());
 	}
+
+	public function testCapabilitySelectionConfigIsExposed(): void {
+		$config = new AgentCapabilitySelectionConfig(maxTools: 12);
+		$options = new AgentAssistantTurnOptions(
+			prompt: 'test',
+			capabilitySelectionConfig: $config
+		);
+
+		$this->assertSame($config, $options->getCapabilitySelectionConfig());
+	}
+
+
+	public function testCapabilitySourceConfigIsExposed(): void {
+		$config = AgentCapabilitySourceConfig::fromArray(['modules' => ['coding-style']]);
+		$options = new AgentAssistantTurnOptions(
+			prompt: 'test',
+			capabilitySourceConfig: $config
+		);
+
+		$this->assertSame($config, $options->getCapabilitySourceConfig());
+	}
+
 
 	public function testDuplicateStageIdsAreRejected(): void {
 		$this->expectException(\RuntimeException::class);

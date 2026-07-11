@@ -23,11 +23,14 @@ use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentStageResult;
+use AssistantFoundation\Dto\AgentToolContractValidation;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Service\AgentActionReviewService;
+use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 
 /**
  * Evaluates semantic tool actions before execution. Denials become tool
@@ -39,6 +42,8 @@ final class AgentActionPolicyStage implements IAgentStage {
 	private ?array $resolvedPolicies = null;
 
 	private AgentActionReviewService $actionReviewService;
+	private AgentToolContractValidationService $toolContractValidationService;
+	private AgentCapabilitySelectionGuardService $capabilitySelectionGuardService;
 
 	/** @param array<int,string> $policyIds */
 	public function __construct(
@@ -47,10 +52,16 @@ final class AgentActionPolicyStage implements IAgentStage {
 		private readonly string $id = 'action-policy',
 		private readonly string $stageName = 'action-policy',
 		private readonly array $policyIds = ['allow-all-actions'],
-		?AgentActionReviewService $actionReviewService = null
+		?AgentActionReviewService $actionReviewService = null,
+		?AgentToolContractValidationService $toolContractValidationService = null,
+		?AgentCapabilitySelectionGuardService $capabilitySelectionGuardService = null
 	) {
 		$this->actionReviewService = $actionReviewService
 			?? new AgentActionReviewService($this->fingerprint);
+		$this->toolContractValidationService = $toolContractValidationService
+			?? new AgentToolContractValidationService();
+		$this->capabilitySelectionGuardService = $capabilitySelectionGuardService
+			?? new AgentCapabilitySelectionGuardService();
 	}
 
 	public static function getName(): string { return 'agentactionpolicystage'; }
@@ -87,6 +98,8 @@ final class AgentActionPolicyStage implements IAgentStage {
 		$existingActions = $context->getVar(AgentToolLoopContextKeys::ACTIONS);
 		$existingDecisions = $context->getVar(AgentToolLoopContextKeys::ACTION_DECISIONS);
 		$existingResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
+		$existingContractValidations = $context->getVar(AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS);
+		$tools = $context->getVar(AgentToolLoopContextKeys::TOOLS);
 		$preapproved = $context->getVar(AgentToolLoopContextKeys::PREAPPROVED_ACTIONS);
 		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
 
@@ -94,6 +107,8 @@ final class AgentActionPolicyStage implements IAgentStage {
 		$existingActions = is_array($existingActions) ? $existingActions : [];
 		$existingDecisions = is_array($existingDecisions) ? $existingDecisions : [];
 		$existingResults = is_array($existingResults) ? $existingResults : [];
+		$existingContractValidations = is_array($existingContractValidations) ? $existingContractValidations : [];
+		$tools = is_array($tools) ? $tools : [];
 		$preapproved = is_array($preapproved) ? $preapproved : [];
 
 		$allowedCalls = [];
@@ -106,6 +121,7 @@ final class AgentActionPolicyStage implements IAgentStage {
 		}
 		$decisions = $existingDecisions;
 		$toolResults = $existingResults;
+		$contractValidations = $existingContractValidations;
 		$reviewCandidates = [];
 
 		foreach ($toolCalls as $call) {
@@ -125,6 +141,20 @@ final class AgentActionPolicyStage implements IAgentStage {
 					$actions[$actionIndex] = $action;
 				}
 			}
+
+			if (!$this->capabilitySelectionGuardService->isAllowed($context, $effectiveCall->getName())) {
+				$toolResults[] = $this->capabilitySelectionGuardService->createFailure($context, $effectiveCall, $iteration);
+				continue;
+			}
+
+			$contractValidation = $this->toolContractValidationService->validateInput($effectiveCall, $tools);
+			$contractValidations[] = $contractValidation;
+
+			if (!$contractValidation->passes()) {
+				$toolResults[] = $this->createContractFailureResult($action, $contractValidation, $iteration);
+				continue;
+			}
+
 			$evaluation = $this->evaluateAction($action, $context, $preapproved);
 			foreach ($evaluation['decisions'] as $policyDecision) {
 				$decisions[] = $policyDecision;
@@ -153,6 +183,7 @@ final class AgentActionPolicyStage implements IAgentStage {
 			AgentToolLoopContextKeys::PREAPPROVED_ACTIONS => [],
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $allowedCalls,
 			AgentToolLoopContextKeys::TOOL_RESULTS => $toolResults,
+			AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS => $contractValidations,
 			AgentToolLoopContextKeys::PHASE => $allowedCalls === [] && $reviewCandidates === []
 				? AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
 				: AgentToolLoopContextKeys::PHASE_TOOLS
@@ -263,6 +294,39 @@ final class AgentActionPolicyStage implements IAgentStage {
 			$message,
 			['iteration' => $iteration, 'action' => $action->toArray(), 'action_decision' => $decision->toArray()],
 			$output
+		);
+	}
+
+	private function createContractFailureResult(
+		AgentAction $action,
+		AgentToolContractValidation $validation,
+		int $iteration
+	): AgentToolResult {
+		$message = trim($validation->getSummary());
+		if ($message === '') {
+			$message = 'Tool arguments failed contract validation.';
+		}
+
+		return AgentToolResult::failure(
+			$action->getId(),
+			$action->getName(),
+			$action->getInput(),
+			$validation->getReasonCode(),
+			$message,
+			[
+				'iteration' => $iteration,
+				'action' => $action->toArray(),
+				'contract_validation' => $validation->toArray(),
+				'blocked_before_policy' => true,
+				'blocked_before_execution' => true
+			],
+			[
+				'ok' => false,
+				'blocked' => true,
+				'error_code' => $validation->getReasonCode(),
+				'error' => $message,
+				'issues' => $validation->getIssues()
+			]
 		);
 	}
 

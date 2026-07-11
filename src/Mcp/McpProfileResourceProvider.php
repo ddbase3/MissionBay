@@ -76,12 +76,22 @@ class McpProfileResourceProvider implements IAgentResourceProvider {
 			$tools = [];
 		}
 
+		$type = strtolower(trim((string)($this->profile['type'] ?? 'mcp')));
+		$internalEnabled = array_key_exists('internal_enabled', $this->profile)
+			? $this->toBool($this->profile['internal_enabled'])
+			: true;
+		$mcpEnabled = array_key_exists('mcp_enabled', $this->profile)
+			? $this->toBool($this->profile['mcp_enabled'])
+			: in_array($type, ['mcp', 'hybrid'], true);
+
 		return [
 			'id' => $this->profileId(),
 			'label' => $this->profileLabel(),
 			'description' => $this->profileDescription(),
-			'type' => (string)($this->profile['type'] ?? 'mcp'),
+			'type' => $type,
 			'enabled' => $this->isEnabled(),
+			'internal_enabled' => $internalEnabled,
+			'mcp_enabled' => $mcpEnabled,
 			'token_configured' => trim((string)($this->profile['token'] ?? '')) !== '',
 			'tools' => array_values(array_map('strval', $tools))
 		];
@@ -121,6 +131,12 @@ class McpProfileResourceProvider implements IAgentResourceProvider {
 		$value = strtolower(trim((string)$value));
 
 		return !in_array($value, ['0', 'false', 'no', 'off'], true);
+	}
+
+	private function toBool(mixed $value): bool {
+		if(is_bool($value)) return $value;
+		if(is_int($value)) return $value !== 0;
+		return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
 	}
 
 	private function encode(array $data): string {

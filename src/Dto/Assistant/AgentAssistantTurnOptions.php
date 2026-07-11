@@ -18,6 +18,8 @@
 namespace MissionBay\Dto\Assistant;
 
 use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
 
@@ -36,7 +38,9 @@ final class AgentAssistantTurnOptions {
 		private array $stageIds = [],
 		private ?AgentBudget $budget = null,
 		private ?AgentToolCacheConfig $toolCacheConfig = null,
-		private ?AgentResume $resume = null
+		private ?AgentResume $resume = null,
+		private ?AgentCapabilitySelectionConfig $capabilitySelectionConfig = null,
+		private ?AgentCapabilitySourceConfig $capabilitySourceConfig = null
 	) {
 		$this->prompt = trim($this->prompt);
 		$this->system = trim($this->system);
@@ -110,6 +114,14 @@ final class AgentAssistantTurnOptions {
 
 	public function getResume(): ?AgentResume {
 		return $this->resume;
+	}
+
+	public function getCapabilitySelectionConfig(): AgentCapabilitySelectionConfig {
+		return $this->capabilitySelectionConfig ?? new AgentCapabilitySelectionConfig();
+	}
+
+	public function getCapabilitySourceConfig(): AgentCapabilitySourceConfig {
+		return $this->capabilitySourceConfig ?? new AgentCapabilitySourceConfig();
 	}
 
 	/**

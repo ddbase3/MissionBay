@@ -33,6 +33,18 @@ final class AgentToolLoopContextKeys {
 	public const MODEL = self::PREFIX . 'model';
 	public const MESSAGES = self::PREFIX . 'messages';
 	public const TOOL_DEFINITIONS = self::PREFIX . 'tool_definitions';
+	public const CAPABILITY_DISCOVERY = self::PREFIX . 'capability_discovery';
+	public const CAPABILITY_DISCOVERY_APPLIED = self::PREFIX . 'capability_discovery_applied';
+	public const CAPABILITY_SOURCE_CONFIG = self::PREFIX . 'capability_source_config';
+	public const CAPABILITY_CATALOG = self::PREFIX . 'capability_catalog';
+	public const RESOURCE_PROVIDERS = self::PREFIX . 'resource_providers';
+	public const PROMPT_PROVIDERS = self::PREFIX . 'prompt_providers';
+	public const MODULE_INSTRUCTIONS = self::PREFIX . 'module_instructions';
+	public const CAPABILITY_SELECTION_CONFIG = self::PREFIX . 'capability_selection_config';
+	public const CAPABILITY_SELECTIONS = self::PREFIX . 'capability_selections';
+	public const CAPABILITY_SELECTION_APPLIED = self::PREFIX . 'capability_selection_applied';
+	public const SELECTED_TOOL_NAMES = self::PREFIX . 'selected_tool_names';
+	public const REQUIRED_TOOL_NAMES = self::PREFIX . 'required_tool_names';
 	public const TOOLS = self::PREFIX . 'tools';
 	public const EVENT_CALLBACK = self::PREFIX . 'event_callback';
 	public const LOGGER = self::PREFIX . 'logger';
@@ -58,6 +70,7 @@ final class AgentToolLoopContextKeys {
 	public const SUSPENDED = self::PREFIX . 'suspended';
 	public const EXECUTION_STATUS = self::PREFIX . 'execution_status';
 	public const TOOL_RESULTS = self::PREFIX . 'tool_results';
+	public const TOOL_CONTRACT_VALIDATIONS = self::PREFIX . 'tool_contract_validations';
 	public const OBSERVATIONS = self::PREFIX . 'observations';
 	public const EXECUTED_TOOL_CALLS = self::PREFIX . 'executed_tool_calls';
 	public const TOOL_CALL_INDEXES = self::PREFIX . 'tool_call_indexes';
@@ -108,6 +121,12 @@ final class AgentToolLoopContextKeys {
 		return [
 			self::MODEL,
 			self::TOOL_DEFINITIONS,
+			self::CAPABILITY_CATALOG,
+			self::CAPABILITY_SELECTION_CONFIG,
+			self::CAPABILITY_SELECTIONS,
+			self::CAPABILITY_SELECTION_APPLIED,
+			self::SELECTED_TOOL_NAMES,
+			self::REQUIRED_TOOL_NAMES,
 			self::TOOLS,
 			self::EVENT_CALLBACK,
 			self::LOGGER,

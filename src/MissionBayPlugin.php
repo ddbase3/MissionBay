@@ -33,6 +33,7 @@ use Base3\Settings\Api\ISettingsStore;
 use Base3\State\Api\IStateStore;
 use Base3\Usermanager\Api\IUsermanager;
 use AssistantFoundation\Api\IAgentActionPolicy;
+use AssistantFoundation\Api\IAgentCapabilitySelector;
 use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
@@ -46,6 +47,9 @@ use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Cache\AgentToolCacheKeyBuilder;
 use MissionBay\Cache\NullAgentToolResultCache;
 use MissionBay\Cache\StateStoreAgentToolResultCache;
+use MissionBay\Capability\AgentCapabilityCatalogBuilder;
+use MissionBay\Capability\AgentCapabilityDiscoveryService;
+use MissionBay\Capability\HybridAgentCapabilitySelector;
 use MissionBay\Api\IAgentAssistantFallbackBuilder;
 use MissionBay\Api\IAgentAssistantFinalResponseService;
 use MissionBay\Api\IAgentAssistantMemoryService;
@@ -66,18 +70,24 @@ use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
+use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use MissionBay\Orchestrator\Policy\ComponentAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Service\AgentActionResumeService;
 use MissionBay\Orchestrator\Service\AgentActionReviewService;
 use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
 use MissionBay\Orchestrator\Service\AgentContextAssessmentService;
 use MissionBay\Orchestrator\Service\AgentContinuationDecisionService;
 use MissionBay\Orchestrator\Service\AgentLoopProgressService;
+use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use MissionBay\Orchestrator\Service\AgentResultVerificationService;
 use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
+use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
+use MissionBay\Orchestrator\Stage\AgentCapabilityDiscoveryStage;
+use MissionBay\Orchestrator\Stage\AgentCapabilitySelectionStage;
 use MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository;
 use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 use MissionBay\Orchestrator\Stage\AgentContextCompactionStage;
@@ -86,9 +96,11 @@ use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
 use MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
 use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
 use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
+use MissionBay\Orchestrator\Validation\JsonSchemaValidator;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
 use MissionBay\Policy\MutationApprovalAgentActionPolicy;
 use MissionBay\Profile\AgentAssistantToolSetupFactory;
+use MissionBay\Profile\AgentToolProfileResolver;
 use MissionBay\Service\AgentComponentFlowBuilder;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\AgentConfigFormService;
@@ -109,6 +121,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 	 * @var array<int,string>
 	 */
 	private const DEFAULT_AGENT_STAGE_IDS = [
+		'capability-discovery',
+		'capability-selection',
 		'model-decision',
 		'action-policy',
 		'tool-execution',
@@ -143,18 +157,47 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)
 			->set(IAgentComponentPresetRepository::class, fn($c) => new AgentComponentPresetRepository($c->get(ISettingsStore::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentComponentFlowBuilder::class, fn($c) => new AgentComponentFlowBuilder($c->get(IAgentComponentPresetRepository::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentOrchestratorProfileRepository::class, fn($c) => new AgentOrchestratorProfileRepository(
+				$c->get(ISettingsStore::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentToolProfileResolver::class, fn($c) => new AgentToolProfileResolver(
+				$c->get(ISettingsStore::class),
+				$c->get(IAgentComponentPresetRepository::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentExecutionService::class, fn($c) => new AgentExecutionService(
 				$c->get(IAgentContextFactory::class),
 				$c->get(IAgentFlowFactory::class),
-				$c->get(IAgentComponentFlowBuilder::class)
+				$c->get(IAgentComponentFlowBuilder::class),
+				$c->get(AgentOrchestratorProfileRepository::class),
+				$c->get(AgentToolProfileResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentConfigFormService::class, fn($c) => new AgentConfigFormService($c->get(IRequest::class), $c->get(ISettingsStore::class), $c->get(IClassMap::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentConfigFormService::class, fn($c) => new AgentConfigFormService(
+				$c->get(IRequest::class),
+				$c->get(ISettingsStore::class),
+				$c->get(IClassMap::class),
+				$c->get(IComponentResolver::class),
+				$c->get(AgentOrchestratorProfileRepository::class),
+				$c->get(AgentToolProfileResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentRagPayloadNormalizer::class, fn() => new AgentRagPayloadNormalizer(), IContainer::SHARED | IContainer::NOOVERWRITE)
+
+			->set(AgentCapabilityCatalogBuilder::class, fn() => new AgentCapabilityCatalogBuilder(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentCapabilityDiscoveryService::class, fn($c) => new AgentCapabilityDiscoveryService(
+				$c->get(IComponentResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentCapabilitySelector::class, fn() => new HybridAgentCapabilitySelector(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentCapabilitySelectionGuardService::class, fn() => new AgentCapabilitySelectionGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 
 			->set(IAgentAssistantMessageFactory::class, fn() => new AgentAssistantMessageFactory(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantMemoryService::class, fn($c) => new AgentAssistantMemoryService($c->get(IAgentAssistantMessageFactory::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentAssistantToolSetupFactory::class, fn() => new AgentAssistantToolSetupFactory(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentAssistantToolSetupFactory::class, fn($c) => new AgentAssistantToolSetupFactory(
+				$c->get(AgentCapabilityCatalogBuilder::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionFingerprint::class, fn() => new AgentActionFingerprint(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentMutationCommitGuardService::class, fn($c) => new AgentMutationCommitGuardService(
+				$c->get(AgentActionFingerprint::class),
+				$c->get(IEventManager::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentActionPolicyResolver::class, fn($c) => new ComponentAgentActionPolicyResolver(
 				$c->get(IComponentResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -175,12 +218,15 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			}, IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionResumeService::class, fn($c) => new AgentActionResumeService(
 				$c->get(AgentActionFingerprint::class),
-				$c->get(IAgentSuspensionRepository::class)
+				$c->get(IAgentSuspensionRepository::class),
+				$c->get(IEventManager::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionReviewService::class, fn($c) => new AgentActionReviewService(
 				$c->get(AgentActionFingerprint::class),
 				$c->get(IAgentSuspensionRepository::class),
-				900
+				900,
+				$c->get(AgentMutationCommitGuardService::class),
+				$c->get(IEventManager::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentBudgetGuardService::class, fn() => new AgentBudgetGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentContextAssessmentService::class, fn() => new AgentContextAssessmentService(), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -188,10 +234,16 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(AgentLoopProgressService::class, fn() => new AgentLoopProgressService(1), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentResultVerificationService::class, fn() => new AgentResultVerificationService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentSemanticVerificationService::class, fn() => new AgentSemanticVerificationService(60000, 12000), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(JsonSchemaValidator::class, fn() => new JsonSchemaValidator(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentToolContractValidationService::class, fn($c) => new AgentToolContractValidationService(
+				$c->get(JsonSchemaValidator::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentToolResultCacheService::class, fn($c) => new AgentToolResultCacheService(
 				$c->get(IAgentToolResultCache::class),
 				$c->get(IEventManager::class),
-				$c->get(AgentToolCacheKeyBuilder::class)
+				$c->get(AgentToolCacheKeyBuilder::class),
+				$c->get(AgentMutationCommitGuardService::class),
+				$c->get(AgentToolContractValidationService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentStagePipelineResolver::class, fn($c) => new AgentStagePipelineResolver(
 				$c->get(IComponentResolver::class),
@@ -211,6 +263,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentAssistantMemoryService::class),
 				$c->get(IAgentAssistantMessageFactory::class),
 				$c->get(IAgentAssistantToolSetupFactory::class),
+				$c->get(AgentCapabilityDiscoveryService::class),
 				$c->get(AgentStagePipelineResolver::class),
 				$c->get(AgentToolOrchestrator::class),
 				$c->get(AgentActionResumeService::class),
@@ -247,6 +300,27 @@ class MissionBayPlugin implements IPlugin, ICheck {
 		));
 
 		$this->registerAgentStageDefinition(new ComponentDefinition(
+			id: 'capability-discovery',
+			interfaceName: IAgentStage::class,
+			implementationName: AgentCapabilityDiscoveryStage::getName(),
+			arguments: [
+				'id' => 'capability-discovery',
+				'stageName' => 'capability-discovery'
+			]
+		));
+
+		$this->registerAgentStageDefinition(new ComponentDefinition(
+			id: 'capability-selection',
+			interfaceName: IAgentStage::class,
+			implementationName: AgentCapabilitySelectionStage::getName(),
+			arguments: [
+				'id' => 'capability-selection',
+				'stageName' => 'capability-selection',
+				'selector' => $this->container->get(IAgentCapabilitySelector::class)
+			]
+		));
+
+		$this->registerAgentStageDefinition(new ComponentDefinition(
 			id: 'model-decision',
 			interfaceName: IAgentStage::class,
 			implementationName: AgentModelDecisionStage::getName(),
@@ -264,7 +338,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				'id' => 'action-policy',
 				'stageName' => 'action-policy',
 				'policyIds' => ['mutation-approval-actions', 'allow-all-actions'],
-				'actionReviewService' => $this->container->get(AgentActionReviewService::class)
+				'actionReviewService' => $this->container->get(AgentActionReviewService::class),
+				'toolContractValidationService' => $this->container->get(AgentToolContractValidationService::class),
+				'capabilitySelectionGuardService' => $this->container->get(AgentCapabilitySelectionGuardService::class)
 			]
 		));
 
@@ -277,7 +353,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				'stageName' => 'tool-execution',
 				'toolResultCacheService' => $this->container->get(AgentToolResultCacheService::class),
 				'budgetGuardService' => $this->container->get(AgentBudgetGuardService::class),
-				'resultVerificationService' => $this->container->get(AgentResultVerificationService::class)
+				'resultVerificationService' => $this->container->get(AgentResultVerificationService::class),
+				'mutationCommitGuardService' => $this->container->get(AgentMutationCommitGuardService::class),
+				'toolContractValidationService' => $this->container->get(AgentToolContractValidationService::class),
+				'capabilitySelectionGuardService' => $this->container->get(AgentCapabilitySelectionGuardService::class)
 			]
 		));
 

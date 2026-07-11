@@ -20,6 +20,8 @@ namespace MissionBay\Node\Ai;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
 use Base3\Logger\Api\ILogger;
@@ -85,6 +87,13 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 				required: false
 			),
 			new AgentNodePort(
+				name: 'orchestratorprofile',
+				description: 'Resolved orchestrator profile id for diagnostics and persisted flow inspection.',
+				type: 'string',
+				default: 'standard',
+				required: false
+			),
+			new AgentNodePort(
 				name: 'stages',
 				description: 'Ordered configured IAgentStage component ids. An empty list uses the MissionBay default pipeline.',
 				type: 'array',
@@ -94,6 +103,20 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			new AgentNodePort(
 				name: 'budget',
 				description: 'Optional per-run agent budget. Supports token, AI-operation, tool-call, elapsed-time, and generic normalized usage-metric limits.',
+				type: 'array',
+				default: [],
+				required: false
+			),
+			new AgentNodePort(
+				name: 'capabilitysources',
+				description: 'Configured component ids that may contribute tools, capability providers, modules, resource providers, and prompt providers to this agent run.',
+				type: 'array',
+				default: [],
+				required: false
+			),
+			new AgentNodePort(
+				name: 'capabilityselection',
+				description: 'Optional capability selection policy. Supports strategy, maxTools, selectAllThreshold, include/exclude tools, tags and categories, alwaysAvailable, and sticky.',
 				type: 'array',
 				default: [],
 				required: false
@@ -148,9 +171,9 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			),
 			new AgentNodeDock(
 				name: 'tools',
-				description: 'Callable tools (function calling).',
+				description: 'Callable tools forming the agent capability pool. Per-model-call exposure is bounded by capabilityselection.',
 				interface: IAgentTool::class,
-				maxConnections: 99,
+				maxConnections: 512,
 				required: false
 			),
 			new AgentNodeDock(
@@ -201,7 +224,9 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			stageIds: $this->readStageIds($inputs),
 			budget: $this->readBudget($inputs),
 			toolCacheConfig: $this->readToolCacheConfig($inputs),
-			resume: $this->readResume($inputs)
+			resume: $this->readResume($inputs),
+			capabilitySelectionConfig: $this->readCapabilitySelectionConfig($inputs),
+			capabilitySourceConfig: $this->readCapabilitySourceConfig($inputs)
 		);
 	}
 
@@ -289,6 +314,35 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		}
 
 		return $value;
+	}
+
+
+	protected function readCapabilitySourceConfig(array $inputs): AgentCapabilitySourceConfig {
+		$value = $inputs['capabilitysources'] ?? [];
+
+		if ($value === null || $value === '') {
+			return new AgentCapabilitySourceConfig();
+		}
+
+		if (!is_array($value)) {
+			throw new \RuntimeException('Input capabilitysources must be an array.');
+		}
+
+		return AgentCapabilitySourceConfig::fromArray($value);
+	}
+
+	protected function readCapabilitySelectionConfig(array $inputs): AgentCapabilitySelectionConfig {
+		$value = $inputs['capabilityselection'] ?? [];
+
+		if ($value === null || $value === '') {
+			return new AgentCapabilitySelectionConfig();
+		}
+
+		if (!is_array($value)) {
+			throw new \RuntimeException('Input capabilityselection must be an array.');
+		}
+
+		return AgentCapabilitySelectionConfig::fromArray($value);
 	}
 
 	protected function readResume(array $inputs): ?AgentResume {

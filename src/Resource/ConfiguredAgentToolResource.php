@@ -20,6 +20,7 @@ namespace MissionBay\Resource;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
+use Base3\Api\IOutputSchemaProvider;
 use MissionBay\Api\IAgentTool;
 
 /**
@@ -29,7 +30,7 @@ use MissionBay\Api\IAgentTool;
  * This allows per-agent naming, labels and metadata without changing the
  * underlying tool implementation.
  */
-class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentTool {
+class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentTool, IOutputSchemaProvider {
 
 	private ?IAgentTool $tool = null;
 	private bool $enabled = true;
@@ -168,6 +169,29 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 		}
 
 		return $this->tool->callTool($originalName, $arguments, $context);
+	}
+
+	public function getOutputSchemas(): array {
+		if (!$this->enabled || !$this->tool instanceof IOutputSchemaProvider) {
+			return [];
+		}
+
+		if ($this->nameMap === []) {
+			$this->getToolDefinitions();
+		}
+
+		$schemas = $this->tool->getOutputSchemas();
+		$result = [];
+
+		foreach ($this->nameMap as $effectiveName => $originalName) {
+			if (!array_key_exists($originalName, $schemas)) {
+				continue;
+			}
+
+			$result[$effectiveName] = $schemas[$originalName];
+		}
+
+		return $result;
 	}
 
 	private function buildEffectiveToolName(string $originalName): string {

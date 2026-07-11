@@ -51,9 +51,12 @@ class McpToolProfileRepository {
 		$profile = $this->getProfile($id);
 
 		$type = strtolower(trim((string)($profile['type'] ?? '')));
+		$mcpEnabled = array_key_exists('mcp_enabled', $profile)
+			? $this->toBool($profile['mcp_enabled'])
+			: in_array($type, ['mcp', 'hybrid'], true);
 
-		if($type !== 'mcp') {
-			throw new \RuntimeException('Tool profile is not an MCP profile: ' . $id);
+		if(!$mcpEnabled) {
+			throw new \RuntimeException('Tool profile is not enabled for MCP exposure: ' . $id);
 		}
 
 		if(!$this->isEnabled($profile)) {
@@ -65,6 +68,12 @@ class McpToolProfileRepository {
 		}
 
 		return $profile;
+	}
+
+	private function toBool(mixed $value): bool {
+		if(is_bool($value)) return $value;
+		if(is_int($value)) return $value !== 0;
+		return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
 	}
 
 	/**

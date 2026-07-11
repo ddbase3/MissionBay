@@ -508,6 +508,7 @@
                 enabled_label: 'string',
                 policy_label: 'string',
                 llm: 'string',
+                tool_profile_count: 'int',
                 component_count: 'int',
                 user_prompt_preview: 'string'
         };
@@ -747,8 +748,13 @@
                 return wrapper;
         }
 
-        function renderComponentCount(value, row) {
-                return createElement('agent-admin-cell-main', getText(row.component_count, '0'));
+        function renderAgentProfiles(value, row) {
+                const wrapper = createElement('agent-admin-cell-stack');
+                const main = createElement('agent-admin-cell-main', getText(row.orchestrator_profile, 'standard'));
+                const sub = createElement('agent-admin-cell-sub', row.tool_profile_count > 0 ? getText(row.tool_profile_text) : 'No tool profile');
+                wrapper.appendChild(main);
+                wrapper.appendChild(sub);
+                return wrapper;
         }
 
         function buildFilterPayload(filters) {
@@ -827,7 +833,9 @@
                 left.appendChild(createDetailRow('Policy', record.policy_label || record.policy));
                 left.appendChild(createDetailRow('Policy data', record.policy_data_text));
                 left.appendChild(createDetailRow('LLM', record.llm));
-                left.appendChild(createDetailRow('Components', record.component_count));
+                left.appendChild(createDetailRow('Orchestrator profile', record.orchestrator_profile));
+                left.appendChild(createDetailRow('Tool profiles', record.tool_profile_text || 'none'));
+                left.appendChild(createDetailRow('Direct legacy components', record.component_count));
                 left.appendChild(createDetailRow('User prompt', record.user_prompt_preview));
 
                 right.appendChild(createElement('agent-admin-detail-title', 'Settings JSON'));
@@ -2145,15 +2153,15 @@
                                         }
                                 },
                                 {
-                                        key: 'component_count',
-                                        label: 'Components',
-                                        width: 120,
+                                        key: 'tool_profile_count',
+                                        label: 'Profiles',
+                                        width: 280,
                                         headerMenu: {
-                                                defaultSortKey: 'component_count',
+                                                defaultSortKey: 'tool_profile_count',
                                                 defaultSortDirection: 'desc'
                                         },
                                         render(value, row) {
-                                                return renderComponentCount(value, row);
+                                                return renderAgentProfiles(value, row);
                                         }
                                 },
                                 {

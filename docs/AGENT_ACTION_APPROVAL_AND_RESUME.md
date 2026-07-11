@@ -14,7 +14,9 @@ The harness requests and validates user interaction.
 ## Runtime flow
 
 ```text
-model-decision
+capability-discovery
+  -> capability-selection
+  -> model-decision
   -> action-policy
        -> allow / deny / require_approval / require_clarification / require_dry_run
        -> review service persists an exact server-owned suspension
@@ -70,11 +72,8 @@ Both are suspension outcomes, not failures. Denial becomes a normalized tool obs
 
 The default repository uses `IStateStore`, a 15-minute suspension TTL, a short claim lease, one-time consumption, and a replay marker. Details are documented in [AGENT_DURABLE_SUSPENSIONS.md](AGENT_DURABLE_SUSPENSIONS.md).
 
-## Remaining production work
+## Mutation commit guard
 
-The next mutation-safety boundary is a final commit guard immediately before tool invocation:
+Approval is followed by a final execution-boundary check. Mutation tools can capture authorization and resource-version state before review and validate it immediately before `callTool()`. Stale or no-longer-authorized writes are returned as blocked tool results without invoking the tool.
 
-- reauthorize the current user;
-- compare an expected resource version or ETag;
-- reject stale writes;
-- emit typed audit events for review, decision, execution, and failure.
+See [AGENT_MUTATION_COMMIT_GUARD.md](AGENT_MUTATION_COMMIT_GUARD.md).

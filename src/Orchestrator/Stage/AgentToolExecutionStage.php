@@ -20,6 +20,8 @@ namespace MissionBay\Orchestrator\Stage;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentStageResult;
+use AssistantFoundation\Dto\AgentMutationCommitDecision;
+use AssistantFoundation\Dto\AgentToolContractValidation;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use Base3\Event\Api\IEventManager;
@@ -31,8 +33,12 @@ use MissionBay\Event\MissionBayToolFailedEvent;
 use MissionBay\Event\MissionBayToolFinishedEvent;
 use MissionBay\Event\MissionBayToolStartedEvent;
 use MissionBay\Orchestrator\AgentStageResultAccumulator;
+use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use MissionBay\Orchestrator\Service\AgentResultVerificationService;
+use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 
 /**
@@ -50,6 +56,9 @@ final class AgentToolExecutionStage implements IAgentStage {
 	private AgentToolResultCacheService $toolResultCacheService;
 	private AgentBudgetGuardService $budgetGuardService;
 	private AgentResultVerificationService $resultVerificationService;
+	private AgentMutationCommitGuardService $mutationCommitGuardService;
+	private AgentToolContractValidationService $toolContractValidationService;
+	private AgentCapabilitySelectionGuardService $capabilitySelectionGuardService;
 
 	public function __construct(
 		private readonly IEventManager $eventManager,
@@ -57,7 +66,10 @@ final class AgentToolExecutionStage implements IAgentStage {
 		private readonly string $stageName = 'tool-execution',
 		?AgentToolResultCacheService $toolResultCacheService = null,
 		?AgentBudgetGuardService $budgetGuardService = null,
-		?AgentResultVerificationService $resultVerificationService = null
+		?AgentResultVerificationService $resultVerificationService = null,
+		?AgentMutationCommitGuardService $mutationCommitGuardService = null,
+		?AgentToolContractValidationService $toolContractValidationService = null,
+		?AgentCapabilitySelectionGuardService $capabilitySelectionGuardService = null
 	) {
 		$this->toolResultCacheService = $toolResultCacheService
 			?? new AgentToolResultCacheService(
@@ -67,6 +79,12 @@ final class AgentToolExecutionStage implements IAgentStage {
 			);
 		$this->budgetGuardService = $budgetGuardService ?? new AgentBudgetGuardService();
 		$this->resultVerificationService = $resultVerificationService ?? new AgentResultVerificationService();
+		$this->mutationCommitGuardService = $mutationCommitGuardService
+			?? new AgentMutationCommitGuardService(new AgentActionFingerprint(), $this->eventManager);
+		$this->toolContractValidationService = $toolContractValidationService
+			?? new AgentToolContractValidationService();
+		$this->capabilitySelectionGuardService = $capabilitySelectionGuardService
+			?? new AgentCapabilitySelectionGuardService();
 	}
 
 	public static function getName(): string {
@@ -82,7 +100,7 @@ final class AgentToolExecutionStage implements IAgentStage {
 	}
 
 	public function getDescription(): string {
-		return 'Executes the approved tool batch through cache, budget, execution, verification, and cache-store services.';
+		return 'Executes the approved tool batch through cache, budget, commit guard, contract validation, structural verification, and cache-store services.';
 	}
 
 	public function getAiUsage(): string {
@@ -276,6 +294,14 @@ final class AgentToolExecutionStage implements IAgentStage {
 		$toolName = trim($call->getName());
 		$args = $call->getArguments();
 		$label = $toolName;
+		$effectiveCall = $callId === $call->getId()
+			? $call
+			: new AiToolCall($callId, $toolName, $args, $call->getMetadata());
+
+		if (!$this->capabilitySelectionGuardService->isAllowed($context, $toolName)) {
+			return $this->capabilitySelectionGuardService->createFailure($context, $effectiveCall, $iteration);
+		}
+
 		$toolObj = $this->findTool($tools, $toolName, $logger);
 
 		if ($toolObj instanceof IAgentTool) {
@@ -298,28 +324,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 			'tool_call' => $call->getMetadata()
 		];
 
-		$this->emitEvent($eventCallback, 'tool.started', $this->buildUiPayload([
-			'call_id' => $callId,
-			'tool' => $toolName,
-			'label' => $label,
-			'args' => $args,
-			'iteration' => $iteration,
-			'call_index' => $callIndex
-		], $trace), $logger);
-
-		$this->fireToolStartedEvent(
-			$nodeId,
-			$callId,
-			$toolName,
-			$label,
-			$args,
-			$iteration,
-			$callIndex,
-			$trace,
-			$logger
-		);
-
-		$this->log($logger, 'Tool started: ' . $toolName . ' [' . $callId . ']');
 
 		if (!$toolObj instanceof IAgentTool) {
 			$warn = 'Tool not found: ' . $toolName;
@@ -373,8 +377,162 @@ final class AgentToolExecutionStage implements IAgentStage {
 			);
 		}
 
+		$commitDecision = $this->mutationCommitGuardService->validate($call, $context);
+		if (!$commitDecision->isAllowed()) {
+			$message = trim($commitDecision->getReason());
+			if ($message === '') {
+				$message = 'Mutation commit was blocked by the final execution guard.';
+			}
+			$errorCode = $commitDecision->getCode();
+			$this->logError($logger, 'Tool blocked before commit (' . $toolName . '): ' . $message);
+
+			$this->emitEvent($eventCallback, 'tool.error', $this->buildUiPayload([
+				'call_id' => $callId,
+				'tool' => $toolName,
+				'label' => $label,
+				'args' => $args,
+				'error' => $message,
+				'error_code' => $errorCode,
+				'blocked' => true,
+				'iteration' => $iteration,
+				'call_index' => $callIndex
+			], $trace), $logger);
+
+			$this->fireToolFailedEvent(
+				$nodeId,
+				$callId,
+				$toolName,
+				$label,
+				$args,
+				$message,
+				AgentMutationCommitDecision::class,
+				$errorCode,
+				$iteration,
+				$callIndex,
+				$trace,
+				$logger
+			);
+
+			return AgentToolResult::failure(
+				$callId,
+				$toolName,
+				$args,
+				$errorCode,
+				$message,
+				$metadata + [
+					'commit_guard' => $commitDecision->toArray(),
+					'blocked_before_execution' => true
+				],
+				[
+					'ok' => false,
+					'blocked' => true,
+					'error_code' => $errorCode,
+					'error' => $message
+				]
+			);
+		}
+
+		$this->emitEvent($eventCallback, 'tool.started', $this->buildUiPayload([
+			'call_id' => $callId,
+			'tool' => $toolName,
+			'label' => $label,
+			'args' => $args,
+			'iteration' => $iteration,
+			'call_index' => $callIndex
+		], $trace), $logger);
+
+		$this->fireToolStartedEvent(
+			$nodeId,
+			$callId,
+			$toolName,
+			$label,
+			$args,
+			$iteration,
+			$callIndex,
+			$trace,
+			$logger
+		);
+
+		$this->log($logger, 'Tool started: ' . $toolName . ' [' . $callId . ']');
+
 		try {
 			$result = $toolObj->callTool($toolName, $args, $context);
+			$contractValidation = $this->toolContractValidationService->validateOutput($call, $result, [$toolObj]);
+			$this->appendContractValidation($context, $contractValidation);
+
+			if (!$contractValidation->passes()) {
+				$message = trim($contractValidation->getSummary());
+				if ($message === '') {
+					$message = 'Tool output failed contract validation.';
+				}
+
+				$executedToolCalls[] = [
+					'tool' => $toolName,
+					'arguments' => $args,
+					'error' => $message,
+					'error_code' => $contractValidation->getReasonCode(),
+					'result_type' => get_debug_type($result),
+					'contract_validation' => $contractValidation->toArray()
+				];
+
+				$this->emitEvent($eventCallback, 'tool.error', $this->buildUiPayload([
+					'call_id' => $callId,
+					'tool' => $toolName,
+					'label' => $label,
+					'args' => $args,
+					'error' => $message,
+					'error_code' => $contractValidation->getReasonCode(),
+					'contract_validation' => $contractValidation->toArray(),
+					'iteration' => $iteration,
+					'call_index' => $callIndex
+				], $trace), $logger);
+
+				$this->fireToolFailedEvent(
+					$nodeId,
+					$callId,
+					$toolName,
+					$label,
+					$args,
+					$message,
+					AgentToolContractValidation::class,
+					$contractValidation->getReasonCode(),
+					$iteration,
+					$callIndex,
+					$trace,
+					$logger
+				);
+
+				$this->mutationCommitGuardService->recordCommitResult(
+					$call,
+					$context,
+					true,
+					'Tool execution completed, but its output failed the declared contract.',
+					[
+						'result_type' => get_debug_type($result),
+						'output_contract_valid' => false,
+						'contract_validation' => $contractValidation->toArray()
+					]
+				);
+
+				return AgentToolResult::failure(
+					$callId,
+					$toolName,
+					$args,
+					$contractValidation->getReasonCode(),
+					$message,
+					$metadata + [
+						'contract_validation' => $contractValidation->toArray(),
+						'tool_executed' => true,
+						'result_type' => get_debug_type($result)
+					],
+					[
+						'ok' => false,
+						'error_code' => $contractValidation->getReasonCode(),
+						'error' => $message,
+						'issues' => $contractValidation->getIssues()
+					]
+				);
+			}
 
 			$executedToolCalls[] = [
 				'tool' => $toolName,
@@ -406,6 +564,13 @@ final class AgentToolExecutionStage implements IAgentStage {
 			);
 
 			$this->log($logger, 'Tool finished: ' . $toolName . ' [' . $callId . ']');
+			$this->mutationCommitGuardService->recordCommitResult(
+				$call,
+				$context,
+				true,
+				'Mutation committed successfully.',
+				['result_type' => get_debug_type($result)]
+			);
 
 			return AgentToolResult::success(
 				$callId,
@@ -416,6 +581,13 @@ final class AgentToolExecutionStage implements IAgentStage {
 			);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Tool failed (' . $toolName . '): ' . $e->getMessage());
+			$this->mutationCommitGuardService->recordCommitResult(
+				$call,
+				$context,
+				false,
+				$e->getMessage(),
+				['type' => get_class($e), 'code' => $e->getCode()]
+			);
 
 			$errorOutput = [
 				'ok' => false,
@@ -470,6 +642,19 @@ final class AgentToolExecutionStage implements IAgentStage {
 				$errorOutput
 			);
 		}
+	}
+
+	private function appendContractValidation(
+		IAgentContext $context,
+		AgentToolContractValidation $validation
+	): void {
+		$validations = $context->getVar(AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS);
+		if (!is_array($validations)) {
+			$validations = [];
+		}
+
+		$validations[] = $validation;
+		$context->setVar(AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS, $validations);
 	}
 
 	/**

@@ -22,13 +22,29 @@ IAgentSuspensionRepository
 AgentActionResumeService
 AgentActionReviewService
 AgentBudgetGuardService
+AgentCapabilityDiscoveryService
+AgentCapabilityCatalogBuilder
+IAgentCapabilitySelector
+AgentCapabilitySelectionGuardService
 AgentContextAssessmentService
 AgentContinuationDecisionService
 AgentLoopProgressService
+AgentMutationCommitGuardService
 AgentResultVerificationService
 AgentSemanticVerificationService
+AgentToolContractValidationService
 AgentToolResultCacheService
+JsonSchemaValidator
 ```
+
+
+### Capability boundary
+
+`AgentCapabilityDiscoveryService` resolves only the component IDs explicitly selected by the agent configuration. It activates configured capability providers and modules before profile filtering and pipeline construction, and returns the run-local tools, resource providers, prompt providers, instructions, and stage mounts. Infrastructure resolution remains a service because it must happen before the pipeline can be assembled. The semantic `capability-discovery` stage publishes and validates that result inside the visible trace.
+
+`AgentCapabilityCatalogBuilder` normalizes the complete tool-function pool assigned to one agent run and rejects duplicate operational names. `IAgentCapabilitySelector` is the replaceable ranking slot used by the semantic `capability-selection` stage.
+
+`AgentCapabilitySelectionGuardService` is not another stage. It enforces the exact selection before policy evaluation and immediately before execution, so custom stage profiles cannot accidentally turn ranking metadata into an unenforced hint.
 
 ### Action lifecycle
 
@@ -43,16 +59,25 @@ The default repository is `StateStoreAgentSuspensionRepository`. It uses `IState
 `AgentToolExecutionStage` wraps:
 
 ```text
-cache lookup
+validated cache lookup
   -> tool budget projection
+  -> final mutation commit guard
   -> tool invocation
-  -> normalized result verification
+  -> output-contract validation
+  -> normalized structural verification
   -> cache storage
 ```
 
 These operations must remain atomic from the pipeline's point of view. Exposing them as separately reorderable stages allowed unsafe or nonsensical combinations.
 
-The next internal execution checkpoint should be a mutation commit guard directly before tool invocation. It belongs inside the execution boundary, not in the public stage list.
+`AgentMutationCommitGuardService` runs directly before mutating tool invocation. It binds execution to the exact approved action, restores the server-owned commit snapshot, asks guarded tools to revalidate authorization and resource versions, and blocks stale or unauthorized writes. Mutation calls bypass the result cache. This checkpoint belongs inside the execution boundary, not in the public stage list.
+
+
+### Tool contract boundary
+
+`AgentToolContractValidationService` uses `JsonSchemaValidator` to validate model-generated arguments before action policy evaluation and successful outputs immediately after execution. Cache hits are validated before acceptance; stale entries that violate the current schema are deleted and treated as misses.
+
+The mechanism records `AgentToolContractValidation` diagnostics and returns correctable failed tool observations without exposing rejected values. It is deliberately split across the action and execution boundaries rather than represented as another reorderable stage.
 
 ### Context boundary
 

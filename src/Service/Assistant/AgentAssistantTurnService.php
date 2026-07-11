@@ -23,11 +23,14 @@ use MissionBay\Api\IAgentAssistantMemoryService;
 use MissionBay\Api\IAgentAssistantMessageFactory;
 use MissionBay\Api\IAgentAssistantToolSetupFactory;
 use MissionBay\Api\IAgentAssistantTurnService;
+use MissionBay\Capability\AgentCapabilityDiscoveryService;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Dto\AgentCapabilityCatalog;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
+use MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
 use MissionBay\Dto\Assistant\PreparedAgentResume;
@@ -42,6 +45,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		private IAgentAssistantMemoryService $memoryService,
 		private IAgentAssistantMessageFactory $messageFactory,
 		private IAgentAssistantToolSetupFactory $toolSetupFactory,
+		private AgentCapabilityDiscoveryService $capabilityDiscoveryService,
 		private AgentStagePipelineResolver $stagePipelineResolver,
 		private AgentToolOrchestrator $orchestrator,
 		private AgentActionResumeService $actionResumeService,
@@ -72,8 +76,31 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 		$tools = $resources->getTools();
 		$toolDefs = [];
+		$capabilityCatalog = null;
+		$requiredToolNames = [];
+		$capabilitySelectionConfig = $options->getCapabilitySelectionConfig();
+		$capabilityDiscovery = null;
 
 		if ($options->areToolsEnabled()) {
+			$capabilityDiscovery = $this->capabilityDiscoveryService->discover(
+				$tools,
+				$options->getCapabilitySourceConfig(),
+				$context
+			);
+
+			foreach ($capabilityDiscovery->getErrors() as $error) {
+				$this->logError($logger, $error);
+			}
+			foreach ($capabilityDiscovery->getWarnings() as $warning) {
+				$this->logError($logger, $warning);
+			}
+
+			$moduleInstructions = $capabilityDiscovery->getInstructions();
+			if ($moduleInstructions !== []) {
+				$system = rtrim($system) . "\n\n" . implode("\n\n", $moduleInstructions);
+			}
+
+			$tools = $capabilityDiscovery->getTools();
 			$toolSetup = $this->toolSetupFactory->create(
 				$tools,
 				$resources->getProfileSelector(),
@@ -99,7 +126,11 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 			$tools = $toolSetup->getTools();
 			$toolDefs = $toolSetup->getToolDefs();
-			$this->log($logger, 'Number of tools: ' . count($toolDefs) . '.');
+			$capabilityCatalog = $toolSetup->getCatalog();
+			$requiredToolNames = $toolSetup->getEffectivePlan()->getRequiredTools();
+			$capabilitySelectionConfig = $capabilitySelectionConfig->withAlwaysAvailable($requiredToolNames);
+			$this->log($logger, 'Capability catalog size: ' . count($capabilityCatalog) . '.');
+			$this->log($logger, 'Capability selection max tools: ' . $capabilitySelectionConfig->getMaxTools() . '.');
 		} else {
 			$tools = [];
 			$this->log($logger, 'Tools disabled for mode: ' . $options->getMode() . '.');
@@ -136,7 +167,10 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			);
 		}
 
-		$stages = $this->stagePipelineResolver->resolve($options->getStageIds());
+		$stages = $this->stagePipelineResolver->resolve(
+			$options->getStageIds(),
+			$capabilityDiscovery instanceof AgentCapabilityDiscoveryResult ? $capabilityDiscovery->getStageMounts() : []
+		);
 		$orchestrationResult = $this->orchestrator->run(
 			$model,
 			$messages,
@@ -150,7 +184,11 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$stages,
 			$options->getBudget(),
 			$options->getToolCacheConfig(),
-			$preparedResume
+			$preparedResume,
+			$capabilityCatalog instanceof AgentCapabilityCatalog ? $capabilityCatalog : null,
+			$capabilityDiscovery,
+			$capabilitySelectionConfig,
+			$requiredToolNames
 		);
 
 		$this->storeOrchestratorContext($context, $orchestrationResult, $logger);
@@ -206,6 +244,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context->setVar('orchestrator_stage_trace', []);
 			$context->setVar('orchestrator_context_compactions', []);
 			$context->setVar('orchestrator_result_verifications', []);
+			$context->setVar('orchestrator_tool_contract_validations', []);
 			$context->setVar('orchestrator_continuation_decisions', []);
 			$context->setVar('orchestrator_final_response_instruction', '');
 			$context->setVar('orchestrator_budget_assessments', []);
@@ -216,6 +255,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context->setVar('orchestrator_execution_status', AgentExecutionStatus::COMPLETED);
 			$context->setVar('orchestrator_interaction_requests', []);
 			$context->setVar('orchestrator_resume_handle', '');
+			$context->setVar('orchestrator_capability_selections', []);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
@@ -242,6 +282,10 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context->setVar('orchestrator_result_verifications', array_map(
 				static fn($entry): array => $entry->toArray(),
 				$orchestrationResult->getResultVerifications()
+			));
+			$context->setVar('orchestrator_tool_contract_validations', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getToolContractValidations()
 			));
 			$context->setVar('orchestrator_continuation_decisions', array_map(
 				static fn($entry): array => $entry->toArray(),
@@ -274,6 +318,10 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				$orchestrationResult->getInteractionRequests()
 			));
 			$context->setVar('orchestrator_resume_handle', $orchestrationResult->getResumeHandle());
+			$context->setVar('orchestrator_capability_selections', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getCapabilitySelections()
+			));
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}

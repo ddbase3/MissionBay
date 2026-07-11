@@ -9,6 +9,7 @@ use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use MissionBay\Context\AgentContext;
+use MissionBay\Api\IAgentTool;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
@@ -62,6 +63,38 @@ final class AgentActionPolicyStageTest extends TestCase {
 		$this->assertInstanceOf(AgentToolResult::class, $patch[AgentToolLoopContextKeys::TOOL_RESULTS][0]);
 		$this->assertFalse($patch[AgentToolLoopContextKeys::TOOL_RESULTS][0]->isSuccess());
 		$this->assertSame('action_denied', $patch[AgentToolLoopContextKeys::TOOL_RESULTS][0]->getErrorCode());
+	}
+
+	public function testToolOutsideExactModelSelectionIsBlockedBeforePolicy(): void {
+		$call = new AiToolCall('call-1', 'lookup', ['query' => 'BASE3']);
+		$context = $this->createContext($call);
+		$context->setVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED, true);
+		$context->setVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES, ['other_tool']);
+		$stage = $this->createStage([new AllowAllAgentActionPolicy()]);
+
+		$patch = $stage->process($context)->getPatch();
+
+		$this->assertSame([], $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS]);
+		$this->assertSame([], $patch[AgentToolLoopContextKeys::ACTION_DECISIONS]);
+		$this->assertCount(1, $patch[AgentToolLoopContextKeys::TOOL_RESULTS]);
+		$this->assertSame('capability_not_selected', $patch[AgentToolLoopContextKeys::TOOL_RESULTS][0]->getErrorCode());
+	}
+
+	public function testInvalidToolInputIsBlockedBeforePolicyAndExecution(): void {
+		$call = new AiToolCall('call-1', 'lookup', ['limit' => 'five']);
+		$context = $this->createContext($call);
+		$context->setVar(AgentToolLoopContextKeys::TOOLS, [new PolicyContractTool()]);
+		$context->setVar(AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS, []);
+		$stage = $this->createStage([new AllowAllAgentActionPolicy()]);
+
+		$patch = $stage->process($context)->getPatch();
+
+		$this->assertSame([], $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS]);
+		$this->assertSame([], $patch[AgentToolLoopContextKeys::ACTION_DECISIONS]);
+		$this->assertCount(1, $patch[AgentToolLoopContextKeys::ACTIONS]);
+		$this->assertCount(1, $patch[AgentToolLoopContextKeys::TOOL_RESULTS]);
+		$this->assertSame('tool_input_contract_violation', $patch[AgentToolLoopContextKeys::TOOL_RESULTS][0]->getErrorCode());
+		$this->assertSame(AgentToolLoopContextKeys::PHASE_AFTER_TOOLS, $patch[AgentToolLoopContextKeys::PHASE]);
 	}
 
 	/**
@@ -120,5 +153,33 @@ final class DenyAgentActionPolicy implements IAgentActionPolicy {
 
 	public function evaluate(AgentAction $action, IAgentContext $context): AgentActionDecision {
 		return AgentActionDecision::deny($action->getId(), 'Denied by test policy.');
+	}
+}
+
+final class PolicyContractTool implements IAgentTool {
+
+	public static function getName(): string {
+		return 'policycontracttool';
+	}
+
+	public function getToolDefinitions(): array {
+		return [[
+			'type' => 'function',
+			'function' => [
+				'name' => 'lookup',
+				'parameters' => [
+					'type' => 'object',
+					'required' => ['query'],
+					'properties' => [
+						'query' => ['type' => 'string'],
+						'limit' => ['type' => 'integer']
+					]
+				]
+			]
+		]];
+	}
+
+	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
+		throw new \RuntimeException('This tool must not be called for invalid input.');
 	}
 }

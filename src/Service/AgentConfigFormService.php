@@ -18,14 +18,24 @@
 namespace MissionBay\Service;
 
 use Base3\Api\IClassMap;
+use Base3\Api\IComponent;
+use Base3\Api\IComponentResolver;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\Settings\Api\ISettingsStore;
 use JsonException;
 use MissionBay\Api\IAgentConfigFormService;
+use AssistantFoundation\Api\IAgentCapabilityProvider;
+use AssistantFoundation\Api\IAgentModule;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Api\IAgentMemory;
+use MissionBay\Api\IAgentPromptProvider;
 use MissionBay\Api\IAgentResource;
+use MissionBay\Api\IAgentResourceProvider;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use MissionBay\Profile\AgentToolProfileResolver;
 use Throwable;
 
 class AgentConfigFormService implements IAgentConfigFormService {
@@ -43,7 +53,10 @@ class AgentConfigFormService implements IAgentConfigFormService {
 	public function __construct(
 		private readonly IRequest $request,
 		private readonly ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap
+		private readonly IClassMap $classMap,
+		private readonly IComponentResolver $componentResolver,
+		private readonly AgentOrchestratorProfileRepository $orchestratorProfileRepository,
+		private readonly AgentToolProfileResolver $toolProfileResolver
 	) {}
 
 	// ---------------------------------------------------------------------
@@ -53,9 +66,14 @@ class AgentConfigFormService implements IAgentConfigFormService {
 	public function getDefaultSettings(): array {
 		return [
 			'llm' => '',
+			'orchestrator_profile' => AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
+			'tool_profiles' => [],
+			'expert_overrides_enabled' => false,
 			'system_prompt' => '',
 			'agent_flow' => [],
-			'agent_components' => []
+			'agent_components' => [],
+			'capability_sources' => (new AgentCapabilitySourceConfig())->toArray(),
+			'capability_selection' => (new AgentCapabilitySelectionConfig())->toArray()
 		];
 	}
 
@@ -88,6 +106,28 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			$errors[] = 'Selected LLM does not exist in settings group "' . self::LLM_SETTINGS_GROUP . '": ' . $llm;
 		}
 
+		$orchestratorProfile = $this->normalizeTechnicalKey((string)$this->request->request(
+			'orchestrator_profile',
+			AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID
+		));
+		try {
+			$this->orchestratorProfileRepository->getProfile($orchestratorProfile);
+		}
+		catch (\Throwable $e) {
+			$errors[] = 'Selected orchestrator profile is not available: ' . $orchestratorProfile . ' (' . $e->getMessage() . ')';
+		}
+
+		$toolProfiles = $this->normalizeTechnicalKeyList($this->request->request('tool_profiles', []));
+		$availableToolProfiles = [];
+		foreach ($this->toolProfileResolver->getOptions() as $option) {
+			$availableToolProfiles[(string)($option['id'] ?? '')] = true;
+		}
+		foreach ($toolProfiles as $toolProfile) {
+			if (!isset($availableToolProfiles[$toolProfile])) {
+				$errors[] = 'Selected tool profile is not available for internal agents: ' . $toolProfile;
+			}
+		}
+
 		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
 
 		if ($errors === [] && $llm !== '') {
@@ -96,9 +136,14 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 		return $this->normalizeSettings([
 			'llm' => $llm,
+			'orchestrator_profile' => $orchestratorProfile,
+			'tool_profiles' => $toolProfiles,
+			'expert_overrides_enabled' => $this->toBool($this->request->request('expert_overrides_enabled', false)),
 			'system_prompt' => $this->normalizeTextBlock((string)$this->request->request('system_prompt')),
 			'agent_flow' => $agentFlow,
-			'agent_components' => $agentComponents
+			'agent_components' => $agentComponents,
+			'capability_sources' => $this->normalizeCapabilitySources($this->request->request('capability_sources', [])),
+			'capability_selection' => $this->normalizeCapabilitySelection($this->request->request('capability_selection', []), $errors)
 		]);
 	}
 
@@ -117,9 +162,14 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 		return [
 			'llm' => $this->normalizeTechnicalKey((string)$this->request->request('llm')),
+			'orchestrator_profile' => $this->normalizeTechnicalKey((string)$this->request->request('orchestrator_profile', AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID)),
+			'tool_profiles' => $this->normalizeTechnicalKeyList($this->request->request('tool_profiles', [])),
+			'expert_overrides_enabled' => $this->toBool($this->request->request('expert_overrides_enabled', false)),
 			'system_prompt' => $this->normalizeTextBlock((string)$this->request->request('system_prompt')),
 			'agent_flow_json' => $this->getPostedJsonText('agent_flow_b64', 'agent_flow', 'AgentFlow configuration', $errors),
-			'agent_components' => $this->normalizeAgentComponentsViewInput($agentComponentsInput)
+			'agent_components' => $this->normalizeAgentComponentsViewInput($agentComponentsInput),
+			'capability_sources' => $this->normalizeCapabilitySources($this->request->request('capability_sources', [])),
+			'capability_selection' => $this->normalizeCapabilitySelection($this->request->request('capability_selection', []), $errors)
 		];
 	}
 
@@ -137,9 +187,14 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 		return [
 			'llm' => $llm,
+			'orchestrator_profile' => $this->normalizeTechnicalKey((string)($settings['orchestrator_profile'] ?? $defaults['orchestrator_profile'])) ?: AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
+			'tool_profiles' => $this->normalizeTechnicalKeyList($settings['tool_profiles'] ?? $defaults['tool_profiles']),
+			'expert_overrides_enabled' => $this->toBool($settings['expert_overrides_enabled'] ?? $defaults['expert_overrides_enabled']),
 			'system_prompt' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? $defaults['system_prompt'])),
 			'agent_flow' => $agentFlow,
-			'agent_components' => $agentComponents
+			'agent_components' => $agentComponents,
+			'capability_sources' => $this->normalizeCapabilitySources($settings['capability_sources'] ?? $defaults['capability_sources']),
+			'capability_selection' => $this->normalizeCapabilitySelection($settings['capability_selection'] ?? $defaults['capability_selection'])
 		];
 	}
 
@@ -148,9 +203,14 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 		return [
 			'llm' => $settings['llm'],
+			'orchestrator_profile' => $settings['orchestrator_profile'],
+			'tool_profiles' => $settings['tool_profiles'],
+			'expert_overrides_enabled' => $settings['expert_overrides_enabled'],
 			'system_prompt' => $settings['system_prompt'],
 			'agent_flow_json' => $this->formatConfigJson($settings['agent_flow'], '{}'),
-			'agent_components' => $settings['agent_components']
+			'agent_components' => $settings['agent_components'],
+			'capability_sources' => $settings['capability_sources'],
+			'capability_selection' => $settings['capability_selection']
 		];
 	}
 
@@ -166,8 +226,155 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			'form_id' => $formId,
 			'values' => $values,
 			'llm_options' => $this->listLlmOptions(),
-			'agent_component_presets' => $this->listAgentComponentPresetOptions()
+			'orchestrator_profile_options' => $this->orchestratorProfileRepository->getOptions(),
+			'tool_profile_options' => $this->toolProfileResolver->getOptions(),
+			'agent_component_presets' => $this->listAgentComponentPresetOptions(),
+			'capability_component_options' => $this->listCapabilityComponentOptions()
 		]);
+	}
+
+
+	/** @return array<int,string> */
+	protected function normalizeTechnicalKeyList(mixed $value): array {
+		if (is_string($value)) {
+			$value = preg_split('/[\r\n,]+/', $value) ?: [];
+		}
+		if (!is_array($value)) {
+			return [];
+		}
+		$result = [];
+		foreach ($value as $item) {
+			$item = $this->normalizeTechnicalKey((string)$item);
+			if ($item !== '') {
+				$result[$item] = $item;
+			}
+		}
+		return array_values($result);
+	}
+
+
+	/** @return array<string,mixed> */
+	protected function normalizeCapabilitySources(mixed $value): array {
+		if (is_string($value)) {
+			$decoded = json_decode($value, true);
+			$value = is_array($decoded) ? $decoded : [];
+		}
+
+		return AgentCapabilitySourceConfig::fromArray(is_array($value) ? $value : [])->toArray();
+	}
+
+	/**
+	 * @param array<int,string> $errors
+	 * @return array<string,mixed>
+	 */
+	protected function normalizeCapabilitySelection(mixed $value, array &$errors = []): array {
+		if (is_string($value)) {
+			$decoded = json_decode($value, true);
+			$value = is_array($decoded) ? $decoded : [];
+		}
+
+		$value = is_array($value) ? $value : [];
+		foreach ([
+			'include_tools',
+			'exclude_tools',
+			'include_tags',
+			'exclude_tags',
+			'include_categories',
+			'exclude_categories',
+			'always_available'
+		] as $listKey) {
+			if (is_string($value[$listKey] ?? null)) {
+				$value[$listKey] = preg_split('/[\r\n,]+/', (string)$value[$listKey]) ?: [];
+			}
+		}
+
+		try {
+			return AgentCapabilitySelectionConfig::fromArray($value)->toArray();
+		} catch (\Throwable $e) {
+			$errors[] = 'Invalid capability selection configuration: ' . $e->getMessage();
+			return (new AgentCapabilitySelectionConfig())->toArray();
+		}
+	}
+
+	/** @return array<string,array<int,array<string,mixed>>> */
+	protected function listCapabilityComponentOptions(): array {
+		return [
+			'tools' => $this->listConfiguredComponentOptions(IAgentTool::class),
+			'providers' => $this->listConfiguredComponentOptions(IAgentCapabilityProvider::class),
+			'modules' => $this->listConfiguredComponentOptions(IAgentModule::class),
+			'resourceProviders' => $this->listConfiguredComponentOptions(IAgentResourceProvider::class),
+			'promptProviders' => $this->listConfiguredComponentOptions(IAgentPromptProvider::class)
+		];
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function listConfiguredComponentOptions(string $interfaceName): array {
+		$rows = [];
+
+		try {
+			$components = $this->componentResolver->all($interfaceName);
+
+			foreach ($components as $component) {
+				if (!$component instanceof IComponent) {
+					continue;
+				}
+
+				$id = trim($component->id());
+				if ($id === '') {
+					continue;
+				}
+
+				$label = $id;
+				$description = '';
+
+				try {
+					if ($component instanceof IAgentModule) {
+						$manifest = $component->manifest();
+						$label = trim($manifest->getTitle()) !== '' ? trim($manifest->getTitle()) : $manifest->getName();
+						$description = trim($manifest->getDescription());
+					} elseif ($component instanceof IAgentTool) {
+						$definitions = $component->getToolDefinitions();
+						$definition = is_array($definitions[0] ?? null) ? $definitions[0] : [];
+						$function = is_array($definition['function'] ?? null) ? $definition['function'] : $definition;
+						$toolLabel = trim((string)($definition['label'] ?? ($function['name'] ?? '')));
+						if ($toolLabel !== '') {
+							$label = $toolLabel;
+						}
+						$description = trim((string)($function['description'] ?? ($definition['description'] ?? '')));
+					} elseif (method_exists($component, 'name')) {
+						$name = trim((string)$component->name());
+						if ($name !== '') {
+							$label = $name;
+						}
+					}
+
+					if ($description === '' && method_exists($component, 'getDescription')) {
+						$description = trim((string)$component->getDescription());
+					}
+				} catch (\Throwable) {
+					// Keep the component selectable even when optional display metadata fails.
+				}
+
+				$rows[] = [
+					'id' => $id,
+					'label' => $label,
+					'description' => $description,
+					'implementation' => $component::getName(),
+					'class' => $component::class
+				];
+			}
+		} catch (\Throwable) {
+			// A failing optional component list must not make the agent editor unusable.
+		}
+
+		usort($rows, static function(array $a, array $b): int {
+			$cmp = strcasecmp((string)$a['label'], (string)$b['label']);
+			return $cmp !== 0 ? $cmp : strcasecmp((string)$a['id'], (string)$b['id']);
+		});
+
+		return $rows;
 	}
 
 	// ---------------------------------------------------------------------

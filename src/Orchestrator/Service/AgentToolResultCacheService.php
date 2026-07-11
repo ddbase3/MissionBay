@@ -17,8 +17,6 @@
 
 namespace MissionBay\Orchestrator\Service;
 
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentToolResultCache;
 use AssistantFoundation\Dto\AgentResultVerification;
@@ -36,6 +34,8 @@ use MissionBay\Api\IAgentTool;
 use MissionBay\Cache\AgentToolCacheKeyBuilder;
 use MissionBay\Event\MissionBayToolFinishedEvent;
 use MissionBay\Event\MissionBayToolStartedEvent;
+use MissionBay\Orchestrator\AgentActionFingerprint;
+use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * AgentToolResultCacheService
@@ -48,11 +48,21 @@ final class AgentToolResultCacheService {
 	public const CHECKPOINT_LOOKUP = 'lookup';
 	public const CHECKPOINT_STORE = 'store';
 
+	private AgentMutationCommitGuardService $mutationCommitGuardService;
+	private AgentToolContractValidationService $toolContractValidationService;
+
 	public function __construct(
 		private readonly IAgentToolResultCache $cache,
 		private readonly IEventManager $eventManager,
-		private readonly AgentToolCacheKeyBuilder $keyBuilder
-	) {}
+		private readonly AgentToolCacheKeyBuilder $keyBuilder,
+		?AgentMutationCommitGuardService $mutationCommitGuardService = null,
+		?AgentToolContractValidationService $toolContractValidationService = null
+	) {
+		$this->mutationCommitGuardService = $mutationCommitGuardService
+			?? new AgentMutationCommitGuardService(new AgentActionFingerprint(), $this->eventManager);
+		$this->toolContractValidationService = $toolContractValidationService
+			?? new AgentToolContractValidationService();
+	}
 
 	public function process(IAgentContext $context, string $checkpoint): AgentStageResult {
 		if (!in_array($checkpoint, [self::CHECKPOINT_LOOKUP, self::CHECKPOINT_STORE], true)) {
@@ -84,6 +94,7 @@ final class AgentToolResultCacheService {
 		$plans = $context->getVar(AgentToolLoopContextKeys::TOOL_CACHE_PLANS);
 		$callIndexes = $context->getVar(AgentToolLoopContextKeys::TOOL_CALL_INDEXES);
 		$executed = $context->getVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS);
+		$contractValidations = $context->getVar(AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS);
 		$callIndex = (int)($context->getVar(AgentToolLoopContextKeys::CALL_INDEX) ?? 0);
 		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
 		$eventCallback = $context->getVar(AgentToolLoopContextKeys::EVENT_CALLBACK);
@@ -98,6 +109,7 @@ final class AgentToolResultCacheService {
 		$plans = is_array($plans) ? $plans : [];
 		$callIndexes = is_array($callIndexes) ? $callIndexes : [];
 		$executed = is_array($executed) ? $executed : [];
+		$contractValidations = is_array($contractValidations) ? $contractValidations : [];
 		$eventCallback = is_callable($eventCallback) ? $eventCallback : null;
 		$trace = is_array($trace) ? $trace : [];
 
@@ -123,6 +135,21 @@ final class AgentToolResultCacheService {
 			$identity = $this->resolveToolIdentity($tool);
 			$resourceId = $this->resolveResourceId($tool);
 			$implementationName = $this->resolveImplementationName($tool);
+
+			if ($this->mutationCommitGuardService->isMutation($call, $context)) {
+				$summary['bypassed']++;
+				$records[] = new AgentToolCacheRecord(
+					$iteration,
+					$callId,
+					$toolName,
+					$identity,
+					AgentToolCacheRecord::STATUS_BYPASS,
+					reason: 'mutation_not_cacheable'
+				);
+				$remaining[] = $call;
+				continue;
+			}
+
 			$rule = $config->findRule($toolName, $resourceId, $implementationName);
 
 			if (!$tool instanceof IAgentTool || !$rule instanceof AgentToolCacheRule) {
@@ -177,6 +204,33 @@ final class AgentToolResultCacheService {
 						$rule->getTtlSeconds(),
 						'cache_miss'
 					);
+					$remaining[] = $call;
+					continue;
+				}
+
+				$contractValidation = $this->toolContractValidationService->validateOutput(
+					$call,
+					$entry->getOutput(),
+					[$tool]
+				);
+				$contractValidations[] = $contractValidation;
+
+				if (!$contractValidation->passes()) {
+					$this->cache->delete($keyData['key']);
+					$summary['errors']++;
+					$records[] = new AgentToolCacheRecord(
+						$iteration,
+						$callId,
+						$toolName,
+						$identity,
+						AgentToolCacheRecord::STATUS_ERROR,
+						$keyData['key'],
+						$scope,
+						$rule->getTtlSeconds(),
+						'cache_output_contract_invalid',
+						['contract_validation' => $contractValidation->toArray()]
+					);
+					$this->logError($logger, 'Cached tool output failed contract validation (' . $toolName . ').');
 					$remaining[] = $call;
 					continue;
 				}
@@ -260,6 +314,7 @@ final class AgentToolResultCacheService {
 			AgentToolLoopContextKeys::TOOL_CACHE_PLANS => $plans,
 			AgentToolLoopContextKeys::TOOL_CALL_INDEXES => $callIndexes,
 			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => $executed,
+			AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS => $contractValidations,
 			AgentToolLoopContextKeys::CALL_INDEX => $callIndex,
 			AgentToolLoopContextKeys::PHASE => $remaining === []
 				? AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
