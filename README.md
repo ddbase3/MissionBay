@@ -4,7 +4,9 @@ MissionBay is a modular flow engine for the BASE3 Framework, enabling declarativ
 
 ## Agent stage pipeline
 
-The current assistant tool-loop stage order, context prerequisites, phase transitions, and postconditions are documented in [docs/AGENT_STAGE_PIPELINE.md](docs/AGENT_STAGE_PIPELINE.md).
+The current assistant tool-loop stage order, context prerequisites, phase transitions, and postconditions are documented in [docs/AGENT_STAGE_PIPELINE.md](docs/AGENT_STAGE_PIPELINE.md). The stage/service boundary is documented in [docs/AGENT_ORCHESTRATION_SERVICES.md](docs/AGENT_ORCHESTRATION_SERVICES.md).
+
+Mutation approval, structured suspension, and deterministic resume are documented in [docs/AGENT_ACTION_APPROVAL_AND_RESUME.md](docs/AGENT_ACTION_APPROVAL_AND_RESUME.md). The staged path toward the broader interface-driven harness is tracked in [docs/AGENT_HARNESS_ROADMAP.md](docs/AGENT_HARNESS_ROADMAP.md).
 
 ## Overview
 

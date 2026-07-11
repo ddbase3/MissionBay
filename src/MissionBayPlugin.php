@@ -62,24 +62,29 @@ use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Listener\MissionBayToolEventDisplayListener;
+use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\Policy\ComponentAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
+use MissionBay\Orchestrator\Service\AgentActionResumeService;
+use MissionBay\Orchestrator\Service\AgentActionReviewService;
+use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use MissionBay\Orchestrator\Service\AgentContextAssessmentService;
+use MissionBay\Orchestrator\Service\AgentContinuationDecisionService;
+use MissionBay\Orchestrator\Service\AgentLoopProgressService;
+use MissionBay\Orchestrator\Service\AgentResultVerificationService;
+use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
+use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
-use MissionBay\Orchestrator\Stage\AgentBudgetGuardStage;
-use MissionBay\Orchestrator\Stage\AgentContextAssessmentStage;
 use MissionBay\Orchestrator\Stage\AgentContextCompactionStage;
-use MissionBay\Orchestrator\Stage\AgentContinuationDecisionStage;
 use MissionBay\Orchestrator\Stage\AgentFinalAnswerStage;
-use MissionBay\Orchestrator\Stage\AgentLoopProgressStage;
 use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
-use MissionBay\Orchestrator\Stage\AgentResultVerificationStage;
 use MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
 use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
 use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
-use MissionBay\Orchestrator\Stage\AgentToolResultCacheStage;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
+use MissionBay\Policy\MutationApprovalAgentActionPolicy;
 use MissionBay\Profile\AgentAssistantToolSetupFactory;
 use MissionBay\Service\AgentComponentFlowBuilder;
 use MissionBay\Service\AgentComponentPresetRepository;
@@ -101,20 +106,12 @@ class MissionBayPlugin implements IPlugin, ICheck {
 	 * @var array<int,string>
 	 */
 	private const DEFAULT_AGENT_STAGE_IDS = [
-		'budget-guard',
 		'model-decision',
 		'action-policy',
-		'tool-cache-lookup',
-		'tool-budget-guard',
 		'tool-execution',
-		'context-assessment',
-		'result-verification',
-		'tool-cache-store',
+		'context-compaction',
 		'tool-observation',
-		'loop-progress',
-		'semantic-verification',
-		'continuation-decision',
-		'final-budget-guard'
+		'semantic-verification'
 	];
 
 	public function __construct(private readonly IContainer $container) {}
@@ -128,8 +125,6 @@ class MissionBayPlugin implements IPlugin, ICheck {
 	// Implementation of IPlugin
 
 	public function init() {
-		$this->registerDefaultAgentStageDefinitions();
-
 		$this->container
 			->set(self::getName(), $this, IContainer::SHARED)
 
@@ -156,6 +151,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentAssistantMessageFactory::class, fn() => new AgentAssistantMessageFactory(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantMemoryService::class, fn($c) => new AgentAssistantMemoryService($c->get(IAgentAssistantMessageFactory::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantToolSetupFactory::class, fn() => new AgentAssistantToolSetupFactory(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentActionFingerprint::class, fn() => new AgentActionFingerprint(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentActionPolicyResolver::class, fn($c) => new ComponentAgentActionPolicyResolver(
 				$c->get(IComponentResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -167,11 +163,35 @@ class MissionBayPlugin implements IPlugin, ICheck {
 
 				return new NullAgentToolResultCache();
 			}, IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentActionResumeService::class, fn($c) => new AgentActionResumeService(
+				$c->get(AgentActionFingerprint::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentActionReviewService::class, fn($c) => new AgentActionReviewService(
+				$c->get(AgentActionFingerprint::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentBudgetGuardService::class, fn() => new AgentBudgetGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentContextAssessmentService::class, fn() => new AgentContextAssessmentService(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentContinuationDecisionService::class, fn() => new AgentContinuationDecisionService(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentLoopProgressService::class, fn() => new AgentLoopProgressService(1), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentResultVerificationService::class, fn() => new AgentResultVerificationService(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentSemanticVerificationService::class, fn() => new AgentSemanticVerificationService(60000, 12000), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentToolResultCacheService::class, fn($c) => new AgentToolResultCacheService(
+				$c->get(IAgentToolResultCache::class),
+				$c->get(IEventManager::class),
+				$c->get(AgentToolCacheKeyBuilder::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentStagePipelineResolver::class, fn($c) => new AgentStagePipelineResolver(
 				$c->get(IComponentResolver::class),
 				self::DEFAULT_AGENT_STAGE_IDS
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(AgentToolOrchestrator::class, fn() => new AgentToolOrchestrator(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentToolOrchestrator::class, fn($c) => new AgentToolOrchestrator(
+				null,
+				null,
+				null,
+				$c->get(AgentActionResumeService::class),
+				$c->get(AgentBudgetGuardService::class),
+				$c->get(AgentLoopProgressService::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantFallbackBuilder::class, fn() => new AgentAssistantFallbackBuilder(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantFinalResponseService::class, fn($c) => new AgentAssistantFinalResponseService($c->get(IAgentAssistantMessageFactory::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantTurnService::class, fn($c) => new AgentAssistantTurnService(
@@ -187,9 +207,21 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IDatabase::class),
 				$c->get(IUsermanager::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE);
+
+		$this->registerDefaultAgentStageDefinitions();
 	}
 
 	private function registerDefaultAgentStageDefinitions(): void {
+		$this->registerAgentActionPolicyDefinition(new ComponentDefinition(
+			id: 'mutation-approval-actions',
+			interfaceName: IAgentActionPolicy::class,
+			implementationName: MutationApprovalAgentActionPolicy::getName(),
+			arguments: [
+				'id' => 'mutation-approval-actions',
+				'policyName' => 'mutation-approval-actions'
+			]
+		));
+
 		$this->registerAgentActionPolicyDefinition(new ComponentDefinition(
 			id: 'allow-all-actions',
 			interfaceName: IAgentActionPolicy::class,
@@ -197,16 +229,6 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			arguments: [
 				'id' => 'allow-all-actions',
 				'policyName' => 'allow-all-actions'
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'budget-guard',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentBudgetGuardStage::getName(),
-			arguments: [
-				'id' => 'budget-guard',
-				'stageName' => 'budget-guard'
 			]
 		));
 
@@ -227,29 +249,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			arguments: [
 				'id' => 'action-policy',
 				'stageName' => 'action-policy',
-				'policyIds' => ['allow-all-actions']
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'tool-cache-lookup',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentToolResultCacheStage::getName(),
-			arguments: [
-				'id' => 'tool-cache-lookup',
-				'stageName' => 'tool-cache-lookup',
-				'checkpoint' => AgentToolResultCacheStage::CHECKPOINT_LOOKUP
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'tool-budget-guard',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentBudgetGuardStage::getName(),
-			arguments: [
-				'id' => 'tool-budget-guard',
-				'stageName' => 'tool-budget-guard',
-				'checkpoint' => AgentBudgetGuardStage::CHECKPOINT_TOOLS
+				'policyIds' => ['mutation-approval-actions', 'allow-all-actions'],
+				'actionReviewService' => $this->container->get(AgentActionReviewService::class)
 			]
 		));
 
@@ -259,17 +260,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentToolExecutionStage::getName(),
 			arguments: [
 				'id' => 'tool-execution',
-				'stageName' => 'tool-execution'
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'context-assessment',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentContextAssessmentStage::getName(),
-			arguments: [
-				'id' => 'context-assessment',
-				'stageName' => 'context-assessment'
+				'stageName' => 'tool-execution',
+				'toolResultCacheService' => $this->container->get(AgentToolResultCacheService::class),
+				'budgetGuardService' => $this->container->get(AgentBudgetGuardService::class),
+				'resultVerificationService' => $this->container->get(AgentResultVerificationService::class)
 			]
 		));
 
@@ -282,40 +276,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				'stageName' => 'context-compaction',
 				'minToolResultBytes' => 12000,
 				'maxInputBytes' => 80000,
-				'targetSummaryCharacters' => 4000
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'result-verification',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentResultVerificationStage::getName(),
-			arguments: [
-				'id' => 'result-verification',
-				'stageName' => 'result-verification'
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'semantic-verification',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentSemanticVerificationStage::getName(),
-			arguments: [
-				'id' => 'semantic-verification',
-				'stageName' => 'semantic-verification',
-				'maxInputBytes' => 60000,
-				'maxTaskBytes' => 12000
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'tool-cache-store',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentToolResultCacheStage::getName(),
-			arguments: [
-				'id' => 'tool-cache-store',
-				'stageName' => 'tool-cache-store',
-				'checkpoint' => AgentToolResultCacheStage::CHECKPOINT_STORE
+				'targetSummaryCharacters' => 4000,
+				'contextAssessmentService' => $this->container->get(AgentContextAssessmentService::class)
 			]
 		));
 
@@ -330,37 +292,14 @@ class MissionBayPlugin implements IPlugin, ICheck {
 		));
 
 		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'loop-progress',
+			id: 'semantic-verification',
 			interfaceName: IAgentStage::class,
-			implementationName: AgentLoopProgressStage::getName(),
+			implementationName: AgentSemanticVerificationStage::getName(),
 			arguments: [
-				'id' => 'loop-progress',
-				'stageName' => 'loop-progress',
-				'maxConsecutiveStalledIterations' => 1
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'continuation-decision',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentContinuationDecisionStage::getName(),
-			arguments: [
-				'id' => 'continuation-decision',
-				'stageName' => 'continuation-decision',
-				'minAnswerConfidence' => 0.75,
-				'minClarifyConfidence' => 0.75,
-				'minContinueConfidence' => 0.70
-			]
-		));
-
-		$this->registerAgentStageDefinition(new ComponentDefinition(
-			id: 'final-budget-guard',
-			interfaceName: IAgentStage::class,
-			implementationName: AgentBudgetGuardStage::getName(),
-			arguments: [
-				'id' => 'final-budget-guard',
-				'stageName' => 'final-budget-guard',
-				'checkpoint' => AgentBudgetGuardStage::CHECKPOINT_FINAL
+				'id' => 'semantic-verification',
+				'stageName' => 'semantic-verification',
+				'verificationService' => $this->container->get(AgentSemanticVerificationService::class),
+				'continuationDecisionService' => $this->container->get(AgentContinuationDecisionService::class)
 			]
 		));
 

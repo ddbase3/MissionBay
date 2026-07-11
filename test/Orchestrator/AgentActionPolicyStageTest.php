@@ -9,6 +9,7 @@ use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use MissionBay\Context\AgentContext;
+use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
@@ -74,6 +75,7 @@ final class AgentActionPolicyStageTest extends TestCase {
 
 		return new AgentActionPolicyStage(
 			new StaticAgentActionPolicyResolver($policies),
+			new AgentActionFingerprint(),
 			'action-policy',
 			'action-policy',
 			$policyIds

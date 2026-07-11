@@ -83,6 +83,27 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 				required: false
 			),
 			new AgentNodePort(
+				name: 'status',
+				description: 'Provider-neutral agent execution status.',
+				type: 'string',
+				default: null,
+				required: false
+			),
+			new AgentNodePort(
+				name: 'interaction_requests',
+				description: 'Structured approval or clarification requests.',
+				type: 'array',
+				default: [],
+				required: false
+			),
+			new AgentNodePort(
+				name: 'suspension',
+				description: 'Serializable agent suspension state used for a later resume call.',
+				type: 'array',
+				default: null,
+				required: false
+			),
+			new AgentNodePort(
 				name: 'error',
 				description: 'Error message, if any.',
 				type: 'string',
@@ -103,7 +124,7 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 		try {
 			$turnResources = $this->buildTurnResources($resources, 'Missing chat model.');
 
-			if ($this->readInputPrompt($inputs) === '') {
+			if ($this->readInputPrompt($inputs) === '' && !$this->hasResumeInput($inputs)) {
 				$err = 'Prompt is required.';
 				$this->logError($err);
 				return ['error' => $err];
@@ -135,6 +156,31 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 				$this->buildStreamEventCallback($stream)
 			);
 
+			if ($turnResult->isSuspended()) {
+				$this->storeModelResults($context, $turnResult);
+				$requests = array_map(
+					static fn($request): array => $request->toArray(),
+					$turnResult->getInteractionRequests()
+				);
+				$suspension = $turnResult->getSuspension()?->toArray();
+
+				if (!$stream->isDisconnected()) {
+					$stream->push('agent.interaction.required', [
+						'status' => $turnResult->getExecutionStatus(),
+						'interaction_requests' => $requests,
+						'suspension' => $suspension
+					]);
+					$stream->push('done', ['status' => $turnResult->getExecutionStatus()]);
+				}
+
+				return [
+					'stream_ready' => true,
+					'status' => $turnResult->getExecutionStatus(),
+					'interaction_requests' => $requests,
+					'suspension' => $suspension
+				];
+			}
+
 			if (!$turnResult->canGenerateFinalResponse()) {
 				$this->storeModelResults($context, $turnResult);
 				return $this->handleIncompleteTurn($stream, $turnResult);
@@ -161,7 +207,8 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 			$this->storeModelResults($context, $turnResult);
 
 			$output = [
-				'stream_ready' => true
+				'stream_ready' => true,
+				'status' => $turnResult->getExecutionStatus()
 			];
 
 			if ($turnResult->isPartialFinalResponse()) {
@@ -205,6 +252,7 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 
 		return [
 			'stream_ready' => true,
+			'status' => $turnResult->getExecutionStatus(),
 			'warning' => $turnResult->getFailureCode() !== '' ? $turnResult->getFailureCode() : 'tool_phase_incomplete'
 		];
 	}

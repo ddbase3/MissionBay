@@ -19,6 +19,7 @@ use MissionBay\Context\AgentContext;
 use MissionBay\Event\MissionBayToolFailedEvent;
 use MissionBay\Event\MissionBayToolFinishedEvent;
 use MissionBay\Event\MissionBayToolStartedEvent;
+use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
@@ -47,6 +48,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 			new AgentModelDecisionStage(),
 			new AgentActionPolicyStage(
 				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
+				new AgentActionFingerprint(),
 				'action-policy',
 				'action-policy',
 				['allow-all-actions']
@@ -74,6 +76,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$modelStage = new AgentModelDecisionStage();
 		$policyStage = new AgentActionPolicyStage(
 			new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
+			new AgentActionFingerprint(),
 			'action-policy',
 			'action-policy',
 			['allow-all-actions']

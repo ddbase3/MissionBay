@@ -49,6 +49,13 @@ final class AgentToolLoopContextKeys {
 	public const PENDING_TOOL_CALLS = self::PREFIX . 'pending_tool_calls';
 	public const ACTIONS = self::PREFIX . 'actions';
 	public const ACTION_DECISIONS = self::PREFIX . 'action_decisions';
+	public const ACTION_REVIEW_CANDIDATES = self::PREFIX . 'action_review_candidates';
+	public const PREAPPROVED_ACTIONS = self::PREFIX . 'preapproved_actions';
+	public const INTERACTION_REQUESTS = self::PREFIX . 'interaction_requests';
+	public const SUSPENSION = self::PREFIX . 'suspension';
+	public const RESUME = self::PREFIX . 'resume';
+	public const SUSPENDED = self::PREFIX . 'suspended';
+	public const EXECUTION_STATUS = self::PREFIX . 'execution_status';
 	public const TOOL_RESULTS = self::PREFIX . 'tool_results';
 	public const OBSERVATIONS = self::PREFIX . 'observations';
 	public const EXECUTED_TOOL_CALLS = self::PREFIX . 'executed_tool_calls';
@@ -75,6 +82,7 @@ final class AgentToolLoopContextKeys {
 	public const FAILURE_MESSAGE = self::PREFIX . 'failure_message';
 	public const FAILURE_DETAIL = self::PREFIX . 'failure_detail';
 
+	public const PHASE_RESUME = 'resume';
 	public const PHASE_MODEL = 'model';
 	public const PHASE_TOOLS = 'tools';
 	public const PHASE_AFTER_TOOLS = 'after-tools';
@@ -82,6 +90,8 @@ final class AgentToolLoopContextKeys {
 	public const PHASE_FINAL = 'final';
 	public const PHASE_COMPLETE = 'complete';
 	public const PHASE_FAILED = 'failed';
+	public const PHASE_AWAITING_APPROVAL = 'awaiting-approval';
+	public const PHASE_AWAITING_INPUT = 'awaiting-input';
 
 	public const FINAL_RESPONSE_NONE = 'none';
 	public const FINAL_RESPONSE_COMPLETE = 'complete';
@@ -106,6 +116,13 @@ final class AgentToolLoopContextKeys {
 			self::BUDGET,
 			self::TOOL_CACHE_CONFIG,
 			self::RUN_STARTED_AT,
+			self::ACTION_REVIEW_CANDIDATES,
+			self::PREAPPROVED_ACTIONS,
+			self::INTERACTION_REQUESTS,
+			self::SUSPENSION,
+			self::RESUME,
+			self::SUSPENDED,
+			self::EXECUTION_STATUS,
 			self::TOOL_RESULTS,
 			self::TOOL_CALL_INDEXES,
 			self::TOOL_CACHE_PLANS,

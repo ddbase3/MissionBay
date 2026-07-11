@@ -18,6 +18,9 @@
 namespace MissionBay\Dto\Assistant;
 
 use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Dto\AgentExecutionStatus;
+use AssistantFoundation\Dto\AgentInteractionRequest;
+use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AiResultMetadata;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 
@@ -103,6 +106,24 @@ final class AgentAssistantTurnResult {
 
 	public function getFinalOutputContent(): string {
 		return $this->orchestrationResult?->getFinalOutputContent() ?? '';
+	}
+
+	public function getExecutionStatus(): string {
+		return $this->orchestrationResult?->getExecutionStatus()
+			?? ($this->completed ? AgentExecutionStatus::COMPLETED : AgentExecutionStatus::RUNNING);
+	}
+
+	public function isSuspended(): bool {
+		return $this->orchestrationResult?->isSuspended() ?? false;
+	}
+
+	/** @return array<int,AgentInteractionRequest> */
+	public function getInteractionRequests(): array {
+		return $this->orchestrationResult?->getInteractionRequests() ?? [];
+	}
+
+	public function getSuspension(): ?AgentSuspension {
+		return $this->orchestrationResult?->getSuspension();
 	}
 
 

@@ -25,71 +25,56 @@ use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
+use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
+use MissionBay\Orchestrator\Service\AgentActionReviewService;
 
 /**
- * AgentActionPolicyStage
- *
- * Converts provider-neutral model tool calls into semantic AgentAction value
- * objects and evaluates the configured action policies before any tool code is
- * executed.
- *
- * All configured policies must allow an action. The first non-allow decision
- * blocks that action and is recorded as a normalized tool result so the next
- * model iteration can react without the action being executed.
+ * Evaluates semantic tool actions before execution. Denials become tool
+ * results; approval/input decisions are converted into a suspension by the internal review service.
  */
 final class AgentActionPolicyStage implements IAgentStage {
 
-	/**
-	 * @var array<int,IAgentActionPolicy>|null
-	 */
+	/** @var array<int,IAgentActionPolicy>|null */
 	private ?array $resolvedPolicies = null;
 
-	/**
-	 * @param array<int,string> $policyIds
-	 */
+	private AgentActionReviewService $actionReviewService;
+
+	/** @param array<int,string> $policyIds */
 	public function __construct(
 		private readonly IAgentActionPolicyResolver $policyResolver,
+		private readonly AgentActionFingerprint $fingerprint,
 		private readonly string $id = 'action-policy',
 		private readonly string $stageName = 'action-policy',
-		private readonly array $policyIds = ['allow-all-actions']
-	) {}
-
-	public static function getName(): string {
-		return 'agentactionpolicystage';
+		private readonly array $policyIds = ['allow-all-actions'],
+		?AgentActionReviewService $actionReviewService = null
+	) {
+		$this->actionReviewService = $actionReviewService
+			?? new AgentActionReviewService($this->fingerprint);
 	}
 
-	public function id(): string {
-		return $this->id;
-	}
-
-	public function name(): string {
-		return $this->stageName;
-	}
-
+	public static function getName(): string { return 'agentactionpolicystage'; }
+	public function id(): string { return $this->id; }
+	public function name(): string { return $this->stageName; }
 	public function getDescription(): string {
 		return 'Evaluates semantic tool actions through configured policies before any tool implementation is executed.';
 	}
 
 	public function getAiUsage(): string {
 		$usage = IAgentStage::AI_USAGE_NONE;
-
 		foreach ($this->getPolicies() as $policy) {
 			if ($policy->getAiUsage() === IAgentActionPolicy::AI_USAGE_REQUIRED) {
 				return IAgentStage::AI_USAGE_REQUIRED;
 			}
-
 			if ($policy->getAiUsage() === IAgentActionPolicy::AI_USAGE_CONDITIONAL) {
 				$usage = IAgentStage::AI_USAGE_CONDITIONAL;
 			}
 		}
-
 		return $usage;
 	}
 
 	public function supports(IAgentContext $context): bool {
 		$toolCalls = $context->getVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS);
-
 		return $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_TOOLS
 			&& is_array($toolCalls)
 			&& $toolCalls !== []
@@ -102,42 +87,45 @@ final class AgentActionPolicyStage implements IAgentStage {
 		$existingActions = $context->getVar(AgentToolLoopContextKeys::ACTIONS);
 		$existingDecisions = $context->getVar(AgentToolLoopContextKeys::ACTION_DECISIONS);
 		$existingResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
+		$preapproved = $context->getVar(AgentToolLoopContextKeys::PREAPPROVED_ACTIONS);
 		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
 
-		if (!is_array($toolCalls)) {
-			$toolCalls = [];
-		}
-
-		if (!is_array($existingActions)) {
-			$existingActions = [];
-		}
-
-		if (!is_array($existingDecisions)) {
-			$existingDecisions = [];
-		}
-
-		if (!is_array($existingResults)) {
-			$existingResults = [];
-		}
+		$toolCalls = is_array($toolCalls) ? $toolCalls : [];
+		$existingActions = is_array($existingActions) ? $existingActions : [];
+		$existingDecisions = is_array($existingDecisions) ? $existingDecisions : [];
+		$existingResults = is_array($existingResults) ? $existingResults : [];
+		$preapproved = is_array($preapproved) ? $preapproved : [];
 
 		$allowedCalls = [];
 		$actions = $existingActions;
+		$knownActionIndexes = [];
+		foreach ($actions as $actionIndex => $knownAction) {
+			if ($knownAction instanceof AgentAction) {
+				$knownActionIndexes[$knownAction->getId()] = $actionIndex;
+			}
+		}
 		$decisions = $existingDecisions;
 		$toolResults = $existingResults;
+		$reviewCandidates = [];
 
 		foreach ($toolCalls as $call) {
 			if (!$call instanceof AiToolCall) {
-				return $this->failure(
-					'invalid_tool_call',
-					'Action policy stage received a non-normalized tool call.',
-					['type' => get_debug_type($call)]
-				);
+				return $this->failure('invalid_tool_call', 'Action policy stage received a non-normalized tool call.', ['type' => get_debug_type($call)]);
 			}
 
 			$action = $this->createAction($call, $iteration);
 			$effectiveCall = $this->normalizeCallIdentity($call, $action);
-			$actions[] = $action;
-			$evaluation = $this->evaluateAction($action, $context);
+			$actionIndex = $knownActionIndexes[$action->getId()] ?? null;
+			if ($actionIndex === null) {
+				$actions[] = $action;
+				$knownActionIndexes[$action->getId()] = array_key_last($actions);
+			} elseif ($actions[$actionIndex] instanceof AgentAction) {
+				$knownFingerprint = $this->fingerprint->create($actions[$actionIndex]);
+				if (!hash_equals($knownFingerprint, $this->fingerprint->create($action))) {
+					$actions[$actionIndex] = $action;
+				}
+			}
+			$evaluation = $this->evaluateAction($action, $context, $preapproved);
 			foreach ($evaluation['decisions'] as $policyDecision) {
 				$decisions[] = $policyDecision;
 			}
@@ -147,19 +135,34 @@ final class AgentActionPolicyStage implements IAgentStage {
 				$allowedCalls[] = $effectiveCall;
 				continue;
 			}
-
-			$toolResults[] = $this->createBlockedResult($action, $decision, $iteration);
+			if ($decision->getDecision() === AgentActionDecision::DECISION_DENY) {
+				$toolResults[] = $this->createBlockedResult($action, $decision, $iteration);
+				continue;
+			}
+			$reviewCandidates[] = [
+				'action' => $action,
+				'decision' => $decision,
+				'tool_call' => $effectiveCall
+			];
 		}
 
-		return AgentStageResult::patch([
+		$patch = [
 			AgentToolLoopContextKeys::ACTIONS => $actions,
 			AgentToolLoopContextKeys::ACTION_DECISIONS => $decisions,
+			AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES => $reviewCandidates,
+			AgentToolLoopContextKeys::PREAPPROVED_ACTIONS => [],
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $allowedCalls,
 			AgentToolLoopContextKeys::TOOL_RESULTS => $toolResults,
-			AgentToolLoopContextKeys::PHASE => $allowedCalls === []
+			AgentToolLoopContextKeys::PHASE => $allowedCalls === [] && $reviewCandidates === []
 				? AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
 				: AgentToolLoopContextKeys::PHASE_TOOLS
-		]);
+		];
+
+		if ($reviewCandidates !== []) {
+			return $this->actionReviewService->review($context, $patch);
+		}
+
+		return AgentStageResult::patch($patch);
 	}
 
 	private function createAction(AiToolCall $call, int $iteration): AgentAction {
@@ -167,16 +170,12 @@ final class AgentActionPolicyStage implements IAgentStage {
 		if ($actionId === '') {
 			$actionId = uniqid('action_', true);
 		}
-
 		return new AgentAction(
 			$actionId,
 			AgentAction::TYPE_TOOL_CALL,
 			trim($call->getName()),
 			$call->getArguments(),
-			[
-				'iteration' => $iteration,
-				'tool_call' => $call->getMetadata()
-			]
+			['iteration' => $iteration, 'tool_call' => $call->getMetadata()]
 		);
 	}
 
@@ -184,42 +183,24 @@ final class AgentActionPolicyStage implements IAgentStage {
 		if (trim($call->getId()) !== '') {
 			return $call;
 		}
-
 		$metadata = $call->getMetadata();
 		$metadata['generated_call_id'] = true;
-
-		return new AiToolCall(
-			$action->getId(),
-			$call->getName(),
-			$call->getArguments(),
-			$metadata
-		);
+		return new AiToolCall($action->getId(), $call->getName(), $call->getArguments(), $metadata);
 	}
 
-	/**
-	 * @return array{final:AgentActionDecision,decisions:array<int,AgentActionDecision>}
-	 */
-	private function evaluateAction(AgentAction $action, IAgentContext $context): array {
+	/** @param array<string,string> $preapproved @return array{final:AgentActionDecision,decisions:array<int,AgentActionDecision>} */
+	private function evaluateAction(AgentAction $action, IAgentContext $context, array $preapproved): array {
 		$lastAllow = AgentActionDecision::allow($action->getId(), 'No blocking action policy decision.');
 		$decisions = [];
-
 		foreach ($this->getPolicies() as $policy) {
 			try {
 				$decision = $policy->evaluate($action, $context);
 			} catch (\Throwable $e) {
-				throw new \RuntimeException(
-					'Agent action policy failed (' . $policy->id() . '): ' . $e->getMessage(),
-					0,
-					$e
-				);
+				throw new \RuntimeException('Agent action policy failed (' . $policy->id() . '): ' . $e->getMessage(), 0, $e);
 			}
-
 			if ($decision->getActionId() !== $action->getId()) {
-				throw new \RuntimeException(
-					'Agent action policy returned a decision for a different action: ' . $policy->id()
-				);
+				throw new \RuntimeException('Agent action policy returned a decision for a different action: ' . $policy->id());
 			}
-
 			$decision = new AgentActionDecision(
 				$decision->getActionId(),
 				$decision->getDecision(),
@@ -231,29 +212,31 @@ final class AgentActionPolicyStage implements IAgentStage {
 				], $decision->getMetadata())
 			);
 
-			$decisions[] = $decision;
-
-			if (!$decision->isAllowed()) {
-				return [
-					'final' => $decision,
-					'decisions' => $decisions
-				];
+			if (
+				$decision->getDecision() === AgentActionDecision::DECISION_REQUIRE_APPROVAL
+				&& isset($preapproved[$action->getId()])
+				&& hash_equals((string)$preapproved[$action->getId()], $this->fingerprint->create($action))
+			) {
+				$decision = AgentActionDecision::allow(
+					$action->getId(),
+					'Exact action payload was explicitly approved by the user.',
+					array_merge($decision->getMetadata(), [
+						'preapproved' => true,
+						'approval_fingerprint' => $preapproved[$action->getId()]
+					])
+				);
 			}
 
+			$decisions[] = $decision;
+			if (!$decision->isAllowed()) {
+				return ['final' => $decision, 'decisions' => $decisions];
+			}
 			$lastAllow = $decision;
 		}
-
-		return [
-			'final' => $lastAllow,
-			'decisions' => $decisions
-		];
+		return ['final' => $lastAllow, 'decisions' => $decisions];
 	}
 
-	private function createBlockedResult(
-		AgentAction $action,
-		AgentActionDecision $decision,
-		int $iteration
-	): AgentToolResult {
+	private function createBlockedResult(AgentAction $action, AgentActionDecision $decision, int $iteration): AgentToolResult {
 		$errorCode = match ($decision->getDecision()) {
 			AgentActionDecision::DECISION_DENY => 'action_denied',
 			AgentActionDecision::DECISION_REQUIRE_APPROVAL => 'action_requires_approval',
@@ -265,7 +248,6 @@ final class AgentActionPolicyStage implements IAgentStage {
 		if ($message === '') {
 			$message = 'The proposed action was blocked by an action policy.';
 		}
-
 		$output = [
 			'ok' => false,
 			'blocked' => true,
@@ -273,36 +255,26 @@ final class AgentActionPolicyStage implements IAgentStage {
 			'reason' => $message,
 			'action' => $action->toArray()
 		];
-
 		return AgentToolResult::failure(
 			$action->getId(),
 			$action->getName(),
 			$action->getInput(),
 			$errorCode,
 			$message,
-			[
-				'iteration' => $iteration,
-				'action' => $action->toArray(),
-				'action_decision' => $decision->toArray()
-			],
+			['iteration' => $iteration, 'action' => $action->toArray(), 'action_decision' => $decision->toArray()],
 			$output
 		);
 	}
 
-	/**
-	 * @return array<int,IAgentActionPolicy>
-	 */
+	/** @return array<int,IAgentActionPolicy> */
 	private function getPolicies(): array {
 		if ($this->resolvedPolicies === null) {
 			$this->resolvedPolicies = $this->policyResolver->resolve($this->policyIds);
 		}
-
 		return $this->resolvedPolicies;
 	}
 
-	/**
-	 * @param array<string,mixed> $detail
-	 */
+	/** @param array<string,mixed> $detail */
 	private function failure(string $code, string $message, array $detail): AgentStageResult {
 		return AgentStageResult::patch([
 			AgentToolLoopContextKeys::FAILURE_CODE => $code,

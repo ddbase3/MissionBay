@@ -20,6 +20,7 @@ namespace MissionBay\Node\Ai;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
@@ -57,10 +58,17 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		$definitions = [
 			new AgentNodePort(
 				name: 'prompt',
-				description: 'User message.',
+				description: 'User message. Required for a new turn; omitted when resuming a suspension.',
 				type: 'string',
 				default: null,
-				required: true
+				required: false
+			),
+			new AgentNodePort(
+				name: 'resume',
+				description: 'Optional structured AgentResume payload returned after an approval or clarification request.',
+				type: 'array',
+				default: [],
+				required: false
 			),
 			new AgentNodePort(
 				name: 'system',
@@ -73,7 +81,7 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 				name: 'maxtoolloops',
 				description: 'Maximum number of tool orchestration loops.',
 				type: 'int',
-				default: 8,
+				default: 10,
 				required: false
 			),
 			new AgentNodePort(
@@ -192,7 +200,8 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			assistantMessageId: $assistantMessageId,
 			stageIds: $this->readStageIds($inputs),
 			budget: $this->readBudget($inputs),
-			toolCacheConfig: $this->readToolCacheConfig($inputs)
+			toolCacheConfig: $this->readToolCacheConfig($inputs),
+			resume: $this->readResume($inputs)
 		);
 	}
 
@@ -225,6 +234,12 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		return trim((string)($inputs['prompt'] ?? ''));
 	}
 
+	protected function hasResumeInput(array $inputs): bool {
+		$value = $inputs['resume'] ?? null;
+
+		return $value !== null && $value !== '' && $value !== [];
+	}
+
 	protected function readInputMode(array $inputs): string {
 		$mode = strtolower(trim((string)($inputs['mode'] ?? 'chat')));
 
@@ -236,10 +251,10 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 	}
 
 	protected function readMaxToolLoops(array $inputs): int {
-		$value = $inputs['maxtoolloops'] ?? 8;
+		$value = $inputs['maxtoolloops'] ?? 10;
 
 		if ($value === null || $value === '') {
-			return 8;
+			return 10;
 		}
 
 		if (!is_int($value) && !is_float($value) && !is_string($value)) {
@@ -274,6 +289,24 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		}
 
 		return $value;
+	}
+
+	protected function readResume(array $inputs): ?AgentResume {
+		$value = $inputs['resume'] ?? [];
+
+		if ($value === null || $value === '') {
+			return null;
+		}
+
+		if (!is_array($value)) {
+			throw new \RuntimeException('Input resume must be an associative array.');
+		}
+
+		if ($value === []) {
+			return null;
+		}
+
+		return AgentResume::fromArray($value);
 	}
 
 	protected function readBudget(array $inputs): AgentBudget {

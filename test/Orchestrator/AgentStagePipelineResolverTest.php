@@ -13,59 +13,29 @@ use PHPUnit\Framework\TestCase;
 final class AgentStagePipelineResolverTest extends TestCase {
 
 	private const DEFAULT_STAGE_IDS = [
-		'budget-guard',
 		'model-decision',
 		'action-policy',
-		'tool-budget-guard',
 		'tool-execution',
-		'context-assessment',
-		'result-verification',
-		'semantic-verification',
+		'context-compaction',
 		'tool-observation',
-		'final-budget-guard'
+		'semantic-verification'
 	];
 
 	public function testEmptyConfigurationResolvesDefaultPipelineInOrder(): void {
 		$components = new RecordingAgentStageComponentResolver([
-			'budget-guard' => new RecordingResolvedAgentStage('budget-guard'),
 			'model-decision' => new RecordingResolvedAgentStage('model-decision'),
 			'action-policy' => new RecordingResolvedAgentStage('action-policy'),
-			'tool-budget-guard' => new RecordingResolvedAgentStage('tool-budget-guard'),
 			'tool-execution' => new RecordingResolvedAgentStage('tool-execution'),
-			'context-assessment' => new RecordingResolvedAgentStage('context-assessment'),
-			'result-verification' => new RecordingResolvedAgentStage('result-verification'),
-			'semantic-verification' => new RecordingResolvedAgentStage('semantic-verification'),
+			'context-compaction' => new RecordingResolvedAgentStage('context-compaction'),
 			'tool-observation' => new RecordingResolvedAgentStage('tool-observation'),
-			'final-budget-guard' => new RecordingResolvedAgentStage('final-budget-guard')
+			'semantic-verification' => new RecordingResolvedAgentStage('semantic-verification')
 		]);
 		$resolver = new AgentStagePipelineResolver($components, self::DEFAULT_STAGE_IDS);
 
 		$stages = $resolver->resolve();
 
-		$this->assertSame([
-			'budget-guard',
-			'model-decision',
-			'action-policy',
-			'tool-budget-guard',
-			'tool-execution',
-			'context-assessment',
-			'result-verification',
-			'semantic-verification',
-			'tool-observation',
-			'final-budget-guard'
-		], array_map(fn(IAgentStage $stage) => $stage->id(), $stages));
-		$this->assertSame([
-			'budget-guard',
-			'model-decision',
-			'action-policy',
-			'tool-budget-guard',
-			'tool-execution',
-			'context-assessment',
-			'result-verification',
-			'semantic-verification',
-			'tool-observation',
-			'final-budget-guard'
-		], $components->getRequestedIds());
+		$this->assertSame(self::DEFAULT_STAGE_IDS, array_map(fn(IAgentStage $stage) => $stage->id(), $stages));
+		$this->assertSame(self::DEFAULT_STAGE_IDS, $components->getRequestedIds());
 	}
 
 	public function testConfiguredPipelineResolvesStagesInExplicitOrder(): void {

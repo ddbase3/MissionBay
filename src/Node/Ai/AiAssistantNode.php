@@ -66,6 +66,27 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				required: false
 			),
 			new AgentNodePort(
+				name: 'status',
+				description: 'Provider-neutral agent execution status.',
+				type: 'string',
+				default: null,
+				required: false
+			),
+			new AgentNodePort(
+				name: 'interaction_requests',
+				description: 'Structured approval or clarification requests.',
+				type: 'array',
+				default: [],
+				required: false
+			),
+			new AgentNodePort(
+				name: 'suspension',
+				description: 'Serializable agent suspension state used for a later resume call.',
+				type: 'array',
+				default: null,
+				required: false
+			),
+			new AgentNodePort(
 				name: 'warning',
 				description: 'Warning code, if the response had to use a fallback.',
 				type: 'string',
@@ -92,7 +113,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 		try {
 			$turnResources = $this->buildTurnResources($resources, 'Missing required chat model.');
 
-			if ($this->readInputPrompt($inputs) === '') {
+			if ($this->readInputPrompt($inputs) === '' && !$this->hasResumeInput($inputs)) {
 				$err = 'Prompt is required.';
 				$this->logError($err);
 				return [
@@ -122,6 +143,19 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				null
 			);
 
+			if ($turnResult->isSuspended()) {
+				$this->storeModelResults($context, $turnResult);
+				return [
+					'status' => $turnResult->getExecutionStatus(),
+					'interaction_requests' => array_map(
+						static fn($request): array => $request->toArray(),
+						$turnResult->getInteractionRequests()
+					),
+					'suspension' => $turnResult->getSuspension()?->toArray(),
+					'tool_calls' => $turnResult->getToolCalls()
+				];
+			}
+
 			if (!$turnResult->canGenerateFinalResponse()) {
 				$this->storeModelResults($context, $turnResult);
 				return $this->handleIncompleteTurn($turnResult);
@@ -139,6 +173,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				return [
 					'message' => $assistantMessage,
 					'tool_calls' => $turnResult->getToolCalls(),
+					'status' => $turnResult->getExecutionStatus(),
 					'warning' => 'fallback_direct_response_error'
 				];
 			}
@@ -153,7 +188,8 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 
 			$output = [
 				'message' => $assistantMessage,
-				'tool_calls' => $turnResult->getToolCalls()
+				'tool_calls' => $turnResult->getToolCalls(),
+				'status' => $turnResult->getExecutionStatus()
 			];
 
 			if ($turnResult->isPartialFinalResponse()) {
@@ -182,6 +218,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 		return [
 			'message' => $assistantMessage,
 			'tool_calls' => $turnResult->getToolCalls(),
+			'status' => $turnResult->getExecutionStatus(),
 			'warning' => $turnResult->getFailureCode() !== '' ? $turnResult->getFailureCode() : 'tool_phase_incomplete'
 		];
 	}

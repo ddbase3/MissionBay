@@ -25,9 +25,15 @@ use AssistantFoundation\Dto\AiToolCall;
 use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Cache\AgentToolCacheKeyBuilder;
+use MissionBay\Cache\NullAgentToolResultCache;
 use MissionBay\Event\MissionBayToolFailedEvent;
 use MissionBay\Event\MissionBayToolFinishedEvent;
 use MissionBay\Event\MissionBayToolStartedEvent;
+use MissionBay\Orchestrator\AgentStageResultAccumulator;
+use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use MissionBay\Orchestrator\Service\AgentResultVerificationService;
+use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 
 /**
  * AgentToolExecutionStage
@@ -41,11 +47,27 @@ use MissionBay\Event\MissionBayToolStartedEvent;
  */
 final class AgentToolExecutionStage implements IAgentStage {
 
+	private AgentToolResultCacheService $toolResultCacheService;
+	private AgentBudgetGuardService $budgetGuardService;
+	private AgentResultVerificationService $resultVerificationService;
+
 	public function __construct(
 		private readonly IEventManager $eventManager,
 		private readonly string $id = 'tool-execution',
-		private readonly string $stageName = 'tool-execution'
-	) {}
+		private readonly string $stageName = 'tool-execution',
+		?AgentToolResultCacheService $toolResultCacheService = null,
+		?AgentBudgetGuardService $budgetGuardService = null,
+		?AgentResultVerificationService $resultVerificationService = null
+	) {
+		$this->toolResultCacheService = $toolResultCacheService
+			?? new AgentToolResultCacheService(
+				new NullAgentToolResultCache(),
+				$this->eventManager,
+				new AgentToolCacheKeyBuilder()
+			);
+		$this->budgetGuardService = $budgetGuardService ?? new AgentBudgetGuardService();
+		$this->resultVerificationService = $resultVerificationService ?? new AgentResultVerificationService();
+	}
 
 	public static function getName(): string {
 		return 'agenttoolexecutionstage';
@@ -60,7 +82,7 @@ final class AgentToolExecutionStage implements IAgentStage {
 	}
 
 	public function getDescription(): string {
-		return 'Executes the normalized tool calls selected by the model and records provider-neutral tool results.';
+		return 'Executes the approved tool batch through cache, budget, execution, verification, and cache-store services.';
 	}
 
 	public function getAiUsage(): string {
@@ -68,16 +90,68 @@ final class AgentToolExecutionStage implements IAgentStage {
 	}
 
 	public function supports(IAgentContext $context): bool {
+		$phase = $context->getVar(AgentToolLoopContextKeys::PHASE);
 		$toolCalls = $context->getVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS);
+		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
 
-		return $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_TOOLS
-			&& is_array($toolCalls)
-			&& $toolCalls !== []
+		return (
+				($phase === AgentToolLoopContextKeys::PHASE_TOOLS && is_array($toolCalls) && $toolCalls !== [])
+				|| ($phase === AgentToolLoopContextKeys::PHASE_AFTER_TOOLS && is_array($toolResults) && $toolResults !== [])
+			)
 			&& $context->getVar(AgentToolLoopContextKeys::COMPLETED) !== true
 			&& (string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '') === '';
 	}
 
 	public function process(IAgentContext $context): AgentStageResult {
+		$results = new AgentStageResultAccumulator($context);
+
+		if ($context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_TOOLS) {
+			$results->apply(
+				$this->toolResultCacheService->process($context, AgentToolResultCacheService::CHECKPOINT_LOOKUP),
+				'cache_lookup'
+			);
+		}
+
+		if ($this->hasFailure($context)) {
+			return $results->result();
+		}
+
+		if ($context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_TOOLS) {
+			$results->apply(
+				$this->budgetGuardService->check($context, AgentBudgetGuardService::CHECKPOINT_TOOLS),
+				'budget'
+			);
+
+			if ($this->hasFailure($context)) {
+				return $results->result();
+			}
+
+			$results->apply($this->executeTools($context), 'execution');
+		}
+
+		if ($this->hasFailure($context)) {
+			return $results->result();
+		}
+
+		if ($context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_AFTER_TOOLS) {
+			$results->apply($this->resultVerificationService->verify($context), 'verification');
+		}
+
+		if ($this->hasFailure($context)) {
+			return $results->result();
+		}
+
+		if ($context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_AFTER_TOOLS) {
+			$results->apply(
+				$this->toolResultCacheService->process($context, AgentToolResultCacheService::CHECKPOINT_STORE),
+				'cache_store'
+			);
+		}
+
+		return $results->result();
+	}
+
+	private function executeTools(IAgentContext $context): AgentStageResult {
 		$toolCalls = $context->getVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS);
 		$tools = $context->getVar(AgentToolLoopContextKeys::TOOLS);
 		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
@@ -170,6 +244,10 @@ final class AgentToolExecutionStage implements IAgentStage {
 			AgentToolLoopContextKeys::CALL_INDEX => $callIndex,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
 		]);
+	}
+
+	private function hasFailure(IAgentContext $context): bool {
+		return trim((string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '')) !== '';
 	}
 
 	/**

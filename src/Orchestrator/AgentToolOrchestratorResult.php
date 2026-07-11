@@ -19,6 +19,9 @@ namespace MissionBay\Orchestrator;
 
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionDecision;
+use AssistantFoundation\Dto\AgentExecutionStatus;
+use AssistantFoundation\Dto\AgentInteractionRequest;
+use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentBudgetAssessment;
 use AssistantFoundation\Dto\AgentContextCompaction;
 use AssistantFoundation\Dto\AgentContinuationDecision;
@@ -57,6 +60,7 @@ class AgentToolOrchestratorResult {
 	 * @param array<int,AgentContinuationDecision> $continuationDecisions
 	 * @param array<int,AgentToolCacheRecord> $toolCacheRecords
 	 * @param array<int,AgentProgressAssessment> $progressAssessments
+	 * @param array<int,AgentInteractionRequest> $interactionRequests
 	 */
 	public function __construct(
 		private array $messages,
@@ -79,8 +83,29 @@ class AgentToolOrchestratorResult {
 		private array $continuationDecisions = [],
 		private string $finalResponseInstruction = '',
 		private array $toolCacheRecords = [],
-		private array $progressAssessments = []
+		private array $progressAssessments = [],
+		private string $executionStatus = AgentExecutionStatus::RUNNING,
+		private array $interactionRequests = [],
+		private ?AgentSuspension $suspension = null
 	) {
+		if (!in_array($this->executionStatus, AgentExecutionStatus::all(), true)) {
+			throw new \InvalidArgumentException('Unsupported execution status: ' . $this->executionStatus);
+		}
+
+		foreach ($this->interactionRequests as $request) {
+			if (!$request instanceof AgentInteractionRequest) {
+				throw new \InvalidArgumentException('Interaction requests must contain only AgentInteractionRequest instances.');
+			}
+		}
+
+		if (AgentExecutionStatus::isSuspended($this->executionStatus)) {
+			if ($this->suspension === null || $this->interactionRequests === []) {
+				throw new \InvalidArgumentException('Suspended orchestration results require a suspension and interaction requests.');
+			}
+			if ($this->suspension->getStatus() !== $this->executionStatus) {
+				throw new \InvalidArgumentException('Suspension status does not match orchestration result status.');
+			}
+		}
 		if (!in_array($this->finalResponseMode, [
 			self::FINAL_RESPONSE_NONE,
 			self::FINAL_RESPONSE_COMPLETE,
@@ -133,6 +158,10 @@ class AgentToolOrchestratorResult {
 	}
 
 	public function canGenerateFinalResponse(): bool {
+		if ($this->isSuspended()) {
+			return false;
+		}
+
 		if ($this->finalResponseMode === self::FINAL_RESPONSE_COMPLETE) {
 			return $this->completed && !$this->hasFailure();
 		}
@@ -277,6 +306,31 @@ class AgentToolOrchestratorResult {
 	 */
 	public function getProgressAssessments(): array {
 		return $this->progressAssessments;
+	}
+
+	public function getExecutionStatus(): string {
+		return $this->executionStatus;
+	}
+
+	public function isSuspended(): bool {
+		return AgentExecutionStatus::isSuspended($this->executionStatus);
+	}
+
+	public function isAwaitingApproval(): bool {
+		return $this->executionStatus === AgentExecutionStatus::AWAITING_APPROVAL;
+	}
+
+	public function isAwaitingInput(): bool {
+		return $this->executionStatus === AgentExecutionStatus::AWAITING_INPUT;
+	}
+
+	/** @return array<int,AgentInteractionRequest> */
+	public function getInteractionRequests(): array {
+		return $this->interactionRequests;
+	}
+
+	public function getSuspension(): ?AgentSuspension {
+		return $this->suspension;
 	}
 
 	public function hasFailure(): bool {

@@ -18,6 +18,7 @@
 namespace MissionBay\Dto\Assistant;
 
 use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
 
 final class AgentAssistantTurnOptions {
@@ -25,7 +26,7 @@ final class AgentAssistantTurnOptions {
 	public function __construct(
 		private string $prompt,
 		private string $system = 'You are a helpful assistant.',
-		private int $maxToolLoops = 8,
+		private int $maxToolLoops = 10,
 		private bool $toolsEnabled = true,
 		private bool $memoryReadEnabled = true,
 		private bool $memoryWriteEnabled = true,
@@ -34,7 +35,8 @@ final class AgentAssistantTurnOptions {
 		private string $assistantMessageId = '',
 		private array $stageIds = [],
 		private ?AgentBudget $budget = null,
-		private ?AgentToolCacheConfig $toolCacheConfig = null
+		private ?AgentToolCacheConfig $toolCacheConfig = null,
+		private ?AgentResume $resume = null
 	) {
 		$this->prompt = trim($this->prompt);
 		$this->system = trim($this->system);
@@ -104,6 +106,10 @@ final class AgentAssistantTurnOptions {
 
 	public function getToolCacheConfig(): AgentToolCacheConfig {
 		return $this->toolCacheConfig ?? AgentToolCacheConfig::disabled();
+	}
+
+	public function getResume(): ?AgentResume {
+		return $this->resume;
 	}
 
 	/**

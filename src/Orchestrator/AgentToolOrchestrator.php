@@ -20,12 +20,22 @@ namespace MissionBay\Orchestrator;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentBudget;
+use AssistantFoundation\Dto\AgentExecutionStatus;
+use AssistantFoundation\Dto\AgentResume;
+use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
+use AssistantFoundation\Dto\AgentToolResult;
+use AssistantFoundation\Dto\AiToolCall;
 use AssistantFoundation\Dto\AgentStageTraceEntry;
 use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Orchestrator\Service\AgentActionResumeService;
+use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use MissionBay\Orchestrator\Service\AgentLoopProgressService;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
@@ -49,18 +59,29 @@ class AgentToolOrchestrator {
 	 */
 	private array $stages = [];
 
+	private AgentActionResumeService $actionResumeService;
+	private AgentBudgetGuardService $budgetGuardService;
+	private AgentLoopProgressService $loopProgressService;
+
 	/**
 	 * @param ?array<int,IAgentStage> $stages
 	 */
 	public function __construct(
 		?ILogger $logger = null,
 		?IEventManager $eventManager = null,
-		?array $stages = null
+		?array $stages = null,
+		?AgentActionResumeService $actionResumeService = null,
+		?AgentBudgetGuardService $budgetGuardService = null,
+		?AgentLoopProgressService $loopProgressService = null
 	) {
 		$this->logger = $logger;
 		$this->stages = $stages === null
 			? []
 			: $this->normalizeStages($stages);
+		$this->actionResumeService = $actionResumeService
+			?? new AgentActionResumeService(new AgentActionFingerprint());
+		$this->budgetGuardService = $budgetGuardService ?? new AgentBudgetGuardService();
+		$this->loopProgressService = $loopProgressService ?? new AgentLoopProgressService();
 	}
 
 	/**
@@ -79,12 +100,13 @@ class AgentToolOrchestrator {
 		array $tools,
 		IAgentContext $context,
 		?callable $eventCallback = null,
-		int $maxLoops = 8,
+		int $maxLoops = 10,
 		string $nodeId = '',
 		?ILogger $logger = null,
 		?array $stages = null,
 		?AgentBudget $budget = null,
-		?AgentToolCacheConfig $toolCacheConfig = null
+		?AgentToolCacheConfig $toolCacheConfig = null,
+		?AgentResume $resume = null
 	): AgentToolOrchestratorResult {
 		$effectiveLogger = $logger ?? $this->logger;
 		$effectiveStages = $stages === null
@@ -108,25 +130,68 @@ class AgentToolOrchestrator {
 			$nodeId,
 			$effectiveLogger,
 			$budget ?? AgentBudget::unlimited(),
-			$toolCacheConfig ?? AgentToolCacheConfig::disabled()
+			$toolCacheConfig ?? AgentToolCacheConfig::disabled(),
+			$resume
 		);
 
+		$resumePending = $resume !== null;
+
 		try {
+			if ($resumePending) {
+				$context->setVar(AgentToolLoopContextKeys::PHASE, AgentToolLoopContextKeys::PHASE_RESUME);
+				$this->applyStageResult($context, $this->actionResumeService->resume($context));
+			}
+
 			while (
-				$this->getInt($context, AgentToolLoopContextKeys::ITERATION) < $maxLoops &&
+				($resumePending || $this->getInt($context, AgentToolLoopContextKeys::ITERATION) < $maxLoops) &&
 				!$this->isCompleted($context) &&
+				!$this->isSuspended($context) &&
 				!$this->hasFailure($context)
 			) {
-				$iteration = $this->getInt($context, AgentToolLoopContextKeys::ITERATION) + 1;
-				$context->setVar(AgentToolLoopContextKeys::ITERATION, $iteration);
-				$context->setVar(AgentToolLoopContextKeys::PHASE, AgentToolLoopContextKeys::PHASE_MODEL);
+				if ($resumePending) {
+					$resumePending = false;
+				} else {
+					$iteration = $this->getInt($context, AgentToolLoopContextKeys::ITERATION) + 1;
+					$context->setVar(AgentToolLoopContextKeys::ITERATION, $iteration);
+					$context->setVar(AgentToolLoopContextKeys::PHASE, AgentToolLoopContextKeys::PHASE_MODEL);
+				}
+
+				if ($context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_MODEL) {
+					$this->applyStageResult(
+						$context,
+						$this->budgetGuardService->check($context, AgentBudgetGuardService::CHECKPOINT_MODEL)
+					);
+				}
 
 				foreach ($effectiveStages as $stage) {
+					if ($this->hasFailure($context) || $this->isSuspended($context)) {
+						break;
+					}
+
+					$phaseBeforeStage = $context->getVar(AgentToolLoopContextKeys::PHASE);
 					$this->executeStage($context, $stage, $eventCallback);
+
+					if (
+						$phaseBeforeStage !== AgentToolLoopContextKeys::PHASE_OBSERVED
+						&& $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_OBSERVED
+						&& !$this->hasFailure($context)
+					) {
+						$this->applyStageResult($context, $this->loopProgressService->assess($context));
+					}
+				}
+
+				if (
+					$context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_FINAL
+					&& !$this->hasFailure($context)
+				) {
+					$this->applyStageResult(
+						$context,
+						$this->budgetGuardService->check($context, AgentBudgetGuardService::CHECKPOINT_FINAL)
+					);
 				}
 			}
 
-			if (!$this->isCompleted($context) && !$this->hasFailure($context)) {
+			if (!$this->isCompleted($context) && !$this->isSuspended($context) && !$this->hasFailure($context)) {
 				$this->logError($effectiveLogger, 'Tool phase stopped due to max loop limit: ' . $maxLoops . '.');
 
 				$this->applyStageResult($context, AgentStageResult::patch([
@@ -188,7 +253,8 @@ class AgentToolOrchestrator {
 		string $nodeId,
 		?ILogger $logger,
 		AgentBudget $budget,
-		AgentToolCacheConfig $toolCacheConfig
+		AgentToolCacheConfig $toolCacheConfig,
+		?AgentResume $resume
 	): void {
 		$values = [
 			AgentToolLoopContextKeys::MODEL => $model,
@@ -209,6 +275,13 @@ class AgentToolOrchestrator {
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
 			AgentToolLoopContextKeys::ACTIONS => [],
 			AgentToolLoopContextKeys::ACTION_DECISIONS => [],
+			AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES => [],
+			AgentToolLoopContextKeys::PREAPPROVED_ACTIONS => [],
+			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
+			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME => $resume,
+			AgentToolLoopContextKeys::SUSPENDED => false,
+			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::RUNNING,
 			AgentToolLoopContextKeys::TOOL_RESULTS => [],
 			AgentToolLoopContextKeys::OBSERVATIONS => [],
 			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => [],
@@ -238,6 +311,10 @@ class AgentToolOrchestrator {
 
 		foreach ($values as $key => $value) {
 			$context->setVar($key, $value);
+		}
+
+		if ($resume !== null) {
+			$this->restoreSuspensionState($context, $resume->getSuspension());
 		}
 	}
 
@@ -441,6 +518,9 @@ class AgentToolOrchestrator {
 		$actionDecisions = $context->getVar(AgentToolLoopContextKeys::ACTION_DECISIONS);
 		$toolCacheRecords = $context->getVar(AgentToolLoopContextKeys::TOOL_CACHE_RECORDS);
 		$progressAssessments = $context->getVar(AgentToolLoopContextKeys::PROGRESS_ASSESSMENTS);
+		$interactionRequests = $context->getVar(AgentToolLoopContextKeys::INTERACTION_REQUESTS);
+		$suspension = $context->getVar(AgentToolLoopContextKeys::SUSPENSION);
+		$executionStatus = $this->resolveExecutionStatus($context);
 
 		return new AgentToolOrchestratorResult(
 			is_array($messages) ? $messages : [],
@@ -463,12 +543,19 @@ class AgentToolOrchestrator {
 			is_array($continuationDecisions) ? $continuationDecisions : [],
 			is_scalar($finalResponseInstruction) ? trim((string)$finalResponseInstruction) : '',
 			is_array($toolCacheRecords) ? $toolCacheRecords : [],
-			is_array($progressAssessments) ? $progressAssessments : []
+			is_array($progressAssessments) ? $progressAssessments : [],
+			$executionStatus,
+			is_array($interactionRequests) ? $interactionRequests : [],
+			$suspension instanceof AgentSuspension ? $suspension : null
 		);
 	}
 
 	private function isCompleted(IAgentContext $context): bool {
 		return $context->getVar(AgentToolLoopContextKeys::COMPLETED) === true;
+	}
+
+	private function isSuspended(IAgentContext $context): bool {
+		return $context->getVar(AgentToolLoopContextKeys::SUSPENDED) === true;
 	}
 
 	private function hasFailure(IAgentContext $context): bool {
@@ -477,6 +564,90 @@ class AgentToolOrchestrator {
 
 	private function getInt(IAgentContext $context, string $key): int {
 		return (int)($context->getVar($key) ?? 0);
+	}
+
+	private function resolveExecutionStatus(IAgentContext $context): string {
+		$status = (string)($context->getVar(AgentToolLoopContextKeys::EXECUTION_STATUS) ?? '');
+		if (AgentExecutionStatus::isSuspended($status)) {
+			return $status;
+		}
+		if ($this->hasFailure($context)) {
+			return $context->getVar(AgentToolLoopContextKeys::FINAL_RESPONSE_MODE) === AgentToolLoopContextKeys::FINAL_RESPONSE_PARTIAL
+				? AgentExecutionStatus::PARTIAL
+				: AgentExecutionStatus::FAILED;
+		}
+		return $this->isCompleted($context)
+			? AgentExecutionStatus::COMPLETED
+			: AgentExecutionStatus::RUNNING;
+	}
+
+	private function restoreSuspensionState(IAgentContext $context, AgentSuspension $suspension): void {
+		$state = $suspension->getState();
+		$context->setVar(AgentToolLoopContextKeys::ITERATION, max(0, (int)($state['iteration'] ?? 0)));
+		$context->setVar(AgentToolLoopContextKeys::CALL_INDEX, max(0, (int)($state['call_index'] ?? 0)));
+		$context->setVar(AgentToolLoopContextKeys::MESSAGES, is_array($state['messages'] ?? null) ? $state['messages'] : []);
+		$context->setVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS, $this->restoreToolCalls($state['pending_tool_calls'] ?? []));
+		$context->setVar(AgentToolLoopContextKeys::ACTIONS, $this->restoreActions($state['actions'] ?? []));
+		$context->setVar(AgentToolLoopContextKeys::ACTION_DECISIONS, $this->restoreActionDecisions($state['action_decisions'] ?? []));
+		$context->setVar(AgentToolLoopContextKeys::TOOL_RESULTS, $this->restoreToolResults($state['tool_results'] ?? []));
+		$context->setVar(AgentToolLoopContextKeys::OBSERVATIONS, $this->restoreToolResults($state['observations'] ?? []));
+		$context->setVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS, is_array($state['executed_tool_calls'] ?? null) ? $state['executed_tool_calls'] : []);
+		$context->setVar(AgentToolLoopContextKeys::TOOL_CALL_INDEXES, is_array($state['tool_call_indexes'] ?? null) ? $state['tool_call_indexes'] : []);
+		$context->setVar(AgentToolLoopContextKeys::MODEL_RESULTS, is_array($state['model_results'] ?? null) ? $state['model_results'] : []);
+		$context->setVar(AgentToolLoopContextKeys::TOOL_CACHE_RECORDS, []);
+		$context->setVar(AgentToolLoopContextKeys::PROGRESS_ASSESSMENTS, []);
+		$context->setVar(AgentToolLoopContextKeys::SUSPENSION, $suspension);
+		$context->setVar(AgentToolLoopContextKeys::INTERACTION_REQUESTS, $suspension->getRequests());
+		$context->setVar(AgentToolLoopContextKeys::EXECUTION_STATUS, AgentExecutionStatus::RUNNING);
+		$context->setVar(AgentToolLoopContextKeys::SUSPENDED, false);
+		$context->setVar(AgentToolLoopContextKeys::COMPLETED, false);
+		$context->setVar(AgentToolLoopContextKeys::FAILURE_CODE, '');
+		$context->setVar(AgentToolLoopContextKeys::FAILURE_MESSAGE, '');
+		$context->setVar(AgentToolLoopContextKeys::FAILURE_DETAIL, []);
+	}
+
+	/** @return array<int,AiToolCall> */
+	private function restoreToolCalls(mixed $values): array {
+		$result = [];
+		foreach (is_array($values) ? $values : [] as $value) {
+			if (is_array($value)) {
+				$result[] = AiToolCall::fromArray($value);
+			}
+		}
+		return $result;
+	}
+
+	/** @return array<int,AgentAction> */
+	private function restoreActions(mixed $values): array {
+		$result = [];
+		foreach (is_array($values) ? $values : [] as $value) {
+			if (is_array($value)) {
+				$result[] = AgentAction::fromArray($value);
+			}
+		}
+		return $result;
+	}
+
+	/** @return array<int,AgentActionDecision> */
+	private function restoreActionDecisions(mixed $values): array {
+		$result = [];
+		foreach (is_array($values) ? $values : [] as $value) {
+			if (is_array($value)) {
+				$result[] = AgentActionDecision::fromArray($value);
+			}
+		}
+		return $result;
+	}
+
+	/** @return array<int,AgentToolResult> */
+	private function restoreToolResults(mixed $values): array {
+		$result = [];
+		foreach (is_array($values) ? $values : [] as $value) {
+			if (is_array($value)) {
+				$result[] = AgentToolResult::fromArray($value);
+			}
+		}
+		return $result;
 	}
 
 	/**

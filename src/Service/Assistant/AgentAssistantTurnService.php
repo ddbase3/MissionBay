@@ -24,6 +24,8 @@ use MissionBay\Api\IAgentAssistantMessageFactory;
 use MissionBay\Api\IAgentAssistantToolSetupFactory;
 use MissionBay\Api\IAgentAssistantTurnService;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Dto\AgentExecutionStatus;
+use AssistantFoundation\Dto\AgentResume;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
@@ -50,9 +52,11 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$assistantMessageId = $options->getAssistantMessageId();
 		$prompt = $options->getPrompt();
 		$system = $options->getSystem();
+		$resume = $options->getResume();
+		$selectionPrompt = $this->resolveSelectionPrompt($prompt, $resume);
 
-		if ($prompt === '') {
-			throw new \RuntimeException('Prompt is required.');
+		if ($prompt === '' && $resume === null) {
+			throw new \RuntimeException('Prompt is required for a new agent turn.');
 		}
 
 		$this->applyTurnContext($context, $assistantMessageId, $logger);
@@ -68,7 +72,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$toolSetup = $this->toolSetupFactory->create(
 				$tools,
 				$resources->getProfileSelector(),
-				$prompt,
+				$selectionPrompt,
 				$system,
 				$context
 			);
@@ -98,12 +102,17 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 		$this->log($logger, 'Max tool loops: ' . $options->getMaxToolLoops() . '.');
 
-		$messages = $this->memoryService->buildInitialMessages($system, $memories, $nodeId, $logger);
-		$userMessage = $this->messageFactory->createUserMessage($prompt);
-		$messages[] = $userMessage;
+		if ($resume !== null) {
+			$messages = $this->readResumeMessages($resume);
+			$userMessage = $this->resolveResumeUserMessage($resume);
+		} else {
+			$messages = $this->memoryService->buildInitialMessages($system, $memories, $nodeId, $logger);
+			$userMessage = $this->messageFactory->createUserMessage($prompt);
+			$messages[] = $userMessage;
 
-		if ($options->isMemoryWriteEnabled()) {
-			$this->memoryService->appendVisibleMessage($memories, $nodeId, $userMessage, $logger);
+			if ($options->isMemoryWriteEnabled()) {
+				$this->memoryService->appendVisibleMessage($memories, $nodeId, $userMessage, $logger);
+			}
 		}
 
 		if (!$options->areToolsEnabled()) {
@@ -135,13 +144,14 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$logger,
 			$stages,
 			$options->getBudget(),
-			$options->getToolCacheConfig()
+			$options->getToolCacheConfig(),
+			$resume
 		);
 
 		$this->storeOrchestratorContext($context, $orchestrationResult, $logger);
 
 		$fallbackContent = null;
-		if (!$orchestrationResult->isCompleted()) {
+		if (!$orchestrationResult->isCompleted() && !$orchestrationResult->isSuspended()) {
 			$this->logError($logger, 'Tool phase did not complete: ' . $orchestrationResult->getFailureCode() . ' ' . $orchestrationResult->getFailureMessage());
 			$fallbackContent = $this->fallbackBuilder->build($orchestrationResult);
 		}
@@ -198,6 +208,9 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$context->setVar('orchestrator_action_decisions', []);
 			$context->setVar('orchestrator_tool_cache_records', []);
 			$context->setVar('orchestrator_progress_assessments', []);
+			$context->setVar('orchestrator_execution_status', AgentExecutionStatus::COMPLETED);
+			$context->setVar('orchestrator_interaction_requests', []);
+			$context->setVar('orchestrator_suspension', null);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
@@ -250,9 +263,59 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				static fn($entry): array => $entry->toArray(),
 				$orchestrationResult->getProgressAssessments()
 			));
+			$context->setVar('orchestrator_execution_status', $orchestrationResult->getExecutionStatus());
+			$context->setVar('orchestrator_interaction_requests', array_map(
+				static fn($entry): array => $entry->toArray(),
+				$orchestrationResult->getInteractionRequests()
+			));
+			$context->setVar('orchestrator_suspension', $orchestrationResult->getSuspension()?->toArray());
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Orchestrator context could not be stored: ' . $e->getMessage());
 		}
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function readResumeMessages(AgentResume $resume): array {
+		$messages = $resume->getSuspension()->getState()['messages'] ?? [];
+
+		return is_array($messages) ? $messages : [];
+	}
+
+	/** @return array<string,mixed> */
+	private function resolveResumeUserMessage(AgentResume $resume): array {
+		$messages = $this->readResumeMessages($resume);
+		for ($index = count($messages) - 1; $index >= 0; $index--) {
+			$message = $messages[$index] ?? null;
+			if (is_array($message) && ($message['role'] ?? null) === 'user') {
+				return $message;
+			}
+		}
+
+		return $this->messageFactory->createUserMessage('');
+	}
+
+	private function resolveSelectionPrompt(string $prompt, ?AgentResume $resume): string {
+		if ($resume === null) {
+			return $prompt;
+		}
+
+		$messages = $resume->getSuspension()->getState()['messages'] ?? [];
+		if (!is_array($messages)) {
+			return $prompt;
+		}
+
+		for ($index = count($messages) - 1; $index >= 0; $index--) {
+			$message = $messages[$index] ?? null;
+			if (!is_array($message) || ($message['role'] ?? null) !== 'user') {
+				continue;
+			}
+			$content = trim((string)($message['content'] ?? ''));
+			if ($content !== '') {
+				return $content;
+			}
+		}
+
+		return $prompt;
 	}
 
 	/**

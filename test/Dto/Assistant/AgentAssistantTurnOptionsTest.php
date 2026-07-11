@@ -38,6 +38,12 @@ final class AgentAssistantTurnOptionsTest extends TestCase {
 	}
 
 
+	public function testDefaultToolLoopLimitIsTen(): void {
+		$options = new AgentAssistantTurnOptions(prompt: 'test');
+
+		$this->assertSame(10, $options->getMaxToolLoops());
+	}
+
 	public function testBudgetIsExposedAsRunState(): void {
 		$budget = new AgentBudget(maxTotalTokens: 5000, maxToolCalls: 10);
 		$options = new AgentAssistantTurnOptions(

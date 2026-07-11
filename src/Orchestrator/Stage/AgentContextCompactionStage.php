@@ -22,6 +22,8 @@ use AssistantFoundation\Dto\AgentContextCompaction;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolResult;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Orchestrator\AgentStageResultAccumulator;
+use MissionBay\Orchestrator\Service\AgentContextAssessmentService;
 
 /**
  * AgentContextCompactionStage
@@ -30,19 +32,24 @@ use Base3\Logger\Api\ILogger;
  * factual summary before the observation stage adds them to the model message
  * stack. Failed tool results and small outputs are preserved unchanged.
  *
- * The stage is deliberately not part of the MissionBay default pipeline.
- * Activating it adds model calls and may change the information available to
- * later model decisions, so a flow must opt in explicitly.
+ * The stage is part of the default pipeline. Structural assessment always runs;
+ * the additional model call is made only when a successful tool output crosses
+ * the configured compaction threshold.
  */
 final class AgentContextCompactionStage implements IAgentStage {
+
+	private AgentContextAssessmentService $contextAssessmentService;
 
 	public function __construct(
 		private readonly string $id = 'context-compaction',
 		private readonly string $stageName = 'context-compaction',
 		private readonly int $minToolResultBytes = 12000,
 		private readonly int $maxInputBytes = 80000,
-		private readonly int $targetSummaryCharacters = 4000
-	) {}
+		private readonly int $targetSummaryCharacters = 4000,
+		?AgentContextAssessmentService $contextAssessmentService = null
+	) {
+		$this->contextAssessmentService = $contextAssessmentService ?? new AgentContextAssessmentService();
+	}
 
 	public static function getName(): string {
 		return 'agentcontextcompactionstage';
@@ -65,33 +72,29 @@ final class AgentContextCompactionStage implements IAgentStage {
 	}
 
 	public function supports(IAgentContext $context): bool {
-		if (
-			$context->getVar(AgentToolLoopContextKeys::PHASE) !== AgentToolLoopContextKeys::PHASE_AFTER_TOOLS ||
-			$context->getVar(AgentToolLoopContextKeys::COMPLETED) === true ||
-			(string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '') !== ''
-		) {
-			return false;
-		}
-
 		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
-		if (!is_array($toolResults) || $toolResults === []) {
-			return false;
-		}
 
-		foreach ($toolResults as $toolResult) {
-			if (
-				$toolResult instanceof AgentToolResult &&
-				$toolResult->isSuccess() &&
-				$this->measureValue($toolResult->getOutput()) >= max(1, $this->minToolResultBytes)
-			) {
-				return true;
-			}
-		}
-
-		return false;
+		return $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
+			&& is_array($toolResults)
+			&& $toolResults !== []
+			&& $context->getVar(AgentToolLoopContextKeys::COMPLETED) !== true
+			&& (string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '') === '';
 	}
 
 	public function process(IAgentContext $context): AgentStageResult {
+		$results = new AgentStageResultAccumulator($context);
+		$results->apply($this->contextAssessmentService->assess($context), 'assessment');
+
+		if ($this->hasFailure($context) || !$this->needsCompaction($context)) {
+			return $results->result();
+		}
+
+		$results->apply($this->compact($context), 'compaction');
+
+		return $results->result();
+	}
+
+	private function compact(IAgentContext $context): AgentStageResult {
 		$model = $context->getVar(AgentToolLoopContextKeys::MODEL);
 		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
 		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
@@ -199,6 +202,26 @@ final class AgentContextCompactionStage implements IAgentStage {
 			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
 			AgentToolLoopContextKeys::CONTEXT_COMPACTIONS => $compactions
 		]);
+	}
+
+	private function needsCompaction(IAgentContext $context): bool {
+		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
+
+		foreach (is_array($toolResults) ? $toolResults : [] as $toolResult) {
+			if (
+				$toolResult instanceof AgentToolResult
+				&& $toolResult->isSuccess()
+				&& $this->measureValue($toolResult->getOutput()) >= max(1, $this->minToolResultBytes)
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function hasFailure(IAgentContext $context): bool {
+		return trim((string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '')) !== '';
 	}
 
 	/**
