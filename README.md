@@ -459,7 +459,9 @@ Have a node idea? Feel free to propose a PR!
 
 ## Agent harness documentation
 
+- [Agent harness completion status](docs/AGENT_HARNESS_ROADMAP.md)
+- [AssistantFoundation extension points](docs/ASSISTANTFOUNDATION_EXTENSION_POINTS.md)
 - [Agent memory and context](docs/AGENT_MEMORY_AND_CONTEXT.md)
-- [Agent harness legacy cleanup](docs/AGENT_LEGACY_CLEANUP.md)
 - [Memory and context profiles](docs/AGENT_MEMORY_CONTEXT_PROFILES.md)
 - [Agent state and result](docs/AGENT_STATE_AND_RESULT.md)
+- [Agent harness cleanup ledger](docs/AGENT_LEGACY_CLEANUP.md)

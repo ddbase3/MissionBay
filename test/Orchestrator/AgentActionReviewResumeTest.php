@@ -86,6 +86,150 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertSame(['id' => 42, 'title' => 'Reviewed title'], $tool->getLastArguments());
 	}
 
+
+	public function testNaturalLanguageApprovalExecutesMutation(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator, $resumeService] = $this->createHarness();
+		$firstResult = $orchestrator->run(
+			new ApprovalQueueChatModel([$this->toolCallResponse('call-natural-approve', 'update_record', ['id' => 42, 'title' => 'Natural approval'])]),
+			[['role' => 'user', 'content' => 'Update record 42.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+		$request = $firstResult->getInteractionRequests()[0];
+		$resume = new AgentResume($firstResult->getResumeHandle(), [], 'jo hau rein');
+
+		$result = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->interactionResolutionResponse('resolved', [[
+					'request_id' => $request->getId(),
+					'decision' => AgentInteractionResponse::DECISION_APPROVE,
+					'input' => []
+				]]),
+				$this->terminalResponse()
+			]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			null,
+			10,
+			'',
+			null,
+			null,
+			null,
+			null,
+			$resumeService->prepare($resume)
+		);
+
+		$this->assertTrue($result->isCompleted());
+		$this->assertSame(1, $tool->getCallCount());
+		$this->assertSame(['id' => 42, 'title' => 'Natural approval'], $tool->getLastArguments());
+	}
+
+	public function testNaturalLanguageDenialDoesNotExecuteMutation(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator, $resumeService] = $this->createHarness();
+		$firstResult = $orchestrator->run(
+			new ApprovalQueueChatModel([$this->toolCallResponse('call-natural-deny', 'update_record', ['id' => 42, 'title' => 'Denied'])]),
+			[['role' => 'user', 'content' => 'Update record 42.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+		$request = $firstResult->getInteractionRequests()[0];
+
+		$result = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->interactionResolutionResponse('resolved', [[
+					'request_id' => $request->getId(),
+					'decision' => AgentInteractionResponse::DECISION_DENY,
+					'input' => []
+				]]),
+				$this->terminalResponse()
+			]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			null,
+			10,
+			'',
+			null,
+			null,
+			null,
+			null,
+			$resumeService->prepare(new AgentResume($firstResult->getResumeHandle(), [], 'nein, lass das'))
+		);
+
+		$this->assertTrue($result->isCompleted());
+		$this->assertSame(0, $tool->getCallCount());
+	}
+
+	public function testUnclearNaturalLanguageResponseKeepsSameHandleReusable(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator, $resumeService] = $this->createHarness();
+		$firstResult = $orchestrator->run(
+			new ApprovalQueueChatModel([$this->toolCallResponse('call-natural-retry', 'update_record', ['id' => 42, 'title' => 'Retry'])]),
+			[['role' => 'user', 'content' => 'Update record 42.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+		$request = $firstResult->getInteractionRequests()[0];
+		$handle = $firstResult->getResumeHandle();
+
+		$unclearResult = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->interactionResolutionResponse('unclear', [], 'The reply does not contain a clear decision.')
+			]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			null,
+			10,
+			'',
+			null,
+			null,
+			null,
+			null,
+			$resumeService->prepare(new AgentResume($handle, [], 'was genau?'))
+		);
+
+		$this->assertTrue($unclearResult->isSuspended());
+		$this->assertSame($handle, $unclearResult->getResumeHandle());
+		$this->assertSame($request->getId(), $unclearResult->getInteractionRequests()[0]->getId());
+		$this->assertSame(0, $tool->getCallCount());
+
+		$approvedResult = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->interactionResolutionResponse('resolved', [[
+					'request_id' => $request->getId(),
+					'decision' => AgentInteractionResponse::DECISION_APPROVE,
+					'input' => []
+				]]),
+				$this->terminalResponse()
+			]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			null,
+			10,
+			'',
+			null,
+			null,
+			null,
+			null,
+			$resumeService->prepare(new AgentResume($handle, [], 'ja, mach das'))
+		);
+
+		$this->assertTrue($approvedResult->isCompleted());
+		$this->assertSame(1, $tool->getCallCount());
+	}
+
 	public function testInternalMutationExplicitlyRunsWithoutApprovalOrCommitGuard(): void {
 		$tool = new InternalMutationTool();
 		[$orchestrator] = $this->createHarness();
@@ -421,6 +565,26 @@ final class AgentActionReviewResumeTest extends TestCase {
 							'arguments' => json_encode($arguments, JSON_THROW_ON_ERROR)
 						]
 					]]
+				]
+			]]
+		];
+	}
+
+
+	/**
+	 * @param array<int,array<string,mixed>> $responses
+	 * @return array<string,mixed>
+	 */
+	private function interactionResolutionResponse(string $status, array $responses, string $reason = ''): array {
+		return [
+			'choices' => [[
+				'message' => [
+					'role' => 'assistant',
+					'content' => json_encode([
+						'status' => $status,
+						'reason' => $reason,
+						'responses' => $responses
+					], JSON_THROW_ON_ERROR)
 				]
 			]]
 		];

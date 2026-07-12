@@ -47,9 +47,11 @@ final class StateStoreAgentSuspensionRepository implements IAgentSuspensionRepos
 
 		for ($attempt = 0; $attempt < 3; $attempt++) {
 			$handle = $this->createOpaqueToken();
+			$reservationToken = $this->createOpaqueToken();
 			$now = time();
 			$stored = $this->stateStore->setIfNotExists($this->stateKey($handle), [
 				'format_version' => self::FORMAT_VERSION,
+				'reservation_token' => $reservationToken,
 				'created_at' => $now,
 				'expires_at' => $now + $ttlSeconds,
 				'suspension' => $suspension->toArray()

@@ -19,6 +19,7 @@ namespace MissionBay\Orchestrator\Service;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
+use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
@@ -31,6 +32,7 @@ use AssistantFoundation\Dto\AiToolCall;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 use Base3\Event\Api\IEventManager;
 use MissionBay\Event\MissionBayAgentActionAuditEvent;
+use MissionBay\Dto\Assistant\AgentInteractionResolution;
 use MissionBay\Dto\Assistant\PreparedAgentResume;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
@@ -40,13 +42,16 @@ use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 final class AgentActionResumeService {
 
 	private IAgentSuspensionRepository $suspensionRepository;
+	private AgentInteractionResponseResolver $responseResolver;
 
 	public function __construct(
 		private readonly AgentActionFingerprint $fingerprint,
 		?IAgentSuspensionRepository $suspensionRepository = null,
-		private readonly ?IEventManager $eventManager = null
+		private readonly ?IEventManager $eventManager = null,
+		?AgentInteractionResponseResolver $responseResolver = null
 	) {
 		$this->suspensionRepository = $suspensionRepository ?? new UnavailableAgentSuspensionRepository();
+		$this->responseResolver = $responseResolver ?? new AgentInteractionResponseResolver();
 	}
 
 	public function prepare(AgentResume $resume): PreparedAgentResume {
@@ -63,8 +68,26 @@ final class AgentActionResumeService {
 		}
 
 		$resume = $prepared->getResume();
+		$resolvedResponses = $resume->getResponses();
+		$resolution = null;
+
+		if ($resolvedResponses === [] && $resume->hasResponseText()) {
+			$model = $context->getVar(AgentToolLoopContextKeys::MODEL);
+			$resolution = $this->responseResolver->resolve(
+				$model instanceof IAiChatModel ? $model : null,
+				$prepared->getSuspension()->getRequests(),
+				$resume->getResponseText()
+			);
+
+			if ($resolution->isUnclear()) {
+				return $this->releaseUnclear($context, $prepared, $resolution);
+			}
+
+			$resolvedResponses = $resolution->getResponses();
+		}
+
 		$responses = [];
-		foreach ($resume->getResponses() as $response) {
+		foreach ($resolvedResponses as $response) {
 			if (isset($responses[$response->getRequestId()])) {
 				return $this->releaseFailure(
 					$prepared,
@@ -198,10 +221,20 @@ final class AgentActionResumeService {
 			);
 		}
 
+		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
+		$modelResults = is_array($modelResults) ? $modelResults : [];
+		if ($resolution instanceof AgentInteractionResolution) {
+			$modelMetadata = $resolution->getMetadata()['model_metadata'] ?? null;
+			if (is_array($modelMetadata)) {
+				$modelResults[] = $modelMetadata;
+			}
+		}
+
 		return AgentStageResult::patch([
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $pendingCalls,
 			AgentToolLoopContextKeys::TOOL_RESULTS => $toolResults,
 			AgentToolLoopContextKeys::PREAPPROVED_ACTIONS => $preapproved,
+			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
 			AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES => [],
 			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
 			AgentToolLoopContextKeys::SUSPENSION => null,
@@ -215,7 +248,8 @@ final class AgentActionResumeService {
 			'approved' => $approvedCount,
 			'denied' => $deniedCount,
 			'submitted' => $submittedCount,
-			'resume_handle_consumed' => true
+			'resume_handle_consumed' => true,
+			'response_source' => $resolution instanceof AgentInteractionResolution ? 'natural_language_ai' : 'explicit'
 		]);
 	}
 
@@ -282,6 +316,70 @@ final class AgentActionResumeService {
 			));
 		} catch (\Throwable) {
 		}
+	}
+
+	private function releaseUnclear(
+		IAgentContext $context,
+		PreparedAgentResume $prepared,
+		AgentInteractionResolution $resolution
+	): AgentStageResult {
+		$this->releaseBestEffort($prepared->getClaim());
+		$status = $prepared->getSuspension()->getStatus();
+		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
+		$modelResults = is_array($modelResults) ? $modelResults : [];
+		$modelMetadata = $resolution->getMetadata()['model_metadata'] ?? null;
+		if (is_array($modelMetadata)) {
+			$modelResults[] = $modelMetadata;
+		}
+
+		return AgentStageResult::patch([
+			AgentToolLoopContextKeys::INTERACTION_REQUESTS => $this->createPublicRequests(
+				$prepared->getSuspension()->getRequests()
+			),
+			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME_HANDLE => $prepared->getResumeHandle(),
+			AgentToolLoopContextKeys::EXECUTION_STATUS => $status,
+			AgentToolLoopContextKeys::SUSPENDED => true,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::FAILURE_CODE => '',
+			AgentToolLoopContextKeys::FAILURE_MESSAGE => '',
+			AgentToolLoopContextKeys::FAILURE_DETAIL => [],
+			AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
+			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
+			AgentToolLoopContextKeys::PHASE => $status === AgentExecutionStatus::AWAITING_INPUT
+				? AgentToolLoopContextKeys::PHASE_AWAITING_INPUT
+				: AgentToolLoopContextKeys::PHASE_AWAITING_APPROVAL
+		], [
+			'resume_resolution' => $resolution->toArray(),
+			'resume_handle_consumed' => false
+		]);
+	}
+
+	/**
+	 * @param array<int,AgentInteractionRequest> $requests
+	 * @return array<int,AgentInteractionRequest>
+	 */
+	private function createPublicRequests(array $requests): array {
+		$result = [];
+		foreach ($requests as $request) {
+			if (!$request instanceof AgentInteractionRequest) {
+				continue;
+			}
+			$metadata = $request->getMetadata();
+			unset($metadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT]);
+			$result[] = new AgentInteractionRequest(
+				$request->getId(),
+				$request->getKind(),
+				$request->getAction(),
+				$request->getActionFingerprint(),
+				$request->getTitle(),
+				$request->getMessage(),
+				$request->getSummary(),
+				$request->getRisk(),
+				$metadata
+			);
+		}
+		return $result;
 	}
 
 	private function releaseFailure(

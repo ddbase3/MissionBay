@@ -108,3 +108,50 @@ Listeners may persist these events in a project-specific audit backend. The even
 ## Cache rule
 
 Mutation calls are never served from or written to the tool-result cache, even if a cache rule accidentally matches them. This keeps approval and commit validation on the real execution path.
+
+## User preferences implementation
+
+`UserPrefsAgentResource` implements `IAgentMutationGuardedTool` directly. The existing MissionBay approval and resume flow remains unchanged.
+
+Read-only functions are explicitly marked as non-mutating:
+
+```text
+list_allowed_prefs
+list_user_prefs
+```
+
+The write functions require approval and a commit guard:
+
+```text
+set_user_pref
+unset_user_pref
+```
+
+Before approval, the resource captures:
+
+- the concrete component-preset resource ID;
+- the effective user and session targets affected by the operation;
+- the normalized preference value and resolved scope;
+- the current preference definition hash;
+- the current values of all affected rows.
+
+A user-scoped set also captures the current session-scoped row because the write removes that session override after saving the user value. An unset without an explicit scope captures both the current user and session rows.
+
+Immediately before execution, the resource rejects the mutation when:
+
+- another component preset is used;
+- the user or session target changed;
+- the preference definition changed;
+- an affected preference row changed;
+- the stored snapshot does not match the approved operation.
+
+The tool still performs its normal input validation inside `callTool()`. The commit guard adds final identity and stale-state protection; it does not replace the existing approval policy or tool contract validation.
+
+
+## Configured tool wrappers
+
+Agent component presets are exposed to the assistant through `ConfiguredAgentToolResource`. The wrapper must preserve optional tool capabilities instead of hiding them.
+
+For guarded mutations, the wrapper therefore also implements `IAgentMutationGuardedTool` and delegates both guard operations to the docked tool. When a namespace changes the externally visible function name, the wrapper translates the reviewed action back to the original function name before delegation. The reviewed action ID, input, metadata, and outer action fingerprint remain unchanged.
+
+This keeps the wrapper transparent for guarded tools without adding tool-specific behavior to the policy, approval, or execution services. A wrapped mutation that requires a commit guard still fails closed when the docked tool does not implement `IAgentMutationGuardedTool`.

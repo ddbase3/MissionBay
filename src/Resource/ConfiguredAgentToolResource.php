@@ -20,7 +20,11 @@ namespace MissionBay\Resource;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentMutationCommitDecision;
+use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use Base3\Api\IOutputSchemaProvider;
+use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Api\IAgentTool;
 
 /**
@@ -30,7 +34,7 @@ use MissionBay\Api\IAgentTool;
  * This allows per-agent naming, labels and metadata without changing the
  * underlying tool implementation.
  */
-class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentTool, IOutputSchemaProvider {
+class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentTool, IAgentMutationGuardedTool, IOutputSchemaProvider {
 
 	private ?IAgentTool $tool = null;
 	private bool $enabled = true;
@@ -150,25 +154,36 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 	}
 
 	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		if (!$this->enabled) {
-			throw new \InvalidArgumentException('Configured tool is disabled: ' . $name);
-		}
+		$tool = $this->requireTool($name);
+		return $tool->callTool($this->resolveOriginalToolName($name), $arguments, $context);
+	}
 
-		if (!$this->tool instanceof IAgentTool) {
-			throw new \InvalidArgumentException('Configured tool has no docked tool: ' . $name);
-		}
+	public function captureMutationCommitSnapshot(
+		AgentAction $action,
+		string $actionFingerprint,
+		IAgentContext $context
+	): AgentMutationCommitSnapshot {
+		$tool = $this->requireGuardedTool($action->getName());
 
-		if (!isset($this->nameMap[$name])) {
-			$this->getToolDefinitions();
-		}
+		return $tool->captureMutationCommitSnapshot(
+			$this->translateAction($action),
+			$actionFingerprint,
+			$context
+		);
+	}
 
-		$originalName = $this->nameMap[$name] ?? null;
+	public function validateMutationCommit(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentMutationCommitDecision {
+		$tool = $this->requireGuardedTool($action->getName());
 
-		if ($originalName === null) {
-			throw new \InvalidArgumentException('Unsupported configured tool: ' . $name);
-		}
-
-		return $this->tool->callTool($originalName, $arguments, $context);
+		return $tool->validateMutationCommit(
+			$this->translateAction($action),
+			$snapshot,
+			$context
+		);
 	}
 
 	public function getOutputSchemas(): array {
@@ -192,6 +207,54 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 		}
 
 		return $result;
+	}
+
+	private function requireTool(string $effectiveName): IAgentTool {
+		if (!$this->enabled) {
+			throw new \InvalidArgumentException('Configured tool is disabled: ' . $effectiveName);
+		}
+
+		if (!$this->tool instanceof IAgentTool) {
+			throw new \InvalidArgumentException('Configured tool has no docked tool: ' . $effectiveName);
+		}
+
+		return $this->tool;
+	}
+
+	private function requireGuardedTool(string $effectiveName): IAgentMutationGuardedTool {
+		$tool = $this->requireTool($effectiveName);
+
+		if (!$tool instanceof IAgentMutationGuardedTool) {
+			throw new \RuntimeException(
+				'Configured mutation tool does not implement IAgentMutationGuardedTool: ' . $effectiveName
+			);
+		}
+
+		return $tool;
+	}
+
+	private function resolveOriginalToolName(string $effectiveName): string {
+		if (!isset($this->nameMap[$effectiveName])) {
+			$this->getToolDefinitions();
+		}
+
+		$originalName = $this->nameMap[$effectiveName] ?? null;
+
+		if ($originalName === null) {
+			throw new \InvalidArgumentException('Unsupported configured tool: ' . $effectiveName);
+		}
+
+		return $originalName;
+	}
+
+	private function translateAction(AgentAction $action): AgentAction {
+		return new AgentAction(
+			$action->getId(),
+			$action->getType(),
+			$this->resolveOriginalToolName($action->getName()),
+			$action->getInput(),
+			$action->getMetadata()
+		);
 	}
 
 	private function buildEffectiveToolName(string $originalName): string {

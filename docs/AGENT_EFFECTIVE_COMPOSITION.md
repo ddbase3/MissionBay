@@ -35,7 +35,7 @@ The view reports:
 - selected memory and context profiles with their concrete preset IDs;
 - component capability facets such as `tool` and `memory`;
 - final callable tool names, source resources, categories, tags and mutation metadata;
-- attached conversation memories and context contributors, their configured and effective roles, priorities, read/write switches, and legacy status;
+- attached conversation memories and context contributors, their concrete preset ids, implementations, priorities, docks, and legacy status;
 - configured and resolved capability providers, modules, prompt providers and resource providers;
 - core stages, module-mounted stages and the final validated stage sequence;
 - warnings and hard configuration errors.
@@ -78,14 +78,14 @@ legacy-memory
 tool
 ```
 
-A component preset can expose both tool and context/memory facets. The display keeps these facets attached to the same preset and shows:
+A component preset can expose both tool and context-contributor facets. The display keeps these facets attached to the same preset and shows:
 
 - the callable tool names produced by its tool wrapper;
-- the configured conversation-memory wrapper and effective priority;
-- the resolved conversation/context/legacy roles;
-- the tool, memory, or context profile that contributed the preset.
+- the concrete Memory Profile or Context Profile that selected it;
+- the effective `memory`, `contextcontributors`, or `tools` dock;
+- the resolved conversation/context/legacy role and priority.
 
-Resources such as user preferences therefore appear as `tool + context-contributor`, while session or database history appears as `conversation-memory`. Legacy-only `IAgentMemory` implementations remain conversation-compatible and produce a warning until they declare an explicit role.
+Resources such as user preferences therefore appear as `tool + context-contributor`, while session or database history appears as `conversation-memory`. Legacy-only `IAgentMemory` implementations remain conversation-compatible and produce a warning until they adopt `IAgentConversationMemory`.
 
 ## Administration integration
 
@@ -96,7 +96,8 @@ Agents
 Effective Composition
 Orchestrator Profiles
 Tool Profiles
-Memory Profiles and Context Profiles
+Memory Profiles
+Context Profiles
 Component Presets
 ```
 

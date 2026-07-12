@@ -91,17 +91,19 @@ IAgentContextContributor
 
 Session, volatile, and database histories implement `IAgentConversationMemory`. User preferences, focus, time, page context, and sub-agent descriptions implement `IAgentContextContributor`. Knowledge / Skills remains an explicit tool. Compatibility adapters may still implement `IAgentMemory`, but MissionBay resolves their explicit role and does not write user/assistant messages to context-only components.
 
-Tool-profile resolution continues to preserve all declared preset capabilities. A preset with:
+Tool-profile resolution contributes tool facets only. Memory and context are configured independently:
 
 ```text
-tool + memory
+Memory Profile
+  -> concrete conversation-memory Component Presets
+
+Context Profile
+  -> concrete IAgentContextContributor Component Presets
 ```
 
-is attached through the existing compatibility wrapper, which reports the wrapped component as a context contributor or conversation memory at runtime. Both wrappers point to the same underlying configured resource, so a preference written through the tool facet is available to the contributor on the next new turn.
+There is no automatic/both role switch and no contributor read/write setting. Component-specific storage, credentials, namespaces, priorities, and user scoping stay in the concrete Component Preset.
 
-Memory/context composition is exposed through a separate profile. It selects configured component presets, their automatic or explicit role, deterministic priority, and conversation read/write switches. Component-specific storage, credentials, namespaces, and user scoping stay in the component preset.
-
-When such a profile is selected, tool profiles contribute tool facets only. The separate memory and context profiles contributes the memory facet. Both still point to the same base preset resource, so dual-role components are not duplicated.
+A preset may intentionally expose both a tool and a context-contributor facet. In that case the selected Tool Profile and Context Profile reference the same preset id. The flow builder creates one configured base resource and connects the tool wrapper and `contextcontributors` dock to that instance, so a preference written through the tool facet is available to the contributor on the next new turn.
 
 ## Runtime resolution
 
@@ -131,7 +133,8 @@ The following displays are intended for different audiences:
 | `AgentCompositionAdminDisplay` | Experts inspecting the effective read-only runtime composition of an agent. |
 | `AgentOrchestratorProfileAdminDisplay` | Experts maintaining safe orchestration modes and limits. |
 | `ToolProfileAdminDisplay` | Experts grouping configured component presets for internal agents and/or MCP. |
-| `AgentMemoryProfileAdminDisplay` | Experts composing conversation memories and context contributors. |
+| `AgentMemoryProfileAdminDisplay` | Experts selecting configured conversation-memory presets. |
+| `AgentContextProfileAdminDisplay` | Experts selecting configured context-contributor presets. |
 | `AgentComponentPresetAdminDisplay` | Technical administrators configuring individual resource instances. |
 
 `Base3IliasLab` registers Effective Composition, Orchestrator Profiles, Tool Profiles, Memory Profiles, Context Profiles, and Component Presets next to Agents. The composition display resolves actual tool names, memory facets, capability sources, module stage mounts, and final stages without adding these details back to the normal Agent form.

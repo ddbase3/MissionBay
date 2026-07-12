@@ -2,90 +2,61 @@
 
 ## Purpose
 
-MissionBay distinguishes two concerns that were previously represented by the same `IAgentMemory` contract:
+MissionBay separates three concerns:
 
 ```text
-conversation memory
-  visible user/assistant history that is loaded and written
-
-context contribution
-  run-local system instructions or contextual facts that are read for a new turn
-```
-
-The distinction is important for resources such as user preferences, focus state, current time, page context, and sub-agent descriptions. Those resources may contribute useful model context, but they are not chat-history stores and must not receive every visible user or assistant message.
-
-
-## Terminology boundary
-
-MissionBay uses three separate concepts:
-
-```text
-Conversation memory / history
-  recent visible user and assistant messages passed into later turns
+Conversation memory
+  visible user/assistant history loaded into later turns
 
 Context contributor
-  run-local system-prompt additions such as current time, preferences, or page context
+  run-local system-context blocks such as time, preferences, or page data
 
 Knowledge / Skills tool
-  explicit agent-owned storage accessed only through tool calls
+  explicit agent-owned storage accessed through tool calls
 ```
 
-The Knowledge / Skills tool is not conversation memory and is not a context contributor. A failed or unused Knowledge tool must never affect whether the visible chat history is retained.
+Conversation history must work independently of tools. A failed or unused Knowledge tool does not affect whether visible messages remain available in later turns.
 
-Assistant-turn routing must not classify user intent through phrase-specific regular expressions. Recent visible history is supplied for every task; the model and capability selection receive that history regardless of the wording or language of the current request.
+Assistant-turn routing does not use wording-specific regular expressions. Recent visible history is supplied regardless of the language or phrasing of the current request.
 
 ## Foundation contracts
 
-`AssistantFoundation` exposes two explicit contracts.
-
 ### `IAgentConversationMemory`
 
-```php
-interface IAgentConversationMemory extends IAgentMemory {
-}
-```
+`IAgentConversationMemory` extends the stable `IAgentMemory` API and marks a real conversation-history store.
 
-This is a backward-compatible marker on the existing chat-history API. Implementations load visible dialog messages and receive new visible messages through:
+Implementations provide:
 
 ```text
 loadNodeHistory()
 appendNodeHistory()
 setFeedback()
 resetNodeHistory()
+getPriority()
 ```
 
-Typical implementations are session memory, volatile memory, database memory, and no-memory adapters.
+Typical implementations are session, database, volatile, and no-memory stores.
 
 ### `IAgentContextContributor`
 
-```php
-interface IAgentContextContributor extends IComponent {
-
-    public function contribute(IAgentContext $context): iterable;
-
-    public function getPriority(): int;
-}
-```
-
-A contributor returns typed `AgentInstructionBlock` values. It does not expose chat-history write operations.
+A Context Contributor returns typed `AgentInstructionBlock` values for a new turn:
 
 ```php
 new AgentInstructionBlock(
-    id: 'user-preferences',
-    content: 'Prefer compact answers.',
-    priority: 20,
-    source: 'user-prefs-primary',
-    metadata: [
-        'implementation' => 'userprefsagentresource'
-    ]
+    id: 'current-page',
+    content: 'The current ILIAS object is ...',
+    priority: 30,
+    source: 'ilias-page-context'
 );
 ```
 
-Each block becomes a system-role message when a new turn is prepared. The typed object keeps identity, source, ordering, and diagnostics separate from the final provider message shape.
+It receives no user/assistant history writes.
 
-## Runtime preparation
+The complete plugin extension contract and implementation example are documented in `ASSISTANTFOUNDATION_EXTENSION_POINTS.md`.
 
-A new turn is prepared in this order:
+## Turn preparation
+
+A new turn is assembled in this order:
 
 ```text
 base system instruction
@@ -94,117 +65,83 @@ base system instruction
   -> current user message
 ```
 
-Conversation memories are ordered by their memory priority. Context contributors are ordered deterministically by:
+Conversation stores are ordered by memory priority. Context blocks are ordered by contributor priority, block priority, block id, and original sequence.
+
+The current user message is written to active writable conversation memory before later capability discovery, action policy, tool execution, or model processing can fail.
+
+## Suspension and resume
+
+Context Contributors are resolved once when a new turn starts. A suspended mutation resumes with the frozen reviewed message set rather than re-reading current preferences, page state, or other contributors.
 
 ```text
-contributor priority
-  -> instruction-block priority
-  -> instruction-block id
-  -> original sequence
+new turn
+  -> resolve context contributors
+  -> build messages
+  -> possible suspension
+
+resume
+  -> restore frozen messages and reviewed action
 ```
-
-The resolved blocks are also stored in the run context under:
-
-```text
-agent_context_contributions
-```
-
-This diagnostic value contains block metadata, not hidden reasoning.
-
-## Resume boundary
-
-Context contributors are resolved only when a new turn is prepared.
-
-When an approved mutation resumes, MissionBay restores the frozen message set from the suspension. It does not re-read preferences, focus, page context, or other contributors during the same suspended turn.
-
-```text
-new user turn
-  -> resolve current contributors
-
-suspension + resume of that turn
-  -> reuse frozen messages and reviewed action data
-```
-
-This keeps the approved action bound to the context that was shown and reviewed before suspension.
 
 ## Backward compatibility
 
-`IAgentMemory` remains unchanged.
-
-MissionBay resolves memory roles as follows:
+`IAgentMemory` remains supported. MissionBay resolves roles as follows:
 
 ```text
-implements IAgentConversationMemory
+IAgentConversationMemory
   -> explicit conversation memory
 
-implements IAgentContextContributor
+IAgentContextContributor
   -> explicit context contributor
 
-implements both
-  -> both explicit roles
-
-implements only legacy IAgentMemory
-  -> conversation-compatible legacy memory
+legacy IAgentMemory only
+  -> conversation-compatible legacy memory with diagnostic warning
 ```
 
-Legacy-only memory remains readable and writable so existing plugins continue to work. Effective-composition diagnostics mark it as `legacy-memory` and recommend adopting one of the explicit contracts.
+New context-only components must not implement `IAgentMemory` merely to inject system text. New conversation stores should implement `IAgentConversationMemory`.
 
-MissionBay's built-in context-only resources implement only `IAgentContextContributor`. Their former no-op history methods have been removed. Legacy-only `IAgentMemory` remains supported for external plugins and is reported as such in diagnostics.
+## Configured presets and wrappers
 
-## Configured memory wrapper
+A Memory Profile contains concrete configured Component Preset IDs. `ConfiguredAgentMemoryResource` wraps only conversation-memory presets and delegates read/write behavior to the configured resource.
 
-`ConfiguredAgentMemoryResource` still provides the adapter used by component presets. It implements both new interfaces at the class level because the wrapped resource is selected at runtime.
+A Context Profile contains concrete configured `IAgentContextContributor` presets. Contributors connect directly to the `contextcontributors` dock; there is no combined memory/context wrapper.
 
-The wrapper therefore also implements `IAgentMemoryRoleProvider`. Its effective role is delegated to the wrapped component:
+When one configured preset exposes both a tool and a context facet, the flow builder creates one base resource and attaches the corresponding tool wrapper and context dock to that same instance.
 
-```text
-wrapped conversation memory
-  -> load/write conversation history
-
-wrapped context contributor
-  -> contribute instruction blocks, never receive chat writes
-
-wrapped legacy memory
-  -> preserve legacy conversation behavior and report a diagnostic warning
-```
-
-## Dual-role components
-
-A component may intentionally be both a tool and a context contributor.
-
-`UserPrefsAgentResource` is the main example:
-
-```text
-tool facet
-  list, set, and remove preferences
-
-context-contributor facet
-  inject current allowed preferences into the next new turn
-```
-
-This remains one configured component and one storage implementation. Tool and context wrappers point to the same preset resource in the effective flow. `AgentComponentFlowBuilder` creates one base resource per preset for a build, and context assembly de-duplicates identical resource objects within a turn.
-
-The same pattern applies to focus and sub-agent resources. Knowledge / Skills remains an explicit tool and is not attached as a context contributor.
-
-## Flow docks
-
-Assistant nodes expose two relevant docks:
+## Docks
 
 ```text
 memory
-  IAgentMemory
-  explicit conversation memories and backward-compatible adapters
+  IAgentMemory / IAgentConversationMemory
 
 contextcontributors
   IAgentContextContributor
-  pure contributors that do not need legacy memory methods
+
+tools
+  MissionBay\Api\IAgentTool
 ```
 
-Component presets continue to use the operator-facing `memory` capability for both conversation memory and context contribution. The configured wrapper accepts either kind through the common `IAgentResource` dock and exposes the effective role correctly. Pure contributors can also connect directly to `contextcontributors`.
+Knowledge / Skills is attached through `tools`, not through either memory dock.
 
-## Effective composition diagnostics
+## Profiles
 
-The effective-composition display now reports:
+The normal agent configuration separates:
+
+```text
+Tool Profiles
+Memory Profile
+Context Profile
+```
+
+Profiles reference configured Component Presets, not implementation classes. Preset configuration such as namespace, retention limit, priority, credentials, or user scope is reused unchanged.
+
+Older mixed profile records remain readable through the compatibility splitter. This is intentional supported compatibility and is not an open cleanup item. New and resaved configurations use the separated profile fields.
+
+See `AGENT_MEMORY_CONTEXT_PROFILES.md`.
+
+## Diagnostics
+
+Effective Composition reports separately:
 
 ```text
 conversation-memory
@@ -213,37 +150,8 @@ legacy-memory
 tool
 ```
 
-For each configured preset it reports the independently resolved tool, conversation-memory and context-contributor roles. It also shows separate KPI counts for conversation memories and context contributors.
+It also shows the contributing profile, concrete preset id, implementation, effective dock, priority, and redacted configuration.
 
-## Deliberate compatibility boundary
+## Stable boundary
 
-This change does not remove or redesign:
-
-```text
-IAgentMemory
-IAgentContext::getMemory()
-IAgentContext::setMemory()
-```
-
-Those APIs remain available while stable `AgentState` and `AgentResult` models are introduced later. Removing them in the same patch would mix a contract clarification with a much larger state migration.
-
-## Memory/context profile layer
-
-The operator-facing profile is implemented by `AgentMemoryProfileResolver` and `AgentMemoryProfileAdminDisplay`.
-
-Conceptually:
-
-```text
-separate memory and context profiles
-  -> component preset
-  -> automatic or explicit role
-  -> enabled
-  -> deterministic priority
-  -> conversation read/write flags where applicable
-```
-
-When a profile is selected, tool profiles resolve tool facets only and the separate memory and context profiles becomes authoritative for memory facets. Repeated preset IDs are merged before the flow is built, so a component such as user preferences remains one configured base resource even when it is both callable and context-producing.
-
-Agents without a selected profile retain the previous compatible tool-profile and expert-component behavior.
-
-See `AGENT_MEMORY_CONTEXT_PROFILES.md` for the full profile and administration contract.
+`IAgentContext::getMemory()` and `setMemory()` remain for the shared compatibility contract. MissionBay-specific typed state access is provided by `MissionBay\Api\IAgentStateContext` and does not belong in AssistantFoundation.

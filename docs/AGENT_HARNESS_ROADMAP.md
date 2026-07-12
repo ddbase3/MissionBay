@@ -1,53 +1,17 @@
-# MissionBay Agent Harness Roadmap
+# MissionBay Agent Harness Status
 
-## Completed
+## Status
 
-- Component-based stage resolution and explicit default ordering.
-- Standard `context-compaction` with integrated context assessment.
-- Structured action policy, review, suspension, and deterministic resume.
-- Mutation approval bound to exact tool input.
-- Durable server-owned suspension storage through `IStateStore`.
-- Opaque resume handles, short claim leases, one-time consumption, and replay rejection.
-- Final mutation commit guard with authorization revalidation, optimistic version checks, mutation cache bypass, and typed audit events.
-- Tool input validation before policy and output validation after execution or cache lookup, with structured correctable observations.
-- Partial final response when the tool-loop limit is reached.
-- Cleanup from 17 visible default stages to a compact semantic pipeline.
-- Run-specific capability catalog with duplicate-name rejection, agent/profile hard boundaries, deterministic context ranking, bounded model exposure, and exact-selection execution enforcement.
-- Explicit per-agent configuration for tools, capability providers, modules, resource providers, and prompt providers.
-- Configured component resolution through `IComponentResolver` without granting unrelated global capabilities.
-- Module activation with run-local instructions, capabilities, resources, prompts, and semantic stage mounts.
-- Shared administration UI for capability source and tool-selection settings.
-- Budget, cache, result verification, resume, loop control, and continuation mechanics moved into services/checkpoints.
-- MissionBay documentation aligned with the compact pipeline.
-- Orchestrator profiles with a fixed canonical core-stage order, read-only built-in modes, bounded tool-loop and selection settings, and runtime validation.
-- Profile-centred agent administration: operators select an orchestrator profile and reusable tool profiles; direct components and low-level capability settings moved to an explicit expert/legacy section.
-- Tool profiles reusable by internal agents, MCP, or both, including preservation of presets that expose both tool and memory facets.
-- Base3IliasLab administration integration for orchestrator profiles.
-- Read-only effective agent composition diagnostics with runtime profile expansion, actual callable tool names, memory facets, capability-source resolution, module stage mounts, final pipeline validation, and redacted diagnostic data.
-- Single-line Orchestrator Profile search and filter control zones with horizontal overflow on narrow screens.
-- Explicit separation of conversation history from run-local prompt/context contribution through `IAgentConversationMemory`, `IAgentContextContributor`, and typed `AgentInstructionBlock` values.
-- Backward-compatible role resolution for legacy `IAgentMemory` implementations, with conversation-only writes and effective-composition warnings.
-- Dual-role tool/context components remain one configured runtime resource, with run-local de-duplication and frozen contributor messages across suspension/resume.
-- Separate operator-facing memory and context profiles that select concrete configured Component Presets, with agent-form selection, effective-composition diagnostics, and a bounded compatibility reader for old combined records.
-- Stable typed `AgentState` and transport-neutral `AgentResult` models with task, plan, knowledge, execution, memory, context-window, budget, suspension, and result sections.
-- Backward-compatible `MissionBay\Api\IAgentStateContext` extension while the existing `IAgentContext` variable bag remains available for experimental and stage-specific data.
-- Incremental `AgentStateSynchronizer` projection from existing tool-loop context keys, including final visible output and access through orchestrator, turn, and execution results.
-- Chatbot-agent `Reference context` configuration moved into the same collapsible visual pattern as the agent form's expert/legacy configuration.
-- ILIAS session conversation memory moved fully behind `ISession`, with deterministic round-trip, trimming, and reset coverage.
-- Built-in context-only resources no longer pretend to be chat-history stores or expose no-op `IAgentMemory` methods.
-- Knowledge/skills tool exposure reduced from 22 specialized functions to six focused functions; compatibility aliases are no longer advertised.
-- Knowledge, preference, and focus writes now participate in mutation approval through explicit tool annotations.
-- Knowledge/skills administration reduced to common filters and actions while retaining technical metadata in the backend/detail model.
-- Deterministic minimal task normalization in turn preparation, with follow-up-aware capability selection and conversation-recall tool bypass, reusing `AgentTaskState` without a new stage or model call.
-- Provider-answer fast path for web search: bounded tool output is returned directly, without AI compaction, another tool-decision call, semantic verification, or a final rewriting model call when the search adapter already returned a usable answer.
-- Recoverable model-decision failures after successful observations now fall through to a partial final response instead of discarding evidence.
-- Knowledge/skills entries can be edited through one simplified modal form; the former inline content editor is no longer the normal UI path.
-- MissionBay-only `IAgentStateContext` moved from AssistantFoundation to `MissionBay/Api`; the old foundation file is listed for deletion.
-- Deliberate orchestrator profile with concise evidence planning stored in the existing `AgentPlanState`, without another stage, model call, planning interface, or provider hierarchy; existing semantic verification remains the verification boundary.
-- Visible conversation history is supplied to every task and capability-selection request without phrase classifiers or wording-specific regular expressions. The current user turn is persisted before later orchestration can fail.
-- Memory/context profiles now link directly to Component Presets, show the relevant preset configuration summary, and can deep-link into the generated preset editor for storage namespace, history limit, and priority.
+The bounded agent-harness migration is complete.
 
-## Current default stages
+```text
+Harness completion: 100%
+Open migration items: 0
+```
+
+This document is retained as the final status record. It is no longer an open-ended roadmap.
+
+## Stable default pipeline
 
 ```text
 capability-discovery
@@ -60,29 +24,86 @@ tool-observation
 semantic-verification
 ```
 
-## Finite cleanup countdown
+The order is canonical. Profiles may select supported modes and limits, but they cannot freely reorder required semantic stages.
 
-The current migration is governed by `AGENT_LEGACY_CLEANUP.md`. The list is fixed and may only shrink.
+## Completed architecture
+
+### Orchestration
+
+- component-resolved semantic stages;
+- compact default pipeline;
+- bounded capability discovery and selection;
+- action policy, review, suspension, deterministic resume, and replay rejection;
+- mutation commit guard for tools that explicitly require it;
+- tool input/output contract validation;
+- cache, budget, loop-progress, compaction, and verification services behind the semantic stages;
+- partial-result preservation after recoverable model failures;
+- deliberate profile using the existing `AgentPlanState` and semantic-verification boundary without another planning class hierarchy.
+
+### Configuration
+
+- orchestrator profiles;
+- reusable tool profiles;
+- separate Memory Profiles containing configured conversation-memory Component Presets;
+- separate Context Profiles containing configured `IAgentContextContributor` Component Presets;
+- one shared configured base resource when the same preset contributes tool and context facets;
+- profile-centred agent forms with expert/legacy settings isolated in a collapsible section;
+- complete redacted agent-configuration export at the bottom of the agent form;
+- Effective Composition diagnostics.
+
+### Memory and context
+
+- visible conversation history supplied to later turns;
+- current user message persisted before later orchestration can fail;
+- `ISession`-based session memory with concrete preset and conversation isolation;
+- explicit `IAgentConversationMemory` and `IAgentContextContributor` contracts;
+- built-in context contributors no longer implement fake/no-op chat-history APIs;
+- Knowledge / Skills remains an explicit tool and is not conversation memory or automatic context injection;
+- no phrase-specific conversation-routing regular expressions.
+
+### State and results
+
+- stable provider-neutral `AgentState` and `AgentResult` DTOs;
+- typed task, plan, knowledge, execution, memory, context-window, budget, suspension, and result areas;
+- dynamic context variables retained for experimental and integration-specific values;
+- MissionBay-specific state-context access located in `MissionBay/Api`.
+
+### Administration and diagnostics
+
+- Memory, Context, Tool, Orchestrator, Component Preset, Agent, and Effective Composition displays;
+- simplified Knowledge / Skills tool and editor;
+- regex inventory/control script shipped with every patch from patch 16 onward;
+- Foundation interface ownership audit and complete extension documentation.
+
+## AssistantFoundation boundary
+
+Every interface remaining in `AssistantFoundation/src/Api` has a concrete plugin-to-plugin extension, replacement, or adapter use case.
+
+The normative ownership audit, implementation examples, and registration instructions are in:
 
 ```text
-C-06 conversation-memory reliability             done, hardened in patch 14
-C-05 knowledge/skills surface simplification     done in patch 13
-C-04 context-contributor legacy cleanup          done in patch 13
-C-03 minimal task normalization                  done in patch 14
-C-02 optional planning and verification          done in patch 15
-C-01 compatibility removal and documentation     open
-
-remaining: 1 / 6
+ASSISTANTFOUNDATION_EXTENSION_POINTS.md
 ```
 
-## Recommended next implementation
+MissionBay-only contracts remain in `MissionBay/Api`.
 
-### C-01: compatibility removal and documentation freeze
+## Supported compatibility boundaries
 
-The final cleanup patch audits Foundation ownership against the concrete extension use cases, removes the unadvertised type-specific knowledge aliases, migrates or removes the remaining ILIAS session-memory compatibility alias, and consolidates unused state or adapter code. Every moved file must be accompanied by an explicit delete list because ZIP extraction cannot remove obsolete paths.
+The following compatibility paths are intentionally supported and are not open cleanup tasks:
 
-No new feature is part of C-01. Its finish condition is a clean compatibility boundary, no unresolved migration placeholder, and a countdown of `0 / 6`.
+- direct legacy `IAgentMemory` implementations remain conversation-compatible;
+- older combined memory/context profile records are read and split by actual runtime interfaces until operators save the separated profile fields;
+- direct expert `agent_components` remain available only through explicit expert/legacy configuration;
+- unadvertised historical Knowledge tool names remain callable for saved flows and old system prompts, while new tool definitions expose only the reduced public surface.
 
-## After the countdown
+Compatibility is removed only through a separate migration plan with real stored-configuration migration and an explicit file-delete list.
 
-This document intentionally contains no additional migration backlog. Once C-01 is complete, further features require a separate bounded plan with a concrete use case, a finish condition, and an explicit file/type budget.
+## Completion rule
+
+The harness is closed at this point. Further work is a new feature or a targeted defect fix and requires:
+
+1. a concrete use case;
+2. a bounded finish condition;
+3. an explicit production type/file budget;
+4. updated extension documentation when Foundation contracts change;
+5. a complete file-delete list for moved or removed files.

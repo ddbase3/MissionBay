@@ -24,12 +24,14 @@ capability-discovery
 
 external transport
   -> shows exact tool name and structured input
-  -> collects approve, deny, or submit
-  -> sends resume_handle plus explicit responses
+  -> ends the current request or stream
+  -> collects the next user response
+  -> starts a new request with resume_handle plus either natural-language or explicit responses
 
 orchestrator resume service
   -> atomically claims the handle
   -> restores the suspension from server state
+  -> resolves natural-language input with the active chat model when needed
   -> validates one response per request
   -> validates action id, tool name, arguments, and fingerprint
   -> consumes the handle before approved execution
@@ -38,6 +40,114 @@ orchestrator resume service
 ```
 
 A suspended run does not execute the reviewed action and does not generate the normal final answer.
+
+## Two-request transport model
+
+Human interaction never keeps the original transport connection open.
+
+### First request
+
+The agent reaches a review boundary, persists the suspension, returns an opaque `resume_handle`, and completes the current request.
+
+For SSE, MissionBay emits:
+
+```text
+agent.interaction.required
+  -> payload contains status, interaction_requests, and resume_handle
+done
+  -> the SSE connection closes
+```
+
+For REST, the endpoint returns:
+
+```json
+{
+  "type": "interaction_required",
+  "status": "awaiting_approval",
+  "resume_handle": "opaque handle",
+  "interaction_requests": []
+}
+```
+
+### Second request
+
+The next normal chat message is sent with the stored handle:
+
+```json
+{
+  "prompt": "jo hau rein",
+  "resume": {
+    "resume_handle": "opaque handle",
+    "response_text": "jo hau rein",
+    "responses": []
+  }
+}
+```
+
+The Chatbot integration maps both SSE and REST to the same `AgentResume` payload. Other transport adapters, including MCP endpoints, can forward the same explicit responses or `response_text` without changing MissionBay resume semantics.
+
+## Natural-language decisions
+
+A user may respond in unrestricted natural language, for example:
+
+```text
+I agree.
+ok
+ja
+jo hau rein
+go
+in Ordnung
+lass das
+abbrechen
+```
+
+No regular expression or fixed consent word list decides whether the action may run.
+
+When `AgentResume` contains `response_text` but no explicit responses, `AgentInteractionResponseResolver` asks the already active chat model to classify the response against the exact server-owned interaction requests. The resolver accepts only strict structured output and validates:
+
+- every returned request id exists,
+- every pending request is covered exactly once,
+- the decision is valid for the request kind,
+- no action payload or fingerprint is supplied by the client.
+
+The normalized decisions are:
+
+```text
+approve
+deny
+submit
+unclear
+```
+
+The transport-level and DTO decision value for rejection is `deny`.
+
+## Unclear responses
+
+An unclear, unrelated, incomplete, invalid, or failed model interpretation never executes the pending action.
+
+The resume claim is released, the original suspension remains server-side, and the same `resume_handle` is returned with the same public interaction requests. The user can then answer again in a later request.
+
+The handle is consumed only after a complete and valid response set has been validated.
+
+## Explicit API responses
+
+Programmatic clients do not need natural-language interpretation. They may send explicit normalized responses:
+
+```json
+{
+  "resume_handle": "opaque handle",
+  "responses": [
+    {
+      "request_id": "exact request id",
+      "decision": "approve",
+      "input": {},
+      "note": "optional"
+    }
+  ]
+}
+```
+
+This remains the preferred form for deterministic API and MCP integrations. Natural-language and explicit response modes share the same server-side validation and one-time handle semantics.
 
 ## Mutation metadata
 

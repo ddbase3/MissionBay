@@ -78,6 +78,7 @@ use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use MissionBay\Orchestrator\Policy\ComponentAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Service\AgentActionResumeService;
+use MissionBay\Orchestrator\Service\AgentInteractionResponseResolver;
 use MissionBay\Orchestrator\Service\AgentActionReviewService;
 use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
 use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
@@ -262,10 +263,12 @@ class MissionBayPlugin implements IPlugin, ICheck {
 
 				return new UnavailableAgentSuspensionRepository();
 			}, IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentInteractionResponseResolver::class, fn() => new AgentInteractionResponseResolver(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionResumeService::class, fn($c) => new AgentActionResumeService(
 				$c->get(AgentActionFingerprint::class),
 				$c->get(IAgentSuspensionRepository::class),
-				$c->get(IEventManager::class)
+				$c->get(IEventManager::class),
+				$c->get(AgentInteractionResponseResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionReviewService::class, fn($c) => new AgentActionReviewService(
 				$c->get(AgentActionFingerprint::class),

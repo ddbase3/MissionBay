@@ -15,7 +15,7 @@ A memory profile is stored in `agent-memory-profile` and contains a list of conc
 }
 ```
 
-The administration display lists only presets whose runtime resource implements `IAgentConversationMemory` or a compatible legacy `IAgentMemory` implementation. Preset values such as `namespace`, `max`, and `priority` are reused unchanged.
+The administration display lists only concrete configured presets whose runtime resource implements `IAgentConversationMemory` or a supported legacy `IAgentMemory` implementation. Preset values such as `namespace`, `max`, and `priority` are reused unchanged; the profile never creates another default configuration.
 
 Memory profile entries are attached only to the assistant node's `memory` dock. They are not context contributors and do not expose role switches.
 
@@ -60,4 +60,4 @@ Older `agent-memory-profile` records may contain mixed `entries` with roles. Dur
 - the context resolver derives only presets that actually implement context contribution;
 - saving a new memory or context profile writes the new simple preset-list format.
 
-No new combined profiles are created. The compatibility reader is scheduled for removal after existing settings have been resaved in the split format.
+No new combined profiles are created. The compatibility reader remains an intentional supported boundary for existing stored settings. Removing it requires a separate stored-settings migration and an explicit delete list; it is not an open harness-cleanup item.

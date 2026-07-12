@@ -44,6 +44,7 @@ class AgentExecutionService implements IAgentExecutionService {
 	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
 	private const CANONICAL_USER_INPUT = 'prompt';
 	private const LEGACY_USER_INPUT = 'user';
+	private const CANONICAL_RESUME_INPUT = 'resume';
 
 	/**
 	 * @var array<int,string>
@@ -155,9 +156,11 @@ class AgentExecutionService implements IAgentExecutionService {
 	 * @param array<string,mixed> $contextVars
 	 */
 	public function run(array $agentSettings, array $inputs = [], array $contextVars = []): AgentExecutionResult {
+		$inputs = $this->normalizeInputs($inputs);
 		$effectiveFlow = $this->buildEffectiveFlow($agentSettings);
+		$effectiveFlow = $this->prepareFlowForInputs($effectiveFlow, $agentSettings, $inputs);
 		[$flow, $context] = $this->createFlow($effectiveFlow, $contextVars);
-		$output = $flow->run($this->normalizeInputs($inputs));
+		$output = $flow->run($inputs);
 		$agentResult = $context instanceof IAgentStateContext ? $context->getResult() : null;
 
 		return new AgentExecutionResult($output, $effectiveFlow, $this->warnings, $agentResult);
@@ -169,9 +172,11 @@ class AgentExecutionService implements IAgentExecutionService {
 	 * @param array<string,mixed> $contextVars
 	 */
 	public function stream(array $agentSettings, array $inputs = [], array $contextVars = []): void {
+		$inputs = $this->normalizeInputs($inputs);
 		$effectiveFlow = $this->buildEffectiveFlow($agentSettings);
+		$effectiveFlow = $this->prepareFlowForInputs($effectiveFlow, $agentSettings, $inputs);
 		[$flow] = $this->createFlow($effectiveFlow, $contextVars);
-		$flow->run($this->normalizeInputs($inputs));
+		$flow->run($inputs);
 	}
 
 	/**
@@ -286,6 +291,78 @@ class AgentExecutionService implements IAgentExecutionService {
 		return $flow;
 	}
 
+
+	/**
+	 * Adds the resume connection only for an actual resume request.
+	 *
+	 * StrictFlow treats every configured incoming connection as required. An
+	 * unconditional resume connection would therefore block normal chat turns
+	 * that correctly omit the optional resume input.
+	 *
+	 * @param array<string,mixed> $flow
+	 * @param array<string,mixed> $agentSettings
+	 * @param array<string,mixed> $inputs
+	 * @return array<string,mixed>
+	 */
+	private function prepareFlowForInputs(array $flow, array $agentSettings, array $inputs): array {
+		if (!array_key_exists(self::CANONICAL_RESUME_INPUT, $inputs)) {
+			return $flow;
+		}
+
+		$assistantNodeId = $this->normalizeAssistantNodeId(
+			$agentSettings['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID
+		);
+
+		return $this->ensureResumeInputConnection($flow, $assistantNodeId);
+	}
+
+	/**
+	 * Adds the canonical external resume input to the effective assistant node.
+	 * Stored flows from before durable resume support therefore remain valid.
+	 *
+	 * @param array<string,mixed> $flow
+	 * @return array<string,mixed>
+	 */
+	private function ensureResumeInputConnection(array $flow, string $assistantNodeId): array {
+		$nodeIndex = $this->findAssistantNodeIndex($flow, $assistantNodeId);
+		if ($nodeIndex === null || !isset($flow['nodes'][$nodeIndex]) || !is_array($flow['nodes'][$nodeIndex])) {
+			$this->warnings[] = 'Assistant node not found for resume input connection: ' . $assistantNodeId;
+			return $flow;
+		}
+
+		$targetNodeId = trim((string)($flow['nodes'][$nodeIndex]['id'] ?? ''));
+		if ($targetNodeId === '') {
+			$this->warnings[] = 'Assistant node has no id for resume input connection.';
+			return $flow;
+		}
+
+		if (!isset($flow['connections']) || !is_array($flow['connections'])) {
+			$flow['connections'] = [];
+		}
+
+		foreach ($flow['connections'] as $connection) {
+			if (!is_array($connection)) {
+				continue;
+			}
+			if (
+				(string)($connection['from'] ?? '') === '__input__'
+				&& (string)($connection['output'] ?? '') === self::CANONICAL_RESUME_INPUT
+				&& (string)($connection['to'] ?? '') === $targetNodeId
+				&& (string)($connection['input'] ?? '') === self::CANONICAL_RESUME_INPUT
+			) {
+				return $flow;
+			}
+		}
+
+		$flow['connections'][] = [
+			'from' => '__input__',
+			'output' => self::CANONICAL_RESUME_INPUT,
+			'to' => $targetNodeId,
+			'input' => self::CANONICAL_RESUME_INPUT
+		];
+
+		return $flow;
+	}
 
 	/**
 	 * Applies the reusable high-level agent capability configuration to the

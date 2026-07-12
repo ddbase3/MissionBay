@@ -26,10 +26,14 @@ use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentInstructionBlock;
+use AssistantFoundation\Dto\AgentMutationCommitDecision;
+use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Api\IAgentTool;
 
-class UserPrefsAgentResource extends AbstractAgentResource implements IAgentContextContributor, IAgentTool, ISchemaProvider {
+class UserPrefsAgentResource extends AbstractAgentResource implements IAgentContextContributor, IAgentTool, IAgentMutationGuardedTool, ISchemaProvider {
 
 	private const SYSTEM_TITLE = 'User preferences';
 
@@ -66,7 +70,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 			'properties' => [
 				'priority' => [
 					'type' => 'integer',
-					'description' => 'Memory priority used when multiple memories are attached to an assistant node. Lower values are loaded first.',
+					'description' => 'Context contribution priority used when multiple contributors are attached to an assistant node. Lower values are loaded first.',
 					'default' => 20
 				]
 			],
@@ -130,15 +134,34 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 	// ----------------------------------------------------
 
 	public function getToolDefinitions(): array {
+		$definitions = $this->loadPrefDefinitions(true);
+		$catalog = $this->buildToolDefinitionCatalog($definitions);
+		$keySchema = [
+			'type' => 'string',
+			'description' => 'Exact preference key returned by list_allowed_prefs. Never translate or infer a key from a label.'
+		];
+
+		if ($catalog['keys'] !== []) {
+			$keySchema['enum'] = $catalog['keys'];
+		}
+
+		$valueDescription = 'Canonical preference value returned in allowed_values by list_allowed_prefs. Never translate or infer enum values.';
+		if ($catalog['summary'] !== '') {
+			$valueDescription .= ' Current catalog: ' . $catalog['summary'];
+		}
+
 		return [[
 			'type' => 'function',
 			'label' => 'User Preferences',
 			'category' => 'memory',
 			'tags' => ['preferences', 'memory', 'user', 'session'],
-			'priority' => 60,
+			'priority' => 100,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'list_allowed_prefs',
-				'description' => 'Lists allowed user preference keys and their metadata.',
+				'description' => 'Required discovery step before changing or removing a preference. Returns exact keys, canonical allowed values, types and scopes. Call this before set_user_pref or unset_user_pref instead of guessing from natural-language labels.',
 				'parameters' => [
 					'type' => 'object',
 					'properties' => [
@@ -158,23 +181,22 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 			'readOnlyHint' => false,
 			'mutation' => true,
 			'requiresApproval' => true,
+			'commitGuardRequired' => true,
 			'sideEffectHint' => true,
 			'function' => [
 				'name' => 'set_user_pref',
-				'description' => 'Sets a user/session preference value by key.',
+				'description' => 'Sets one preference after list_allowed_prefs has been called. Use only an exact returned key and the canonical returned value. Do not translate labels such as Anrede into keys and do not invent values.',
 				'parameters' => [
 					'type' => 'object',
 					'properties' => [
-						'key' => [
-							'type' => 'string',
-							'description' => 'Preference key (must be allowed).'
-						],
+						'key' => $keySchema,
 						'value' => [
-							'description' => 'Preference value (type depends on key).'
+							'description' => $valueDescription
 						],
 						'scope' => [
 							'type' => 'string',
-							'description' => 'Optional scope: "user" or "session". Resource will decide final scope.'
+							'enum' => ['user', 'session'],
+							'description' => 'Optional scope: "user" or "session". The resource resolves the final supported scope.'
 						]
 					],
 					'required' => ['key', 'value']
@@ -189,19 +211,18 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 			'readOnlyHint' => false,
 			'mutation' => true,
 			'requiresApproval' => true,
+			'commitGuardRequired' => true,
 			'sideEffectHint' => true,
 			'function' => [
 				'name' => 'unset_user_pref',
-				'description' => 'Removes a user/session preference value by key.',
+				'description' => 'Removes one preference after list_allowed_prefs has been called. Use only an exact returned key and never infer a key from a natural-language label.',
 				'parameters' => [
 					'type' => 'object',
 					'properties' => [
-						'key' => [
-							'type' => 'string',
-							'description' => 'Preference key (must be allowed).'
-						],
+						'key' => $keySchema,
 						'scope' => [
 							'type' => 'string',
+							'enum' => ['user', 'session'],
 							'description' => 'Optional scope: "user" or "session". If omitted, removes both for the current identity.'
 						]
 					],
@@ -214,20 +235,54 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 			'category' => 'memory',
 			'tags' => ['preferences', 'memory', 'user', 'session'],
 			'priority' => 55,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'list_user_prefs',
-				'description' => 'Lists currently stored preference values for the current user/session.',
+				'description' => 'Lists current preference values together with their exact definitions and the complete enabled preference catalog. Use the returned keys and allowed_values for later changes.',
 				'parameters' => [
 					'type' => 'object',
 					'properties' => [
 						'scope' => [
 							'type' => 'string',
+							'enum' => ['user', 'session'],
 							'description' => 'Optional scope filter: "user" or "session". If omitted, returns both.'
 						]
 					]
 				]
 			]
 		]];
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $definitions
+	 * @return array{keys:array<int,string>,summary:string}
+	 */
+	private function buildToolDefinitionCatalog(array $definitions): array {
+		$keys = [];
+		$entries = [];
+
+		foreach ($definitions as $definition) {
+			$key = trim((string)($definition['pref_key'] ?? ''));
+			if ($key === '') {
+				continue;
+			}
+
+			$keys[] = $key;
+			$allowedValues = $this->decodeJsonArray($definition['allowed_values'] ?? null);
+			if ($allowedValues !== null && $allowedValues !== []) {
+				$entries[] = $key . '=[' . implode('|', array_map(static fn(mixed $value): string => (string)$value, $allowedValues)) . ']';
+				continue;
+			}
+
+			$entries[] = $key . '=<' . trim((string)($definition['value_type'] ?? 'string')) . '>';
+		}
+
+		return [
+			'keys' => array_values(array_unique($keys)),
+			'summary' => implode('; ', $entries)
+		];
 	}
 
 	public function callTool(string $toolName, array $arguments, IAgentContext $context): array {
@@ -240,6 +295,340 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 		};
 	}
 
+
+	// ----------------------------------------------------
+	// Mutation commit guard
+	// ----------------------------------------------------
+
+	public function captureMutationCommitSnapshot(
+		AgentAction $action,
+		string $actionFingerprint,
+		IAgentContext $context
+	): AgentMutationCommitSnapshot {
+		$mutation = $this->resolveMutation($action);
+		$state = $this->loadMutationState($mutation['key'], $mutation['affected_scopes']);
+
+		return new AgentMutationCommitSnapshot(
+			$action->getId(),
+			$actionFingerprint,
+			$this->buildMutationAuthorization($mutation),
+			[
+				'plan' => $this->hashData($this->mutationPlanState($mutation)),
+				'definition' => $this->hashData($mutation['definition_state']),
+				'preference' => $this->hashData($state)
+			],
+			metadata: [
+				'operation' => $mutation['operation'],
+				'key' => $mutation['key'],
+				'scope' => $mutation['scope'],
+				'review' => $this->buildMutationReview($mutation, $state)
+			]
+		);
+	}
+
+	public function validateMutationCommit(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentMutationCommitDecision {
+		if ($snapshot->getActionId() !== $action->getId()) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_INVALID_SNAPSHOT,
+				'User preference mutation snapshot belongs to a different action.'
+			);
+		}
+
+		try {
+			$mutation = $this->resolveMutation($action);
+		} catch (\Throwable $e) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_REJECTED,
+				'User preference mutation is no longer valid: ' . $e->getMessage()
+			);
+		}
+
+		$metadata = $snapshot->getMetadata();
+		if (
+			trim((string)($metadata['operation'] ?? '')) !== $mutation['operation']
+			|| trim((string)($metadata['key'] ?? '')) !== $mutation['key']
+			|| trim((string)($metadata['scope'] ?? '')) !== $mutation['scope']
+		) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_INVALID_SNAPSHOT,
+				'User preference mutation snapshot does not match the approved action.'
+			);
+		}
+
+		$authorization = $snapshot->getAuthorization();
+		if (trim((string)($authorization['resource_id'] ?? '')) !== $this->id()) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_INVALID_SNAPSHOT,
+				'User preference mutation snapshot belongs to a different component preset.'
+			);
+		}
+		if (!$this->matchesMutationAuthorization($authorization, $mutation)) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_UNAUTHORIZED,
+				'User or session identity changed after the preference mutation was approved.'
+			);
+		}
+
+		$versions = $snapshot->getResourceVersions();
+		foreach (['plan', 'definition', 'preference'] as $versionKey) {
+			if (trim((string)($versions[$versionKey] ?? '')) === '') {
+				return AgentMutationCommitDecision::deny(
+					AgentMutationCommitDecision::CODE_INVALID_SNAPSHOT,
+					'User preference mutation snapshot is missing required state: ' . $versionKey
+				);
+			}
+		}
+
+		if (!hash_equals((string)$versions['definition'], $this->hashData($mutation['definition_state']))) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_STALE,
+				'Preference definition changed after approval.'
+			);
+		}
+		if (!hash_equals((string)$versions['plan'], $this->hashData($this->mutationPlanState($mutation)))) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_STALE,
+				'Preference mutation target changed after approval.'
+			);
+		}
+
+		$currentState = $this->loadMutationState($mutation['key'], $mutation['affected_scopes']);
+		if (!hash_equals((string)$versions['preference'], $this->hashData($currentState))) {
+			return AgentMutationCommitDecision::deny(
+				AgentMutationCommitDecision::CODE_STALE,
+				'Preference value changed after approval.'
+			);
+		}
+
+		return AgentMutationCommitDecision::allow(
+			'User preference identity, definition and current value are unchanged.'
+		);
+	}
+
+	/** @return array<string,mixed> */
+	private function resolveMutation(AgentAction $action): array {
+		$operation = $action->getName();
+		if (!in_array($operation, ['set_user_pref', 'unset_user_pref'], true)) {
+			throw new \InvalidArgumentException('Unsupported guarded user preference tool: ' . $operation);
+		}
+
+		$arguments = $action->getInput();
+		$key = trim((string)($arguments['key'] ?? ''));
+		if ($key === '') {
+			throw new \InvalidArgumentException('Missing parameter: key');
+		}
+
+		$definition = $this->loadPrefDefinition($key);
+		if ($definition === null) {
+			throw new \InvalidArgumentException('Preference key not allowed: ' . $key);
+		}
+		if ($operation === 'set_user_pref' && !(bool)($definition['enabled'] ?? false)) {
+			throw new \InvalidArgumentException('Preference key is disabled: ' . $key);
+		}
+
+		$value = null;
+		if ($operation === 'set_user_pref') {
+			if (!array_key_exists('value', $arguments)) {
+				throw new \InvalidArgumentException('Missing parameter: value');
+			}
+			$validated = $this->validateValue($definition, $arguments['value']);
+			if (($validated['ok'] ?? false) !== true) {
+				throw new \InvalidArgumentException((string)($validated['error'] ?? 'Invalid value'));
+			}
+			$value = (string)$validated['value'];
+		}
+
+		$requestedScope = strtolower(trim((string)($arguments['scope'] ?? '')));
+		if ($requestedScope !== '' && !in_array($requestedScope, ['user', 'session'], true)) {
+			throw new \InvalidArgumentException('Invalid preference scope: ' . $requestedScope);
+		}
+		$scope = $operation === 'unset_user_pref' && $requestedScope === ''
+			? 'both'
+			: $this->resolveFinalScope($requestedScope, (string)($definition['default_scope'] ?? 'user'));
+		$identity = $this->currentIdentity();
+		$affectedScopes = $this->resolveAffectedScopes($operation, $scope, $identity);
+
+		return [
+			'operation' => $operation,
+			'key' => $key,
+			'value' => $value,
+			'scope' => $scope,
+			'affected_scopes' => $affectedScopes,
+			'identity' => $identity,
+			'definition' => $definition,
+			'definition_state' => $this->definitionState($definition)
+		];
+	}
+
+	/** @param array<string,string> $identity @return string[] */
+	private function resolveAffectedScopes(string $operation, string $scope, array $identity): array {
+		if ($operation === 'set_user_pref') {
+			$scopes = [$scope];
+			if ($scope === 'user' && $identity['session_id'] !== '') {
+				$scopes[] = 'session';
+			}
+		} elseif ($scope === 'both') {
+			$scopes = [];
+			if ($identity['user_id'] !== '') {
+				$scopes[] = 'user';
+			}
+			if ($identity['session_id'] !== '') {
+				$scopes[] = 'session';
+			}
+		} else {
+			$scopes = [$scope];
+		}
+
+		$scopes = array_values(array_unique($scopes));
+		sort($scopes, SORT_STRING);
+		if ($scopes === []) {
+			throw new \RuntimeException('No user or session identity is available for this preference mutation.');
+		}
+		if (in_array('user', $scopes, true) && $identity['user_id'] === '') {
+			throw new \RuntimeException('No user identity is available for this preference mutation.');
+		}
+		if (in_array('session', $scopes, true) && $identity['session_id'] === '') {
+			throw new \RuntimeException('No session identity is available for this preference mutation.');
+		}
+
+		return $scopes;
+	}
+
+	/** @return array<string,string> */
+	private function currentIdentity(): array {
+		$this->session->start();
+		$userId = $this->accesscontrol->getUserId();
+
+		return [
+			'user_id' => $userId !== null ? trim((string)$userId) : '',
+			'session_id' => trim((string)$this->session->getId())
+		];
+	}
+
+	/** @param array<string,mixed> $mutation @return array<string,string> */
+	private function buildMutationAuthorization(array $mutation): array {
+		$authorization = ['resource_id' => $this->id()];
+		if (in_array('user', $mutation['affected_scopes'], true)) {
+			$authorization['user_id'] = $mutation['identity']['user_id'];
+		}
+		if (in_array('session', $mutation['affected_scopes'], true)) {
+			$authorization['session_id'] = $mutation['identity']['session_id'];
+		}
+		return $authorization;
+	}
+
+	/** @param array<string,mixed> $authorization @param array<string,mixed> $mutation */
+	private function matchesMutationAuthorization(array $authorization, array $mutation): bool {
+		$current = $this->buildMutationAuthorization($mutation);
+		foreach (['user_id', 'session_id'] as $key) {
+			if (array_key_exists($key, $current) && (string)($authorization[$key] ?? '') !== $current[$key]) {
+				return false;
+			}
+			if (!array_key_exists($key, $current) && array_key_exists($key, $authorization)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** @param array<string,mixed> $mutation @return array<string,mixed> */
+	private function mutationPlanState(array $mutation): array {
+		return [
+			'operation' => $mutation['operation'],
+			'key' => $mutation['key'],
+			'value' => $mutation['value'],
+			'scope' => $mutation['scope'],
+			'affected_scopes' => $mutation['affected_scopes']
+		];
+	}
+
+	/** @param array<string,mixed> $definition @return array<string,mixed> */
+	private function definitionState(array $definition): array {
+		return [
+			'pref_key' => (string)($definition['pref_key'] ?? ''),
+			'description' => (string)($definition['description'] ?? ''),
+			'system_template' => (string)($definition['system_template'] ?? ''),
+			'value_type' => (string)($definition['value_type'] ?? ''),
+			'allowed_values' => $this->decodeJsonArray($definition['allowed_values'] ?? null),
+			'default_scope' => (string)($definition['default_scope'] ?? ''),
+			'enabled' => (bool)($definition['enabled'] ?? false),
+			'updated' => (string)($definition['updated'] ?? '')
+		];
+	}
+
+	/** @param string[] $affectedScopes @return array<string,mixed> */
+	private function loadMutationState(string $key, array $affectedScopes): array {
+		$values = [];
+		foreach ($affectedScopes as $scope) {
+			$values[$scope] = ['exists' => false, 'value' => '', 'updated' => ''];
+		}
+		foreach ($this->loadCurrentPrefValues('') as $row) {
+			$scope = (string)($row['scope'] ?? '');
+			if ((string)($row['pref_key'] ?? '') !== $key || !array_key_exists($scope, $values)) {
+				continue;
+			}
+			$values[$scope] = [
+				'exists' => true,
+				'value' => (string)($row['pref_value'] ?? ''),
+				'updated' => (string)($row['updated'] ?? '')
+			];
+		}
+		ksort($values, SORT_STRING);
+
+		return ['key' => $key, 'values' => $values];
+	}
+
+	/** @param array<string,mixed> $mutation @param array<string,mixed> $state @return array<string,mixed> */
+	private function buildMutationReview(array $mutation, array $state): array {
+		$currentValues = [];
+		foreach ($state['values'] as $scope => $valueState) {
+			$currentValues[$scope] = ($valueState['exists'] ?? false) === true
+				? (string)$valueState['value']
+				: null;
+		}
+
+		return [
+			'operation' => $mutation['operation'] === 'set_user_pref'
+				? 'Set user preference'
+				: 'Remove user preference',
+			'preference' => trim((string)($mutation['definition']['description'] ?? '')) !== ''
+				? (string)$mutation['definition']['description']
+				: $mutation['key'],
+			'key' => $mutation['key'],
+			'scope' => $mutation['scope'],
+			'current_values' => $currentValues,
+			'new_value' => $mutation['value']
+		];
+	}
+
+	/** @param array<mixed> $value */
+	private function hashData(array $value): string {
+		$json = json_encode($this->canonicalize($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		if (!is_string($json)) {
+			throw new \RuntimeException('User preference mutation state could not be serialized.');
+		}
+		return hash('sha256', $json);
+	}
+
+	private function canonicalize(mixed $value): mixed {
+		if (!is_array($value)) {
+			return $value;
+		}
+		if (array_is_list($value)) {
+			return array_map(fn(mixed $entry): mixed => $this->canonicalize($entry), $value);
+		}
+		ksort($value, SORT_STRING);
+		foreach ($value as $key => $entry) {
+			$value[$key] = $this->canonicalize($entry);
+		}
+		return $value;
+	}
+
+
 	// ----------------------------------------------------
 	// Tools
 	// ----------------------------------------------------
@@ -249,17 +638,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 
 		$defs = $this->loadPrefDefinitions($enabledOnly);
 
-		$out = [];
-		foreach ($defs as $d) {
-			$out[] = [
-				'key' => $d['pref_key'],
-				'description' => $d['description'],
-				'value_type' => $d['value_type'],
-				'allowed_values' => $d['allowed_values'],
-				'default_scope' => $d['default_scope'],
-				'enabled' => (bool)$d['enabled']
-			];
-		}
+		$out = $this->formatPrefDefinitions($defs);
 
 		$this->log('tool list_allowed_prefs => ' . count($out) . ' defs');
 		return [
@@ -369,16 +748,23 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 
 	private function toolListUserPrefs(array $arguments): array {
 		$scopeFilter = trim((string)($arguments['scope'] ?? ''));
-
 		$rows = $this->loadCurrentPrefValues($scopeFilter);
+		$definitions = $this->formatPrefDefinitions($this->loadPrefDefinitions(true));
+		$definitionsByKey = [];
+
+		foreach ($definitions as $definition) {
+			$definitionsByKey[(string)$definition['key']] = $definition;
+		}
 
 		$out = [];
-		foreach ($rows as $r) {
+		foreach ($rows as $row) {
+			$key = (string)$row['pref_key'];
 			$out[] = [
-				'key' => $r['pref_key'],
-				'value' => $r['pref_value'],
-				'scope' => $r['scope'],
-				'updated' => $r['updated']
+				'key' => $key,
+				'value' => $row['pref_value'],
+				'scope' => $row['scope'],
+				'updated' => $row['updated'],
+				'definition' => $definitionsByKey[$key] ?? null
 			];
 		}
 
@@ -386,8 +772,30 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 
 		return [
 			'count' => count($out),
-			'prefs' => $out
+			'prefs' => $out,
+			'allowed' => $definitions
 		];
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $definitions
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function formatPrefDefinitions(array $definitions): array {
+		$out = [];
+
+		foreach ($definitions as $definition) {
+			$out[] = [
+				'key' => (string)($definition['pref_key'] ?? ''),
+				'description' => (string)($definition['description'] ?? ''),
+				'value_type' => (string)($definition['value_type'] ?? 'string'),
+				'allowed_values' => $this->decodeJsonArray($definition['allowed_values'] ?? null),
+				'default_scope' => (string)($definition['default_scope'] ?? 'user'),
+				'enabled' => (bool)($definition['enabled'] ?? false)
+			];
+		}
+
+		return $out;
 	}
 
 	// ----------------------------------------------------
@@ -458,9 +866,23 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 
 		$allowed = $this->decodeJsonArray($def['allowed_values'] ?? null);
 		if ($allowed !== null && $allowed !== []) {
-			if (!in_array($val, $allowed, true)) {
-				return ['ok' => false, 'error' => 'Value not allowed for this key'];
+			if (in_array($val, $allowed, true)) {
+				return ['ok' => true, 'value' => $val];
 			}
+
+			$caseInsensitiveMatches = array_values(array_filter(
+				$allowed,
+				static fn(mixed $allowedValue): bool => is_scalar($allowedValue)
+					&& strcasecmp($val, (string)$allowedValue) === 0
+			));
+			if (count($caseInsensitiveMatches) === 1) {
+				return ['ok' => true, 'value' => (string)$caseInsensitiveMatches[0]];
+			}
+
+			return [
+				'ok' => false,
+				'error' => 'Value not allowed for this key. Allowed values: ' . implode(', ', array_map(static fn(mixed $allowedValue): string => (string)$allowedValue, $allowed))
+			];
 		}
 
 		return ['ok' => true, 'value' => $val];
@@ -609,7 +1031,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 		$this->database->connect();
 
 		$where = $enabledOnly ? 'WHERE enabled=1' : '';
-		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled
+		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled, updated
 				  FROM base3_missionbay_userpref_def
 				  $where
 				  ORDER BY sort_order ASC, pref_key ASC";
@@ -620,7 +1042,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 	private function loadPrefDefinition(string $key): ?array {
 		$this->database->connect();
 
-		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled
+		$q = "SELECT pref_key, description, system_template, value_type, allowed_values, default_scope, sort_order, enabled, updated
 				  FROM base3_missionbay_userpref_def
 				  WHERE pref_key='" . $this->database->escape($key) . "'
 				  LIMIT 1";
