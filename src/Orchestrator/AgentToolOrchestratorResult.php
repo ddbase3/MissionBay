@@ -26,6 +26,7 @@ use AssistantFoundation\Dto\AgentCapabilitySelection;
 use AssistantFoundation\Dto\AgentContextCompaction;
 use AssistantFoundation\Dto\AgentContinuationDecision;
 use AssistantFoundation\Dto\AgentProgressAssessment;
+use AssistantFoundation\Dto\AgentResult;
 use AssistantFoundation\Dto\AgentResultVerification;
 use AssistantFoundation\Dto\AgentStageTraceEntry;
 use AssistantFoundation\Dto\AgentToolContractValidation;
@@ -91,7 +92,8 @@ class AgentToolOrchestratorResult {
 		private array $interactionRequests = [],
 		private string $resumeHandle = '',
 		private array $toolContractValidations = [],
-		private array $capabilitySelections = []
+		private array $capabilitySelections = [],
+		private ?AgentResult $agentResult = null
 	) {
 		if (!in_array($this->executionStatus, AgentExecutionStatus::all(), true)) {
 			throw new \InvalidArgumentException('Unsupported execution status: ' . $this->executionStatus);
@@ -355,6 +357,10 @@ class AgentToolOrchestratorResult {
 	/** @return array<int,AgentCapabilitySelection> */
 	public function getCapabilitySelections(): array {
 		return $this->capabilitySelections;
+	}
+
+	public function getAgentResult(): ?AgentResult {
+		return $this->agentResult;
 	}
 
 	public function hasFailure(): bool {

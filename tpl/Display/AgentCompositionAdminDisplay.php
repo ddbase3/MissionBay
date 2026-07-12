@@ -125,6 +125,8 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const wrapper = element('agent-composition-cell');
 		wrapper.appendChild(element('agent-composition-cell-main', text(row.orchestrator_profile)));
 		wrapper.appendChild(element('agent-composition-cell-sub', row.tool_profile_count + ' tool profile(s): ' + text(row.tool_profile_text, 'none')));
+		wrapper.appendChild(element('agent-composition-cell-sub', 'memory: ' + text(row.memory_profile, 'none')));
+		wrapper.appendChild(element('agent-composition-cell-sub', 'context: ' + text(row.context_profile, 'none')));
 		return wrapper;
 	}
 	function renderLlm(value, row) {
@@ -177,7 +179,9 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const summary = element('agent-composition-summary');
 		summary.appendChild(buildKpi((record.final_stage_ids || []).length, 'effective stages'));
 		summary.appendChild(buildKpi((record.tools || []).length, 'catalog tools'));
-		summary.appendChild(buildKpi((record.memories || []).length, 'memory resources'));
+		const memoryRows = record.memories || [];
+		summary.appendChild(buildKpi(memoryRows.filter((memory) => memory.conversation_memory).length, 'conversation memories'));
+		summary.appendChild(buildKpi(memoryRows.filter((memory) => memory.context_contributor).length, 'context contributors'));
 		summary.appendChild(buildKpi(record.resource_count || 0, 'flow resources'));
 		root.appendChild(summary);
 
@@ -188,7 +192,11 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const title = document.createElement('h3'); title.textContent = 'Orchestrator and stages'; overview.prepend(title);
 		appendKeyValue(overview, 'Agent', record.label + ' (' + record.agent_id + ')');
 		appendKeyValue(overview, 'LLM', record.llm || 'not selected');
-		appendKeyValue(overview, 'Profile', text(record.orchestrator && record.orchestrator.label) + ' [' + text(record.orchestrator && record.orchestrator.id) + ']');
+		appendKeyValue(overview, 'Orchestrator profile', text(record.orchestrator && record.orchestrator.label) + ' [' + text(record.orchestrator && record.orchestrator.id) + ']');
+		const memoryProfile = record.memory_profile || {};
+		const contextProfile = record.context_profile || {};
+		appendKeyValue(overview, 'Memory profile', text(memoryProfile.label, 'none') + (memoryProfile.id ? ' [' + memoryProfile.id + ']' : '') + ' · ' + text(memoryProfile.status, 'none'));
+		appendKeyValue(overview, 'Context profile', text(contextProfile.label, 'none') + (contextProfile.id ? ' [' + contextProfile.id + ']' : '') + ' · ' + text(contextProfile.status, 'none'));
 		appendKeyValue(overview, 'Mode', record.orchestrator && record.orchestrator.mode);
 		appendKeyValue(overview, 'Max tool loops', record.orchestrator && record.orchestrator.max_tool_loops);
 		const selection = record.capability_selection || {};
@@ -204,10 +212,14 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		root.appendChild(overview);
 
 		const profileCard = element('agent-composition-card');
-		const profileTitle = document.createElement('h3'); profileTitle.textContent = 'Tool profiles and components'; profileCard.appendChild(profileTitle);
+		const profileTitle = document.createElement('h3'); profileTitle.textContent = 'Tool, memory and context profiles'; profileCard.appendChild(profileTitle);
 		const profileList = element('agent-composition-list');
 		(record.tool_profiles || []).forEach((profile) => profileList.appendChild(buildItem(profile.label + ' [' + profile.id + ']', [profile.status, profile.mcp_enabled ? 'MCP' : 'internal'], (profile.tools || []).length + ' preset(s): ' + text((profile.tools || []).join(', '), 'none'))));
 		if (!profileList.children.length) profileList.appendChild(element('agent-composition-item-sub', 'No tool profiles selected.'));
+		const memoryProfileRecord = record.memory_profile || {};
+		profileList.appendChild(buildItem(text(memoryProfileRecord.label, memoryProfileRecord.id || 'No memory profile') + (memoryProfileRecord.id ? ' [' + memoryProfileRecord.id + ']' : ''), [memoryProfileRecord.status || 'none'], (memoryProfileRecord.presets || []).length + ' conversation-memory preset(s)'));
+		const contextProfileRecord = record.context_profile || {};
+		profileList.appendChild(buildItem(text(contextProfileRecord.label, contextProfileRecord.id || 'No context profile') + (contextProfileRecord.id ? ' [' + contextProfileRecord.id + ']' : ''), [contextProfileRecord.status || 'none'], (contextProfileRecord.presets || []).length + ' context-contributor preset(s)'));
 		profileCard.appendChild(profileList);
 		const componentTitle = document.createElement('h4'); componentTitle.textContent = 'Resolved component presets'; profileCard.appendChild(componentTitle);
 		const componentList = element('agent-composition-list');
@@ -216,9 +228,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				'type ' + text(component.type, 'unknown'),
 				'sources ' + text((component.sources || []).join(', '), 'unknown'),
 				'tools ' + text((component.tool_names || []).join(', '), 'none'),
-				'memory wrappers ' + text((component.memory_resources || []).join(', '), 'none')
+				'runtime resources ' + text((component.memory_resources || []).join(', '), 'none'),
+				component.memory_profile ? 'memory profile ' + component.memory_profile : '',
+				component.context_profile ? 'context profile ' + component.context_profile : '',
+				component.memory_config && Object.keys(component.memory_config).length ? 'memory config ' + JSON.stringify(component.memory_config) : ''
 			].join(' · ');
-			componentList.appendChild(buildItem(component.label + ' [' + component.preset_id + ']', component.roles || [], details));
+			componentList.appendChild(buildItem(component.label + ' [' + component.preset_id + ']', component.effective_roles || component.roles || [], details));
 		});
 		if (!componentList.children.length) componentList.appendChild(element('agent-composition-item-sub', 'No component presets resolved.'));
 		profileCard.appendChild(componentList);
@@ -242,10 +257,14 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		root.appendChild(toolsCard);
 
 		const memoryCard = element('agent-composition-card');
-		const memoryTitle = document.createElement('h3'); memoryTitle.textContent = 'Memory and capability sources'; memoryCard.appendChild(memoryTitle);
+		const memoryTitle = document.createElement('h3'); memoryTitle.textContent = 'Conversation memory, context and capability sources'; memoryCard.appendChild(memoryTitle);
 		const memoryList = element('agent-composition-list');
-		(record.memories || []).forEach((memory) => memoryList.appendChild(buildItem(memory.name + ' [' + memory.resource_id + ']', ['priority ' + memory.priority, memory.preset_id || 'flow'], memory.class)));
-		if (!memoryList.children.length) memoryList.appendChild(element('agent-composition-item-sub', 'No memory resource attached.'));
+		(record.memories || []).forEach((memory) => {
+			const labels = ['priority ' + memory.priority, memory.preset_id || 'flow', 'configured ' + text(memory.configured_role, 'auto')].concat(memory.roles || []);
+			const access = 'read ' + (memory.read_enabled ? 'on' : 'off') + ' · write ' + (memory.write_enabled ? 'on' : 'off');
+			memoryList.appendChild(buildItem(memory.name + ' [' + memory.resource_id + ']', labels, memory.class + ' · ' + access));
+		});
+		if (!memoryList.children.length) memoryList.appendChild(element('agent-composition-item-sub', 'No conversation memory or context contributor attached.'));
 		memoryCard.appendChild(memoryList);
 		const sourceTitle = document.createElement('h4'); sourceTitle.textContent = 'Configured source allow-list'; memoryCard.appendChild(sourceTitle);
 		const sources = record.capability_sources || {};

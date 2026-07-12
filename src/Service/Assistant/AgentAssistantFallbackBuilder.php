@@ -28,6 +28,11 @@ final class AgentAssistantFallbackBuilder implements IAgentAssistantFallbackBuil
 			return trim((string)$finalAssistant['content']);
 		}
 
+		$lastAnswer = $this->findLastSuccessfulAnswer($orchestrationResult);
+		if ($lastAnswer !== '') {
+			return $lastAnswer;
+		}
+
 		$lastUrl = $this->findLastSuccessfulUrl($orchestrationResult);
 		if ($lastUrl !== '') {
 			return "Ich konnte die Tool-Phase nicht vollständig abschließen, aber der zuletzt erfolgreich erzeugte Link ist:
@@ -49,6 +54,23 @@ final class AgentAssistantFallbackBuilder implements IAgentAssistantFallbackBuil
 		}
 
 		return 'Ich konnte die Anfrage nicht vollständig abschließen. Bitte versuche es erneut oder grenze die Anfrage etwas ein.';
+	}
+
+	private function findLastSuccessfulAnswer(AgentToolOrchestratorResult $orchestrationResult): string {
+		$toolCalls = array_reverse($orchestrationResult->getToolCalls());
+		foreach ($toolCalls as $call) {
+			$result = $call['result'] ?? null;
+			if (!is_array($result) || ($result['ok'] ?? false) !== true) {
+				continue;
+			}
+
+			$answer = $result['answer'] ?? null;
+			if (is_scalar($answer) && trim((string)$answer) !== '') {
+				return trim((string)$answer);
+			}
+		}
+
+		return '';
 	}
 
 	private function findLastSuccessfulUrl(AgentToolOrchestratorResult $orchestrationResult): string {

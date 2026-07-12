@@ -104,12 +104,41 @@ final class AgentToolObservationStage implements IAgentStage {
 			];
 		}
 
-		return AgentStageResult::patch([
+		$terminalAnswerReady = count($toolResults) === 1
+			&& $toolResults[0] instanceof AgentToolResult
+			&& $this->isTerminalAnswerReady($toolResults[0]);
+
+		$patch = [
 			AgentToolLoopContextKeys::MESSAGES => $messages,
 			AgentToolLoopContextKeys::OBSERVATIONS => $observations,
-			AgentToolLoopContextKeys::TOOL_RESULTS => [],
-			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_OBSERVED
-		]);
+			AgentToolLoopContextKeys::TOOL_RESULTS => []
+		];
+
+		if ($terminalAnswerReady) {
+			$patch[AgentToolLoopContextKeys::TERMINAL_EVIDENCE_READY] = true;
+			$patch[AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION] = implode("\n", [
+				'The last successful tool result already contains a provider-produced answer and supporting sources.',
+				'Answer the user request directly from that evidence.',
+				'Do not ask whether another search should be started and do not replace the answer with a generic option menu.',
+				'Preserve uncertainty stated by the tool and include useful source references when present.'
+			]);
+			$patch[AgentToolLoopContextKeys::FINAL_RESPONSE_MODE] = AgentToolLoopContextKeys::FINAL_RESPONSE_COMPLETE;
+			$patch[AgentToolLoopContextKeys::COMPLETED] = true;
+			$patch[AgentToolLoopContextKeys::PHASE] = AgentToolLoopContextKeys::PHASE_FINAL;
+		} else {
+			$patch[AgentToolLoopContextKeys::PHASE] = AgentToolLoopContextKeys::PHASE_OBSERVED;
+		}
+
+		return AgentStageResult::patch($patch);
+	}
+
+	private function isTerminalAnswerReady(AgentToolResult $toolResult): bool {
+		$output = $toolResult->getOutput();
+
+		return $toolResult->isSuccess()
+			&& is_array($output)
+			&& ($output['final_answer_ready'] ?? false) === true
+			&& trim((string)($output['answer'] ?? '')) !== '';
 	}
 
 	private function getMessageContent(AgentToolResult $toolResult): mixed {

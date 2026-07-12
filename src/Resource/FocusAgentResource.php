@@ -25,10 +25,11 @@ use Base3\Usermanager\Api\IUsermanager;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Dto\AgentInstructionBlock;
 use MissionBay\Api\IAgentTool;
 
-class FocusAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool {
+class FocusAgentResource extends AbstractAgentResource implements IAgentContextContributor, IAgentTool {
 
 	private ?ILogger $logger = null;
 
@@ -94,34 +95,25 @@ class FocusAgentResource extends AbstractAgentResource implements IAgentMemory, 
 	}
 
 	// ----------------------------------------------------
-	// IAgentMemory
+	// Context contribution
 	// ----------------------------------------------------
 
-	public function loadNodeHistory(string $nodeId): array {
+	public function contribute(IAgentContext $context): iterable {
 		if (!$this->enabled) {
 			return [];
 		}
 
 		$lines = $this->buildSystemLines();
-		$content = $this->systemTitle . ":\n- " . implode("\n- ", $lines);
+		if ($lines === []) {
+			return [];
+		}
 
-		return [[
-			'role' => 'system',
-			'content' => $content
-		]];
-	}
-
-	public function appendNodeHistory(string $nodeId, array $message): void {
-		// no-op (focus is controlled by explicit tool calls)
-	}
-
-	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		// no-op
-		return false;
-	}
-
-	public function resetNodeHistory(string $nodeId): void {
-		$this->deleteFocusState();
+		return [new AgentInstructionBlock(
+			id: 'conversation-focus',
+			content: $this->systemTitle . ":\n- " . implode("\n- ", $lines),
+			source: $this->id(),
+			metadata: ['implementation' => static::getName()]
+		)];
 	}
 
 	public function getPriority(): int {
@@ -143,6 +135,10 @@ class FocusAgentResource extends AbstractAgentResource implements IAgentMemory, 
 			'category' => 'memory',
 			'tags' => ['focus', 'memory', 'conversation', 'task'],
 			'priority' => $this->toolPriority,
+			'readOnlyHint' => false,
+			'mutation' => true,
+			'requiresApproval' => true,
+			'sideEffectHint' => true,
 			'function' => [
 				'name' => 'set_focus',
 				'description' => 'Stores the current main working focus of the conversation. Use only for clear main topics, tasks, tickets, or working goals. Do not use for short side questions or small digressions.',
@@ -164,6 +160,10 @@ class FocusAgentResource extends AbstractAgentResource implements IAgentMemory, 
 			'category' => 'memory',
 			'tags' => ['focus', 'memory', 'conversation', 'task'],
 			'priority' => $this->toolPriority,
+			'readOnlyHint' => false,
+			'mutation' => true,
+			'requiresApproval' => true,
+			'sideEffectHint' => true,
 			'function' => [
 				'name' => 'clear_focus',
 				'description' => 'Clears the current conversation focus when the focused task is completed or the user explicitly ends it.',

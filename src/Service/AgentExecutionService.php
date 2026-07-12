@@ -18,6 +18,7 @@
 namespace MissionBay\Service;
 
 use AssistantFoundation\Api\IAgentExecutionService;
+use MissionBay\Api\IAgentStateContext;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Dto\AgentExecutionResult;
@@ -26,6 +27,8 @@ use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfile;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use MissionBay\Profile\AgentContextProfileResolver;
+use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 
 /**
@@ -51,8 +54,10 @@ class AgentExecutionService implements IAgentExecutionService {
 		private readonly IAgentContextFactory $contextFactory,
 		private readonly IAgentFlowFactory $flowFactory,
 		private readonly IAgentComponentFlowBuilder $componentFlowBuilder,
-		private readonly AgentOrchestratorProfileRepository $orchestratorProfileRepository,
-		private readonly AgentToolProfileResolver $toolProfileResolver
+		private readonly ?AgentOrchestratorProfileRepository $orchestratorProfileRepository = null,
+		private readonly ?AgentToolProfileResolver $toolProfileResolver = null,
+		private readonly ?AgentMemoryProfileResolver $memoryProfileResolver = null,
+		private readonly ?AgentContextProfileResolver $contextProfileResolver = null
 	) {}
 
 	public static function getName(): string {
@@ -82,16 +87,54 @@ class AgentExecutionService implements IAgentExecutionService {
 		$assistantNodeId = $this->normalizeAssistantNodeId($agentSettings['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID);
 		$profileId = trim((string)($agentSettings['orchestrator_profile'] ?? ''));
 		if ($profileId !== '') {
+			if (!$this->orchestratorProfileRepository instanceof AgentOrchestratorProfileRepository) {
+				throw new \RuntimeException('Agent orchestrator profile repository is not available.');
+			}
 			$profile = $this->orchestratorProfileRepository->getProfile($profileId);
 			$flow = $this->applyOrchestratorProfile($flow, $profile, $assistantNodeId);
 		}
 		$flow = $this->applyCapabilityConfiguration($flow, $agentSettings, $assistantNodeId);
 
-		$profileComponents = $this->toolProfileResolver->resolveComponents(
-			$this->normalizeStringIds($agentSettings['tool_profiles'] ?? [])
-		);
+		$memoryProfileId = $this->normalizeTechnicalKey((string)($agentSettings['memory_profile'] ?? ''));
+		$contextProfileId = $this->normalizeTechnicalKey((string)($agentSettings['context_profile'] ?? ''));
+		$toolProfileIds = $this->normalizeStringIds($agentSettings['tool_profiles'] ?? []);
+		$profileComponents = [];
+
+		if ($toolProfileIds !== [] && !$this->toolProfileResolver instanceof AgentToolProfileResolver) {
+			throw new \RuntimeException('Agent tool profile resolver is not available.');
+		}
+		if ($this->toolProfileResolver instanceof AgentToolProfileResolver) {
+			$profileComponents = $this->toolProfileResolver->resolveComponents($toolProfileIds);
+		}
+
+		$memoryProfileComponents = [];
+		if ($memoryProfileId !== '') {
+			if (!$this->memoryProfileResolver instanceof AgentMemoryProfileResolver) {
+				throw new \RuntimeException('Agent memory profile resolver is not available.');
+			}
+			$memoryProfileComponents = $this->memoryProfileResolver->resolveComponents($memoryProfileId);
+		}
+
+		if ($contextProfileId === '' && $memoryProfileId !== ''
+			&& $this->contextProfileResolver instanceof AgentContextProfileResolver
+			&& $this->contextProfileResolver->hasProfile($memoryProfileId)) {
+			$contextProfileId = $memoryProfileId;
+			$this->warnings[] = 'Context profile was derived from the legacy combined profile "' . $memoryProfileId . '". Save the agent with an explicit context profile.';
+		}
+
+		$contextProfileComponents = [];
+		if ($contextProfileId !== '') {
+			if (!$this->contextProfileResolver instanceof AgentContextProfileResolver) {
+				throw new \RuntimeException('Agent context profile resolver is not available.');
+			}
+			$contextProfileComponents = $this->contextProfileResolver->resolveComponents($contextProfileId);
+		}
+
 		$legacyComponents = $this->normalizeAgentComponents($agentSettings['agent_components'] ?? []);
-		$components = $this->mergeAgentComponents($profileComponents, $legacyComponents);
+		$components = $this->mergeAgentComponents(
+			array_merge($profileComponents, $memoryProfileComponents, $contextProfileComponents),
+			$legacyComponents
+		);
 
 		if ($components === []) {
 			return $flow;
@@ -113,10 +156,11 @@ class AgentExecutionService implements IAgentExecutionService {
 	 */
 	public function run(array $agentSettings, array $inputs = [], array $contextVars = []): AgentExecutionResult {
 		$effectiveFlow = $this->buildEffectiveFlow($agentSettings);
-		$flow = $this->createFlow($effectiveFlow, $contextVars);
+		[$flow, $context] = $this->createFlow($effectiveFlow, $contextVars);
 		$output = $flow->run($this->normalizeInputs($inputs));
+		$agentResult = $context instanceof IAgentStateContext ? $context->getResult() : null;
 
-		return new AgentExecutionResult($output, $effectiveFlow, $this->warnings);
+		return new AgentExecutionResult($output, $effectiveFlow, $this->warnings, $agentResult);
 	}
 
 	/**
@@ -126,7 +170,7 @@ class AgentExecutionService implements IAgentExecutionService {
 	 */
 	public function stream(array $agentSettings, array $inputs = [], array $contextVars = []): void {
 		$effectiveFlow = $this->buildEffectiveFlow($agentSettings);
-		$flow = $this->createFlow($effectiveFlow, $contextVars);
+		[$flow] = $this->createFlow($effectiveFlow, $contextVars);
 		$flow->run($this->normalizeInputs($inputs));
 	}
 
@@ -140,8 +184,9 @@ class AgentExecutionService implements IAgentExecutionService {
 	/**
 	 * @param array<string,mixed> $effectiveFlow
 	 * @param array<string,mixed> $contextVars
+	 * @return array{0:mixed,1:\AssistantFoundation\Api\IAgentContext}
 	 */
-	private function createFlow(array $effectiveFlow, array $contextVars) {
+	private function createFlow(array $effectiveFlow, array $contextVars): array {
 		$context = $this->contextFactory->createContext();
 
 		foreach ($contextVars as $key => $value) {
@@ -158,7 +203,10 @@ class AgentExecutionService implements IAgentExecutionService {
 			$context->setVar($key, $value);
 		}
 
-		return $this->flowFactory->createFromArray('strictflow', $effectiveFlow, $context);
+		return [
+			$this->flowFactory->createFromArray('strictflow', $effectiveFlow, $context),
+			$context
+		];
 	}
 
 	/**
@@ -309,6 +357,7 @@ class AgentExecutionService implements IAgentExecutionService {
 		$flow['nodes'][$nodeIndex]['inputs']['maxtoolloops'] = $profile->getMaxToolLoops();
 		$flow['nodes'][$nodeIndex]['inputs']['capabilityselection'] = $profile->getCapabilitySelection()->toArray();
 		$flow['nodes'][$nodeIndex]['inputs']['orchestratorprofile'] = $profile->getId();
+		$flow['nodes'][$nodeIndex]['inputs']['deliberateplanning'] = $profile->isDeliberatePlanningEnabled();
 
 		return $flow;
 	}

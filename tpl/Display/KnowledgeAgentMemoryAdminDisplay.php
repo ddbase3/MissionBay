@@ -564,40 +564,111 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		cursor: text;
 	}
 
-	.knowledge-agent-memory-content-editor {
-		display: none;
-		min-height: 360px;
-		max-height: 640px;
-		min-width: 0;
-		width: 100%;
-		resize: vertical;
-		padding: 10px 12px;
-		border: 1px solid #b8c6d8;
-		border-radius: 6px;
+	.knowledge-agent-memory-editor {
+		width: min(880px, calc(100vw - 32px));
+		max-height: calc(100vh - 48px);
+		padding: 0;
+		border: 1px solid #cfcfcf;
+		border-radius: 10px;
+		box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
+	}
+
+	.knowledge-agent-memory-editor::backdrop {
+		background: rgba(0, 0, 0, 0.38);
+	}
+
+	.knowledge-agent-memory-editor-form {
+		display: grid;
+		gap: 16px;
+		padding: 20px;
 		background: #fff;
-		color: #222;
+	}
+
+	.knowledge-agent-memory-editor-header,
+	.knowledge-agent-memory-editor-actions {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
+	.knowledge-agent-memory-editor-header h2 {
+		margin: 0;
+		font-size: 20px;
+	}
+
+	.knowledge-agent-memory-editor-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px 16px;
+	}
+
+	.knowledge-agent-memory-editor-field {
+		display: grid;
+		gap: 5px;
+		min-width: 0;
+	}
+
+	.knowledge-agent-memory-editor-field--wide {
+		grid-column: 1 / -1;
+	}
+
+	.knowledge-agent-memory-editor-field label {
+		font-size: 12px;
+		font-weight: 600;
+		color: #444;
+	}
+
+	.knowledge-agent-memory-editor-field input,
+	.knowledge-agent-memory-editor-field select,
+	.knowledge-agent-memory-editor-field textarea {
+		width: 100%;
+		box-sizing: border-box;
+		padding: 8px 10px;
+		border: 1px solid #cfcfcf;
+		border-radius: 5px;
+		font: inherit;
+	}
+
+	.knowledge-agent-memory-editor-field textarea {
+		min-height: 90px;
+		resize: vertical;
+	}
+
+	.knowledge-agent-memory-editor-field textarea[data-editor-content] {
+		min-height: 260px;
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-		font-size: 12px;
-		line-height: 1.45;
 	}
 
-	.knowledge-agent-memory-content-hint {
+	.knowledge-agent-memory-editor-check {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		font-weight: 400;
+	}
+
+	.knowledge-agent-memory-editor-check input {
+		width: auto;
+	}
+
+	.knowledge-agent-memory-editor-message {
+		min-height: 18px;
+		font-size: 12px;
 		color: #666;
-		font-size: 12px;
-		line-height: 1.35;
 	}
 
-	.knowledge-agent-memory-content-section.is-editing .knowledge-agent-memory-content-view {
-		display: none;
+	.knowledge-agent-memory-editor-message.is-error {
+		color: #9b1c1c;
 	}
 
-	.knowledge-agent-memory-content-section.is-editing .knowledge-agent-memory-content-editor {
-		display: block;
+	.knowledge-agent-memory-editor-actions {
+		justify-content: flex-end;
 	}
 
-	.knowledge-agent-memory-content-section.is-saving {
-		opacity: 0.72;
-		pointer-events: none;
+	@media (max-width: 720px) {
+		.knowledge-agent-memory-editor-grid {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 
 	@media (max-width: 980px) {
@@ -618,10 +689,9 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 </style>
 
 <div class="knowledge-agent-memory-shell">
-	<h1>Knowledge agent memory</h1>
+	<h1>Knowledge / skills</h1>
 	<p>
-		Server-side ModularGrid view over <code>base3_agent_knowledge</code>.
-		Search and filter task, episodic, semantic and procedural memory entries, inspect the full content and JSON metadata, copy entries to clipboard and manage common admin flags.
+		Manage task state, remembered cases, stable knowledge, and procedural skills. The normal view keeps the common filters and actions visible; technical metadata remains available in entry details.
 	</p>
 
 	<div class="knowledge-agent-memory-grid">
@@ -629,6 +699,59 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		<div id="knowledge-agent-memory-output" class="knowledge-agent-memory-output"></div>
 	</div>
 </div>
+
+<dialog id="knowledge-agent-memory-editor" class="knowledge-agent-memory-editor">
+	<form id="knowledge-agent-memory-editor-form" class="knowledge-agent-memory-editor-form">
+		<input type="hidden" name="id" />
+		<div class="knowledge-agent-memory-editor-header">
+			<div>
+				<h2>Edit knowledge / skill</h2>
+				<div class="knowledge-agent-memory-editor-message" data-editor-message></div>
+			</div>
+			<button type="button" class="knowledge-agent-memory-detail-button" data-editor-close>Close</button>
+		</div>
+		<div class="knowledge-agent-memory-editor-grid">
+			<div class="knowledge-agent-memory-editor-field">
+				<label for="knowledge-editor-type">Type</label>
+				<select id="knowledge-editor-type" name="memory_type" required>
+					<option value="task">Task</option>
+					<option value="episodic">Episodic</option>
+					<option value="semantic">Semantic knowledge</option>
+					<option value="procedural">Procedural skill</option>
+				</select>
+			</div>
+			<div class="knowledge-agent-memory-editor-field">
+				<label for="knowledge-editor-status">Status</label>
+				<input id="knowledge-editor-status" name="status" list="knowledge-editor-statuses" required />
+				<datalist id="knowledge-editor-statuses"></datalist>
+			</div>
+			<div class="knowledge-agent-memory-editor-field knowledge-agent-memory-editor-field--wide">
+				<label for="knowledge-editor-title">Title</label>
+				<input id="knowledge-editor-title" name="title" maxlength="255" required />
+			</div>
+			<div class="knowledge-agent-memory-editor-field">
+				<label for="knowledge-editor-key">Key (optional)</label>
+				<input id="knowledge-editor-key" name="memory_key" maxlength="255" />
+			</div>
+			<div class="knowledge-agent-memory-editor-field">
+				<label for="knowledge-editor-tags">Tags</label>
+				<input id="knowledge-editor-tags" name="tags" placeholder="search, workflow, support" />
+			</div>
+			<div class="knowledge-agent-memory-editor-field knowledge-agent-memory-editor-field--wide">
+				<label for="knowledge-editor-summary">Summary</label>
+				<textarea id="knowledge-editor-summary" name="summary"></textarea>
+			</div>
+			<div class="knowledge-agent-memory-editor-field knowledge-agent-memory-editor-field--wide">
+				<label for="knowledge-editor-content">Content / procedure</label>
+				<textarea id="knowledge-editor-content" name="content" data-editor-content></textarea>
+			</div>
+		</div>
+		<div class="knowledge-agent-memory-editor-actions">
+			<button type="button" class="knowledge-agent-memory-detail-button" data-editor-cancel>Cancel</button>
+			<button type="submit" class="knowledge-agent-memory-detail-button" data-editor-save>Save</button>
+		</div>
+	</form>
+</dialog>
 
 <script type="module">
 	const modularGridModule = await import(new URL(<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
@@ -684,21 +807,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	const FILTER_FIELDS = [
 		{ key: 'memory_type', label: 'Type', defaultValue: '', alwaysVisible: true },
 		{ key: 'status', label: 'Status', defaultValue: '' },
-		{ key: 'source', label: 'Source', defaultValue: '' },
-		{ key: 'scope', label: 'Scope', defaultValue: '' },
 		{ key: 'deleted', label: 'Deleted', defaultValue: 'active', alwaysVisible: true },
-		{ key: 'locked', label: 'Locked', defaultValue: '' },
-		{ key: 'expired', label: 'Expiry', defaultValue: '' },
-		{ key: 'memory_key', label: 'Key', defaultValue: '' },
-		{ key: 'ident', label: 'Ident', defaultValue: '' },
-		{ key: 'scope_ref', label: 'Scope ref', defaultValue: '' },
-		{ key: 'userid', label: 'User', defaultValue: '' },
-		{ key: 'tag', label: 'Tag', defaultValue: '' },
-		{ key: 'entity_ref', label: 'Entity ref', defaultValue: '' },
-		{ key: 'created_from', label: 'Created from', defaultValue: '' },
-		{ key: 'created_to', label: 'Created to', defaultValue: '' },
-		{ key: 'updated_from', label: 'Updated from', defaultValue: '' },
-		{ key: 'updated_to', label: 'Updated to', defaultValue: '' }
+		{ key: 'tag', label: 'Tag', defaultValue: '' }
 	];
 	const OPTIONAL_FILTER_FIELDS = FILTER_FIELDS.filter((field) => !field.alwaysVisible);
 	const FILTER_DEFAULTS = FILTER_FIELDS.reduce((carry, field) => {
@@ -1022,9 +1132,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		wrapper.appendChild(createPill(row.is_mutable_by_llm ? 'mutable' : 'immutable'));
 		wrapper.appendChild(createPill(row.is_deletable_by_llm ? 'deletable' : 'not deletable'));
 
-		if (row.always_inject) {
-			wrapper.appendChild(createPill('always inject'));
-		}
 
 		return wrapper;
 	}
@@ -1336,19 +1443,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		return button;
 	}
 
-	async function updateRemoteContent(id, content) {
-		const response = await postJson({
-			mode: 'update_content',
-			id,
-			content
-		});
-
-		if (!response || response.ok !== true) {
-			throw new Error(getText(response && (response.error || response.details), 'Unknown content update error'));
-		}
-
-		return response;
-	}
 
 	function createDetailMetaGroup(title, values) {
 		const group = createElement('knowledge-agent-memory-detail-meta-group');
@@ -1377,123 +1471,31 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		return wrapper;
 	}
 
-	function createEditableContentSection(payload) {
+	function createContentSection(payload) {
 		const section = createElement('knowledge-agent-memory-content-section');
 		const header = createElement('knowledge-agent-memory-content-header');
 		const title = createElement('knowledge-agent-memory-content-title', 'Content');
 		const actions = createElement('knowledge-agent-memory-content-actions');
 		const editButton = document.createElement('button');
-		const saveButton = document.createElement('button');
-		const cancelButton = document.createElement('button');
 		const view = document.createElement('pre');
-		const textarea = document.createElement('textarea');
-		const hint = createElement('knowledge-agent-memory-content-hint', 'Double click the text to edit. Use Save or Ctrl+Enter to store changes.');
-		let currentValue = getText(payload.content, '');
 
 		editButton.type = 'button';
 		editButton.className = 'knowledge-agent-memory-detail-button';
 		editButton.textContent = 'Edit';
-
-		saveButton.type = 'button';
-		saveButton.className = 'knowledge-agent-memory-detail-button';
-		saveButton.textContent = 'Save';
-		saveButton.hidden = true;
-
-		cancelButton.type = 'button';
-		cancelButton.className = 'knowledge-agent-memory-detail-button';
-		cancelButton.textContent = 'Cancel';
-		cancelButton.hidden = true;
-
-		view.className = 'knowledge-agent-memory-content-view';
-		view.tabIndex = 0;
-		view.textContent = getText(currentValue);
-		view.title = 'Double click to edit content';
-
-		textarea.className = 'knowledge-agent-memory-content-editor';
-		textarea.value = currentValue;
-
-		function setEditing(isEditing) {
-			section.classList.toggle('is-editing', isEditing);
-			editButton.hidden = isEditing;
-			saveButton.hidden = !isEditing;
-			cancelButton.hidden = !isEditing;
-
-			if (isEditing) {
-				textarea.value = currentValue;
-				window.setTimeout(() => textarea.focus(), 0);
-			}
-		}
-
-		async function saveContent() {
-			if (!payload.id) {
-				setLog('Cannot update content without entry id.');
-				return;
-			}
-
-			const nextValue = textarea.value;
-			section.classList.add('is-saving');
-
-			try {
-				const response = await updateRemoteContent(payload.id, nextValue);
-				currentValue = typeof response.content === 'string' ? response.content : nextValue;
-				payload.content = currentValue;
-				view.textContent = getText(currentValue);
-				setEditing(false);
-				setLog('Updated content for knowledge entry #' + getText(payload.id) + '.');
-			} catch (error) {
-				setLog('Failed to update content for knowledge entry #' + getText(payload.id) + ': ' + getText(error && error.message, String(error)));
-			} finally {
-				section.classList.remove('is-saving');
-			}
-		}
-
 		editButton.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
-			setEditing(true);
+			openKnowledgeEditor(payload && payload.id ? payload.id : 0);
 		});
 
-		view.addEventListener('dblclick', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			setEditing(true);
-		});
-
-		saveButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			saveContent();
-		});
-
-		cancelButton.addEventListener('click', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			textarea.value = currentValue;
-			setEditing(false);
-		});
-
-		textarea.addEventListener('keydown', (event) => {
-			if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-				event.preventDefault();
-				saveContent();
-			}
-
-			if (event.key === 'Escape') {
-				event.preventDefault();
-				textarea.value = currentValue;
-				setEditing(false);
-			}
-		});
+		view.className = 'knowledge-agent-memory-content-view';
+		view.textContent = getText(payload && payload.content, 'No content.');
 
 		actions.appendChild(editButton);
-		actions.appendChild(saveButton);
-		actions.appendChild(cancelButton);
 		header.appendChild(title);
 		header.appendChild(actions);
 		section.appendChild(header);
 		section.appendChild(view);
-		section.appendChild(textarea);
-		section.appendChild(hint);
 
 		return section;
 	}
@@ -1521,6 +1523,16 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			headerText.appendChild(createElement('mg-row-detail-structured-summary', payload.summary));
 		}
 
+		const editDetailButton = document.createElement('button');
+		editDetailButton.type = 'button';
+		editDetailButton.className = 'knowledge-agent-memory-detail-button';
+		editDetailButton.textContent = 'Edit';
+		editDetailButton.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			openKnowledgeEditor(payload.id);
+		});
+		headerActions.appendChild(editDetailButton);
 		headerActions.appendChild(createCopyDetailButton(payload));
 		headerActions.appendChild(createFullscreenButton());
 		header.appendChild(headerText);
@@ -1551,7 +1563,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			leftColumn.appendChild(activity);
 		}
 
-		const contentEditor = createEditableContentSection(payload);
+		const contentEditor = createContentSection(payload);
 		if (contentEditor) {
 			rightColumn.appendChild(contentEditor);
 		}
@@ -1615,6 +1627,148 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		return response.record;
+	}
+
+	function editorElements() {
+		const dialog = document.querySelector('#knowledge-agent-memory-editor');
+		const form = document.querySelector('#knowledge-agent-memory-editor-form');
+
+		return { dialog, form };
+	}
+
+	function setEditorMessage(message, isError = false) {
+		const element = document.querySelector('[data-editor-message]');
+		if (!element) {
+			return;
+		}
+
+		element.textContent = message || '';
+		element.classList.toggle('is-error', isError);
+	}
+
+	function closeKnowledgeEditor() {
+		const { dialog } = editorElements();
+		if (!dialog) {
+			return;
+		}
+
+		if (typeof dialog.close === 'function' && dialog.open) {
+			dialog.close();
+		} else {
+			dialog.removeAttribute('open');
+		}
+	}
+
+	async function openKnowledgeEditor(id) {
+		const numericId = Number(id || 0);
+		const { dialog, form } = editorElements();
+
+		if (!dialog || !form || numericId <= 0) {
+			setLog('Cannot edit knowledge entry without a valid id.');
+			return;
+		}
+
+		setEditorMessage('Loading entry #' + String(numericId) + '...');
+		if (typeof dialog.showModal === 'function') {
+			if (!dialog.open) {
+				dialog.showModal();
+			}
+		} else {
+			dialog.setAttribute('open', 'open');
+		}
+
+		try {
+			const record = await loadRemoteRecord(numericId);
+			form.elements.id.value = String(record.id || numericId);
+			form.elements.memory_type.value = getText(record.memory_type, 'semantic');
+			form.elements.status.value = getText(record.status, 'active');
+			form.elements.title.value = getText(record.title, '');
+			form.elements.memory_key.value = getText(record.memory_key, '');
+			form.elements.tags.value = Array.isArray(record.tags) ? record.tags.join(', ') : '';
+			form.elements.summary.value = getText(record.summary, '');
+			form.elements.content.value = getText(record.content, '');
+			setEditorMessage(record.is_locked ? 'This entry is locked. Unlock it before saving.' : '');
+			form.elements.title.focus();
+		} catch (error) {
+			setEditorMessage(getText(error && error.message, 'Could not load entry.'), true);
+		}
+	}
+
+	async function saveKnowledgeEditor(event) {
+		event.preventDefault();
+		const { form } = editorElements();
+		if (!form) {
+			return;
+		}
+
+		const id = Number(form.elements.id.value || 0);
+		const saveButton = form.querySelector('[data-editor-save]');
+		if (id <= 0) {
+			setEditorMessage('Missing knowledge entry id.', true);
+			return;
+		}
+
+		if (saveButton) {
+			saveButton.disabled = true;
+		}
+		setEditorMessage('Saving...');
+
+		try {
+			const response = await postJson({
+				mode: 'update_record',
+				id,
+				record: {
+					memory_type: form.elements.memory_type.value,
+					status: form.elements.status.value,
+					title: form.elements.title.value,
+					memory_key: form.elements.memory_key.value,
+					tags: form.elements.tags.value,
+					summary: form.elements.summary.value,
+					content: form.elements.content.value
+				}
+			});
+
+			if (!response || response.ok !== true) {
+				throw new Error(getText(response && (response.error || response.details), 'Unknown update error'));
+			}
+
+			closeKnowledgeEditor();
+			setLog('Updated knowledge entry #' + String(id) + '.');
+			await refreshGrid();
+		} catch (error) {
+			setEditorMessage(getText(error && error.message, 'Could not save entry.'), true);
+		} finally {
+			if (saveButton) {
+				saveButton.disabled = false;
+			}
+		}
+	}
+
+	function initializeKnowledgeEditor() {
+		const { dialog, form } = editorElements();
+		if (!dialog || !form) {
+			return;
+		}
+
+		const datalist = document.querySelector('#knowledge-editor-statuses');
+		const statusValues = new Set(['active', 'draft', 'inactive', 'archived']);
+		(STATUS_OPTIONS || []).forEach((option) => {
+			if (option && option.value) {
+				statusValues.add(String(option.value));
+			}
+		});
+		if (datalist) {
+			datalist.replaceChildren(...Array.from(statusValues).map((value) => {
+				const option = document.createElement('option');
+				option.value = value;
+				return option;
+			}));
+		}
+
+		form.addEventListener('submit', saveKnowledgeEditor);
+		dialog.querySelectorAll('[data-editor-close], [data-editor-cancel]').forEach((button) => {
+			button.addEventListener('click', closeKnowledgeEditor);
+		});
 	}
 
 	async function writeClipboardText(text) {
@@ -2284,6 +2438,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	}
 
 	(async function() {
+		initializeKnowledgeEditor();
 		const root = document.querySelector(GRID_SELECTOR);
 
 		if (!root || root.dataset.initialized === '1') {
@@ -2356,7 +2511,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					zone: 'topLine1',
 					order: 10,
 					label: 'Search',
-					placeholder: 'Search title, content, key, tags, ident, user, session'
+					placeholder: 'Search title, summary, content, or tags'
 				},
 				filters: {
 					zone: 'topLine2',
@@ -2378,18 +2533,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 							options: STATUS_OPTIONS
 						},
 						{
-							key: 'source',
-							label: 'Source',
-							type: 'select',
-							options: SOURCE_OPTIONS
-						},
-						{
-							key: 'scope',
-							label: 'Scope',
-							type: 'select',
-							options: SCOPE_OPTIONS
-						},
-						{
 							key: 'deleted',
 							label: 'Deleted',
 							type: 'select',
@@ -2400,95 +2543,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 							]
 						},
 						{
-							key: 'locked',
-							label: 'Locked',
-							type: 'select',
-							options: [
-								{ value: '', label: 'All lock states' },
-								{ value: 'locked', label: 'Locked only' },
-								{ value: 'unlocked', label: 'Unlocked only' }
-							]
-						},
-						{
-							key: 'expired',
-							label: 'Expiry',
-							type: 'select',
-							options: [
-								{ value: '', label: 'All expiry states' },
-								{ value: 'current', label: 'Current only' },
-								{ value: 'expired', label: 'Expired only' },
-								{ value: 'no_expiry', label: 'No expiry' }
-							]
-						},
-						{
-							key: 'memory_key',
-							label: 'Key',
-							type: 'text',
-							placeholder: 'Memory key',
-							width: 170
-						},
-						{
-							key: 'ident',
-							label: 'Ident',
-							type: 'text',
-							placeholder: 'Ident',
-							width: 140
-						},
-						{
-							key: 'scope_ref',
-							label: 'Scope ref',
-							type: 'text',
-							placeholder: 'Scope ref',
-							width: 140
-						},
-						{
-							key: 'userid',
-							label: 'User',
-							type: 'text',
-							placeholder: 'User ID',
-							width: 100
-						},
-						{
 							key: 'tag',
 							label: 'Tag',
 							type: 'text',
 							placeholder: 'Tag',
 							width: 140
-						},
-						{
-							key: 'entity_ref',
-							label: 'Entity ref',
-							type: 'text',
-							placeholder: 'Entity ref',
-							width: 150
-						},
-						{
-							key: 'created_from',
-							label: 'Created from',
-							type: 'text',
-							placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
-							width: 190
-						},
-						{
-							key: 'created_to',
-							label: 'Created to',
-							type: 'text',
-							placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
-							width: 190
-						},
-						{
-							key: 'updated_from',
-							label: 'Updated from',
-							type: 'text',
-							placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
-							width: 190
-						},
-						{
-							key: 'updated_to',
-							label: 'Updated to',
-							type: 'text',
-							placeholder: 'YYYY-MM-DD or YYYY-MM-DD HH:MM',
-							width: 190
 						}
 					]
 				},
@@ -2568,6 +2627,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					},
 					items: [
 						{
+							key: 'edit',
+							label: 'Edit',
+							onClick(context) {
+								openKnowledgeEditor(context.row && context.row.id);
+							}
+						},
+						{
 							key: 'copy-clipboard',
 							label: 'Copy to clipboard',
 							onClick(context) {
@@ -2586,20 +2652,6 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 							label: 'Unlock',
 							onClick(context) {
 								performMemoryAction('unlock', context.row);
-							}
-						},
-						{
-							key: 'toggle-mutable',
-							label: 'Toggle mutable by LLM',
-							onClick(context) {
-								performMemoryAction('toggle_mutable', context.row);
-							}
-						},
-						{
-							key: 'toggle-deletable',
-							label: 'Toggle deletable by LLM',
-							onClick(context) {
-								performMemoryAction('toggle_deletable', context.row);
 							}
 						},
 						{

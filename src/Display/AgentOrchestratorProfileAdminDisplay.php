@@ -63,6 +63,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 		$this->view->assign('mode_options', [
 			['id' => AgentOrchestratorProfile::MODE_SIMPLE, 'label' => 'Simple tool agent'],
 			['id' => AgentOrchestratorProfile::MODE_STANDARD, 'label' => 'Standard agent'],
+			['id' => AgentOrchestratorProfile::MODE_DELIBERATE, 'label' => 'Deliberate evidence agent'],
 			['id' => AgentOrchestratorProfile::MODE_GOVERNED, 'label' => 'Governed mutation agent']
 		]);
 		$this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string)$src));
@@ -211,6 +212,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'enabled' => $this->toBool($payload['enabled'] ?? true),
 			'mode' => strtolower(trim((string)($payload['profile_mode'] ?? AgentOrchestratorProfile::MODE_STANDARD))),
 			'max_tool_loops' => max(1, min(100, (int)($payload['max_tool_loops'] ?? 10))),
+			'deliberate_planning' => $this->toBool($payload['deliberate_planning'] ?? false),
 			'optional_stages' => [
 				'capability-discovery' => $this->toBool($payload['capability_discovery'] ?? false),
 				'capability-selection' => $this->toBool($payload['capability_selection'] ?? false),
@@ -298,6 +300,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'max_tools' => (int)($selection['max_tools'] ?? 16),
 			'select_all_threshold' => (int)($selection['select_all_threshold'] ?? 16),
 			'sticky' => (bool)($selection['sticky'] ?? true),
+			'deliberate_planning' => $profile->isDeliberatePlanningEnabled(),
 			'profile_json' => $this->pretty($data)
 		]);
 	}

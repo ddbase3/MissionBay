@@ -26,6 +26,8 @@ use Base3\Api\IRequest;
 use Base3\Api\ISchemaProvider;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
+use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;
@@ -95,6 +97,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$resourceOptions = $this->listResourceOptions();
 
 		$this->view->assign('settings_group', self::SETTINGS_GROUP);
+		$this->view->assign('open_preset_id', $this->normalizeTechnicalKey((string)$this->request->get('preset', '')));
 		$this->view->assign('resource_options', $resourceOptions);
 		$this->view->assign('preset_options', $this->listPresetOptions($resourceOptions));
 		$this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string)$src));
@@ -764,8 +767,13 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$class = $resource::class;
 		$capabilities = [];
 
-		if($resource instanceof IAgentMemory) {
+		if($resource instanceof IAgentConversationMemory
+			|| ($resource instanceof IAgentMemory && !($resource instanceof IAgentContextContributor))) {
 			$capabilities[] = 'memory';
+		}
+
+		if($resource instanceof IAgentContextContributor) {
+			$capabilities[] = 'context';
 		}
 
 		if($resource instanceof IAgentTool) {

@@ -6,6 +6,7 @@
 
 namespace MissionBay\Composition;
 
+use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Api\IAgentMemory;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
@@ -13,12 +14,15 @@ use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
+use MissionBay\Api\IAgentMemoryRoleResolver;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use MissionBay\Capability\AgentCapabilityDiscoveryService;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use MissionBay\Profile\AgentContextProfileResolver;
+use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 
 /**
@@ -39,10 +43,13 @@ final class AgentCompositionInspector {
 		private readonly IAgentFlowFactory $flowFactory,
 		private readonly AgentOrchestratorProfileRepository $orchestratorProfiles,
 		private readonly AgentToolProfileResolver $toolProfileResolver,
+		private readonly AgentMemoryProfileResolver $memoryProfileResolver,
+		private readonly AgentContextProfileResolver $contextProfileResolver,
 		private readonly IAgentComponentPresetRepository $presetRepository,
 		private readonly AgentCapabilityDiscoveryService $capabilityDiscoveryService,
 		private readonly AgentCapabilityCatalogBuilder $catalogBuilder,
-		private readonly AgentStagePipelineResolver $stagePipelineResolver
+		private readonly AgentStagePipelineResolver $stagePipelineResolver,
+		private readonly IAgentMemoryRoleResolver $memoryRoleResolver
 	) {}
 
 	/**
@@ -64,8 +71,16 @@ final class AgentCompositionInspector {
 
 		$toolProfileIds = $this->normalizeIds($settings['tool_profiles'] ?? []);
 		$toolProfiles = $this->describeToolProfiles($toolProfileIds, $warnings, $errors);
-		$componentSources = $this->buildComponentSources($toolProfiles);
-		$components = $this->describeConfiguredComponents($settings, $componentSources, $warnings, $errors);
+		$memoryProfileId = $this->normalizeId((string)($settings['memory_profile'] ?? ''));
+		$contextProfileId = $this->normalizeId((string)($settings['context_profile'] ?? ''));
+		if ($contextProfileId === '' && $memoryProfileId !== '' && $this->contextProfileResolver->hasProfile($memoryProfileId)) {
+			$contextProfileId = $memoryProfileId;
+			$warnings[] = 'Context profile is derived from the legacy combined profile "' . $memoryProfileId . '".';
+		}
+		$memoryProfile = $this->describeMemoryProfile($memoryProfileId, $warnings, $errors);
+		$contextProfile = $this->describeContextProfile($contextProfileId, $warnings, $errors);
+		$componentSources = $this->buildComponentSources($toolProfiles, $memoryProfile, $contextProfile);
+		$components = $this->describeConfiguredComponents($settings, $memoryProfileId, $contextProfileId, $componentSources, $warnings, $errors);
 
 		$effectiveFlow = [];
 		try {
@@ -135,6 +150,8 @@ final class AgentCompositionInspector {
 				'stage_ids' => $coreStageIds
 			],
 			'tool_profiles' => $toolProfiles,
+			'memory_profile' => $memoryProfile,
+			'context_profile' => $contextProfile,
 			'components' => $components,
 			'capability_sources' => $sourceConfig->toArray(),
 			'capability_selection' => is_array($nodeInputs['capabilityselection'] ?? null)
@@ -174,6 +191,11 @@ final class AgentCompositionInspector {
 		$docks = $flow->getDockConnections($assistantNodeId);
 		$baseTools = $this->getDockedResources($resources, $docks['tools'] ?? [], IAgentTool::class);
 		$memoryResources = $this->getDockedResources($resources, $docks['memory'] ?? [], IAgentMemory::class);
+		$contextContributors = $this->getDockedResources(
+			$resources,
+			$docks['contextcontributors'] ?? [],
+			IAgentContextContributor::class
+		);
 		$discovery = $this->capabilityDiscoveryService->discover($baseTools, $sourceConfig, $context);
 		$warnings = array_merge($warnings, $discovery->getWarnings());
 		$errors = array_merge($errors, $discovery->getErrors());
@@ -208,7 +230,7 @@ final class AgentCompositionInspector {
 		}
 
 		usort($toolRows, static fn(array $left, array $right): int => strcasecmp((string)$left['name'], (string)$right['name']));
-		$memoryRows = $this->describeMemories($memoryResources);
+		$memoryRows = $this->describeMemories(array_merge($memoryResources, $contextContributors), $warnings);
 		$mountRows = [];
 		foreach ($discovery->getStageMounts() as $mount) {
 			$mountRows[] = [
@@ -260,26 +282,78 @@ final class AgentCompositionInspector {
 	 * @param array<int,object> $memoryResources
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function describeMemories(array $memoryResources): array {
+	private function describeMemories(array $memoryResources, array &$warnings): array {
 		$rows = [];
+		$seen = [];
+
 		foreach ($memoryResources as $memory) {
-			if (!$memory instanceof IAgentMemory) {
+			if (!is_object($memory)) {
 				continue;
 			}
+
+			$objectId = spl_object_id($memory);
+			if (isset($seen[$objectId])) {
+				continue;
+			}
+			$seen[$objectId] = true;
+
 			$resourceId = $memory instanceof IAgentResource ? $memory->getId() : '';
+			$roles = [];
+			$legacy = false;
+			$conversationMemory = false;
+			$contextContributor = $memory instanceof IAgentContextContributor;
+
+			if ($memory instanceof IAgentMemory) {
+				$roles = $this->memoryRoleResolver->getRoles($memory);
+				$legacy = $this->memoryRoleResolver->isLegacyMemory($memory);
+				$conversationMemory = $this->memoryRoleResolver->isConversationMemory($memory);
+				$contextContributor = $this->memoryRoleResolver->isContextContributor($memory);
+			}
+			elseif ($contextContributor) {
+				$roles[] = 'context-contributor';
+			}
+			else {
+				continue;
+			}
+
+			if ($legacy) {
+				$warnings[] = 'Legacy memory semantics are active for ' . ($resourceId !== '' ? $resourceId : $memory::class) . '. Declare IAgentConversationMemory or IAgentContextContributor to make read/write behavior explicit.';
+			}
+
+			$priority = method_exists($memory, 'getPriority') ? (int)$memory->getPriority() : 100;
+			$configuredRole = method_exists($memory, 'getConfiguredRole') ? (string)$memory->getConfiguredRole() : 'auto';
+			$readEnabled = method_exists($memory, 'isReadEnabled') ? (bool)$memory->isReadEnabled() : true;
+			$writeEnabled = method_exists($memory, 'isWriteEnabled') ? (bool)$memory->isWriteEnabled() : true;
+			$diagnosticId = $resourceId !== '' ? $resourceId : $memory::class;
+			if (in_array($configuredRole, ['conversation-memory', 'both'], true) && !$conversationMemory) {
+				$warnings[] = 'Configured conversation-memory role is not supported by ' . $diagnosticId . '.';
+			}
+			if (in_array($configuredRole, ['context-contributor', 'both'], true) && !$contextContributor) {
+				$warnings[] = 'Configured context-contributor role is not supported by ' . $diagnosticId . '.';
+			}
+			$name = method_exists($memory, 'getName') ? (string)$memory::getName() : $memory::class;
 			$rows[] = [
 				'resource_id' => $resourceId,
-				'name' => $memory::getName(),
+				'name' => $name,
 				'class' => $memory::class,
-				'priority' => $memory->getPriority(),
+				'priority' => $priority,
 				'preset_id' => $this->presetIdFromWrapper($resourceId, 'configured_memory_'),
-				'role' => 'memory'
+				'roles' => $roles,
+				'role' => implode(' + ', $roles),
+				'conversation_memory' => $conversationMemory,
+				'context_contributor' => $contextContributor,
+				'legacy' => $legacy,
+				'configured_role' => $configuredRole,
+				'read_enabled' => $readEnabled,
+				'write_enabled' => $writeEnabled
 			];
 		}
+
 		usort($rows, static function(array $left, array $right): int {
 			$result = ((int)$left['priority']) <=> ((int)$right['priority']);
 			return $result !== 0 ? $result : strcmp((string)$left['resource_id'], (string)$right['resource_id']);
 		});
+
 		return $rows;
 	}
 
@@ -366,6 +440,77 @@ final class AgentCompositionInspector {
 	}
 
 	/**
+	 * @param array<int,string> $warnings
+	 * @param array<int,string> $errors
+	 * @return array<string,mixed>|null
+	 */
+	private function describeMemoryProfile(string $profileId, array &$warnings, array &$errors): ?array {
+		if ($profileId === '') {
+			return [
+				'id' => '',
+				'label' => 'No memory profile',
+				'description' => 'No conversation-memory profile is configured.',
+				'enabled' => true,
+				'presets' => [],
+				'status' => 'none'
+			];
+		}
+
+		try {
+			$profile = $this->memoryProfileResolver->getProfile($profileId);
+			$profile['status'] = $this->toBool($profile['enabled'] ?? true) ? 'active' : 'inactive';
+			if (($profile['status'] ?? '') !== 'active') {
+				$errors[] = 'Memory profile is disabled: ' . $profileId;
+			}
+			return $profile;
+		}
+		catch (\Throwable $e) {
+			$errors[] = $e->getMessage();
+			return [
+				'id' => $profileId,
+				'label' => $profileId,
+				'description' => '',
+				'enabled' => false,
+				'presets' => [],
+				'status' => 'missing'
+			];
+		}
+	}
+
+	private function describeContextProfile(string $profileId, array &$warnings, array &$errors): ?array {
+		if ($profileId === '') {
+			return [
+				'id' => '',
+				'label' => 'No context profile',
+				'description' => 'No context-contributor profile is configured.',
+				'enabled' => true,
+				'presets' => [],
+				'status' => 'none'
+			];
+		}
+
+		try {
+			$profile = $this->contextProfileResolver->getProfile($profileId);
+			$profile['status'] = $this->toBool($profile['enabled'] ?? true) ? 'active' : 'inactive';
+			if (($profile['status'] ?? '') !== 'active') {
+				$errors[] = 'Context profile is disabled: ' . $profileId;
+			}
+			return $profile;
+		}
+		catch (\Throwable $e) {
+			$errors[] = $e->getMessage();
+			return [
+				'id' => $profileId,
+				'label' => $profileId,
+				'description' => '',
+				'enabled' => false,
+				'presets' => [],
+				'status' => 'missing'
+			];
+		}
+	}
+
+	/**
 	 * @param array<int,string> $profileIds
 	 * @param array<int,string> $warnings
 	 * @param array<int,string> $errors
@@ -407,13 +552,23 @@ final class AgentCompositionInspector {
 		return $rows;
 	}
 
-	/** @param array<int,array<string,mixed>> $toolProfiles @return array<string,array<int,string>> */
-	private function buildComponentSources(array $toolProfiles): array {
+	/**
+	 * @param array<int,array<string,mixed>> $toolProfiles
+	 * @param array<string,mixed>|null $memoryProfile
+	 * @return array<string,array<int,string>>
+	 */
+	private function buildComponentSources(array $toolProfiles, ?array $memoryProfile, ?array $contextProfile): array {
 		$result = [];
 		foreach ($toolProfiles as $profile) {
 			foreach ((array)($profile['tools'] ?? []) as $presetId) {
-				$result[(string)$presetId][] = (string)($profile['id'] ?? '');
+				$result[(string)$presetId][] = 'tool:' . (string)($profile['id'] ?? '');
 			}
+		}
+		foreach ((array)($memoryProfile['presets'] ?? []) as $presetId) {
+			$result[(string)$presetId][] = 'memory:' . (string)($memoryProfile['id'] ?? '');
+		}
+		foreach ((array)($contextProfile['presets'] ?? []) as $presetId) {
+			$result[(string)$presetId][] = 'context:' . (string)($contextProfile['id'] ?? '');
 		}
 		foreach ($result as &$profileIds) {
 			$profileIds = array_values(array_unique(array_filter($profileIds)));
@@ -429,10 +584,18 @@ final class AgentCompositionInspector {
 	 * @param array<int,string> $errors
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function describeConfiguredComponents(array $settings, array $componentSources, array &$warnings, array &$errors): array {
+	private function describeConfiguredComponents(array $settings, string $memoryProfileId, string $contextProfileId, array $componentSources, array &$warnings, array &$errors): array {
 		$components = [];
 		try {
-			$components = $this->toolProfileResolver->resolveComponents($this->normalizeIds($settings['tool_profiles'] ?? []));
+			$components = $this->toolProfileResolver->resolveComponents(
+				$this->normalizeIds($settings['tool_profiles'] ?? [])
+			);
+			if ($memoryProfileId !== '') {
+				$components = array_merge($components, $this->memoryProfileResolver->resolveComponents($memoryProfileId));
+			}
+			if ($contextProfileId !== '') {
+				$components = array_merge($components, $this->contextProfileResolver->resolveComponents($contextProfileId));
+			}
 		}
 		catch (\Throwable $e) {
 			$errors[] = $e->getMessage();
@@ -462,6 +625,15 @@ final class AgentCompositionInspector {
 				(array)($merged[$presetId]['attach_as'] ?? []),
 				$attachAs
 			)));
+			if (isset($component['memory_config']) && is_array($component['memory_config'])) {
+				$merged[$presetId]['memory_config'] = $component['memory_config'];
+			}
+			if (isset($component['memory_profile'])) {
+				$merged[$presetId]['memory_profile'] = $component['memory_profile'];
+			}
+			if (isset($component['context_profile'])) {
+				$merged[$presetId]['context_profile'] = $component['context_profile'];
+			}
 		}
 
 		$rows = [];
@@ -479,6 +651,11 @@ final class AgentCompositionInspector {
 				'sources' => array_values(array_unique($componentSources[$presetId] ?? ['expert/legacy'])),
 				'tool_names' => [],
 				'memory_resources' => [],
+				'memory_roles' => [],
+				'effective_roles' => [],
+				'memory_profile' => (string)($component['memory_profile'] ?? ''),
+				'context_profile' => (string)($component['context_profile'] ?? ''),
+				'memory_config' => is_array($component['memory_config'] ?? null) ? $component['memory_config'] : [],
 				'config' => $this->redact(is_array($preset['config'] ?? null) ? $preset['config'] : [])
 			];
 		}
@@ -526,12 +703,31 @@ final class AgentCompositionInspector {
 		foreach ($memories as $memory) {
 			$presetId = (string)($memory['preset_id'] ?? '');
 			if ($presetId !== '' && isset($byPreset[$presetId])) {
-				$components[$byPreset[$presetId]]['memory_resources'][] = (string)($memory['resource_id'] ?? '');
+				$index = $byPreset[$presetId];
+				$components[$index]['memory_resources'][] = (string)($memory['resource_id'] ?? '');
+				$components[$index]['memory_roles'] = array_merge(
+					(array)($components[$index]['memory_roles'] ?? []),
+					(array)($memory['roles'] ?? [])
+				);
 			}
 		}
 		foreach ($components as &$component) {
 			$component['tool_names'] = array_values(array_unique(array_filter($component['tool_names'])));
 			$component['memory_resources'] = array_values(array_unique(array_filter($component['memory_resources'])));
+			$component['memory_roles'] = array_values(array_unique(array_filter((array)($component['memory_roles'] ?? []))));
+
+			$effectiveRoles = (array)($component['roles'] ?? []);
+			if ($component['memory_roles'] !== []) {
+				$effectiveRoles = array_values(array_filter(
+					$effectiveRoles,
+					static fn(string $role): bool => $role !== 'memory'
+				));
+				$effectiveRoles = array_merge($effectiveRoles, $component['memory_roles']);
+			}
+			if ($component['tool_names'] !== []) {
+				$effectiveRoles[] = 'tool';
+			}
+			$component['effective_roles'] = array_values(array_unique(array_filter($effectiveRoles)));
 		}
 		unset($component);
 		return $components;

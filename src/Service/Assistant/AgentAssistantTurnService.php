@@ -18,6 +18,7 @@
 namespace MissionBay\Service\Assistant;
 
 use Base3\Logger\Api\ILogger;
+use MissionBay\Api\IAgentAssistantContextContributionService;
 use MissionBay\Api\IAgentAssistantFallbackBuilder;
 use MissionBay\Api\IAgentAssistantMemoryService;
 use MissionBay\Api\IAgentAssistantMessageFactory;
@@ -35,6 +36,7 @@ use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
 use MissionBay\Dto\Assistant\PreparedAgentResume;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
+use MissionBay\Orchestrator\AgentStateSynchronizer;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 use MissionBay\Orchestrator\Service\AgentActionResumeService;
@@ -43,14 +45,17 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 	public function __construct(
 		private IAgentAssistantMemoryService $memoryService,
+		private IAgentAssistantContextContributionService $contextContributionService,
 		private IAgentAssistantMessageFactory $messageFactory,
 		private IAgentAssistantToolSetupFactory $toolSetupFactory,
 		private AgentCapabilityDiscoveryService $capabilityDiscoveryService,
 		private AgentStagePipelineResolver $stagePipelineResolver,
 		private AgentToolOrchestrator $orchestrator,
 		private AgentActionResumeService $actionResumeService,
-		private IAgentAssistantFallbackBuilder $fallbackBuilder
+		private IAgentAssistantFallbackBuilder $fallbackBuilder,
+		private ?AgentStateSynchronizer $stateSynchronizer = null
 	) {
+		$this->stateSynchronizer ??= new AgentStateSynchronizer();
 	}
 
 	public function run(AgentAssistantTurnResources $resources, IAgentContext $context, AgentAssistantTurnOptions $options, ?callable $eventCallback = null): AgentAssistantTurnResult {
@@ -62,17 +67,91 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$system = $options->getSystem();
 		$resume = $options->getResume();
 		$preparedResume = $this->prepareResume($resume);
-		$selectionPrompt = $this->resolveSelectionPrompt($prompt, $preparedResume);
 
 		if ($prompt === '' && $resume === null) {
 			throw new \RuntimeException('Prompt is required for a new agent turn.');
 		}
 
-		$this->applyTurnContext($context, $assistantMessageId, $logger);
+		$turnId = $this->applyTurnContext($context, $assistantMessageId, $logger);
 
-		$memories = $options->isMemoryReadEnabled()
+		$memories = ($options->isMemoryReadEnabled() || $options->isMemoryWriteEnabled())
 			? $this->memoryService->sortMemories($resources->getMemories())
 			: [];
+
+		$context->setVar('conversation_memory_resource_count', count($memories));
+		$this->log($logger, 'Active conversation-memory resource(s): ' . count($memories) . '.');
+		if ($options->isMemoryReadEnabled() && $memories === []) {
+			$this->logError($logger, 'Conversation memory is enabled for the turn, but no conversation-memory resource is attached.');
+		}
+
+		$this->stateSynchronizer->initializeTurn(
+			context: $context,
+			taskId: $turnId,
+			nodeId: $nodeId,
+			mode: $options->getMode(),
+			conversationMemoryCount: count($memories),
+			contextContributorCount: count($resources->getContextContributors()),
+			resume: $resume !== null
+		);
+
+		$historyMessages = [];
+		$userMessage = $preparedResume !== null
+			? $this->resolveResumeUserMessage($preparedResume)
+			: $this->messageFactory->createUserMessage($prompt);
+		$task = [
+			'description' => $prompt,
+			'selection_prompt' => $this->resolveSelectionPrompt($prompt, $preparedResume),
+			'has_history' => false,
+			'history_message_count' => 0,
+			'completion_criteria' => ['Answer the current user request directly.']
+		];
+
+		if ($preparedResume === null) {
+			if ($options->isMemoryReadEnabled()) {
+				$historyMessages = $this->memoryService->buildInitialMessages('', $memories, $nodeId, $logger);
+				array_shift($historyMessages);
+			}
+			$task = $this->normalizeTask($prompt, $historyMessages);
+
+			// Persist the user turn before capability discovery, policy evaluation, or
+			// tool execution can fail. Conversation history must survive every later
+			// runtime failure in this turn.
+			if ($options->isMemoryWriteEnabled()) {
+				$this->memoryService->appendVisibleMessage($memories, $nodeId, $userMessage, $logger);
+			}
+		}
+
+		$selectionPrompt = (string)$task['selection_prompt'];
+		$toolsEnabled = $options->areToolsEnabled();
+		$this->stateSynchronizer->updateTask(
+			$context,
+			(string)$task['description'],
+			[
+				'prompt' => $prompt,
+				'selection_prompt' => $selectionPrompt,
+				'has_history' => $task['has_history'],
+				'history_message_count' => $task['history_message_count'],
+				'completion_criteria' => $task['completion_criteria']
+			],
+			['normalization' => 'history-context-v2']
+		);
+		$context->setVar('normalized_task', $task);
+		$context->setVar('conversation_history_message_count', (int)$task['history_message_count']);
+		$this->log($logger, 'Loaded ' . (int)$task['history_message_count'] . ' visible conversation-history message(s) for node ' . $nodeId . '.');
+
+		$system = rtrim($system) . "\n\nVisible conversation history is the authoritative source for earlier turns in this chat. Use it before tools. Do not use tools, delegated agents, knowledge storage, preferences, or external search to reconstruct the current conversation. Use tools only for information or actions that are not already present in the visible history.";
+
+		if ($options->isDeliberatePlanningEnabled()) {
+			$system = rtrim($system) . "\n\nUse a concise execution plan before choosing tools: first use visible history, then identify only missing evidence, use one focused tool batch per evidence gap, avoid repeated equivalent calls, and stop as soon as the answer is supported. Do not reveal private chain-of-thought; only provide the final answer and any necessary uncertainty.";
+			$this->stateSynchronizer->updatePlan(
+				$context,
+				$this->buildDeliberatePlan((bool)$task['has_history'], $toolsEnabled),
+				[
+					'source' => 'orchestrator-profile',
+					'verification' => 'semantic-verification'
+				]
+			);
+		}
 
 		$tools = $resources->getTools();
 		$toolDefs = [];
@@ -81,7 +160,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$capabilitySelectionConfig = $options->getCapabilitySelectionConfig();
 		$capabilityDiscovery = null;
 
-		if ($options->areToolsEnabled()) {
+		if ($toolsEnabled) {
 			$capabilityDiscovery = $this->capabilityDiscoveryService->discover(
 				$tools,
 				$options->getCapabilitySourceConfig(),
@@ -119,9 +198,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 			$systemAppend = $toolSetup->getEffectivePlan()->getSystemAppend();
 			if ($systemAppend !== null && trim($systemAppend) !== '') {
-				$system = rtrim($system) . "
-
-" . trim($systemAppend);
+				$system = rtrim($system) . "\n\n" . trim($systemAppend);
 			}
 
 			$tools = $toolSetup->getTools();
@@ -139,20 +216,30 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$this->log($logger, 'Max tool loops: ' . $options->getMaxToolLoops() . '.');
 
 		if ($preparedResume !== null) {
+			// Resume reuses the exact reviewed message set. Context contributors are
+			// resolved only for new turns and must not change an approved action.
 			$messages = $this->readResumeMessages($preparedResume);
-			$userMessage = $this->resolveResumeUserMessage($preparedResume);
 		} else {
-			$messages = $this->memoryService->buildInitialMessages($system, $memories, $nodeId, $logger);
-			$userMessage = $this->messageFactory->createUserMessage($prompt);
-			$messages[] = $userMessage;
+			$messages = array_merge(
+				[['role' => 'system', 'content' => $system]],
+				$historyMessages
+			);
+			$contextMessages = $this->contextContributionService->buildMessages(
+				array_merge($resources->getContextContributors(), $memories),
+				$context,
+				$logger
+			);
 
-			if ($options->isMemoryWriteEnabled()) {
-				$this->memoryService->appendVisibleMessage($memories, $nodeId, $userMessage, $logger);
+			if ($contextMessages !== []) {
+				array_splice($messages, 1, 0, $contextMessages);
 			}
+
+			$messages[] = $userMessage;
 		}
 
-		if (!$options->areToolsEnabled()) {
+		if (!$toolsEnabled) {
 			$this->storeSkippedOrchestratorContext($context, $messages, $logger);
+			$this->stateSynchronizer->finishWithoutOrchestration($context);
 
 			return new AgentAssistantTurnResult(
 				messages: $messages,
@@ -212,7 +299,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		);
 	}
 
-	private function applyTurnContext(IAgentContext $context, string $assistantMessageId, ?ILogger $logger): void {
+	private function applyTurnContext(IAgentContext $context, string $assistantMessageId, ?ILogger $logger): string {
 		$turnId = $this->readContextString($context, ['turn_id', 'chat_turn_id', 'message_id'], '');
 
 		if ($turnId === '') {
@@ -226,6 +313,8 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Turn context could not be stored: ' . $e->getMessage());
 		}
+
+		return $turnId;
 	}
 
 	/**
@@ -385,6 +474,102 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		}
 
 		return $prompt;
+	}
+
+	/**
+	 * Builds a language-neutral task view. Recent visible conversation turns are
+	 * always included in capability selection; no phrase classifier or regular
+	 * expression is used to guess whether a request refers to prior messages.
+	 *
+	 * @param array<int,array<string,mixed>> $historyMessages
+	 * @return array<string,mixed>
+	 */
+	private function normalizeTask(string $prompt, array $historyMessages): array {
+		$prompt = trim($prompt);
+		$historyContext = $this->buildHistorySelectionContext($historyMessages);
+		$selectionPrompt = $prompt;
+
+		if ($historyContext !== '') {
+			$selectionPrompt = implode("\n", [
+				'Visible conversation history:',
+				$historyContext,
+				'',
+				'Current user request:',
+				$prompt
+			]);
+		}
+
+		return [
+			'description' => $prompt,
+			'selection_prompt' => $selectionPrompt,
+			'has_history' => $historyMessages !== [],
+			'history_message_count' => count($historyMessages),
+			'desired_output' => 'direct_answer',
+			'completion_criteria' => [
+				'Use visible conversation history before selecting tools.',
+				'Use tools only for information or actions missing from the visible history.',
+				'Answer directly when the available evidence is sufficient.'
+			]
+		];
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $messages
+	 */
+	private function buildHistorySelectionContext(array $messages): string {
+		$rows = [];
+		$messages = array_slice($messages, -10);
+
+		foreach ($messages as $message) {
+			if (!is_array($message)) {
+				continue;
+			}
+
+			$role = strtolower(trim((string)($message['role'] ?? '')));
+			if (!in_array($role, ['user', 'assistant'], true)) {
+				continue;
+			}
+
+			$content = $message['content'] ?? '';
+			if (!is_scalar($content) || trim((string)$content) === '') {
+				continue;
+			}
+
+			$rows[] = ucfirst($role) . ': ' . $this->limitText(trim((string)$content), 1000);
+		}
+
+		return $this->limitText(implode("\n", $rows), 6000);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function buildDeliberatePlan(bool $hasHistory, bool $toolsEnabled): array {
+		$steps = [];
+
+		if ($hasHistory) {
+			$steps[] = ['id' => 'review-history', 'label' => 'Review visible conversation history'];
+		}
+
+		if ($toolsEnabled) {
+			$steps[] = ['id' => 'assess', 'label' => 'Identify information or actions still missing'];
+			$steps[] = ['id' => 'gather', 'label' => 'Use focused tools only for missing evidence'];
+			$steps[] = ['id' => 'verify', 'label' => 'Verify that available evidence supports the answer'];
+		}
+
+		$steps[] = ['id' => 'answer', 'label' => 'Answer directly and state remaining uncertainty'];
+
+		return $steps;
+	}
+
+	private function limitText(string $value, int $maxLength): string {
+		if (strlen($value) <= $maxLength) {
+			return $value;
+		}
+
+		if (function_exists('mb_strcut')) {
+			return rtrim(mb_strcut($value, 0, $maxLength, 'UTF-8')) . '…';
+		}
+
+		return rtrim(substr($value, 0, $maxLength)) . '…';
 	}
 
 	/**

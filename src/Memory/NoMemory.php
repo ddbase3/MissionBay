@@ -17,9 +17,9 @@
 
 namespace MissionBay\Memory;
 
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentConversationMemory;
 
-class NoMemory implements IAgentMemory
+class NoMemory implements IAgentConversationMemory
 {
 	public static function getName(): string {
 		return 'nomemory';

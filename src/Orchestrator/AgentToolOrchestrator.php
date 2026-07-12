@@ -68,6 +68,7 @@ class AgentToolOrchestrator {
 	private AgentActionResumeService $actionResumeService;
 	private AgentBudgetGuardService $budgetGuardService;
 	private AgentLoopProgressService $loopProgressService;
+	private AgentStateSynchronizer $stateSynchronizer;
 
 	/**
 	 * @param ?array<int,IAgentStage> $stages
@@ -78,7 +79,8 @@ class AgentToolOrchestrator {
 		?array $stages = null,
 		?AgentActionResumeService $actionResumeService = null,
 		?AgentBudgetGuardService $budgetGuardService = null,
-		?AgentLoopProgressService $loopProgressService = null
+		?AgentLoopProgressService $loopProgressService = null,
+		?AgentStateSynchronizer $stateSynchronizer = null
 	) {
 		$this->logger = $logger;
 		$this->stages = $stages === null
@@ -91,6 +93,7 @@ class AgentToolOrchestrator {
 			);
 		$this->budgetGuardService = $budgetGuardService ?? new AgentBudgetGuardService();
 		$this->loopProgressService = $loopProgressService ?? new AgentLoopProgressService();
+		$this->stateSynchronizer = $stateSynchronizer ?? new AgentStateSynchronizer();
 	}
 
 	/**
@@ -153,6 +156,7 @@ class AgentToolOrchestrator {
 			$capabilitySelectionConfig ?? new AgentCapabilitySelectionConfig(),
 			$requiredToolNames
 		);
+		$this->stateSynchronizer->synchronize($context);
 
 		$resumePending = $resume !== null;
 
@@ -339,6 +343,7 @@ class AgentToolOrchestrator {
 			AgentToolLoopContextKeys::CONTINUATION_DECISIONS => [],
 			AgentToolLoopContextKeys::CONTINUATION_HINT => '',
 			AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION => '',
+			AgentToolLoopContextKeys::TERMINAL_EVIDENCE_READY => false,
 			AgentToolLoopContextKeys::BUDGET_ASSESSMENTS => [],
 			AgentToolLoopContextKeys::STAGE_TRACE => [],
 			AgentToolLoopContextKeys::COMPLETED => false,
@@ -498,6 +503,7 @@ class AgentToolOrchestrator {
 			metadata: $metadata
 		);
 		$context->setVar(AgentToolLoopContextKeys::STAGE_TRACE, $trace);
+		$this->stateSynchronizer->synchronize($context);
 	}
 
 	/**
@@ -536,6 +542,8 @@ class AgentToolOrchestrator {
 		foreach ($result->getPatch() as $key => $value) {
 			$context->setVar($key, $value);
 		}
+
+		$this->stateSynchronizer->synchronize($context);
 	}
 
 	private function buildResult(IAgentContext $context): AgentToolOrchestratorResult {
@@ -561,6 +569,7 @@ class AgentToolOrchestrator {
 		$toolContractValidations = $context->getVar(AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS);
 		$capabilitySelections = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTIONS);
 		$executionStatus = $this->resolveExecutionStatus($context);
+		$agentResult = $this->stateSynchronizer->finish($context);
 
 		return new AgentToolOrchestratorResult(
 			is_array($messages) ? $messages : [],
@@ -588,7 +597,8 @@ class AgentToolOrchestrator {
 			is_array($interactionRequests) ? $interactionRequests : [],
 			is_scalar($resumeHandle) ? trim((string)$resumeHandle) : '',
 			is_array($toolContractValidations) ? $toolContractValidations : [],
-			is_array($capabilitySelections) ? $capabilitySelections : []
+			is_array($capabilitySelections) ? $capabilitySelections : [],
+			$agentResult
 		);
 	}
 

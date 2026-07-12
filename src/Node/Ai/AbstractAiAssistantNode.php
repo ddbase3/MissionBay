@@ -18,10 +18,15 @@
 namespace MissionBay\Node\Ai;
 
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContextContributor;
+use MissionBay\Api\IAgentStateContext;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentBudget;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use AssistantFoundation\Dto\AgentExecutionStatus;
+use AssistantFoundation\Dto\AgentResult;
+use AssistantFoundation\Dto\AgentResultState;
 use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
 use Base3\Logger\Api\ILogger;
@@ -37,6 +42,7 @@ use MissionBay\Api\IAgentTool;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use MissionBay\Node\AbstractAgentNode;
 
 abstract class AbstractAiAssistantNode extends AbstractAgentNode {
@@ -91,6 +97,13 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 				description: 'Resolved orchestrator profile id for diagnostics and persisted flow inspection.',
 				type: 'string',
 				default: 'standard',
+				required: false
+			),
+			new AgentNodePort(
+				name: 'deliberateplanning',
+				description: 'Enables concise profile-driven planning without an additional model call or separate planning stage.',
+				type: 'bool',
+				default: false,
 				required: false
 			),
 			new AgentNodePort(
@@ -157,8 +170,15 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			),
 			new AgentNodeDock(
 				name: 'memory',
-				description: 'Optional memory for chat history.',
+				description: 'Optional conversation-memory resources.',
 				interface: IAgentMemory::class,
+				maxConnections: 99,
+				required: false
+			),
+			new AgentNodeDock(
+				name: 'contextcontributors',
+				description: 'Optional prompt/context contributors that are read for new turns and never receive chat-history writes.',
+				interface: IAgentContextContributor::class,
 				maxConnections: 99,
 				required: false
 			),
@@ -197,6 +217,7 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		return new AgentAssistantTurnResources(
 			model: $model,
 			memories: $this->readMemories($resources),
+			contextContributors: $this->readContextContributors($resources),
 			tools: $this->readTools($resources),
 			logger: $this->logger,
 			profileSelector: $this->readProfileSelector($resources)
@@ -226,7 +247,8 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			toolCacheConfig: $this->readToolCacheConfig($inputs),
 			resume: $this->readResume($inputs),
 			capabilitySelectionConfig: $this->readCapabilitySelectionConfig($inputs),
-			capabilitySourceConfig: $this->readCapabilitySourceConfig($inputs)
+			capabilitySourceConfig: $this->readCapabilitySourceConfig($inputs),
+			deliberatePlanningEnabled: $this->readBoolInput($inputs, 'deliberateplanning', false)
 		);
 	}
 
@@ -251,6 +273,61 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		}
 	}
 
+	/**
+	 * Completes the stable typed result after the visible final response has
+	 * been generated. The orchestrator result remains available unchanged.
+	 *
+	 * @param array<string,mixed> $assistantMessage
+	 */
+	protected function finalizeTypedAgentResult(
+		IAgentContext $context,
+		AgentAssistantTurnResult $turnResult,
+		array $assistantMessage,
+		string $finalContent
+	): void {
+		if (!$context instanceof IAgentStateContext) {
+			return;
+		}
+
+		$previousResult = $turnResult->getAgentResult() ?? $context->getResult();
+		$state = $previousResult?->getState() ?? $context->getState();
+		$execution = $state->getExecution();
+		if ($execution !== null) {
+			$state = $state->withExecution($execution->withModelResults($turnResult->getModelResults()));
+		}
+
+		$resultState = $state->getResult() ?? new AgentResultState();
+		$status = $turnResult->getExecutionStatus();
+		$finalResponseMode = $resultState->getFinalResponseMode();
+		if ($finalResponseMode === AgentToolLoopContextKeys::FINAL_RESPONSE_NONE) {
+			$finalResponseMode = match ($status) {
+				AgentExecutionStatus::COMPLETED => AgentToolLoopContextKeys::FINAL_RESPONSE_COMPLETE,
+				AgentExecutionStatus::PARTIAL => AgentToolLoopContextKeys::FINAL_RESPONSE_PARTIAL,
+				default => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE
+			};
+		}
+		$state = $state->withResult($resultState->withFinalOutput(
+			content: $finalContent,
+			finalAssistantMessage: $assistantMessage,
+			completed: $status === AgentExecutionStatus::COMPLETED,
+			finalResponseMode: $finalResponseMode
+		));
+
+		$result = new AgentResult(
+			status: $status,
+			state: $state,
+			output: [
+				'content' => $finalContent,
+				'message' => $assistantMessage
+			],
+			metadata: $previousResult?->getMetadata() ?? []
+		);
+
+		$context->finish($result);
+		$context->setVar('agent_state', $state->toArray());
+		$context->setVar('agent_result', $result->toArray());
+	}
+
 	protected function createAssistantMessageId(): string {
 		return uniqid('msg_', true);
 	}
@@ -273,6 +350,22 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		}
 
 		return $mode;
+	}
+
+	protected function readBoolInput(array $inputs, string $key, bool $default): bool {
+		if (!array_key_exists($key, $inputs) || $inputs[$key] === null || $inputs[$key] === '') {
+			return $default;
+		}
+
+		$value = $inputs[$key];
+		if (is_bool($value)) {
+			return $value;
+		}
+		if (is_int($value) || is_float($value)) {
+			return $value !== 0;
+		}
+
+		return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
 	}
 
 	protected function readMaxToolLoops(array $inputs): int {
@@ -420,6 +513,34 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		}
 
 		return $memories;
+	}
+
+	/**
+	 * @return array<int,IAgentContextContributor>
+	 */
+	private function readContextContributors(array $resources): array {
+		$contributors = [];
+		$seen = [];
+
+		// Older flows connected context contributors to the memory dock. Read both
+		// locations during the cleanup window, but invoke each object only once.
+		foreach (['contextcontributors', 'memory'] as $dockName) {
+			foreach (($resources[$dockName] ?? []) as $contributor) {
+				if (!$contributor instanceof IAgentContextContributor) {
+					continue;
+				}
+
+				$objectId = spl_object_id($contributor);
+				if (isset($seen[$objectId])) {
+					continue;
+				}
+
+				$seen[$objectId] = true;
+				$contributors[] = $contributor;
+			}
+		}
+
+		return $contributors;
 	}
 
 	/**

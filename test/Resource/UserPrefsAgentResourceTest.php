@@ -82,7 +82,7 @@ class UserPrefsAgentResourceTest extends TestCase {
 		);
 
 		$this->assertSame(
-			'Stores user/session preferences via tool calls and injects them as system prompt addendum via memory.',
+			'Stores user/session preferences via tool calls and contributes them to the system context.',
 			$r->getDescription()
 		);
 	}
@@ -138,8 +138,8 @@ class UserPrefsAgentResourceTest extends TestCase {
 
 		$this->assertSame(99, $r->getPriority());
 
-		// With no pref defs/values, loadNodeHistory returns [] (documented behavior).
-		$this->assertSame([], $r->loadNodeHistory('n1'));
+		// With no preference definitions or values, the contributor stays silent.
+		$this->assertSame([], [...$r->contribute($this->createStub(IAgentContext::class))]);
 	}
 
 	public function testInitDocksLoggerAndLogs(): void {
@@ -221,11 +221,10 @@ class UserPrefsAgentResourceTest extends TestCase {
 			'systemtitle' => 'User preferences'
 		]);
 
-		$history = $r->loadNodeHistory('node1');
+		$blocks = [...$r->contribute($this->createStub(IAgentContext::class))];
 
-		$this->assertCount(1, $history);
-		$this->assertSame('system', $history[0]['role']);
-		$this->assertSame("User preferences:\n- User language: en", $history[0]['content']);
+		$this->assertCount(1, $blocks);
+		$this->assertSame("User preferences:\n- User language: en", $blocks[0]->getContent());
 	}
 
 	public function testGetToolDefinitionsContainsExpectedFunctionNames(): void {

@@ -463,7 +463,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 <div class="tool-profile-admin-shell">
 	<h1>Tool Profiles</h1>
 	<p>
-		Manage reusable tool profiles for internal MissionBay agents, MCP exposure, or both. Profiles reference configured component presets and preserve dual tool + memory capabilities.
+		Manage reusable tool profiles for internal MissionBay agents, MCP exposure, or both. Profiles reference already configured tool Component Presets. Memory and context are configured in their own profile displays.
 	</p>
 
 	<div class="tool-profile-admin-grid">
@@ -553,7 +553,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 					</label>
 <?php endforeach; ?>
 				</div>
-				<div class="tool-profile-admin-form-hint">Select component presets for this profile. Presets exposing tool + memory are attached in both roles for internal agents.</div>
+				<div class="tool-profile-admin-form-hint">Select already configured tool Component Presets for this profile. Their saved configuration is used unchanged.</div>
 			</div>
 		</form>
 	</div>

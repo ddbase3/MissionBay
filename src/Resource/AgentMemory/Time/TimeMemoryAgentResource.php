@@ -17,8 +17,9 @@
 
 namespace MissionBay\Resource\AgentMemory\Time;
 
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Dto\AgentInstructionBlock;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContextContributor;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Resource\AbstractAgentResource;
 
@@ -28,7 +29,7 @@ use MissionBay\Resource\AbstractAgentResource;
  * Provides a single system message with the current date/time/timezone.
  * Does not store or accept appended history.
  */
-class TimeMemoryAgentResource extends AbstractAgentResource implements IAgentMemory {
+class TimeMemoryAgentResource extends AbstractAgentResource implements IAgentContextContributor {
 
 	private IAgentConfigValueResolver $resolver;
 	private int $priority = 10;
@@ -51,30 +52,23 @@ class TimeMemoryAgentResource extends AbstractAgentResource implements IAgentMem
 		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 10);
 	}
 
-	// ------- IAgentMemory -------
-	public function loadNodeHistory(string $nodeId): array {
+	// ------- Context contribution -------
+
+	public function contribute(IAgentContext $context): iterable {
 		$now = new \DateTimeImmutable('now', new \DateTimeZone(date_default_timezone_get()));
-		return [[
-			'role' => 'system',
-			'content' => 'Current time is ' . $now->format(\DateTimeInterface::ATOM)
-				. ' (weekday: ' . $now->format('l') . ')'
-		]];
-	}
 
-	public function appendNodeHistory(string $nodeId, array $message): void {
-		// no-op
-	}
-
-	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		// no-op
-	}
-
-	public function resetNodeHistory(string $nodeId): void {
-		// no-op
+		return [new AgentInstructionBlock(
+			id: 'current-time',
+			content: 'Current time is ' . $now->format(\DateTimeInterface::ATOM)
+				. ' (weekday: ' . $now->format('l') . ')',
+			source: $this->id(),
+			metadata: ['implementation' => static::getName()]
+		)];
 	}
 
 	public function getPriority(): int {
 		return $this->priority;
 	}
+
 }
 

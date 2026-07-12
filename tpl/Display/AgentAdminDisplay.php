@@ -751,7 +751,9 @@
         function renderAgentProfiles(value, row) {
                 const wrapper = createElement('agent-admin-cell-stack');
                 const main = createElement('agent-admin-cell-main', getText(row.orchestrator_profile, 'standard'));
-                const sub = createElement('agent-admin-cell-sub', row.tool_profile_count > 0 ? getText(row.tool_profile_text) : 'No tool profile');
+                const toolText = row.tool_profile_count > 0 ? getText(row.tool_profile_text) : 'no tool profile';
+                const memoryText = row.memory_profile ? 'memory: ' + getText(row.memory_profile) : 'memory: legacy';
+                const sub = createElement('agent-admin-cell-sub', toolText + ' / ' + memoryText);
                 wrapper.appendChild(main);
                 wrapper.appendChild(sub);
                 return wrapper;
@@ -835,6 +837,8 @@
                 left.appendChild(createDetailRow('LLM', record.llm));
                 left.appendChild(createDetailRow('Orchestrator profile', record.orchestrator_profile));
                 left.appendChild(createDetailRow('Tool profiles', record.tool_profile_text || 'none'));
+                left.appendChild(createDetailRow('Memory profile', record.memory_profile || 'none'));
+				left.appendChild(createDetailRow('Context profile', record.context_profile || 'none'));
                 left.appendChild(createDetailRow('Direct legacy components', record.component_count));
                 left.appendChild(createDetailRow('User prompt', record.user_prompt_preview));
 

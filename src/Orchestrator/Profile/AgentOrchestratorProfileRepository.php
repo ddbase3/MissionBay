@@ -161,6 +161,27 @@ final class AgentOrchestratorProfileRepository {
 					'sticky' => true
 				]
 			], true),
+			'deliberate' => $this->fromArray('deliberate', [
+				'label' => 'Deliberate evidence agent',
+				'description' => 'Uses visible history first, creates a concise execution plan without an extra model call, limits repeated tool work and keeps semantic verification enabled.',
+				'enabled' => true,
+				'mode' => AgentOrchestratorProfile::MODE_DELIBERATE,
+				'deliberate_planning' => true,
+				'max_tool_loops' => 4,
+				'optional_stages' => [
+					'capability-discovery' => true,
+					'capability-selection' => true,
+					'context-compaction' => true,
+					'semantic-verification' => true
+				],
+				'capability_selection' => [
+					'enabled' => true,
+					'strategy' => 'hybrid',
+					'max_tools' => 12,
+					'select_all_threshold' => 12,
+					'sticky' => true
+				]
+			], true),
 			'governed' => $this->fromArray('governed', [
 				'label' => 'Governed mutation agent',
 				'description' => 'Full pipeline for agents that may execute approved mutations. Approval, replay protection and commit guards remain mandatory services.',
@@ -208,6 +229,7 @@ final class AgentOrchestratorProfileRepository {
 			contextCompactionEnabled: $this->toBool($optional['context-compaction'] ?? $defaults['optional_stages']['context-compaction']),
 			semanticVerificationEnabled: $this->toBool($optional['semantic-verification'] ?? $defaults['optional_stages']['semantic-verification']),
 			capabilitySelection: AgentCapabilitySelectionConfig::fromArray(array_merge($defaults['capability_selection'], $selection)),
+			deliberatePlanningEnabled: $this->toBool($settings['deliberate_planning'] ?? $defaults['deliberate_planning']),
 			builtin: $builtin
 		);
 	}
@@ -216,6 +238,7 @@ final class AgentOrchestratorProfileRepository {
 	private function defaultsForMode(string $mode): array {
 		return match ($mode) {
 			AgentOrchestratorProfile::MODE_SIMPLE => [
+				'deliberate_planning' => false,
 				'max_tool_loops' => 1,
 				'optional_stages' => [
 					'capability-discovery' => false,
@@ -225,8 +248,20 @@ final class AgentOrchestratorProfileRepository {
 				],
 				'capability_selection' => ['enabled' => true, 'strategy' => 'hybrid', 'max_tools' => 12, 'select_all_threshold' => 12, 'sticky' => false]
 			],
+			AgentOrchestratorProfile::MODE_DELIBERATE => [
+				'deliberate_planning' => true,
+				'max_tool_loops' => 4,
+				'optional_stages' => [
+					'capability-discovery' => true,
+					'capability-selection' => true,
+					'context-compaction' => true,
+					'semantic-verification' => true
+				],
+				'capability_selection' => ['enabled' => true, 'strategy' => 'hybrid', 'max_tools' => 12, 'select_all_threshold' => 12, 'sticky' => true]
+			],
 			AgentOrchestratorProfile::MODE_GOVERNED,
 			AgentOrchestratorProfile::MODE_STANDARD => [
+				'deliberate_planning' => false,
 				'max_tool_loops' => 10,
 				'optional_stages' => [
 					'capability-discovery' => true,

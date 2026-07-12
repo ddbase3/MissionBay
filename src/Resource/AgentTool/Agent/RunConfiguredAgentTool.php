@@ -23,7 +23,8 @@ use Base3\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Dto\AgentInstructionBlock;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Resource\AbstractAgentResource;
 use Throwable;
@@ -35,7 +36,7 @@ use Throwable;
  * Multiple instances can be attached with different configured agent IDs and
  * different tool names.
  */
-class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool, IAgentMemory, ISchemaProvider {
+class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool, IAgentContextContributor, ISchemaProvider {
 
 	private const SETTINGS_GROUP = 'agent';
 	private const DEFAULT_TOOL_NAME = 'run_configured_agent';
@@ -147,40 +148,29 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 	}
 
 	// ----------------------------------------------------
-	// IAgentMemory
+	// Context contribution
 	// ----------------------------------------------------
 
-	public function loadNodeHistory(string $nodeId): array {
-		if(!$this->memoryEnabled || $this->agentId === '') {
+	public function contribute(IAgentContext $context): iterable {
+		if (!$this->memoryEnabled || $this->agentId === '') {
 			return [];
 		}
 
 		$agentLabel = $this->getConfiguredAgentLabel();
 		$content = 'Sub-agent tool available: call function "' . $this->toolName . '" to delegate work to configured agent "' . $this->agentId . '"';
 
-		if($agentLabel !== '' && $agentLabel !== $this->agentId) {
+		if ($agentLabel !== '' && $agentLabel !== $this->agentId) {
 			$content .= ' (' . $agentLabel . ')';
 		}
 
-		$content .= '. Provide user_prompt when you need the sub-agent to solve a specific sub-task. Omit user_prompt to use the configured default prompt.';
+		$content .= '. Provide user_prompt for a concrete sub-task; omit it to use the configured default prompt.';
 
-		return [[
-			'role' => 'system',
-			'content' => $content
-		]];
-	}
-
-	public function appendNodeHistory(string $nodeId, array $message): void {
-		// no-op (this resource only injects a static tool hint)
-	}
-
-	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		// no-op
-		return false;
-	}
-
-	public function resetNodeHistory(string $nodeId): void {
-		// no-op
+		return [new AgentInstructionBlock(
+			id: 'configured-agent-guidance',
+			content: $content,
+			source: $this->id(),
+			metadata: ['implementation' => static::getName()]
+		)];
 	}
 
 	public function getPriority(): int {

@@ -118,9 +118,21 @@ final class MutationApprovalAgentActionPolicy implements IAgentActionPolicy {
 
 	/** @param array<string,mixed> $annotations */
 	private function requiresApproval(array $annotations): bool {
+		foreach (['destructiveHint', 'destructive'] as $key) {
+			if (($annotations[$key] ?? false) === true) {
+				return true;
+			}
+		}
+
+		// Trusted tool definitions may explicitly opt an internal state write out
+		// of user approval. Destructive annotations always win above.
+		if (array_key_exists('requiresApproval', $annotations)) {
+			return $annotations['requiresApproval'] === true;
+		}
+
 		foreach ([
-			'destructiveHint', 'destructive', 'requiresApproval', 'requires_confirmation',
-			'requiresConfirmation', 'mutation', 'sideEffectHint', 'side_effect'
+			'requires_confirmation', 'requiresConfirmation', 'mutation',
+			'sideEffectHint', 'side_effect'
 		] as $key) {
 			if (($annotations[$key] ?? false) === true) {
 				return true;

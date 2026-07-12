@@ -158,7 +158,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 
 			if (!$turnResult->canGenerateFinalResponse()) {
 				$this->storeModelResults($context, $turnResult);
-				return $this->handleIncompleteTurn($turnResult);
+				return $this->handleIncompleteTurn($context, $turnResult);
 			}
 
 			try {
@@ -169,6 +169,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 				$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
 				$this->storeModelResults($context, $turnResult);
+				$this->finalizeTypedAgentResult($context, $turnResult, $assistantMessage, $finalContent);
 
 				return [
 					'message' => $assistantMessage,
@@ -181,6 +182,7 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 			$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 			$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
 			$this->storeModelResults($context, $turnResult);
+			$this->finalizeTypedAgentResult($context, $turnResult, $assistantMessage, $finalContent);
 
 			if ($isSuggestions) {
 				$this->log('Suggestions mode: memory write skipped.');
@@ -210,10 +212,11 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 		}
 	}
 
-	private function handleIncompleteTurn(AgentAssistantTurnResult $turnResult): array {
+	private function handleIncompleteTurn(IAgentContext $context, AgentAssistantTurnResult $turnResult): array {
 		$finalContent = $turnResult->getFallbackContent() ?? 'Ich konnte die Anfrage nicht vollständig abschließen. Bitte versuche es erneut oder grenze die Anfrage etwas ein.';
 		$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 		$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
+		$this->finalizeTypedAgentResult($context, $turnResult, $assistantMessage, $finalContent);
 
 		return [
 			'message' => $assistantMessage,

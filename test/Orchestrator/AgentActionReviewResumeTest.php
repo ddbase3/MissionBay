@@ -86,6 +86,25 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertSame(['id' => 42, 'title' => 'Reviewed title'], $tool->getLastArguments());
 	}
 
+	public function testInternalMutationExplicitlyRunsWithoutApprovalOrCommitGuard(): void {
+		$tool = new InternalMutationTool();
+		[$orchestrator] = $this->createHarness();
+		$result = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->toolCallResponse('call-internal', 'internal_write', ['value' => 'Fu ruft tut']),
+				$this->terminalResponse()
+			]),
+			[['role' => 'user', 'content' => 'Store internal agent knowledge.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+
+		$this->assertTrue($result->isCompleted());
+		$this->assertFalse($result->isSuspended());
+		$this->assertSame(1, $tool->getCallCount());
+	}
+
 	public function testConsumedResumeHandleIsRejectedAsReplay(): void {
 		$tool = new ApprovalMutationTool();
 		[$orchestrator, $resumeService] = $this->createHarness();
@@ -410,6 +429,44 @@ final class AgentActionReviewResumeTest extends TestCase {
 	/** @return array<string,mixed> */
 	private function terminalResponse(): array {
 		return ['choices' => [['message' => ['role' => 'assistant', 'content' => 'TOOL_PHASE_COMPLETE']]]];
+	}
+}
+
+
+final class InternalMutationTool implements IAgentTool {
+	private int $callCount = 0;
+
+	public static function getName(): string {
+		return 'internalmutationtool';
+	}
+
+	public function getToolDefinitions(): array {
+		return [[
+			'type' => 'function',
+			'label' => 'Internal write',
+			'readOnlyHint' => false,
+			'mutation' => true,
+			'requiresApproval' => false,
+			'commitGuardRequired' => false,
+			'function' => [
+				'name' => 'internal_write',
+				'description' => 'Writes agent-owned internal state.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => ['value' => ['type' => 'string']]
+				]
+			]
+		]];
+	}
+
+	public function callTool(string $toolName, array $arguments, IAgentContext $context): mixed {
+		$this->callCount++;
+
+		return ['ok' => true, 'value' => (string)($arguments['value'] ?? '')];
+	}
+
+	public function getCallCount(): int {
+		return $this->callCount;
 	}
 }
 

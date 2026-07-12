@@ -4,10 +4,11 @@ $resolve = $this->_['resolve'];
 $serviceUrl = (string) ($this->_['service'] ?? '');
 $resourceOptions = is_array($this->_['resource_options'] ?? null) ? $this->_['resource_options'] : [];
 $presetOptions = is_array($this->_['preset_options'] ?? null) ? $this->_['preset_options'] : [];
+$openPresetId = (string)($this->_['open_preset_id'] ?? '');
 $categoryOptions = ['context', 'web', 'ai', 'memory', 'tool', 'storage', 'integration', 'system', 'experimental'];
 $statusOptions = ['draft', 'ready', 'disabled', 'deprecated'];
 $riskOptions = ['none', 'read_external_url', 'reads_context', 'writes_memory', 'writes_settings', 'external_api', 'destructive', 'experimental'];
-$capabilityOptions = ['memory', 'tool'];
+$capabilityOptions = ['memory', 'context', 'tool'];
 $modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
 $modularGridJsUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/index.js');
 $modularDialogCssUrl = (string) $resolve('plugin/ClientStack/assets/modulardialog/styles/modulardialog.css');
@@ -634,6 +635,7 @@ const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED
 const MODULARDIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const RESOURCE_OPTIONS = <?php echo json_encode($resourceOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const PRESET_OPTIONS = <?php echo json_encode($presetOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+const OPEN_PRESET_ID = <?php echo json_encode($openPresetId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const RESOURCE_TYPE_FILTER_OPTIONS = [
 	{ value: '', label: 'All resource types' },
 	...RESOURCE_OPTIONS
@@ -2163,6 +2165,21 @@ async function reloadPresetDefaults() {
 	}
 }
 
+async function openEditorById(id) {
+	id = String(id || '').trim();
+	if (!id) {
+		return;
+	}
+
+	try {
+		setLog('Loading preset from direct link: ' + id);
+		const record = await loadRemoteRecord({ preset_id: id });
+		openPresetEditor(record);
+	} catch (error) {
+		setLog('Could not open linked preset: ' + getText(error && error.message ? error.message : error));
+	}
+}
+
 async function openEditorFromRow(row) {
 	try {
 		setLog('Loading record for editor: ' + getText(getPresetIdFromRow(row)));
@@ -2624,6 +2641,9 @@ async function initGrid(modularGridModule) {
 	}
 
 	setLog('Agent Component Preset Admin loaded. Column visibility and infinite scroll are enabled.');
+	if (OPEN_PRESET_ID !== '') {
+		await openEditorById(OPEN_PRESET_ID);
+	}
 }
 
 (async function() {

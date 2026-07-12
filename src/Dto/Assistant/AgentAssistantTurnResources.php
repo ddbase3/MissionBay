@@ -17,9 +17,10 @@
 
 namespace MissionBay\Dto\Assistant;
 
+use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Api\IAgentMemory;
 use AssistantFoundation\Api\IAiChatModel;
 use Base3\Logger\Api\ILogger;
-use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentProfileSelector;
 use MissionBay\Api\IAgentTool;
 
@@ -28,13 +29,15 @@ final class AgentAssistantTurnResources {
 	/**
 	 * @param array<int,IAgentMemory> $memories
 	 * @param array<int,IAgentTool> $tools
+	 * @param array<int,IAgentContextContributor> $contextContributors
 	 */
 	public function __construct(
 		private IAiChatModel $model,
 		private array $memories = [],
 		private array $tools = [],
 		private ?ILogger $logger = null,
-		private ?IAgentProfileSelector $profileSelector = null
+		private ?IAgentProfileSelector $profileSelector = null,
+		private array $contextContributors = []
 	) {
 	}
 
@@ -47,6 +50,13 @@ final class AgentAssistantTurnResources {
 	 */
 	public function getMemories(): array {
 		return $this->memories;
+	}
+
+	/**
+	 * @return array<int,IAgentContextContributor>
+	 */
+	public function getContextContributors(): array {
+		return $this->contextContributors;
 	}
 
 	/**

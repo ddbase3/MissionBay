@@ -47,7 +47,7 @@ final class AgentMutationCommitGuardService {
 		IAgentContext $context
 	): ?AgentMutationCommitSnapshot {
 		$definition = $this->findToolDefinition($call->getName(), $context);
-		if (!$this->isMutationDefinition($definition)) {
+		if (!$this->isMutationDefinition($definition) || !$this->isCommitGuardRequired($definition)) {
 			return null;
 		}
 
@@ -89,6 +89,15 @@ final class AgentMutationCommitGuardService {
 		}
 
 		$action = $this->createAction($call, $context);
+		if (!$this->isCommitGuardRequired($definition)) {
+			$decision = AgentMutationCommitDecision::allow(
+				'Mutation tool explicitly opts out of commit snapshot validation.',
+				['guarded' => false]
+			);
+			$this->emitAudit(MissionBayAgentActionAuditEvent::TYPE_COMMIT_ALLOWED, $action, $decision, $context);
+			return $decision;
+		}
+
 		$metadata = $call->getMetadata();
 		$approvedFingerprint = trim((string)($metadata[self::TOOL_CALL_METADATA_APPROVAL_FINGERPRINT] ?? ''));
 		$currentFingerprint = $this->fingerprint->create($action);

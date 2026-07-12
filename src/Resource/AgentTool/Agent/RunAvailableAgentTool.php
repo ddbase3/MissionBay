@@ -23,7 +23,8 @@ use Base3\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Dto\AgentInstructionBlock;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Resource\AbstractAgentResource;
 use Throwable;
@@ -35,7 +36,7 @@ use Throwable;
  * execution tool. The memory output stays compact: small installations get a
  * short inline list, larger installations are discovered through paged tools.
  */
-class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool, IAgentMemory, ISchemaProvider {
+class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool, IAgentContextContributor, ISchemaProvider {
 
 	private const DEFAULT_SETTINGS_GROUP = 'agent';
 	private const DEFAULT_TOOL_PREFIX = 'agent_catalog';
@@ -182,50 +183,37 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 	}
 
 	// ----------------------------------------------------
-	// IAgentMemory
+	// Context contribution
 	// ----------------------------------------------------
 
-	public function loadNodeHistory(string $nodeId): array {
-		if(!$this->memoryEnabled) {
+	public function contribute(IAgentContext $context): iterable {
+		if (!$this->memoryEnabled) {
 			return [];
 		}
 
 		$agents = $this->loadEnabledAgentRows();
 		$count = count($agents);
-		$content = 'Enabled agent catalog tool available. Use "' . $this->listToolName . '" to search or page agents, "' . $this->describeToolName . '" to inspect one agent, and "' . $this->runToolName . '" to run an enabled agent by agent_id.';
-		$content .= ' Provide user_prompt to delegate a concrete sub-task; omit user_prompt to use the selected agent default prompt.';
+		$content = 'Enabled agent catalog tool available. Use "' . $this->listToolName . '" to search agents, "' . $this->describeToolName . '" to inspect one, and "' . $this->runToolName . '" to run one by agent_id.';
 
-		if($count === 0) {
+		if ($count === 0) {
 			$content .= ' No enabled configured agents are currently available.';
 		}
-		elseif($count <= $this->memoryAgentLimit) {
+		else if ($count <= $this->memoryAgentLimit) {
 			$content .= "\nEnabled agents:";
-
-			foreach($agents as $agent) {
+			foreach ($agents as $agent) {
 				$content .= "\n- " . $agent['id'] . ': ' . $this->formatInlineAgentLabel($agent, $this->memoryPromptPreviewLength);
 			}
 		}
 		else {
-			$content .= ' There are ' . $count . ' enabled agents, so the inline list is omitted to save context. Call "' . $this->listToolName . '" with search and paging before choosing an agent.';
+			$content .= ' There are ' . $count . ' enabled agents. Use the list tool before choosing one.';
 		}
 
-		return [[
-			'role' => 'system',
-			'content' => $content
-		]];
-	}
-
-	public function appendNodeHistory(string $nodeId, array $message): void {
-		// no-op (this resource only injects catalog guidance)
-	}
-
-	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		// no-op
-		return false;
-	}
-
-	public function resetNodeHistory(string $nodeId): void {
-		// no-op
+		return [new AgentInstructionBlock(
+			id: 'available-agent-catalog',
+			content: $content,
+			source: $this->id(),
+			metadata: ['implementation' => static::getName()]
+		)];
 	}
 
 	public function getPriority(): int {

@@ -20,6 +20,7 @@ namespace MissionBay\Dto\Assistant;
 use AssistantFoundation\Api\IAgentMemory;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
+use AssistantFoundation\Dto\AgentResult;
 use AssistantFoundation\Dto\AiResultMetadata;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
 
@@ -81,6 +82,10 @@ final class AgentAssistantTurnResult {
 
 	public function getOrchestrationResult(): ?AgentToolOrchestratorResult {
 		return $this->orchestrationResult;
+	}
+
+	public function getAgentResult(): ?AgentResult {
+		return $this->orchestrationResult?->getAgentResult();
 	}
 
 	public function isCompleted(): bool {

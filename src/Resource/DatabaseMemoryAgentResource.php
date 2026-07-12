@@ -17,7 +17,7 @@
 
 namespace MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentConversationMemory;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Agent\AgentNodeDock;
@@ -26,7 +26,7 @@ use Base3\Accesscontrol\Api\IAccesscontrol;
 use Base3\Session\Api\ISession;
 use Base3\Logger\Api\ILogger;
 
-class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgentMemory {
+class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgentConversationMemory {
 
 	private ?ILogger $logger = null;
 

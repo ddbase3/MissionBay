@@ -183,7 +183,7 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 
 			if (!$turnResult->canGenerateFinalResponse()) {
 				$this->storeModelResults($context, $turnResult);
-				return $this->handleIncompleteTurn($stream, $turnResult);
+				return $this->handleIncompleteTurn($stream, $context, $turnResult);
 			}
 
 			if ($turnResult->isPartialFinalResponse() && !$stream->isDisconnected()) {
@@ -205,6 +205,7 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 			$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 			$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
 			$this->storeModelResults($context, $turnResult);
+			$this->finalizeTypedAgentResult($context, $turnResult, $assistantMessage, $finalContent);
 
 			$output = [
 				'stream_ready' => true,
@@ -243,12 +244,13 @@ class StreamingAiAssistantNode extends AbstractAiAssistantNode {
 		}
 	}
 
-	private function handleIncompleteTurn(IEventStream $stream, AgentAssistantTurnResult $turnResult): array {
+	private function handleIncompleteTurn(IEventStream $stream, IAgentContext $context, AgentAssistantTurnResult $turnResult): array {
 		$finalContent = $turnResult->getFallbackContent() ?? 'Ich konnte die Anfrage nicht vollständig abschließen. Bitte versuche es erneut oder grenze die Anfrage etwas ein.';
 		$this->pushTextAndDone($stream, $finalContent, 'fallback');
 
 		$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
 		$this->appendAssistantMessageToMemory($turnResult, $assistantMessage);
+		$this->finalizeTypedAgentResult($context, $turnResult, $assistantMessage, $finalContent);
 
 		return [
 			'stream_ready' => true,

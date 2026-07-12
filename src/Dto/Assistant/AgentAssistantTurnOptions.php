@@ -40,7 +40,8 @@ final class AgentAssistantTurnOptions {
 		private ?AgentToolCacheConfig $toolCacheConfig = null,
 		private ?AgentResume $resume = null,
 		private ?AgentCapabilitySelectionConfig $capabilitySelectionConfig = null,
-		private ?AgentCapabilitySourceConfig $capabilitySourceConfig = null
+		private ?AgentCapabilitySourceConfig $capabilitySourceConfig = null,
+		private bool $deliberatePlanningEnabled = false
 	) {
 		$this->prompt = trim($this->prompt);
 		$this->system = trim($this->system);
@@ -122,6 +123,10 @@ final class AgentAssistantTurnOptions {
 
 	public function getCapabilitySourceConfig(): AgentCapabilitySourceConfig {
 		return $this->capabilitySourceConfig ?? new AgentCapabilitySourceConfig();
+	}
+
+	public function isDeliberatePlanningEnabled(): bool {
+		return $this->deliberatePlanningEnabled;
 	}
 
 	/**

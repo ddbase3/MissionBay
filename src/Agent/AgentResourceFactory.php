@@ -17,17 +17,26 @@
 
 namespace MissionBay\Agent;
 
-use MissionBay\Api\IAgentResourceFactory;
-use MissionBay\Api\IAgentResource;
 use Base3\Api\IClassMap;
+use MissionBay\Api\IAgentResource;
+use MissionBay\Api\IAgentResourceFactory;
 
 class AgentResourceFactory implements IAgentResourceFactory {
 
 	public function __construct(private readonly IClassMap $classmap) {}
 
 	public function createResource(string $type): ?IAgentResource {
-		$resource = $this->classmap->getInstanceByInterfaceName(IAgentResource::class, $type);
+		$class = $this->classmap->getClassByInterfaceName(IAgentResource::class, $type);
+		if (!is_string($class) || $class === '') {
+			return null;
+		}
+
+		// Flow resources are configured runtime instances. Always construct a fresh
+		// object instead of reusing the class-map instance cache, otherwise two
+		// component presets of the same implementation can overwrite each other's
+		// id and configuration.
+		$resource = $this->classmap->instantiate($class);
+
 		return $resource instanceof IAgentResource ? $resource : null;
 	}
 }
-

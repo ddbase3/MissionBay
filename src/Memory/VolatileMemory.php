@@ -17,9 +17,9 @@
 
 namespace MissionBay\Memory;
 
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentConversationMemory;
 
-class VolatileMemory implements IAgentMemory {
+class VolatileMemory implements IAgentConversationMemory {
 
 	private array $nodes = [];
 	private array $data = [];

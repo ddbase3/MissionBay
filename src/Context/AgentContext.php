@@ -17,23 +17,27 @@
 
 namespace MissionBay\Context;
 
-use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentMemory;
-use MissionBay\Router\StrictConnectionRouter;
+use MissionBay\Api\IAgentStateContext;
+use AssistantFoundation\Dto\AgentResult;
+use AssistantFoundation\Dto\AgentState;
 use MissionBay\Memory\NoMemory;
 
-class AgentContext implements IAgentContext {
+class AgentContext implements IAgentStateContext {
 
 	private IAgentMemory $memory;
 	private array $vars;
-	private array $resources = [];
+	private AgentState $state;
+	private ?AgentResult $result = null;
 
 	public function __construct(
 		?IAgentMemory $memory = null,
-		array $vars = []
+		array $vars = [],
+		?AgentState $state = null
 	) {
 		$this->memory = $memory ?? new NoMemory();
 		$this->vars = $vars;
+		$this->state = $state ?? AgentState::empty();
 	}
 
 	public static function getName(): string {
@@ -46,6 +50,28 @@ class AgentContext implements IAgentContext {
 
 	public function setMemory(IAgentMemory $memory): void {
 		$this->memory = $memory;
+	}
+
+	public function getState(): AgentState {
+		return $this->state;
+	}
+
+	public function setState(AgentState $state): void {
+		$this->state = $state;
+		$this->result = null;
+	}
+
+	public function isFinished(): bool {
+		return $this->result !== null;
+	}
+
+	public function finish(AgentResult $result): void {
+		$this->state = $result->getState();
+		$this->result = $result;
+	}
+
+	public function getResult(): ?AgentResult {
+		return $this->result;
 	}
 
 	public function setVar(string $key, mixed $value): void {
@@ -64,4 +90,3 @@ class AgentContext implements IAgentContext {
 		return array_keys($this->vars);
 	}
 }
-

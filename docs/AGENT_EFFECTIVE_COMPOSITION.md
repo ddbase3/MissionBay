@@ -17,6 +17,7 @@ agent settings
   -> orchestrator profile
   -> canonical core stages and limits
   -> selected tool profiles
+  -> selected memory profile and selected context profile
   -> component presets
   -> effective AgentFlow resources and docks
   -> configured capability sources
@@ -31,9 +32,10 @@ The view reports:
 - selected orchestrator profile and mode;
 - maximum tool loops and capability-selection settings;
 - selected tool profiles and their component presets;
+- selected memory and context profiles with their concrete preset IDs;
 - component capability facets such as `tool` and `memory`;
 - final callable tool names, source resources, categories, tags and mutation metadata;
-- attached memory resources and their priorities;
+- attached conversation memories and context contributors, their configured and effective roles, priorities, read/write switches, and legacy status;
 - configured and resolved capability providers, modules, prompt providers and resource providers;
 - core stages, module-mounted stages and the final validated stage sequence;
 - warnings and hard configuration errors.
@@ -65,15 +67,25 @@ It may initialize configured resources and ask tools/providers for their definit
 
 Configuration data shown in the diagnostic JSON is recursively redacted for keys that commonly contain credentials, including passwords, tokens, secrets, API keys, authorization data and private keys.
 
-## Dual tool and memory resources
+## Conversation-memory and context roles
 
-A component preset can expose both `tool` and `memory` facets. The display keeps these facets attached to the same preset and shows:
+The runtime now distinguishes explicit conversation history from run-local context contribution. The display reports these roles separately:
+
+```text
+conversation-memory
+context-contributor
+legacy-memory
+tool
+```
+
+A component preset can expose both tool and context/memory facets. The display keeps these facets attached to the same preset and shows:
 
 - the callable tool names produced by its tool wrapper;
-- the memory wrapper and effective priority;
-- the tool profiles or expert configuration that contributed the preset.
+- the configured conversation-memory wrapper and effective priority;
+- the resolved conversation/context/legacy roles;
+- the tool, memory, or context profile that contributed the preset.
 
-This makes resources such as user preferences understandable without pretending that the current `IAgentMemory` contract already distinguishes conversation history from prompt/context contribution.
+Resources such as user preferences therefore appear as `tool + context-contributor`, while session or database history appears as `conversation-memory`. Legacy-only `IAgentMemory` implementations remain conversation-compatible and produce a warning until they declare an explicit role.
 
 ## Administration integration
 
@@ -83,8 +95,9 @@ This makes resources such as user preferences understandable without pretending 
 Agents
 Effective Composition
 Orchestrator Profiles
-Tool Presets
 Tool Profiles
+Memory Profiles and Context Profiles
+Component Presets
 ```
 
 The normal Agent form remains simple. The composition display is intended for diagnostics and expert support, not for editing the agent.

@@ -37,6 +37,10 @@ abstract class AbstractAgentResource implements IAgentResource {
 		$this->id = $id ?? uniqid('resource_', true);
 	}
 
+	public function id(): string {
+		return $this->id;
+	}
+
 	public function getId(): string {
 		return $this->id;
 	}

@@ -10,9 +10,8 @@ use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
 
 /**
- * Resolves operator-facing tool profiles into AgentComponentFlowBuilder input.
- * A preset implementing both tool and memory is attached as both, preserving
- * the existing dual-capability UserPrefs-style pattern.
+ * Resolves operator-facing tool profiles into tool-only component entries.
+ * Context contributors and conversation memories are configured separately.
  */
 final class AgentToolProfileResolver {
 
@@ -91,10 +90,12 @@ final class AgentToolProfileResolver {
 					throw new \RuntimeException('Tool profile preset does not expose the tool capability: ' . $presetId);
 				}
 
+				$attachAs = ['tool'];
+
 				if (!isset($resolved[$presetId])) {
 					$resolved[$presetId] = [
 						'preset' => $presetId,
-						'attach_as' => $capabilities,
+						'attach_as' => $attachAs,
 						'enabled' => true,
 						'order' => $order
 					];
@@ -104,7 +105,7 @@ final class AgentToolProfileResolver {
 
 				$resolved[$presetId]['attach_as'] = array_values(array_unique(array_merge(
 					(array)$resolved[$presetId]['attach_as'],
-					$capabilities
+					$attachAs
 				)));
 			}
 		}
@@ -145,11 +146,11 @@ final class AgentToolProfileResolver {
 		$result = [];
 		foreach ($value as $capability) {
 			$capability = strtolower(trim((string)$capability));
-			if (in_array($capability, ['tool', 'memory'], true)) {
+			if (in_array($capability, ['tool', 'memory', 'context'], true)) {
 				$result[] = $capability;
 			}
 		}
-		return $result === [] ? ['tool'] : array_values(array_unique($result));
+		return array_values(array_unique($result));
 	}
 
 	/** @param array<int,mixed> $ids @return array<int,string> */

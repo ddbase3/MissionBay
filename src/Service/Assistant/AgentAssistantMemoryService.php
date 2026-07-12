@@ -17,18 +17,37 @@
 
 namespace MissionBay\Service\Assistant;
 
+use AssistantFoundation\Api\IAgentMemory;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentAssistantMemoryService;
 use MissionBay\Api\IAgentAssistantMessageFactory;
-use AssistantFoundation\Api\IAgentMemory;
+use MissionBay\Api\IAgentMemoryRoleResolver;
 
 final class AgentAssistantMemoryService implements IAgentAssistantMemoryService {
 
-	public function __construct(private IAgentAssistantMessageFactory $messageFactory) {
+	public function __construct(
+		private readonly IAgentAssistantMessageFactory $messageFactory,
+		private readonly IAgentMemoryRoleResolver $roleResolver
+	) {
 	}
 
 	public function sortMemories(array $memories): array {
-		usort($memories, fn(IAgentMemory $a, IAgentMemory $b) => $a->getPriority() <=> $b->getPriority());
+		$memories = $this->deduplicateMemories($memories);
+
+		usort($memories, function(IAgentMemory $left, IAgentMemory $right): int {
+			$result = $left->getPriority() <=> $right->getPriority();
+			if ($result !== 0) {
+				return $result;
+			}
+
+			$result = strcmp($left::class, $right::class);
+			if ($result !== 0) {
+				return $result;
+			}
+
+			return strcmp($this->memoryIdentity($left), $this->memoryIdentity($right));
+		});
+
 		return $memories;
 	}
 
@@ -38,6 +57,10 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 		];
 
 		foreach ($memories as $memory) {
+			if (!$memory instanceof IAgentMemory || !$this->roleResolver->isConversationMemory($memory)) {
+				continue;
+			}
+
 			foreach ($this->safeLoadHistory($memory, $nodeId, $logger) as $entry) {
 				if (!$this->messageFactory->isVisibleHistoryEntry($entry)) {
 					continue;
@@ -52,15 +75,65 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 
 	public function appendVisibleMessage(array $memories, string $nodeId, array $message, ?ILogger $logger = null): void {
 		foreach ($memories as $memory) {
+			if (!$memory instanceof IAgentMemory || !$this->roleResolver->isConversationMemory($memory)) {
+				continue;
+			}
+
 			$this->safeAppendHistory($memory, $nodeId, $message, $logger);
 		}
+	}
+
+	/**
+	 * @param array<int,IAgentMemory> $memories
+	 * @return array<int,IAgentMemory>
+	 */
+	private function deduplicateMemories(array $memories): array {
+		$result = [];
+		$seen = [];
+
+		foreach ($memories as $memory) {
+			if (!$memory instanceof IAgentMemory || !$this->roleResolver->isConversationMemory($memory)) {
+				continue;
+			}
+
+			$objectId = spl_object_id($memory);
+			if (isset($seen[$objectId])) {
+				continue;
+			}
+
+			$seen[$objectId] = true;
+			$result[] = $memory;
+		}
+
+		return $result;
+	}
+
+	private function memoryIdentity(IAgentMemory $memory): string {
+		if (method_exists($memory, 'id')) {
+			try {
+				return (string)$memory->id();
+			}
+			catch (\Throwable) {
+			}
+		}
+
+		if (method_exists($memory, 'getId')) {
+			try {
+				return (string)$memory->getId();
+			}
+			catch (\Throwable) {
+			}
+		}
+
+		return (string)spl_object_id($memory);
 	}
 
 	private function safeLoadHistory(IAgentMemory $memory, string $nodeId, ?ILogger $logger): array {
 		try {
 			return $memory->loadNodeHistory($nodeId) ?? [];
-		} catch (\Throwable $e) {
-			$this->logError($logger, 'Memory loadNodeHistory failed: ' . $e->getMessage());
+		}
+		catch (\Throwable $e) {
+			$this->logError($logger, 'Conversation memory loadNodeHistory failed for ' . $memory::class . ': ' . $e->getMessage());
 			return [];
 		}
 	}
@@ -68,8 +141,9 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 	private function safeAppendHistory(IAgentMemory $memory, string $nodeId, array $message, ?ILogger $logger): void {
 		try {
 			$memory->appendNodeHistory($nodeId, $message);
-		} catch (\Throwable $e) {
-			$this->logError($logger, 'Memory appendNodeHistory failed: ' . $e->getMessage());
+		}
+		catch (\Throwable $e) {
+			$this->logError($logger, 'Conversation memory appendNodeHistory failed for ' . $memory::class . ': ' . $e->getMessage());
 		}
 	}
 

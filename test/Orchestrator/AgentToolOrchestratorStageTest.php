@@ -8,6 +8,7 @@ use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentBudgetAssessment;
 use AssistantFoundation\Dto\AgentContextAssessment;
 use AssistantFoundation\Dto\AgentContextCompaction;
+use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentResultVerification;
 use AssistantFoundation\Dto\AgentStageTraceEntry;
 use AssistantFoundation\Dto\AgentStageResult;
@@ -16,6 +17,7 @@ use Base3\Event\Api\IEventManager;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Context\AgentContext;
+use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
 use MissionBay\Event\MissionBayToolFailedEvent;
 use MissionBay\Event\MissionBayToolFinishedEvent;
 use MissionBay\Event\MissionBayToolStartedEvent;
@@ -35,6 +37,8 @@ use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
+use MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
+use MissionBay\Service\Assistant\AgentAssistantMessageFactory;
 use PHPUnit\Framework\TestCase;
 
 final class AgentToolOrchestratorStageTest extends TestCase {
@@ -392,6 +396,147 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$this->assertTrue($patch[AgentToolLoopContextKeys::CONTEXT_COMPACTIONS][0]->wasApplied());
 	}
 
+	public function testTerminalProviderAnswerSkipsCompactionSecondDecisionAndSemanticVerification(): void {
+		$model = new QueueChatModel([[
+			'choices' => [[
+				'message' => [
+					'role' => 'assistant',
+					'content' => null,
+					'tool_calls' => [[
+						'id' => 'call-search',
+						'function' => [
+							'name' => 'terminal_search',
+							'arguments' => '{"query":"current result"}'
+						]
+					]]
+				]
+			]]
+		]]);
+		$tool = new TerminalAnswerTool();
+		$stages = [
+			new AgentModelDecisionStage(),
+			new AgentActionPolicyStage(
+				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
+				new AgentActionFingerprint(),
+				'action-policy',
+				'action-policy',
+				['allow-all-actions']
+			),
+			new AgentToolExecutionStage(new RecordingEventManager()),
+			new AgentContextCompactionStage(minToolResultBytes: 1),
+			new AgentToolObservationStage(),
+			new AgentSemanticVerificationStage()
+		];
+
+		$result = (new AgentToolOrchestrator(null, null, $stages))->run(
+			$model,
+			[['role' => 'user', 'content' => 'What happened?']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+
+		$this->assertTrue($result->isCompleted());
+		$this->assertSame(1, $result->getIterations());
+		$this->assertCount(1, $model->getCalls());
+		$this->assertCount(0, $result->getContextCompactions());
+		$this->assertStringContainsString('provider-produced answer', $result->getFinalResponseInstruction());
+		$this->assertSame(AgentToolLoopContextKeys::FINAL_RESPONSE_COMPLETE, $result->getFinalResponseMode());
+	}
+
+	public function testSecondModelFailureAfterObservationRecoversToPartialFinalResponse(): void {
+		$model = new QueueChatModel([
+			[
+				'choices' => [[
+					'message' => [
+						'role' => 'assistant',
+						'content' => null,
+						'tool_calls' => [[
+							'id' => 'call-1',
+							'function' => ['name' => 'lookup', 'arguments' => '{}']
+						]]
+					]
+				]]
+			],
+			new \RuntimeException('provider timeout')
+		]);
+		$tool = new LookupTool();
+		$stages = [
+			new AgentModelDecisionStage(),
+			new AgentActionPolicyStage(
+				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
+				new AgentActionFingerprint(),
+				'action-policy',
+				'action-policy',
+				['allow-all-actions']
+			),
+			new AgentToolExecutionStage(new RecordingEventManager()),
+			new AgentToolObservationStage(),
+			new AgentSemanticVerificationStage()
+		];
+
+		$result = (new AgentToolOrchestrator(null, null, $stages))->run(
+			$model,
+			[['role' => 'user', 'content' => 'find it']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+
+		$this->assertTrue($result->isCompleted());
+		$this->assertFalse($result->hasFailure());
+		$this->assertSame(AgentToolLoopContextKeys::FINAL_RESPONSE_PARTIAL, $result->getFinalResponseMode());
+		$this->assertCount(2, $model->getCalls());
+		$this->assertStringContainsString('available observations', $result->getFinalResponseInstruction());
+	}
+
+	public function testProviderTerminalAnswerBypassesFinalModelCall(): void {
+		$model = new QueueChatModel([]);
+		$answer = 'The provider already supplied the answer.';
+		$messages = [[
+			'role' => 'tool',
+			'tool_call_id' => 'call-terminal',
+			'content' => (string)json_encode([
+				'ok' => true,
+				'answer' => $answer,
+				'final_answer_ready' => true
+			], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+		]];
+		$orchestrationResult = new AgentToolOrchestratorResult(
+			messages: $messages,
+			finalAssistantMessage: null,
+			completed: true,
+			iterations: 1,
+			finalResponseMode: AgentToolOrchestratorResult::FINAL_RESPONSE_COMPLETE,
+			executionStatus: AgentExecutionStatus::COMPLETED
+		);
+		$turnResult = new AgentAssistantTurnResult(
+			messages: $messages,
+			userMessage: ['role' => 'user', 'content' => 'question'],
+			memories: [],
+			nodeId: 'assistant',
+			assistantMessageId: 'msg-terminal',
+			memoryWriteEnabled: false,
+			orchestrationResult: $orchestrationResult,
+			completed: true
+		);
+		$service = new AgentAssistantFinalResponseService(new AgentAssistantMessageFactory());
+
+		$this->assertSame($answer, $service->createDirectResponse($model, $turnResult));
+		$this->assertCount(0, $model->getCalls());
+
+		$chunks = [];
+		$this->assertSame($answer, $service->createStreamingResponse(
+			$model,
+			$turnResult,
+			static function(string $chunk) use (&$chunks): void {
+				$chunks[] = $chunk;
+			}
+		));
+		$this->assertSame([$answer], $chunks);
+		$this->assertCount(0, $model->getCalls());
+	}
+
 	public function testOrchestratorRecordsExecutedAndSkippedStagesAndEmitsLiveEvents(): void {
 		$model = new QueueChatModel([
 			[
@@ -647,6 +792,37 @@ final class LookupTool implements IAgentTool {
 	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
 		return [
 			'found' => $arguments['query'] ?? 'default'
+		];
+	}
+}
+
+final class TerminalAnswerTool implements IAgentTool {
+
+	public static function getName(): string {
+		return 'terminalanswertool';
+	}
+
+	public function getToolDefinitions(): array {
+		return [[
+			'type' => 'function',
+			'label' => 'Terminal Search',
+			'function' => [
+				'name' => 'terminal_search',
+				'description' => 'Returns a provider-produced final answer.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => []
+				]
+			]
+		]];
+	}
+
+	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
+		return [
+			'ok' => true,
+			'answer' => 'The provider already supplied the answer.',
+			'citations' => [['url' => 'https://example.test/source']],
+			'final_answer_ready' => true
 		];
 	}
 }

@@ -71,7 +71,8 @@ final class AgentSemanticVerificationStage implements IAgentStage {
 	public function supports(IAgentContext $context): bool {
 		$observations = $context->getVar(AgentToolLoopContextKeys::OBSERVATIONS);
 
-		return $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_FINAL
+		return $context->getVar(AgentToolLoopContextKeys::TERMINAL_EVIDENCE_READY) !== true
+			&& $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_FINAL
 			&& $context->getVar(AgentToolLoopContextKeys::COMPLETED) === true
 			&& is_array($observations)
 			&& $observations !== []

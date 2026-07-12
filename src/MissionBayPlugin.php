@@ -51,6 +51,7 @@ use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use MissionBay\Capability\AgentCapabilityDiscoveryService;
 use MissionBay\Capability\HybridAgentCapabilitySelector;
 use MissionBay\Composition\AgentCompositionInspector;
+use MissionBay\Api\IAgentAssistantContextContributionService;
 use MissionBay\Api\IAgentAssistantFallbackBuilder;
 use MissionBay\Api\IAgentAssistantFinalResponseService;
 use MissionBay\Api\IAgentAssistantMemoryService;
@@ -60,6 +61,7 @@ use MissionBay\Api\IAgentAssistantTurnService;
 use MissionBay\Api\IAgentComponentFlowBuilder;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentConfigFormService;
+use MissionBay\Api\IAgentMemoryRoleResolver;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
@@ -70,6 +72,7 @@ use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
+use MissionBay\Orchestrator\AgentStateSynchronizer;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use MissionBay\Orchestrator\Policy\ComponentAgentActionPolicyResolver;
@@ -101,16 +104,20 @@ use MissionBay\Orchestrator\Validation\JsonSchemaValidator;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
 use MissionBay\Policy\MutationApprovalAgentActionPolicy;
 use MissionBay\Profile\AgentAssistantToolSetupFactory;
+use MissionBay\Profile\AgentContextProfileResolver;
+use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 use MissionBay\Service\AgentComponentFlowBuilder;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\AgentExecutionService;
+use MissionBay\Service\Assistant\AgentAssistantContextContributionService;
 use MissionBay\Service\Assistant\AgentAssistantFallbackBuilder;
 use MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
 use MissionBay\Service\Assistant\AgentAssistantMemoryService;
 use MissionBay\Service\Assistant\AgentAssistantMessageFactory;
 use MissionBay\Service\Assistant\AgentAssistantTurnService;
+use MissionBay\Service\Memory\AgentMemoryRoleResolver;
 
 class MissionBayPlugin implements IPlugin, ICheck {
 
@@ -165,12 +172,24 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(ISettingsStore::class),
 				$c->get(IAgentComponentPresetRepository::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentMemoryProfileResolver::class, fn($c) => new AgentMemoryProfileResolver(
+				$c->get(ISettingsStore::class),
+				$c->get(IAgentComponentPresetRepository::class),
+				$c->get(IAgentResourceFactory::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentContextProfileResolver::class, fn($c) => new AgentContextProfileResolver(
+				$c->get(ISettingsStore::class),
+				$c->get(IAgentComponentPresetRepository::class),
+				$c->get(IAgentResourceFactory::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentExecutionService::class, fn($c) => new AgentExecutionService(
 				$c->get(IAgentContextFactory::class),
 				$c->get(IAgentFlowFactory::class),
 				$c->get(IAgentComponentFlowBuilder::class),
 				$c->get(AgentOrchestratorProfileRepository::class),
-				$c->get(AgentToolProfileResolver::class)
+				$c->get(AgentToolProfileResolver::class),
+				$c->get(AgentMemoryProfileResolver::class),
+				$c->get(AgentContextProfileResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentCompositionInspector::class, fn($c) => new AgentCompositionInspector(
 				$c->get(ISettingsStore::class),
@@ -179,10 +198,13 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentFlowFactory::class),
 				$c->get(AgentOrchestratorProfileRepository::class),
 				$c->get(AgentToolProfileResolver::class),
+				$c->get(AgentMemoryProfileResolver::class),
+				$c->get(AgentContextProfileResolver::class),
 				$c->get(IAgentComponentPresetRepository::class),
 				$c->get(AgentCapabilityDiscoveryService::class),
 				$c->get(AgentCapabilityCatalogBuilder::class),
-				$c->get(AgentStagePipelineResolver::class)
+				$c->get(AgentStagePipelineResolver::class),
+				$c->get(IAgentMemoryRoleResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentConfigFormService::class, fn($c) => new AgentConfigFormService(
 				$c->get(IRequest::class),
@@ -190,7 +212,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IClassMap::class),
 				$c->get(IComponentResolver::class),
 				$c->get(AgentOrchestratorProfileRepository::class),
-				$c->get(AgentToolProfileResolver::class)
+				$c->get(AgentToolProfileResolver::class),
+				$c->get(AgentMemoryProfileResolver::class),
+				$c->get(AgentContextProfileResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentRagPayloadNormalizer::class, fn() => new AgentRagPayloadNormalizer(), IContainer::SHARED | IContainer::NOOVERWRITE)
 
@@ -202,7 +226,16 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(AgentCapabilitySelectionGuardService::class, fn() => new AgentCapabilitySelectionGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 
 			->set(IAgentAssistantMessageFactory::class, fn() => new AgentAssistantMessageFactory(), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentAssistantMemoryService::class, fn($c) => new AgentAssistantMemoryService($c->get(IAgentAssistantMessageFactory::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentMemoryRoleResolver::class, fn() => new AgentMemoryRoleResolver(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentStateSynchronizer::class, fn() => new AgentStateSynchronizer(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentAssistantContextContributionService::class, fn($c) => new AgentAssistantContextContributionService(
+				$c->get(IAgentMemoryRoleResolver::class),
+				$c->get(AgentStateSynchronizer::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentAssistantMemoryService::class, fn($c) => new AgentAssistantMemoryService(
+				$c->get(IAgentAssistantMessageFactory::class),
+				$c->get(IAgentMemoryRoleResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantToolSetupFactory::class, fn($c) => new AgentAssistantToolSetupFactory(
 				$c->get(AgentCapabilityCatalogBuilder::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -268,19 +301,22 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				null,
 				$c->get(AgentActionResumeService::class),
 				$c->get(AgentBudgetGuardService::class),
-				$c->get(AgentLoopProgressService::class)
+				$c->get(AgentLoopProgressService::class),
+				$c->get(AgentStateSynchronizer::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantFallbackBuilder::class, fn() => new AgentAssistantFallbackBuilder(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantFinalResponseService::class, fn($c) => new AgentAssistantFinalResponseService($c->get(IAgentAssistantMessageFactory::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantTurnService::class, fn($c) => new AgentAssistantTurnService(
 				$c->get(IAgentAssistantMemoryService::class),
+				$c->get(IAgentAssistantContextContributionService::class),
 				$c->get(IAgentAssistantMessageFactory::class),
 				$c->get(IAgentAssistantToolSetupFactory::class),
 				$c->get(AgentCapabilityDiscoveryService::class),
 				$c->get(AgentStagePipelineResolver::class),
 				$c->get(AgentToolOrchestrator::class),
 				$c->get(AgentActionResumeService::class),
-				$c->get(IAgentAssistantFallbackBuilder::class)
+				$c->get(IAgentAssistantFallbackBuilder::class),
+				$c->get(AgentStateSynchronizer::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 
 			->set(MissionBayToolEventDisplayListener::class, fn($c) => new MissionBayToolEventDisplayListener(

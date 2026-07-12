@@ -25,10 +25,11 @@ use Base3\Session\Api\ISession;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Dto\AgentInstructionBlock;
 use MissionBay\Api\IAgentTool;
 
-class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemory, IAgentTool, ISchemaProvider {
+class UserPrefsAgentResource extends AbstractAgentResource implements IAgentContextContributor, IAgentTool, ISchemaProvider {
 
 	private const SYSTEM_TITLE = 'User preferences';
 
@@ -52,7 +53,7 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 	}
 
 	public function getDescription(): string {
-		return 'Stores user/session preferences via tool calls and injects them as system prompt addendum via memory.';
+		return 'Stores user/session preferences via tool calls and contributes them to the system context.';
 	}
 
 	/**
@@ -102,34 +103,22 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 	}
 
 	// ----------------------------------------------------
-	// IAgentMemory
+	// Context contribution
 	// ----------------------------------------------------
 
-	public function loadNodeHistory(string $nodeId): array {
+	public function contribute(IAgentContext $context): iterable {
 		$lines = $this->buildSystemLines();
-		if (!$lines) {
+
+		if ($lines === []) {
 			return [];
 		}
 
-		$content = self::SYSTEM_TITLE . ":\n- " . implode("\n- ", $lines);
-
-		return [[
-			'role' => 'system',
-			'content' => $content
-		]];
-	}
-
-	public function appendNodeHistory(string $nodeId, array $message): void {
-		// no-op (preferences are not chat history)
-	}
-
-	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		// no-op
-		return false;
-	}
-
-	public function resetNodeHistory(string $nodeId): void {
-		// no-op
+		return [new AgentInstructionBlock(
+			id: 'user-preferences',
+			content: self::SYSTEM_TITLE . ":\n- " . implode("\n- ", $lines),
+			source: $this->id(),
+			metadata: ['implementation' => static::getName()]
+		)];
 	}
 
 	public function getPriority(): int {
@@ -166,6 +155,10 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 			'category' => 'memory',
 			'tags' => ['preferences', 'memory', 'user', 'session'],
 			'priority' => 60,
+			'readOnlyHint' => false,
+			'mutation' => true,
+			'requiresApproval' => true,
+			'sideEffectHint' => true,
 			'function' => [
 				'name' => 'set_user_pref',
 				'description' => 'Sets a user/session preference value by key.',
@@ -193,6 +186,10 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentMemo
 			'category' => 'memory',
 			'tags' => ['preferences', 'memory', 'user', 'session'],
 			'priority' => 60,
+			'readOnlyHint' => false,
+			'mutation' => true,
+			'requiresApproval' => true,
+			'sideEffectHint' => true,
 			'function' => [
 				'name' => 'unset_user_pref',
 				'description' => 'Removes a user/session preference value by key.',

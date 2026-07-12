@@ -124,19 +124,20 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				<input type="number" name="select_all_threshold" min="0" max="512" class="orchestrator-profile-input" />
 			</div>
 			<div class="orchestrator-profile-field-full">
-				<label class="orchestrator-profile-label">Optional stages</label>
+				<label class="orchestrator-profile-label">Optional behavior and stages</label>
 				<div class="orchestrator-profile-checks">
 					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_discovery" /><span><strong>Capability discovery</strong><span>Build the allowed run-specific capability pool from configured profiles and providers.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_selection" /><span><strong>Capability selection</strong><span>Preselect a bounded relevant tool set before each model decision.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="context_compaction" /><span><strong>Context compaction</strong><span>Compact large contexts before the next tool observation/model step.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="semantic_verification" /><span><strong>Semantic verification</strong><span>Check whether enough information exists before producing the final answer.</span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="deliberate_planning" /><span><strong>Deliberate planning</strong><span>Build a concise typed execution plan from the normalized task without an extra model call or a separate planning stage.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="sticky" /><span><strong>Sticky selection</strong><span>Keep recently selected or used tools stable across adjacent loops.</span></span></label>
 				</div>
 			</div>
 			<div class="orchestrator-profile-field-full orchestrator-profile-core">
 				<div class="orchestrator-profile-core-title">Effective fixed pipeline</div>
 				<div class="orchestrator-profile-pipeline" data-pipeline-preview></div>
-				<div class="orchestrator-profile-hint">Required stages are always active and ordered: model-decision → action-policy → tool-execution → tool-observation. Optional stages are inserted only at their canonical positions.</div>
+				<div class="orchestrator-profile-hint">Required stages are always active and ordered: model-decision → action-policy → tool-execution → tool-observation. Optional stages are inserted only at their canonical positions. Deliberate planning is a profile behavior inside the existing model-decision flow, not another model call or stage.</div>
 			</div>
 		</form>
 	</div>
@@ -150,9 +151,10 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	const GRID_SELECTOR = '#orchestrator-profile-grid';
 	const BATCH_SIZE = 50;
 	const MODE_DEFAULTS = {
-		simple: { max_tool_loops: 1, capability_discovery: false, capability_selection: true, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, sticky: false },
-		standard: { max_tool_loops: 10, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, sticky: true },
-		governed: { max_tool_loops: 10, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, sticky: true }
+		simple: { max_tool_loops: 1, deliberate_planning: false, capability_discovery: false, capability_selection: true, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, sticky: false },
+		standard: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, sticky: true },
+		deliberate: { max_tool_loops: 4, deliberate_planning: true, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, sticky: true },
+		governed: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, sticky: true }
 	};
 	let grid = null;
 	let dialog = null;
@@ -258,7 +260,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const payload = {
 			mode: 'save', old_id: getValue(form, 'old_id'), id: getValue(form, 'id'), label: getValue(form, 'label'), description: getValue(form, 'description'),
 			profile_mode: getValue(form, 'profile_mode'), enabled: getChecked(form, 'enabled'), max_tool_loops: Number(getValue(form, 'max_tool_loops') || 0),
-			capability_discovery: getChecked(form, 'capability_discovery'), capability_selection: getChecked(form, 'capability_selection'), context_compaction: getChecked(form, 'context_compaction'), semantic_verification: getChecked(form, 'semantic_verification'),
+			deliberate_planning: getChecked(form, 'deliberate_planning'), capability_discovery: getChecked(form, 'capability_discovery'), capability_selection: getChecked(form, 'capability_selection'), context_compaction: getChecked(form, 'context_compaction'), semantic_verification: getChecked(form, 'semantic_verification'),
 			selection_strategy: getValue(form, 'selection_strategy'), max_tools: Number(getValue(form, 'max_tools') || 0), select_all_threshold: Number(getValue(form, 'select_all_threshold') || 0), sticky: getChecked(form, 'sticky')
 		};
 		if (validate && !payload.id) throw new Error('Profile ID is required.');
@@ -325,6 +327,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		setValue(form, 'max_tools', record.max_tools ?? 16);
 		setValue(form, 'select_all_threshold', record.select_all_threshold ?? 16);
 		setChecked(form, 'enabled', record.enabled !== false);
+		setChecked(form, 'deliberate_planning', !!record.deliberate_planning);
 		setChecked(form, 'capability_discovery', !!record.capability_discovery);
 		setChecked(form, 'capability_selection', record.capability_selection !== false);
 		setChecked(form, 'context_compaction', !!record.context_compaction);

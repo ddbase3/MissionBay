@@ -102,6 +102,10 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			return $this->buildActionResponse($request['mode'], $request['id']);
 		}
 
+		if($request['mode'] === 'update_record') {
+			return $this->buildRecordUpdateResponse($request['id'], $request['record']);
+		}
+
 		if($request['mode'] === 'update_content') {
 			return $this->buildContentUpdateResponse($request['id'], $request['content']);
 		}
@@ -177,7 +181,7 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 	 */
 	private function normalizeRequest(array $payload): array {
 		$mode = 'page';
-		$allowedModes = ['page', 'detail', 'record', 'soft_delete', 'restore', 'lock', 'unlock', 'toggle_mutable', 'toggle_deletable', 'update_content'];
+		$allowedModes = ['page', 'detail', 'record', 'soft_delete', 'restore', 'lock', 'unlock', 'toggle_mutable', 'toggle_deletable', 'update_record', 'update_content'];
 
 		if(isset($payload['mode']) && is_string($payload['mode']) && in_array($payload['mode'], $allowedModes, true)) {
 			$mode = $payload['mode'];
@@ -198,6 +202,7 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 		$sort = $this->normalizeSort($payload['sort'] ?? null);
 		$filters = $this->normalizeFilters($payload['filters'] ?? null);
 		$content = '';
+		$record = is_array($payload['record'] ?? null) ? $payload['record'] : [];
 
 		if(array_key_exists('content', $payload) && is_scalar($payload['content'])) {
 			$content = (string) $payload['content'];
@@ -212,6 +217,7 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			'sort' => $sort,
 			'filters' => $filters,
 			'content' => $content,
+			'record' => $record,
 		];
 	}
 
@@ -735,6 +741,144 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 	}
 
 	/**
+	 * Updates the intentionally small, operator-facing knowledge/skill form.
+	 * Technical storage metadata stays untouched.
+	 *
+	 * @param array<string,mixed> $record
+	 * @return array<string,mixed>
+	 */
+	private function buildRecordUpdateResponse(int $id, array $record): array {
+		$row = $this->loadEntryRow($id, true);
+
+		if(!$row) {
+			return [
+				'mode' => 'update_record',
+				'ok' => false,
+				'error' => 'Knowledge entry not found',
+				'id' => $id,
+			];
+		}
+
+		if(((int) ($row['is_locked'] ?? 0)) === 1) {
+			return [
+				'mode' => 'update_record',
+				'ok' => false,
+				'error' => 'Knowledge entry is locked. Unlock it before editing.',
+				'id' => $id,
+			];
+		}
+
+		$memoryType = strtolower(trim((string) ($record['memory_type'] ?? $row['memory_type'] ?? 'semantic')));
+		if(!in_array($memoryType, ['task', 'episodic', 'semantic', 'procedural'], true)) {
+			return $this->recordValidationError($id, 'Unsupported memory type.');
+		}
+
+		$title = trim((string) ($record['title'] ?? ''));
+		if($title === '') {
+			return $this->recordValidationError($id, 'Title is required.');
+		}
+		$title = $this->limitText($title, 255);
+
+		$memoryKey = $this->limitText(trim((string) ($record['memory_key'] ?? '')), 255);
+		$status = strtolower(trim((string) ($record['status'] ?? 'active')));
+		if($status === '') {
+			$status = 'active';
+		}
+		if(preg_match('/^[a-z0-9_-]{1,64}$/', $status) !== 1) {
+			return $this->recordValidationError($id, 'Status may contain only lowercase letters, digits, underscore, and dash.');
+		}
+
+		$summary = (string) ($record['summary'] ?? '');
+		$content = (string) ($record['content'] ?? '');
+		$tags = $this->normalizeEditableTags($record['tags'] ?? []);
+		$meta = $this->decodeJsonText((string) ($row['meta_json'] ?? ''));
+		$meta = is_array($meta) ? $meta : [];
+		$tagsJson = (string) json_encode($tags, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		$metaJson = (string) json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+		$updates = [
+			"`memory_type` = '" . $this->database->escape($memoryType) . "'",
+			"`memory_key` = '" . $this->database->escape($memoryKey) . "'",
+			"`status` = '" . $this->database->escape($status) . "'",
+			"`title` = '" . $this->database->escape($title) . "'",
+			"`summary` = '" . $this->database->escape($summary) . "'",
+			"`content` = '" . $this->database->escape($content) . "'",
+			"`tags_json` = '" . $this->database->escape($tagsJson) . "'",
+			"`meta_json` = '" . $this->database->escape($metaJson) . "'",
+			"`updated_by` = '" . $this->database->escape(self::UPDATED_BY) . "'",
+			'`updated_at` = NOW()'
+		];
+		$query = 'UPDATE `' . self::TABLE_NAME . '` SET ' . implode(', ', $updates) .
+			' WHERE `id` = ' . $id . ' LIMIT 1';
+
+		try {
+			$this->database->multiQuery($query);
+		}
+		catch(\Throwable $e) {
+			return [
+				'mode' => 'update_record',
+				'ok' => false,
+				'error' => 'Failed to update knowledge entry',
+				'details' => $e->getMessage(),
+				'id' => $id,
+			];
+		}
+
+		$updatedRow = $this->loadEntryRow($id, true);
+
+		return [
+			'mode' => 'update_record',
+			'ok' => true,
+			'action' => 'record updated',
+			'id' => $id,
+			'record' => is_array($updatedRow) ? $this->normalizeRecord($updatedRow) : null,
+		];
+	}
+
+	/** @return array<string,mixed> */
+	private function recordValidationError(int $id, string $message): array {
+		return [
+			'mode' => 'update_record',
+			'ok' => false,
+			'error' => $message,
+			'id' => $id,
+		];
+	}
+
+	/** @return array<int,string> */
+	private function normalizeEditableTags(mixed $value): array {
+		$items = is_array($value)
+			? $value
+			: (preg_split('/[,\r\n]+/', (string) $value) ?: []);
+		$result = [];
+
+		foreach($items as $item) {
+			$item = $this->limitText(trim((string) $item), 100);
+			if($item === '' || in_array($item, $result, true)) {
+				continue;
+			}
+			$result[] = $item;
+			if(count($result) >= 30) {
+				break;
+			}
+		}
+
+		return $result;
+	}
+
+	private function limitText(string $value, int $maxLength): string {
+		if(strlen($value) <= $maxLength) {
+			return $value;
+		}
+
+		if(function_exists('mb_strcut')) {
+			return rtrim(mb_strcut($value, 0, $maxLength, 'UTF-8'));
+		}
+
+		return rtrim(substr($value, 0, $maxLength));
+	}
+
+	/**
 	 * @return array<string, mixed>
 	 */
 	private function buildContentUpdateResponse(int $id, string $content): array {
@@ -868,6 +1012,8 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 		$tagsJson = (string) ($row['tags_json'] ?? '');
 		$entityRefsJson = (string) ($row['entity_refs_json'] ?? '');
 		$metaJson = (string) ($row['meta_json'] ?? '');
+		$meta = $this->decodeJsonText($metaJson);
+		$meta = is_array($meta) ? $meta : [];
 
 		return [
 			'id' => (int) ($row['id'] ?? 0),
@@ -882,7 +1028,8 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 			'tags_json' => $tagsJson,
 			'entity_refs' => $this->decodeJsonText($entityRefsJson),
 			'entity_refs_json' => $entityRefsJson,
-			'meta' => $this->decodeJsonText($metaJson),
+			'meta' => $meta,
+			'always_inject' => $this->toBool($meta['always_inject'] ?? false),
 			'meta_json' => $metaJson,
 			'source' => (string) ($row['source'] ?? ''),
 			'scope' => (string) ($row['scope'] ?? ''),

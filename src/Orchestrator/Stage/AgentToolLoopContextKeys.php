@@ -89,6 +89,7 @@ final class AgentToolLoopContextKeys {
 	public const CONTINUATION_DECISIONS = self::PREFIX . 'continuation_decisions';
 	public const CONTINUATION_HINT = self::PREFIX . 'continuation_hint';
 	public const FINAL_RESPONSE_INSTRUCTION = self::PREFIX . 'final_response_instruction';
+	public const TERMINAL_EVIDENCE_READY = self::PREFIX . 'terminal_evidence_ready';
 	public const BUDGET_ASSESSMENTS = self::PREFIX . 'budget_assessments';
 	public const STAGE_TRACE = self::PREFIX . 'stage_trace';
 	public const COMPLETED = self::PREFIX . 'completed';
@@ -150,7 +151,8 @@ final class AgentToolLoopContextKeys {
 			self::CONSECUTIVE_STALLED_ITERATIONS,
 			self::LOOP_PROGRESS_TERMINATED,
 			self::CONTINUATION_HINT,
-			self::FINAL_RESPONSE_INSTRUCTION
+			self::FINAL_RESPONSE_INSTRUCTION,
+			self::TERMINAL_EVIDENCE_READY
 		];
 	}
 }

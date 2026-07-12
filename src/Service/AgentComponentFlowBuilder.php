@@ -23,8 +23,8 @@ use MissionBay\Api\IAgentComponentPresetRepository;
 /**
  * AgentComponentFlowBuilder
  *
- * Builds an effective AgentFlow by adding configured tool and memory wrappers
- * for selected component presets.
+ * Builds an effective AgentFlow from configured tool, conversation-memory and
+ * context-contributor component presets.
  */
 class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
@@ -119,6 +119,10 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
 		if (in_array('memory', $attachAs, true)) {
 			$this->addConfiguredMemory($flow, $assistantIndex, $presetId, $baseResourceId, $component, $index);
+		}
+
+		if (in_array('context', $attachAs, true)) {
+			$this->addContextContributor($flow, $assistantIndex, $baseResourceId);
 		}
 	}
 
@@ -284,6 +288,16 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
 		$flow['resources'][] = $resource;
 		$this->addNodeDockResource($flow, $assistantIndex, 'memory', $wrapperId);
+	}
+
+	/**
+	 * Context profiles use the configured base resource directly. No memory
+	 * adapter, role switch or read/write configuration is involved.
+	 *
+	 * @param array<string,mixed> $flow
+	 */
+	private function addContextContributor(array &$flow, int $assistantIndex, string $baseResourceId): void {
+		$this->addNodeDockResource($flow, $assistantIndex, 'contextcontributors', $baseResourceId);
 	}
 
 	/**

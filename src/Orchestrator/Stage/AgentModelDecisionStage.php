@@ -104,6 +104,27 @@ final class AgentModelDecisionStage implements IAgentStage {
 			);
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Model completion call failed: ' . $e->getMessage());
+			$observations = $context->getVar(AgentToolLoopContextKeys::OBSERVATIONS);
+
+			if (is_array($observations) && $observations !== []) {
+				return AgentStageResult::patch([
+					AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_PARTIAL,
+					AgentToolLoopContextKeys::TERMINAL_EVIDENCE_READY => true,
+					AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION => implode("\n", [
+						'The next tool-decision call failed after successful tool observations were already collected.',
+						'Produce the most useful direct answer from the available observations.',
+						'State uncertainty where evidence is incomplete. Do not expose internal timeout or orchestration details.'
+					]),
+					AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
+					AgentToolLoopContextKeys::COMPLETED => true,
+					AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FINAL
+				], [
+					'recovered_from_model_error' => true,
+					'error_type' => get_class($e),
+					'error_message' => $e->getMessage(),
+					'error_code' => $e->getCode()
+				]);
+			}
 
 			return $this->failure(
 				'model_raw_error',

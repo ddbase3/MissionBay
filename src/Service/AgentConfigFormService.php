@@ -29,12 +29,16 @@ use AssistantFoundation\Api\IAgentCapabilityProvider;
 use AssistantFoundation\Api\IAgentModule;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use AssistantFoundation\Api\IAgentContextContributor;
+use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Api\IAgentPromptProvider;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentResourceProvider;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use MissionBay\Profile\AgentContextProfileResolver;
+use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 use Throwable;
 
@@ -56,7 +60,9 @@ class AgentConfigFormService implements IAgentConfigFormService {
 		private readonly IClassMap $classMap,
 		private readonly IComponentResolver $componentResolver,
 		private readonly AgentOrchestratorProfileRepository $orchestratorProfileRepository,
-		private readonly AgentToolProfileResolver $toolProfileResolver
+		private readonly AgentToolProfileResolver $toolProfileResolver,
+		private readonly ?AgentMemoryProfileResolver $memoryProfileResolver = null,
+		private readonly ?AgentContextProfileResolver $contextProfileResolver = null
 	) {}
 
 	// ---------------------------------------------------------------------
@@ -68,6 +74,8 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			'llm' => '',
 			'orchestrator_profile' => AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
 			'tool_profiles' => [],
+			'memory_profile' => '',
+			'context_profile' => '',
 			'expert_overrides_enabled' => false,
 			'system_prompt' => '',
 			'agent_flow' => [],
@@ -128,6 +136,42 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			}
 		}
 
+		$memoryProfile = $this->normalizeTechnicalKey((string)$this->request->request('memory_profile', ''));
+		if ($memoryProfile !== '') {
+			if (!$this->memoryProfileResolver instanceof AgentMemoryProfileResolver) {
+				$errors[] = 'Memory profiles are not available in this runtime.';
+			}
+			else {
+				try {
+					$profile = $this->memoryProfileResolver->getProfile($memoryProfile);
+					if (empty($profile['enabled'])) {
+						$errors[] = 'Selected memory profile is disabled: ' . $memoryProfile;
+					}
+				}
+				catch (\Throwable $e) {
+					$errors[] = 'Selected memory profile is not available: ' . $memoryProfile . ' (' . $e->getMessage() . ')';
+				}
+			}
+		}
+
+		$contextProfile = $this->normalizeTechnicalKey((string)$this->request->request('context_profile', ''));
+		if ($contextProfile !== '') {
+			if (!$this->contextProfileResolver instanceof AgentContextProfileResolver) {
+				$errors[] = 'Context profiles are not available in this runtime.';
+			}
+			else {
+				try {
+					$profile = $this->contextProfileResolver->getProfile($contextProfile);
+					if (empty($profile['enabled'])) {
+						$errors[] = 'Selected context profile is disabled: ' . $contextProfile;
+					}
+				}
+				catch (\Throwable $e) {
+					$errors[] = 'Selected context profile is not available: ' . $contextProfile . ' (' . $e->getMessage() . ')';
+				}
+			}
+		}
+
 		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
 
 		if ($errors === [] && $llm !== '') {
@@ -138,6 +182,8 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			'llm' => $llm,
 			'orchestrator_profile' => $orchestratorProfile,
 			'tool_profiles' => $toolProfiles,
+			'memory_profile' => $memoryProfile,
+			'context_profile' => $contextProfile,
 			'expert_overrides_enabled' => $this->toBool($this->request->request('expert_overrides_enabled', false)),
 			'system_prompt' => $this->normalizeTextBlock((string)$this->request->request('system_prompt')),
 			'agent_flow' => $agentFlow,
@@ -164,6 +210,8 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			'llm' => $this->normalizeTechnicalKey((string)$this->request->request('llm')),
 			'orchestrator_profile' => $this->normalizeTechnicalKey((string)$this->request->request('orchestrator_profile', AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID)),
 			'tool_profiles' => $this->normalizeTechnicalKeyList($this->request->request('tool_profiles', [])),
+			'memory_profile' => $this->normalizeTechnicalKey((string)$this->request->request('memory_profile', '')),
+			'context_profile' => $this->normalizeTechnicalKey((string)$this->request->request('context_profile', '')),
 			'expert_overrides_enabled' => $this->toBool($this->request->request('expert_overrides_enabled', false)),
 			'system_prompt' => $this->normalizeTextBlock((string)$this->request->request('system_prompt')),
 			'agent_flow_json' => $this->getPostedJsonText('agent_flow_b64', 'agent_flow', 'AgentFlow configuration', $errors),
@@ -185,10 +233,21 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			$llm = $this->extractLlmFromAgentFlow($agentFlow);
 		}
 
+		$memoryProfile = $this->normalizeTechnicalKey((string)($settings['memory_profile'] ?? $defaults['memory_profile']));
+		$contextProfile = $this->normalizeTechnicalKey((string)($settings['context_profile'] ?? $defaults['context_profile']));
+
+		if ($contextProfile === '' && $memoryProfile !== ''
+			&& $this->contextProfileResolver instanceof AgentContextProfileResolver
+			&& $this->contextProfileResolver->hasProfile($memoryProfile)) {
+			$contextProfile = $memoryProfile;
+		}
+
 		return [
 			'llm' => $llm,
 			'orchestrator_profile' => $this->normalizeTechnicalKey((string)($settings['orchestrator_profile'] ?? $defaults['orchestrator_profile'])) ?: AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
 			'tool_profiles' => $this->normalizeTechnicalKeyList($settings['tool_profiles'] ?? $defaults['tool_profiles']),
+			'memory_profile' => $memoryProfile,
+			'context_profile' => $contextProfile,
 			'expert_overrides_enabled' => $this->toBool($settings['expert_overrides_enabled'] ?? $defaults['expert_overrides_enabled']),
 			'system_prompt' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? $defaults['system_prompt'])),
 			'agent_flow' => $agentFlow,
@@ -205,6 +264,8 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			'llm' => $settings['llm'],
 			'orchestrator_profile' => $settings['orchestrator_profile'],
 			'tool_profiles' => $settings['tool_profiles'],
+			'memory_profile' => $settings['memory_profile'],
+			'context_profile' => $settings['context_profile'],
 			'expert_overrides_enabled' => $settings['expert_overrides_enabled'],
 			'system_prompt' => $settings['system_prompt'],
 			'agent_flow_json' => $this->formatConfigJson($settings['agent_flow'], '{}'),
@@ -228,11 +289,137 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			'llm_options' => $this->listLlmOptions(),
 			'orchestrator_profile_options' => $this->orchestratorProfileRepository->getOptions(),
 			'tool_profile_options' => $this->toolProfileResolver->getOptions(),
+			'memory_profile_options' => $this->memoryProfileResolver instanceof AgentMemoryProfileResolver
+				? $this->memoryProfileResolver->getOptions()
+				: [],
+			'context_profile_options' => $this->contextProfileResolver instanceof AgentContextProfileResolver
+				? $this->contextProfileResolver->getOptions()
+				: [],
 			'agent_component_presets' => $this->listAgentComponentPresetOptions(),
-			'capability_component_options' => $this->listCapabilityComponentOptions()
+			'capability_component_options' => $this->listCapabilityComponentOptions(),
+			'export_catalog' => $this->buildExportCatalog()
 		]);
 	}
 
+	/**
+	 * Returns a redacted catalog used by the browser-side diagnostic export.
+	 * The export intentionally contains resolved profile and preset records, but
+	 * never connection secrets or secret-like values.
+	 *
+	 * @return array<string,mixed>
+	 */
+	protected function buildExportCatalog(): array {
+		$orchestratorProfiles = [];
+
+		foreach ($this->orchestratorProfileRepository->getProfiles() as $id => $profile) {
+			$orchestratorProfiles[(string)$id] = $profile->toArray();
+		}
+
+		return $this->redactSensitiveData([
+			'llm_settings' => $this->normalizeExportGroup(self::LLM_SETTINGS_GROUP),
+			'orchestrator_profiles' => $orchestratorProfiles,
+			'tool_profiles' => $this->normalizeExportGroup(AgentToolProfileResolver::SETTINGS_GROUP),
+			'memory_profiles' => $this->memoryProfileResolver instanceof AgentMemoryProfileResolver
+				? $this->normalizeExportGroup(AgentMemoryProfileResolver::SETTINGS_GROUP)
+				: [],
+			'context_profiles' => $this->normalizeContextProfileExportGroup(),
+			'component_presets' => $this->normalizeExportGroup(self::AGENT_COMPONENT_PRESET_GROUP)
+		]);
+	}
+
+	/** @return array<string,array<string,mixed>> */
+	protected function normalizeContextProfileExportGroup(): array {
+		if (!$this->contextProfileResolver instanceof AgentContextProfileResolver) {
+			return [];
+		}
+
+		$result = [];
+		foreach ($this->contextProfileResolver->getOptions() as $option) {
+			$id = $this->normalizeTechnicalKey((string)($option['id'] ?? ''));
+			if ($id === '') {
+				continue;
+			}
+			try {
+				$result[$id] = $this->contextProfileResolver->getProfile($id);
+			}
+			catch (Throwable) {
+				// Invalid profile records remain absent from the diagnostic export.
+			}
+		}
+		ksort($result);
+		return $result;
+	}
+
+	/** @return array<string,array<string,mixed>> */
+	protected function normalizeExportGroup(string $group): array {
+		$records = $this->settingsStore->getGroup($group);
+		$result = [];
+
+		if (!is_array($records)) {
+			return [];
+		}
+
+		foreach ($records as $id => $record) {
+			if (!is_string($id) || !is_array($record)) {
+				continue;
+			}
+
+			$record['id'] = (string)($record['id'] ?? $id);
+			$result[$id] = $record;
+		}
+
+		ksort($result);
+		return $result;
+	}
+
+	protected function redactSensitiveData(mixed $value, string $key = ''): mixed {
+		if ($this->isSensitiveExportKey($key)) {
+			return '***REDACTED***';
+		}
+
+		if (!is_array($value)) {
+			return $value;
+		}
+
+		$result = [];
+		foreach ($value as $itemKey => $itemValue) {
+			$result[$itemKey] = $this->redactSensitiveData($itemValue, (string)$itemKey);
+		}
+
+		return $result;
+	}
+
+	protected function isSensitiveExportKey(string $key): bool {
+		$key = strtolower(trim($key));
+		if ($key === '') {
+			return false;
+		}
+
+		foreach ([
+			'password',
+			'passwd',
+			'passphrase',
+			'secret',
+			'secretvalue',
+			'clientsecret',
+			'token',
+			'accesstoken',
+			'refreshtoken',
+			'apikey',
+			'api_key',
+			'privatekey',
+			'private_key',
+			'authorization',
+			'credential',
+			'credentials'
+		] as $sensitiveKey) {
+			if ($key === $sensitiveKey || str_ends_with($key, '_' . $sensitiveKey)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 
 	/** @return array<int,string> */
 	protected function normalizeTechnicalKeyList(mixed $value): array {
@@ -618,8 +805,13 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 			$capabilities = [];
 
-			if ($resource instanceof IAgentMemory) {
+			if ($resource instanceof IAgentConversationMemory
+				|| ($resource instanceof IAgentMemory && !($resource instanceof IAgentContextContributor))) {
 				$capabilities[] = 'memory';
+			}
+
+			if ($resource instanceof IAgentContextContributor) {
+				$capabilities[] = 'context';
 			}
 
 			if ($resource instanceof IAgentTool) {
@@ -651,7 +843,7 @@ class AgentConfigFormService implements IAgentConfigFormService {
 		foreach ($value as $item) {
 			$item = strtolower(trim((string)$item));
 
-			if (in_array($item, ['memory', 'tool'], true)) {
+			if (in_array($item, ['memory', 'context', 'tool'], true)) {
 				$result[] = $item;
 			}
 		}

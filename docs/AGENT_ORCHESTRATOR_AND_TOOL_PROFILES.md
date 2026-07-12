@@ -11,6 +11,7 @@ LLM
 system prompt
 orchestrator profile
 tool profiles
+separate memory and context profiles
 ```
 
 The complex details stay in dedicated administration displays. This keeps the agent form suitable for platform operators who do not need to understand stage ordering, tool-selection limits, component presets, or MCP wiring.
@@ -74,35 +75,33 @@ This reuses the existing MCP-oriented profile administration instead of creating
 
 Multiple selected tool profiles are merged. Repeated preset IDs are de-duplicated. Disabled, missing, or non-internal profiles fail closed when an internal agent is built.
 
-## Dual tool and memory components
+## Dual tool and context components
 
-Some resources intentionally implement both `IAgentTool` and `IAgentMemory`. `UserPrefsAgentResource` is the main example:
+Some resources intentionally expose a tool facet and a context-contributor facet. `UserPrefsAgentResource` is the main example:
 
 - its tool facet lets the model list, set, and remove preferences;
-- its memory facet loads the current preferences as system-role context for subsequent model calls.
+- its context-contributor facet adds current preferences to a new turn without acting as chat history.
 
-Tool-profile resolution preserves all declared preset capabilities. A preset with:
-
-```text
-tool + memory
-```
-
-is attached to the assistant in both roles. Both adapters point to the same underlying configured resource, so a preference written through the tool facet is visible when the memory facet is loaded again.
-
-### Refactoring assessment
-
-The dual-capability concept is still useful and should not be split into unrelated resources merely because it implements two interfaces. It represents two controlled views of one domain component.
-
-The current `IAgentMemory` contract, however, covers both conversation history and context injection. A future foundation revision should distinguish these concerns, for example:
+AssistantFoundation now distinguishes:
 
 ```text
 IAgentConversationMemory
 IAgentContextContributor
 ```
 
-A resource such as user preferences would then implement `IAgentTool` plus `IAgentContextContributor`, while session/chat history would implement `IAgentConversationMemory`. This is a contract clarification, not a reason to duplicate the underlying preference service or storage now.
+Session, volatile, and database histories implement `IAgentConversationMemory`. User preferences, focus, time, page context, and sub-agent descriptions implement `IAgentContextContributor`. Knowledge / Skills remains an explicit tool. Compatibility adapters may still implement `IAgentMemory`, but MissionBay resolves their explicit role and does not write user/assistant messages to context-only components.
 
-Until that foundation change is planned, MissionBay keeps the existing compatible behavior and documents the two facets explicitly.
+Tool-profile resolution continues to preserve all declared preset capabilities. A preset with:
+
+```text
+tool + memory
+```
+
+is attached through the existing compatibility wrapper, which reports the wrapped component as a context contributor or conversation memory at runtime. Both wrappers point to the same underlying configured resource, so a preference written through the tool facet is available to the contributor on the next new turn.
+
+Memory/context composition is exposed through a separate profile. It selects configured component presets, their automatic or explicit role, deterministic priority, and conversation read/write switches. Component-specific storage, credentials, namespaces, and user scoping stay in the component preset.
+
+When such a profile is selected, tool profiles contribute tool facets only. The separate memory and context profiles contributes the memory facet. Both still point to the same base preset resource, so dual-role components are not duplicated.
 
 ## Runtime resolution
 
@@ -111,8 +110,9 @@ Agent settings
   -> resolve orchestrator profile
   -> write canonical stages and limits to assistant node
   -> resolve selected tool profiles
-  -> expand component presets
-  -> preserve tool/memory capability facets
+  -> resolve selected separate memory and context profiles
+  -> merge repeated component presets
+  -> preserve one shared base resource per preset
   -> build AgentFlow resources and docks
   -> capability discovery
   -> bounded capability selection
@@ -131,6 +131,7 @@ The following displays are intended for different audiences:
 | `AgentCompositionAdminDisplay` | Experts inspecting the effective read-only runtime composition of an agent. |
 | `AgentOrchestratorProfileAdminDisplay` | Experts maintaining safe orchestration modes and limits. |
 | `ToolProfileAdminDisplay` | Experts grouping configured component presets for internal agents and/or MCP. |
+| `AgentMemoryProfileAdminDisplay` | Experts composing conversation memories and context contributors. |
 | `AgentComponentPresetAdminDisplay` | Technical administrators configuring individual resource instances. |
 
-`Base3IliasLab` registers Effective Composition and Orchestrator Profiles next to Agents, Tool Presets, and Tool Profiles. The composition display resolves actual tool names, memory facets, capability sources, module stage mounts, and final stages without adding these details back to the normal Agent form.
+`Base3IliasLab` registers Effective Composition, Orchestrator Profiles, Tool Profiles, Memory Profiles, Context Profiles, and Component Presets next to Agents. The composition display resolves actual tool names, memory facets, capability sources, module stage mounts, and final stages without adding these details back to the normal Agent form.

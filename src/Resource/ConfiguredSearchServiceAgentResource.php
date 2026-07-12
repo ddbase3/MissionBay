@@ -351,16 +351,21 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 			$out['options'] = $this->redactSensitiveValue($options);
 		}
 
-		if(isset($result['answer'])) {
-			$out['answer'] = $result['answer'];
+		$answer = isset($result['answer']) && is_scalar($result['answer'])
+			? trim((string)$result['answer'])
+			: '';
+
+		if($answer !== '') {
+			$out['answer'] = $this->limitText($answer, 12000);
+			$out['final_answer_ready'] = true;
 		}
 
-		if(isset($result['results'])) {
-			$out['results'] = $result['results'];
+		if(isset($result['results']) && is_array($result['results'])) {
+			$out['results'] = $this->limitList($result['results'], 6);
 		}
 
-		if(isset($result['citations'])) {
-			$out['citations'] = $result['citations'];
+		if(isset($result['citations']) && is_array($result['citations'])) {
+			$out['citations'] = $this->limitList($result['citations'], 12);
 		}
 
 		$meta = $result;
@@ -455,6 +460,49 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 		}
 
 		return $out;
+	}
+
+	/**
+	 * @param array<int,mixed> $items
+	 * @return array<int,mixed>
+	 */
+	private function limitList(array $items, int $maxItems): array {
+		$result = [];
+
+		foreach(array_slice(array_values($items), 0, max(0, $maxItems)) as $item) {
+			$result[] = $this->limitValue($item, 3000);
+		}
+
+		return $result;
+	}
+
+	private function limitValue(mixed $value, int $maxStringLength): mixed {
+		if(is_string($value)) {
+			return $this->limitText($value, $maxStringLength);
+		}
+
+		if(!is_array($value)) {
+			return $value;
+		}
+
+		$result = [];
+		foreach($value as $key => $item) {
+			$result[$key] = $this->limitValue($item, $maxStringLength);
+		}
+
+		return $result;
+	}
+
+	private function limitText(string $value, int $maxLength): string {
+		if(strlen($value) <= $maxLength) {
+			return $value;
+		}
+
+		if(function_exists('mb_strcut')) {
+			return rtrim(mb_strcut($value, 0, $maxLength, 'UTF-8')) . '…';
+		}
+
+		return rtrim(substr($value, 0, $maxLength)) . '…';
 	}
 
 	private function redactSensitiveValue(mixed $value): mixed {

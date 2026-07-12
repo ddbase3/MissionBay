@@ -134,7 +134,11 @@ final class AgentContextCompactionStage implements IAgentStage {
 			}
 
 			$originalBytes = $this->measureValue($toolResult->getOutput());
-			if (!$toolResult->isSuccess() || $originalBytes < max(1, $this->minToolResultBytes)) {
+			if (
+				!$toolResult->isSuccess()
+				|| $this->isTerminalAnswerReady($toolResult)
+				|| $originalBytes < max(1, $this->minToolResultBytes)
+			) {
 				$updatedResults[] = $toolResult;
 				continue;
 			}
@@ -211,6 +215,7 @@ final class AgentContextCompactionStage implements IAgentStage {
 			if (
 				$toolResult instanceof AgentToolResult
 				&& $toolResult->isSuccess()
+				&& !$this->isTerminalAnswerReady($toolResult)
 				&& $this->measureValue($toolResult->getOutput()) >= max(1, $this->minToolResultBytes)
 			) {
 				return true;
@@ -218,6 +223,14 @@ final class AgentContextCompactionStage implements IAgentStage {
 		}
 
 		return false;
+	}
+
+	private function isTerminalAnswerReady(AgentToolResult $toolResult): bool {
+		$output = $toolResult->getOutput();
+
+		return is_array($output)
+			&& ($output['final_answer_ready'] ?? false) === true
+			&& trim((string)($output['answer'] ?? '')) !== '';
 	}
 
 	private function hasFailure(IAgentContext $context): bool {

@@ -78,6 +78,16 @@ final class AgentAssistantTurnOptionsTest extends TestCase {
 	}
 
 
+
+	public function testDeliberatePlanningFlagIsExposed(): void {
+		$options = new AgentAssistantTurnOptions(
+			prompt: 'test',
+			deliberatePlanningEnabled: true
+		);
+
+		$this->assertTrue($options->isDeliberatePlanningEnabled());
+	}
+
 	public function testDuplicateStageIdsAreRejected(): void {
 		$this->expectException(\RuntimeException::class);
 		$this->expectExceptionMessage('Duplicate agent stage id: model-decision');

@@ -4,9 +4,9 @@ MissionBay is a modular flow engine for the BASE3 Framework, enabling declarativ
 
 ## Agent stage pipeline
 
-The current assistant tool-loop stage order, context prerequisites, phase transitions, and postconditions are documented in [docs/AGENT_STAGE_PIPELINE.md](docs/AGENT_STAGE_PIPELINE.md). The stage/service boundary is documented in [docs/AGENT_ORCHESTRATION_SERVICES.md](docs/AGENT_ORCHESTRATION_SERVICES.md). Run-specific tool catalogs and bounded per-model-call selection are documented in [docs/AGENT_CAPABILITY_CATALOG_AND_SELECTION.md](docs/AGENT_CAPABILITY_CATALOG_AND_SELECTION.md). Explicitly configured capability providers, modules, UI settings, and run-local stage mounts are documented in [docs/AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md](docs/AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md). Operator-facing orchestrator profiles, reusable internal/MCP tool profiles, and dual tool-memory components are documented in [docs/AGENT_ORCHESTRATOR_AND_TOOL_PROFILES.md](docs/AGENT_ORCHESTRATOR_AND_TOOL_PROFILES.md). Effective runtime diagnostics are documented in [docs/AGENT_EFFECTIVE_COMPOSITION.md](docs/AGENT_EFFECTIVE_COMPOSITION.md).
+The current assistant tool-loop stage order, context prerequisites, phase transitions, and postconditions are documented in [docs/AGENT_STAGE_PIPELINE.md](docs/AGENT_STAGE_PIPELINE.md). The stage/service boundary is documented in [docs/AGENT_ORCHESTRATION_SERVICES.md](docs/AGENT_ORCHESTRATION_SERVICES.md). Run-specific tool catalogs and bounded per-model-call selection are documented in [docs/AGENT_CAPABILITY_CATALOG_AND_SELECTION.md](docs/AGENT_CAPABILITY_CATALOG_AND_SELECTION.md). Explicitly configured capability providers, modules, UI settings, and run-local stage mounts are documented in [docs/AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md](docs/AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md). Operator-facing orchestrator profiles, reusable internal/MCP tool profiles, and dual tool/context components are documented in [docs/AGENT_ORCHESTRATOR_AND_TOOL_PROFILES.md](docs/AGENT_ORCHESTRATOR_AND_TOOL_PROFILES.md). Conversation-history and context-contributor contracts are documented in [docs/AGENT_MEMORY_AND_CONTEXT.md](docs/AGENT_MEMORY_AND_CONTEXT.md). Stable typed run state and terminal results are documented in [docs/AGENT_STATE_AND_RESULT.md](docs/AGENT_STATE_AND_RESULT.md). Effective runtime diagnostics are documented in [docs/AGENT_EFFECTIVE_COMPOSITION.md](docs/AGENT_EFFECTIVE_COMPOSITION.md).
 
-Mutation approval and deterministic resume are documented in [docs/AGENT_ACTION_APPROVAL_AND_RESUME.md](docs/AGENT_ACTION_APPROVAL_AND_RESUME.md). Durable server-owned suspension handles are documented in [docs/AGENT_DURABLE_SUSPENSIONS.md](docs/AGENT_DURABLE_SUSPENSIONS.md). Final authorization and optimistic-concurrency checks are documented in [docs/AGENT_MUTATION_COMMIT_GUARD.md](docs/AGENT_MUTATION_COMMIT_GUARD.md). Tool input/output contracts are documented in [docs/AGENT_TOOL_CONTRACT_VALIDATION.md](docs/AGENT_TOOL_CONTRACT_VALIDATION.md). The staged path toward the broader interface-driven harness is tracked in [docs/AGENT_HARNESS_ROADMAP.md](docs/AGENT_HARNESS_ROADMAP.md).
+Mutation approval and deterministic resume are documented in [docs/AGENT_ACTION_APPROVAL_AND_RESUME.md](docs/AGENT_ACTION_APPROVAL_AND_RESUME.md). Durable server-owned suspension handles are documented in [docs/AGENT_DURABLE_SUSPENSIONS.md](docs/AGENT_DURABLE_SUSPENSIONS.md). Final authorization and optimistic-concurrency checks are documented in [docs/AGENT_MUTATION_COMMIT_GUARD.md](docs/AGENT_MUTATION_COMMIT_GUARD.md). Tool input/output contracts are documented in [docs/AGENT_TOOL_CONTRACT_VALIDATION.md](docs/AGENT_TOOL_CONTRACT_VALIDATION.md). The staged path toward the broader interface-driven harness is tracked in [docs/AGENT_HARNESS_ROADMAP.md](docs/AGENT_HARNESS_ROADMAP.md). The fixed migration-cleanup countdown is documented in [docs/AGENT_LEGACY_CLEANUP.md](docs/AGENT_LEGACY_CLEANUP.md).
 
 ## Overview
 
@@ -456,3 +456,10 @@ Have a node idea? Feel free to propose a PR!
 ---
 
 © BASE3 Framework
+
+## Agent harness documentation
+
+- [Agent memory and context](docs/AGENT_MEMORY_AND_CONTEXT.md)
+- [Agent harness legacy cleanup](docs/AGENT_LEGACY_CLEANUP.md)
+- [Memory and context profiles](docs/AGENT_MEMORY_CONTEXT_PROFILES.md)
+- [Agent state and result](docs/AGENT_STATE_AND_RESULT.md)

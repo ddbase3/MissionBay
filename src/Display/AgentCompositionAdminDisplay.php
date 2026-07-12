@@ -14,6 +14,8 @@ use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Composition\AgentCompositionInspector;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use MissionBay\Profile\AgentContextProfileResolver;
+use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 use Throwable;
 
@@ -34,6 +36,8 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 		private readonly ILinkTargetService $linkTargetService,
 		private readonly AgentOrchestratorProfileRepository $orchestratorProfiles,
 		private readonly AgentToolProfileResolver $toolProfiles,
+		private readonly AgentMemoryProfileResolver $memoryProfiles,
+		private readonly AgentContextProfileResolver $contextProfiles,
 		private readonly AgentCompositionInspector $compositionInspector
 	) {}
 
@@ -121,6 +125,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 					(string)$row['llm'],
 					(string)$row['orchestrator_profile'],
 					(string)$row['tool_profile_text'],
+					(string)$row['memory_profile'],
 					(string)$row['status_detail']
 				])), $needle);
 			}));
@@ -225,6 +230,14 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 		foreach ($this->toolProfiles->getOptions() as $option) {
 			$availableToolProfiles[(string)($option['id'] ?? '')] = true;
 		}
+		$availableMemoryProfiles = [];
+		foreach ($this->memoryProfiles->getOptions() as $option) {
+			$availableMemoryProfiles[(string)($option['id'] ?? '')] = true;
+		}
+		$availableContextProfiles = [];
+		foreach ($this->contextProfiles->getOptions() as $option) {
+			$availableContextProfiles[(string)($option['id'] ?? '')] = true;
+		}
 
 		$rows = [];
 		foreach ($group as $id => $settings) {
@@ -234,6 +247,11 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 			$agentId = $this->normalizeId((string)$id);
 			$profileId = $this->normalizeId((string)($settings['orchestrator_profile'] ?? AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID));
 			$toolProfileIds = $this->normalizeIds($settings['tool_profiles'] ?? []);
+			$memoryProfileId = $this->normalizeId((string)($settings['memory_profile'] ?? ''));
+			$contextProfileId = $this->normalizeId((string)($settings['context_profile'] ?? ''));
+			if ($contextProfileId === '' && $memoryProfileId !== '' && $this->contextProfiles->hasProfile($memoryProfileId)) {
+				$contextProfileId = $memoryProfileId;
+			}
 			$problems = [];
 			try {
 				$this->orchestratorProfiles->getProfile($profileId);
@@ -245,6 +263,12 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 				if (!isset($availableToolProfiles[$toolProfileId])) {
 					$problems[] = 'Tool profile unavailable: ' . $toolProfileId;
 				}
+			}
+			if ($memoryProfileId !== '' && !isset($availableMemoryProfiles[$memoryProfileId])) {
+				$problems[] = 'Memory profile unavailable: ' . $memoryProfileId;
+			}
+			if ($contextProfileId !== '' && !isset($availableContextProfiles[$contextProfileId])) {
+				$problems[] = 'Context profile unavailable: ' . $contextProfileId;
 			}
 			if (!$this->hasUsableFlow($settings['agent_flow'] ?? null)) {
 				$problems[] = 'Agent flow is empty or invalid.';
@@ -260,6 +284,8 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 				'orchestrator_profile' => $profileId,
 				'tool_profile_count' => count($toolProfileIds),
 				'tool_profile_text' => implode(', ', $toolProfileIds),
+				'memory_profile' => $memoryProfileId !== '' ? $memoryProfileId : 'none',
+				'context_profile' => $contextProfileId !== '' ? $contextProfileId : 'none',
 				'expert_overrides' => $this->toBool($settings['expert_overrides_enabled'] ?? false),
 				'status' => $problems === [] ? 'valid' : 'error',
 				'status_detail' => $problems === [] ? 'Configuration references are available.' : implode(' ', $problems)

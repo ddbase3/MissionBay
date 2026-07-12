@@ -28,6 +28,11 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 	}
 
 	public function createDirectResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult): string {
+		$providerAnswer = $this->findTerminalProviderAnswer($turnResult);
+		if ($providerAnswer !== '') {
+			return $providerAnswer;
+		}
+
 		if (!$turnResult->canGenerateFinalResponse()) {
 			return $turnResult->getFallbackContent() ?? '';
 		}
@@ -39,6 +44,13 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 	}
 
 	public function createStreamingResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult, callable $onData, ?callable $onMeta = null): string {
+		$providerAnswer = $this->findTerminalProviderAnswer($turnResult);
+		if ($providerAnswer !== '') {
+			$onData($providerAnswer);
+
+			return $providerAnswer;
+		}
+
 		if (!$turnResult->canGenerateFinalResponse()) {
 			$content = $turnResult->getFallbackContent() ?? '';
 			if ($content !== '') {
@@ -58,6 +70,44 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 		$turnResult->addModelResult($result->getMetadata());
 
 		return $result->getContent();
+	}
+
+
+	/**
+	 * Returns a provider-produced terminal answer without another model call.
+	 * The terminal marker is set only by trusted tool adapters after successful
+	 * execution and contract validation.
+	 */
+	private function findTerminalProviderAnswer(AgentAssistantTurnResult $turnResult): string {
+		$messages = $turnResult->getMessages();
+
+		for ($index = count($messages) - 1; $index >= 0; $index--) {
+			$message = $messages[$index] ?? null;
+			if (!is_array($message) || ($message['role'] ?? null) !== 'tool') {
+				continue;
+			}
+
+			$content = $message['content'] ?? null;
+			if (!is_string($content) || trim($content) === '') {
+				continue;
+			}
+
+			$payload = json_decode($content, true);
+			if (
+				!is_array($payload) ||
+				($payload['final_answer_ready'] ?? false) !== true ||
+				!is_scalar($payload['answer'] ?? null)
+			) {
+				continue;
+			}
+
+			$answer = trim((string)$payload['answer']);
+			if ($answer !== '') {
+				return $this->messageFactory->normalizeContent($answer);
+			}
+		}
+
+		return '';
 	}
 
 

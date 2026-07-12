@@ -18,12 +18,14 @@ final class AgentOrchestratorProfile {
 
 	public const MODE_SIMPLE = 'simple';
 	public const MODE_STANDARD = 'standard';
+	public const MODE_DELIBERATE = 'deliberate';
 	public const MODE_GOVERNED = 'governed';
 
 	/** @var array<int,string> */
 	private const MODES = [
 		self::MODE_SIMPLE,
 		self::MODE_STANDARD,
+		self::MODE_DELIBERATE,
 		self::MODE_GOVERNED
 	];
 
@@ -39,6 +41,7 @@ final class AgentOrchestratorProfile {
 		private readonly bool $contextCompactionEnabled,
 		private readonly bool $semanticVerificationEnabled,
 		private readonly AgentCapabilitySelectionConfig $capabilitySelection,
+		private readonly bool $deliberatePlanningEnabled = false,
 		private readonly bool $builtin = false
 	) {
 		if (trim($this->id) === '') {
@@ -60,6 +63,7 @@ final class AgentOrchestratorProfile {
 	public function getMaxToolLoops(): int { return $this->maxToolLoops; }
 	public function isBuiltin(): bool { return $this->builtin; }
 	public function getCapabilitySelection(): AgentCapabilitySelectionConfig { return $this->capabilitySelection; }
+	public function isDeliberatePlanningEnabled(): bool { return $this->deliberatePlanningEnabled; }
 
 	/**
 	 * Returns the canonical ordered stage ids. Required stages cannot be
@@ -116,6 +120,7 @@ final class AgentOrchestratorProfile {
 			'optional_stages' => $this->getOptionalStages(),
 			'stage_ids' => $this->getStageIds(),
 			'capability_selection' => $this->capabilitySelection->toArray(),
+			'deliberate_planning' => $this->deliberatePlanningEnabled,
 			'builtin' => $this->builtin
 		];
 	}
