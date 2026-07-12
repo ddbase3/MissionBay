@@ -50,6 +50,7 @@ use MissionBay\Cache\StateStoreAgentToolResultCache;
 use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use MissionBay\Capability\AgentCapabilityDiscoveryService;
 use MissionBay\Capability\HybridAgentCapabilitySelector;
+use MissionBay\Composition\AgentCompositionInspector;
 use MissionBay\Api\IAgentAssistantFallbackBuilder;
 use MissionBay\Api\IAgentAssistantFinalResponseService;
 use MissionBay\Api\IAgentAssistantMemoryService;
@@ -170,6 +171,18 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentComponentFlowBuilder::class),
 				$c->get(AgentOrchestratorProfileRepository::class),
 				$c->get(AgentToolProfileResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentCompositionInspector::class, fn($c) => new AgentCompositionInspector(
+				$c->get(ISettingsStore::class),
+				$c->get(IAgentExecutionService::class),
+				$c->get(IAgentContextFactory::class),
+				$c->get(IAgentFlowFactory::class),
+				$c->get(AgentOrchestratorProfileRepository::class),
+				$c->get(AgentToolProfileResolver::class),
+				$c->get(IAgentComponentPresetRepository::class),
+				$c->get(AgentCapabilityDiscoveryService::class),
+				$c->get(AgentCapabilityCatalogBuilder::class),
+				$c->get(AgentStagePipelineResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentConfigFormService::class, fn($c) => new AgentConfigFormService(
 				$c->get(IRequest::class),

@@ -19,7 +19,14 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	.orchestrator-profile-button { border: 1px solid #cfcfcf; border-radius: 4px; background: #fff; min-height: 30px; padding: 4px 10px; cursor: pointer; }
 	.orchestrator-profile-button-primary { background: #2f5d91; border-color: #2f5d91; color: #fff; }
 	.orchestrator-profile-main { border: 1px solid #e2e2e2; border-radius: 8px; background: #fff; padding: 4px 0; }
-	.orchestrator-profile-panel { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid #e2e2e2; border-radius: 8px; background: #fff; }
+	.orchestrator-profile-grid .orchestrator-profile-panel { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; min-width: 0; width: 100%; padding: 8px 10px; border: 1px solid #e2e2e2; border-radius: 8px; background: #fff; overflow-x: auto; }
+	.orchestrator-profile-grid .orchestrator-profile-panel > * { flex: 0 0 auto; }
+	.orchestrator-profile-grid .mg-control-group { flex-direction: row; align-items: center; gap: 6px; min-width: auto; }
+	.orchestrator-profile-grid .mg-label { white-space: nowrap; color: #666; font-size: 12px; }
+	.orchestrator-profile-grid .mg-inline-buttons { flex-wrap: nowrap; }
+	.orchestrator-profile-grid .mg-input, .orchestrator-profile-grid .mg-select, .orchestrator-profile-grid .mg-button { min-height: 28px; font-size: 13px; }
+	.orchestrator-profile-grid input[type="search"].mg-input { width: 300px; }
+	.orchestrator-profile-grid .mg-select { width: auto; min-width: 105px; }
 	.orchestrator-profile-grid .mg-table-scroll { height: 540px; overflow: auto; }
 	.orchestrator-profile-grid .mg-table thead th { position: sticky; top: 0; z-index: 12; background: #fff; }
 	.orchestrator-profile-grid .mg-table th, .orchestrator-profile-grid .mg-table td { padding: 6px 8px; font-size: 13px; vertical-align: top; }

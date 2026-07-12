@@ -23,6 +23,8 @@
 - Profile-centred agent administration: operators select an orchestrator profile and reusable tool profiles; direct components and low-level capability settings moved to an explicit expert/legacy section.
 - Tool profiles reusable by internal agents, MCP, or both, including preservation of presets that expose both tool and memory facets.
 - Base3IliasLab administration integration for orchestrator profiles.
+- Read-only effective agent composition diagnostics with runtime profile expansion, actual callable tool names, memory facets, capability-source resolution, module stage mounts, final pipeline validation, and redacted diagnostic data.
+- Single-line Orchestrator Profile search and filter control zones with horizontal overflow on narrow screens.
 
 ## Current default stages
 
@@ -44,22 +46,6 @@ semantic-verification
 The current patch deliberately preserves resources that implement both `IAgentTool` and `IAgentMemory`, such as user preferences. The next design step should introduce a small operator-facing memory/context profile without mixing it into orchestration settings.
 
 Before implementation, evaluate a foundation-level contract split between conversation history and prompt/context contribution. This should remain backward compatible with `IAgentMemory` adapters and must not duplicate the underlying resource or storage.
-
-### Profile diagnostics
-
-Add a read-only effective-composition view that shows, for one agent:
-
-```text
-resolved orchestrator profile
-canonical stage sequence
-expanded tool profiles
-component presets and capability facets
-final capability pool
-selection limits
-configuration warnings
-```
-
-This is more useful to operators than exposing additional low-level fields in the agent form.
 
 ## Nice-to-have: visible model intent
 

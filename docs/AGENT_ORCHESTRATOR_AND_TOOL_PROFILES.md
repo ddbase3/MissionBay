@@ -128,8 +128,9 @@ The following displays are intended for different audiences:
 | Display | Audience |
 |---|---|
 | `AgentAdminDisplay` | Platform operators creating and assigning agents. |
+| `AgentCompositionAdminDisplay` | Experts inspecting the effective read-only runtime composition of an agent. |
 | `AgentOrchestratorProfileAdminDisplay` | Experts maintaining safe orchestration modes and limits. |
 | `ToolProfileAdminDisplay` | Experts grouping configured component presets for internal agents and/or MCP. |
 | `AgentComponentPresetAdminDisplay` | Technical administrators configuring individual resource instances. |
 
-`Base3IliasLab` registers the orchestrator profile display next to Agents, Tool Presets, and Tool Profiles.
+`Base3IliasLab` registers Effective Composition and Orchestrator Profiles next to Agents, Tool Presets, and Tool Profiles. The composition display resolves actual tool names, memory facets, capability sources, module stage mounts, and final stages without adding these details back to the normal Agent form.
