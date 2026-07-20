@@ -2,11 +2,16 @@
 
 namespace MissionBay\Test\Capability;
 
+use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentCapability;
 use AssistantFoundation\Dto\AgentCapabilityCatalog;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
+use AssistantFoundation\Dto\AiChatResult;
+use AssistantFoundation\Dto\AiResultMetadata;
 use MissionBay\Capability\HybridAgentCapabilitySelector;
+use MissionBay\Capability\ProfileAwareAgentCapabilitySelector;
+use MissionBay\Capability\SemanticAgentCapabilitySelector;
 use PHPUnit\Framework\TestCase;
 
 final class AgentCapabilitySelectionTest extends TestCase {
@@ -87,7 +92,98 @@ final class AgentCapabilitySelectionTest extends TestCase {
 		$this->assertSame(['crm_read'], $selection->getToolNames());
 	}
 
-	private function capability(string $name, string $description, array $tags, int $priority): AgentCapability {
+	public function testProfileAwareSelectorTreatsLegacySemanticStrategyAsDeterministicHybrid(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_plugins', 'List all registered ILIAS plugins.', ['plugins', 'list'], 20, 'plugins'),
+			$this->capability('list_ilias_cron_jobs', 'List ILIAS cron jobs.', ['cron', 'list'], 20, 'cron-jobs')
+		]);
+		$selector = new ProfileAwareAgentCapabilitySelector(new HybridAgentCapabilitySelector());
+
+		$selection = $selector->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'List all plugins.',
+				config: new AgentCapabilitySelectionConfig(
+					strategy: AgentCapabilitySelectionConfig::STRATEGY_SEMANTIC,
+					maxTools: 1,
+					selectAllThreshold: 0
+				),
+				model: $this->chatModel('{"selected_tools":["list_ilias_cron_jobs"]}')
+			)
+		);
+
+		$this->assertSame(AgentCapabilitySelectionConfig::STRATEGY_HYBRID, $selection->getStrategy());
+		$this->assertSame(['list_ilias_plugins'], $selection->getToolNames());
+		$this->assertNull($selection->getModelMetadata());
+	}
+
+	public function testSemanticSelectorUsesAiRerankingForAmbiguousListTools(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_cron_jobs', 'List configured ILIAS cron jobs.', ['ilias', 'cron', 'list'], 80, 'cron-jobs'),
+			$this->capability('list_ilias_plugins', 'List all registered ILIAS plugins without using cron jobs.', ['ilias', 'plugins', 'list'], 60, 'plugins'),
+			$this->capability('get_ilias_plugin', 'Read one ILIAS plugin.', ['ilias', 'plugins', 'details'], 50, 'plugins'),
+			$this->capability('update_webdav', 'Update WebDAV settings.', ['ilias', 'webdav'], 70, 'webdav')
+		]);
+		$hybrid = new HybridAgentCapabilitySelector();
+		$selector = new SemanticAgentCapabilitySelector($hybrid);
+
+		$selection = $selector->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Welche Plugins habe ich? Bitte nur die Plugin-Liste, keine Cron-Jobs.',
+				config: new AgentCapabilitySelectionConfig(
+					strategy: AgentCapabilitySelectionConfig::STRATEGY_HYBRID,
+					maxTools: 3,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 4
+				),
+				model: $this->chatModel('{"selected_tools":["list_ilias_plugins"]}')
+			)
+		);
+
+		$this->assertSame(AgentCapabilitySelectionConfig::STRATEGY_SEMANTIC, $selection->getStrategy());
+		$this->assertSame(['list_ilias_plugins'], $selection->getToolNames());
+		$this->assertNotNull($selection->getModelMetadata());
+		$this->assertContains('semantic-ai', $selection->getReasons()['list_ilias_plugins']);
+	}
+
+	public function testSemanticSelectorFallsBackToHybridForInvalidModelOutput(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_plugins', 'List all registered ILIAS plugins.', ['plugins', 'list'], 20, 'plugins'),
+			$this->capability('list_ilias_cron_jobs', 'List ILIAS cron jobs.', ['cron', 'list'], 20, 'cron-jobs')
+		]);
+		$hybrid = new HybridAgentCapabilitySelector();
+		$selector = new SemanticAgentCapabilitySelector($hybrid);
+
+		$selection = $selector->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'List all plugins.',
+				config: new AgentCapabilitySelectionConfig(
+					strategy: AgentCapabilitySelectionConfig::STRATEGY_HYBRID,
+					maxTools: 1,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 2
+				),
+				model: $this->chatModel('not-json')
+			)
+		);
+
+		$this->assertSame(['list_ilias_plugins'], $selection->getToolNames());
+		$this->assertContains('semantic-invalid-output', $selection->getReasons()['list_ilias_plugins']);
+		$this->assertNotNull($selection->getModelMetadata());
+	}
+
+	private function capability(
+		string $name,
+		string $description,
+		array $tags,
+		int $priority,
+		string $sourceId = 'test'
+	): AgentCapability {
 		return new AgentCapability(
 			name: $name,
 			title: str_replace('_', ' ', $name),
@@ -105,7 +201,35 @@ final class AgentCapabilitySelectionTest extends TestCase {
 						'properties' => ['query' => ['type' => 'string']]
 					]
 				]
-			]
+			],
+			sourceId: $sourceId,
+			sourceName: $sourceId
 		);
+	}
+
+	private function chatModel(string $content): IAiChatModel {
+		return new class($content) implements IAiChatModel {
+			private array $options = [];
+
+			public function __construct(private readonly string $content) {}
+
+			public function complete(array $messages, array $tools = []): AiChatResult {
+				return new AiChatResult(
+					$this->content,
+					[],
+					new AiResultMetadata('capability_selection', 'test', 'router')
+				);
+			}
+
+			public function chat(array $messages): string { return $this->content; }
+			public function raw(array $messages, array $tools = []): mixed { return $this->content; }
+			public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
+				$onData($this->content);
+				return $this->complete($messages, $tools);
+			}
+			public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void { $onData($this->content); }
+			public function setOptions(array $options): void { $this->options = $options; }
+			public function getOptions(): array { return $this->options; }
+		};
 	}
 }

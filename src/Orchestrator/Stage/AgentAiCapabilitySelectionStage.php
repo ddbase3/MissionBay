@@ -18,31 +18,39 @@
 namespace MissionBay\Orchestrator\Stage;
 
 use AssistantFoundation\Api\IAgentCapabilitySelector;
+use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
+use AssistantFoundation\Api\IAiChatModel;
 
 /**
- * Selects a bounded tool subset without an additional AI model call.
+ * Uses the active chat model to rerank a bounded capability candidate set.
+ * Provider failures and invalid output are handled by the selector fallback.
  */
-final class AgentCapabilitySelectionStage extends AbstractAgentCapabilitySelectionStage {
+final class AgentAiCapabilitySelectionStage extends AbstractAgentCapabilitySelectionStage {
 
 	public function __construct(
 		IAgentCapabilitySelector $selector,
-		string $id = 'capability-selection',
-		string $stageName = 'capability-selection',
+		string $id = 'ai-capability-selection',
+		string $stageName = 'ai-capability-selection',
 		int $maxContextCharacters = 24000
 	) {
 		parent::__construct($selector, $id, $stageName, $maxContextCharacters);
 	}
 
 	public static function getName(): string {
-		return 'agentcapabilityselectionstage';
+		return 'agentaicapabilityselectionstage';
 	}
 
 	public function getDescription(): string {
-		return 'Preselects a bounded relevant tool set through deterministic filters and ranking before each model decision.';
+		return 'Uses the active chat model to select a bounded relevant tool set from a deterministic candidate pool before each model decision.';
 	}
 
 	public function getAiUsage(): string {
-		return IAgentStage::AI_USAGE_NONE;
+		return IAgentStage::AI_USAGE_CONDITIONAL;
+	}
+
+	protected function resolveModel(IAgentContext $context): ?IAiChatModel {
+		$model = $context->getVar(AgentToolLoopContextKeys::MODEL);
+		return $model instanceof IAiChatModel ? $model : null;
 	}
 }

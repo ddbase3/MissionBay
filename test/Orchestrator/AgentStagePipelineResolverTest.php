@@ -71,6 +71,55 @@ final class AgentStagePipelineResolverTest extends TestCase {
 		], array_map(fn(IAgentStage $stage) => $stage->id(), $stages));
 	}
 
+	public function testConfiguredPipelineAcceptsAiCapabilitySelectionAsAlternative(): void {
+		$components = new RecordingAgentStageComponentResolver([
+			'capability-discovery' => new RecordingResolvedAgentStage('capability-discovery'),
+			'ai-capability-selection' => new RecordingResolvedAgentStage('ai-capability-selection'),
+			'model-decision' => new RecordingResolvedAgentStage('model-decision'),
+			'action-policy' => new RecordingResolvedAgentStage('action-policy'),
+			'tool-execution' => new RecordingResolvedAgentStage('tool-execution'),
+			'tool-observation' => new RecordingResolvedAgentStage('tool-observation')
+		]);
+		$resolver = new AgentStagePipelineResolver($components, self::DEFAULT_STAGE_IDS);
+
+		$stages = $resolver->resolve([
+			'capability-discovery',
+			'ai-capability-selection',
+			'model-decision',
+			'action-policy',
+			'tool-execution',
+			'tool-observation'
+		]);
+
+		$this->assertSame([
+			'capability-discovery',
+			'ai-capability-selection',
+			'model-decision',
+			'action-policy',
+			'tool-execution',
+			'tool-observation'
+		], array_map(fn(IAgentStage $stage) => $stage->id(), $stages));
+	}
+
+	public function testDeterministicAndAiCapabilitySelectionCannotBeCombined(): void {
+		$resolver = new AgentStagePipelineResolver(
+			new RecordingAgentStageComponentResolver([]),
+			self::DEFAULT_STAGE_IDS
+		);
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('Capability selection stages are mutually exclusive');
+
+		$resolver->resolve([
+			'capability-selection',
+			'ai-capability-selection',
+			'model-decision',
+			'action-policy',
+			'tool-execution',
+			'tool-observation'
+		]);
+	}
+
 	public function testFreeReorderingIsRejected(): void {
 		$resolver = new AgentStagePipelineResolver(
 			new RecordingAgentStageComponentResolver([]),

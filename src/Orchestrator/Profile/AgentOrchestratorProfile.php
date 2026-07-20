@@ -38,6 +38,7 @@ final class AgentOrchestratorProfile {
 		private readonly int $maxToolLoops,
 		private readonly bool $capabilityDiscoveryEnabled,
 		private readonly bool $capabilitySelectionEnabled,
+		private readonly bool $aiCapabilitySelectionEnabled,
 		private readonly bool $contextCompactionEnabled,
 		private readonly bool $semanticVerificationEnabled,
 		private readonly AgentCapabilitySelectionConfig $capabilitySelection,
@@ -53,6 +54,9 @@ final class AgentOrchestratorProfile {
 		if ($this->maxToolLoops < 1 || $this->maxToolLoops > 100) {
 			throw new \InvalidArgumentException('Max tool loops must be between 1 and 100.');
 		}
+		if ($this->capabilitySelectionEnabled && $this->aiCapabilitySelectionEnabled) {
+			throw new \InvalidArgumentException('Deterministic and AI capability selection stages are mutually exclusive.');
+		}
 	}
 
 	public function getId(): string { return $this->id; }
@@ -64,6 +68,8 @@ final class AgentOrchestratorProfile {
 	public function isBuiltin(): bool { return $this->builtin; }
 	public function getCapabilitySelection(): AgentCapabilitySelectionConfig { return $this->capabilitySelection; }
 	public function isDeliberatePlanningEnabled(): bool { return $this->deliberatePlanningEnabled; }
+	public function isCapabilitySelectionEnabled(): bool { return $this->capabilitySelectionEnabled; }
+	public function isAiCapabilitySelectionEnabled(): bool { return $this->aiCapabilitySelectionEnabled; }
 
 	/**
 	 * Returns the canonical ordered stage ids. Required stages cannot be
@@ -79,6 +85,9 @@ final class AgentOrchestratorProfile {
 		}
 		if ($this->capabilitySelectionEnabled) {
 			$stageIds[] = 'capability-selection';
+		}
+		if ($this->aiCapabilitySelectionEnabled) {
+			$stageIds[] = 'ai-capability-selection';
 		}
 
 		$stageIds[] = 'model-decision';
@@ -103,6 +112,7 @@ final class AgentOrchestratorProfile {
 		return [
 			'capability-discovery' => $this->capabilityDiscoveryEnabled,
 			'capability-selection' => $this->capabilitySelectionEnabled,
+			'ai-capability-selection' => $this->aiCapabilitySelectionEnabled,
 			'context-compaction' => $this->contextCompactionEnabled,
 			'semantic-verification' => $this->semanticVerificationEnabled
 		];

@@ -21,6 +21,7 @@ final class AgentStagePipelineResolver {
 	private const CANONICAL_STAGE_IDS = [
 		'capability-discovery',
 		'capability-selection',
+		'ai-capability-selection',
 		'model-decision',
 		'action-policy',
 		'tool-execution',
@@ -28,6 +29,12 @@ final class AgentStagePipelineResolver {
 		'tool-observation',
 		'semantic-verification',
 		'final-answer-regenerate'
+	];
+
+	/** @var array<int,string> */
+	private const CAPABILITY_SELECTION_STAGE_IDS = [
+		'capability-selection',
+		'ai-capability-selection'
 	];
 
 	/** @var array<int,string> */
@@ -170,6 +177,11 @@ final class AgentStagePipelineResolver {
 			}
 		}
 
+		$selectionStages = array_values(array_intersect(self::CAPABILITY_SELECTION_STAGE_IDS, $stageIds));
+		if (count($selectionStages) > 1) {
+			throw new \RuntimeException('Capability selection stages are mutually exclusive: ' . implode(', ', $selectionStages));
+		}
+
 		foreach ($stageIds as $stageId) {
 			if (!array_key_exists($stageId, $positions)) {
 				throw new \RuntimeException('Core agent stage is not part of the canonical pipeline: ' . $stageId);
@@ -181,7 +193,7 @@ final class AgentStagePipelineResolver {
 			$lastPosition = $position;
 		}
 
-		if (isset($known['capability-selection']) && !isset($known['model-decision'])) {
+		if ($selectionStages !== [] && !isset($known['model-decision'])) {
 			throw new \RuntimeException('Capability selection requires model decision.');
 		}
 

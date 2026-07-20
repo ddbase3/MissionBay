@@ -50,6 +50,8 @@ use MissionBay\Cache\StateStoreAgentToolResultCache;
 use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use MissionBay\Capability\AgentCapabilityDiscoveryService;
 use MissionBay\Capability\HybridAgentCapabilitySelector;
+use MissionBay\Capability\ProfileAwareAgentCapabilitySelector;
+use MissionBay\Capability\SemanticAgentCapabilitySelector;
 use MissionBay\Composition\AgentCompositionInspector;
 use MissionBay\Api\IAgentAssistantContextContributionService;
 use MissionBay\Api\IAgentAssistantFallbackBuilder;
@@ -92,6 +94,7 @@ use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
 use MissionBay\Orchestrator\Stage\AgentCapabilityDiscoveryStage;
+use MissionBay\Orchestrator\Stage\AgentAiCapabilitySelectionStage;
 use MissionBay\Orchestrator\Stage\AgentCapabilitySelectionStage;
 use MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository;
 use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
@@ -223,7 +226,14 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(AgentCapabilityDiscoveryService::class, fn($c) => new AgentCapabilityDiscoveryService(
 				$c->get(IComponentResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentCapabilitySelector::class, fn() => new HybridAgentCapabilitySelector(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(HybridAgentCapabilitySelector::class, fn() => new HybridAgentCapabilitySelector(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(SemanticAgentCapabilitySelector::class, fn($c) => new SemanticAgentCapabilitySelector(
+				$c->get(HybridAgentCapabilitySelector::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(ProfileAwareAgentCapabilitySelector::class, fn($c) => new ProfileAwareAgentCapabilitySelector(
+				$c->get(HybridAgentCapabilitySelector::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentCapabilitySelector::class, fn($c) => $c->get(ProfileAwareAgentCapabilitySelector::class), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentCapabilitySelectionGuardService::class, fn() => new AgentCapabilitySelectionGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 
 			->set(IAgentAssistantMessageFactory::class, fn() => new AgentAssistantMessageFactory(), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -368,7 +378,18 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			arguments: [
 				'id' => 'capability-selection',
 				'stageName' => 'capability-selection',
-				'selector' => $this->container->get(IAgentCapabilitySelector::class)
+				'selector' => $this->container->get(ProfileAwareAgentCapabilitySelector::class)
+			]
+		));
+
+		$this->registerAgentStageDefinition(new ComponentDefinition(
+			id: 'ai-capability-selection',
+			interfaceName: IAgentStage::class,
+			implementationName: AgentAiCapabilitySelectionStage::getName(),
+			arguments: [
+				'id' => 'ai-capability-selection',
+				'stageName' => 'ai-capability-selection',
+				'selector' => $this->container->get(SemanticAgentCapabilitySelector::class)
 			]
 		));
 

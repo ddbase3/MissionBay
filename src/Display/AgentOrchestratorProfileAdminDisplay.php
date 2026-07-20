@@ -206,6 +206,12 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			return $this->error('Target profile already exists: ' . $id, 'save');
 		}
 
+		$capabilitySelectionEnabled = $this->toBool($payload['capability_selection'] ?? false);
+		$aiCapabilitySelectionEnabled = $this->toBool($payload['ai_capability_selection'] ?? false);
+		if ($capabilitySelectionEnabled && $aiCapabilitySelectionEnabled) {
+			return $this->error('Capability selection stages are mutually exclusive.', 'save');
+		}
+
 		$settings = [
 			'label' => trim((string)($payload['label'] ?? $id)),
 			'description' => trim((string)($payload['description'] ?? '')),
@@ -215,15 +221,20 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'deliberate_planning' => $this->toBool($payload['deliberate_planning'] ?? false),
 			'optional_stages' => [
 				'capability-discovery' => $this->toBool($payload['capability_discovery'] ?? false),
-				'capability-selection' => $this->toBool($payload['capability_selection'] ?? false),
+				'capability-selection' => $capabilitySelectionEnabled,
+				'ai-capability-selection' => $aiCapabilitySelectionEnabled,
 				'context-compaction' => $this->toBool($payload['context_compaction'] ?? false),
 				'semantic-verification' => $this->toBool($payload['semantic_verification'] ?? false)
 			],
 			'capability_selection' => [
-				'enabled' => $this->toBool($payload['capability_selection'] ?? false),
-				'strategy' => strtolower(trim((string)($payload['selection_strategy'] ?? 'hybrid'))),
+				'enabled' => $capabilitySelectionEnabled || $aiCapabilitySelectionEnabled,
+				'strategy' => $aiCapabilitySelectionEnabled
+					? 'hybrid'
+					: strtolower(trim((string)($payload['selection_strategy'] ?? 'hybrid'))),
 				'max_tools' => max(1, min(512, (int)($payload['max_tools'] ?? 16))),
 				'select_all_threshold' => max(0, min(512, (int)($payload['select_all_threshold'] ?? 16))),
+				'semantic_candidate_tools' => max(1, min(512, (int)($payload['semantic_candidate_tools'] ?? 48))),
+				'semantic_max_prompt_characters' => max(8000, min(200000, (int)($payload['semantic_max_prompt_characters'] ?? 48000))),
 				'sticky' => $this->toBool($payload['sticky'] ?? true)
 			]
 		];
@@ -294,11 +305,17 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'stage_text' => implode(' → ', $stages),
 			'capability_discovery' => (bool)($optional['capability-discovery'] ?? false),
 			'capability_selection' => (bool)($optional['capability-selection'] ?? false),
+			'ai_capability_selection' => (bool)($optional['ai-capability-selection'] ?? false),
+			'selection_stage' => (bool)($optional['ai-capability-selection'] ?? false)
+				? 'ai-capability-selection'
+				: ((bool)($optional['capability-selection'] ?? false) ? 'capability-selection' : 'none'),
 			'context_compaction' => (bool)($optional['context-compaction'] ?? false),
 			'semantic_verification' => (bool)($optional['semantic-verification'] ?? false),
 			'selection_strategy' => (string)($selection['strategy'] ?? 'hybrid'),
 			'max_tools' => (int)($selection['max_tools'] ?? 16),
 			'select_all_threshold' => (int)($selection['select_all_threshold'] ?? 16),
+			'semantic_candidate_tools' => (int)($selection['semantic_candidate_tools'] ?? 48),
+			'semantic_max_prompt_characters' => (int)($selection['semantic_max_prompt_characters'] ?? 48000),
 			'sticky' => (bool)($selection['sticky'] ?? true),
 			'deliberate_planning' => $profile->isDeliberatePlanningEnabled(),
 			'profile_json' => $this->pretty($data)

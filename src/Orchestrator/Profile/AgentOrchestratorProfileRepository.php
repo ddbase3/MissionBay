@@ -130,6 +130,7 @@ final class AgentOrchestratorProfileRepository {
 				'optional_stages' => [
 					'capability-discovery' => false,
 					'capability-selection' => true,
+					'ai-capability-selection' => false,
 					'context-compaction' => false,
 					'semantic-verification' => false
 				],
@@ -150,6 +151,7 @@ final class AgentOrchestratorProfileRepository {
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
+					'ai-capability-selection' => false,
 					'context-compaction' => true,
 					'semantic-verification' => true
 				],
@@ -159,6 +161,29 @@ final class AgentOrchestratorProfileRepository {
 					'max_tools' => 16,
 					'select_all_threshold' => 16,
 					'sticky' => true
+				]
+			], true),
+			'large-catalog' => $this->fromArray('large-catalog', [
+				'label' => 'Large capability catalog',
+				'description' => 'AI-reranked capability selection for agents with large and heterogeneous tool catalogs, with deterministic hybrid fallback.',
+				'enabled' => true,
+				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
+				'max_tool_loops' => 10,
+				'optional_stages' => [
+					'capability-discovery' => true,
+					'capability-selection' => false,
+					'ai-capability-selection' => true,
+					'context-compaction' => true,
+					'semantic-verification' => true
+				],
+				'capability_selection' => [
+					'enabled' => true,
+					'strategy' => 'hybrid',
+					'max_tools' => 16,
+					'select_all_threshold' => 12,
+					'semantic_candidate_tools' => 48,
+					'semantic_max_prompt_characters' => 48000,
+					'sticky' => false
 				]
 			], true),
 			'deliberate' => $this->fromArray('deliberate', [
@@ -171,6 +196,7 @@ final class AgentOrchestratorProfileRepository {
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
+					'ai-capability-selection' => false,
 					'context-compaction' => true,
 					'semantic-verification' => true
 				],
@@ -191,6 +217,7 @@ final class AgentOrchestratorProfileRepository {
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
+					'ai-capability-selection' => false,
 					'context-compaction' => true,
 					'semantic-verification' => true
 				],
@@ -211,6 +238,22 @@ final class AgentOrchestratorProfileRepository {
 		$defaults = $this->defaultsForMode($mode);
 		$optional = is_array($settings['optional_stages'] ?? null) ? $settings['optional_stages'] : [];
 		$selection = is_array($settings['capability_selection'] ?? null) ? $settings['capability_selection'] : [];
+		$selectionStrategy = strtolower(trim((string)($selection['strategy'] ?? $defaults['capability_selection']['strategy'])));
+		$hasExplicitAiSelectionStage = array_key_exists('ai-capability-selection', $optional);
+		$legacySemanticSelection = !$hasExplicitAiSelectionStage
+			&& $selectionStrategy === AgentCapabilitySelectionConfig::STRATEGY_SEMANTIC
+			&& $this->toBool($optional['capability-selection'] ?? $defaults['optional_stages']['capability-selection']);
+		$capabilitySelectionEnabled = $legacySemanticSelection
+			? false
+			: $this->toBool($optional['capability-selection'] ?? $defaults['optional_stages']['capability-selection']);
+		$aiCapabilitySelectionEnabled = $legacySemanticSelection
+			? true
+			: $this->toBool($optional['ai-capability-selection'] ?? $defaults['optional_stages']['ai-capability-selection']);
+
+		if ($selectionStrategy === AgentCapabilitySelectionConfig::STRATEGY_SEMANTIC || $aiCapabilitySelectionEnabled) {
+			$selection['strategy'] = AgentCapabilitySelectionConfig::STRATEGY_HYBRID;
+		}
+		$selection['enabled'] = $capabilitySelectionEnabled || $aiCapabilitySelectionEnabled;
 
 		$label = trim((string)($settings['label'] ?? ''));
 		if ($label === '') {
@@ -225,7 +268,8 @@ final class AgentOrchestratorProfileRepository {
 			mode: $mode,
 			maxToolLoops: max(1, min(100, (int)($settings['max_tool_loops'] ?? $defaults['max_tool_loops']))),
 			capabilityDiscoveryEnabled: $this->toBool($optional['capability-discovery'] ?? $defaults['optional_stages']['capability-discovery']),
-			capabilitySelectionEnabled: $this->toBool($optional['capability-selection'] ?? $defaults['optional_stages']['capability-selection']),
+			capabilitySelectionEnabled: $capabilitySelectionEnabled,
+			aiCapabilitySelectionEnabled: $aiCapabilitySelectionEnabled,
 			contextCompactionEnabled: $this->toBool($optional['context-compaction'] ?? $defaults['optional_stages']['context-compaction']),
 			semanticVerificationEnabled: $this->toBool($optional['semantic-verification'] ?? $defaults['optional_stages']['semantic-verification']),
 			capabilitySelection: AgentCapabilitySelectionConfig::fromArray(array_merge($defaults['capability_selection'], $selection)),
@@ -243,6 +287,7 @@ final class AgentOrchestratorProfileRepository {
 				'optional_stages' => [
 					'capability-discovery' => false,
 					'capability-selection' => true,
+					'ai-capability-selection' => false,
 					'context-compaction' => false,
 					'semantic-verification' => false
 				],
@@ -254,6 +299,7 @@ final class AgentOrchestratorProfileRepository {
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
+					'ai-capability-selection' => false,
 					'context-compaction' => true,
 					'semantic-verification' => true
 				],
@@ -266,6 +312,7 @@ final class AgentOrchestratorProfileRepository {
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
+					'ai-capability-selection' => false,
 					'context-compaction' => true,
 					'semantic-verification' => true
 				],

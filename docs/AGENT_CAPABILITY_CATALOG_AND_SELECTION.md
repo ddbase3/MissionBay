@@ -10,7 +10,7 @@ Tools docked directly on the assistant
   -> capability discovery and module activation
   -> profile filtering
   -> run-specific AgentCapabilityCatalog
-  -> capability-selection stage
+  -> capability-selection OR ai-capability-selection stage
   -> bounded tool definitions for model-decision
 ```
 
@@ -34,7 +34,12 @@ Operational names must be unique. Duplicate function names are rejected before t
 
 ## Default selection stage
 
-`capability-discovery` is the first stage in the default pipeline. It publishes the run-local composition resolved from the agent's explicit capability source configuration. `capability-selection` follows it and runs before every `model-decision` phase. It is a real stage because the choice depends on the current run context and may change after observations.
+`capability-discovery` is the first stage in the default pipeline. It publishes the run-local composition resolved from the agent's explicit capability source configuration. A profile may then select exactly one capability-selection stage before `model-decision`:
+
+- `capability-selection` uses deterministic filtering and ranking without another model call;
+- `ai-capability-selection` uses the active chat model to rerank a bounded deterministic candidate pool.
+
+The two stages are explicit, mutually exclusive pipeline choices. Selection runs again before every `model-decision` phase because relevance may change after tool observations.
 
 The default `HybridAgentCapabilitySelector` performs no additional model call. It uses:
 
@@ -70,9 +75,41 @@ Assistant nodes expose the optional `capabilityselection` input:
 
 Snake-case variants such as `max_tools` and `include_tags` are accepted as well.
 
-`strategy = all` disables ranking but still applies hard filters. `enabled = false` exposes all eligible tools. Both modes are intended for controlled compatibility profiles; large catalogs should normally use `hybrid`.
+`strategy = all` disables deterministic ranking but still applies hard filters. `enabled = false` exposes all eligible tools. Both modes are intended for controlled compatibility profiles. AI usage is not selected through this configuration value. It is selected explicitly through the `ai-capability-selection` stage.
 
 Profile-required tools are merged into `alwaysAvailable`. A run fails before model execution if hard filters remove a mandatory tool or if mandatory tools exceed `maxTools`.
+
+## AI selection for large catalogs
+
+The `ai-capability-selection` stage is intended for agents whose configured capability pool is too large or too heterogeneous for lexical ranking alone. Discovery remains deterministic. The profile explicitly replaces the deterministic selection stage with the AI stage:
+
+```text
+hard agent filters
+  -> deterministic hybrid candidate ranking
+  -> compact candidate summaries
+  -> active chat model JSON reranking
+  -> validated bounded tool subset
+  -> deterministic fallback on any routing failure
+```
+
+Configuration adds:
+
+```php
+[
+    'strategy' => 'hybrid',
+    'maxTools' => 16,
+    'selectAllThreshold' => 12,
+    'semanticCandidateTools' => 48,
+    'semanticMaxPromptCharacters' => 48000,
+    'sticky' => false,
+]
+```
+
+The selector never grants new capabilities. AI output is accepted only when every returned name exists in the already filtered candidate set. Required capabilities remain enforced. Invalid output, provider failures, or an unavailable model fall back to deterministic hybrid selection. The routing model call is recorded in the normal model-result metadata so usage and diagnostics remain visible.
+
+The built-in `large-catalog` profile selects `ai-capability-selection`. Standard and custom profiles may select either capability-selection stage, but never both.
+
+`alwaysAvailable` remains a narrow escape hatch for truly mandatory protocol tools. It is not intended for every list or entry-point function in a large catalog.
 
 ## Execution safety
 
@@ -108,7 +145,7 @@ Selection is replaceable through:
 AssistantFoundation\Api\IAgentCapabilitySelector
 ```
 
-A project may later provide an embedding selector, a dedicated router, or another deterministic implementation without changing the stage or execution guard.
+A project may provide another selector implementation for either explicit stage without changing the execution guard. A future embedding selector can therefore be mounted behind a dedicated selection stage instead of being hidden inside profile configuration.
 
 
 ## Configured source boundary

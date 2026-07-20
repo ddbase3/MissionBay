@@ -23,7 +23,7 @@ An orchestrator profile controls:
 - the orchestration mode;
 - maximum tool loops;
 - optional semantic stages;
-- capability-selection strategy and limits.
+- the explicit capability-selection stage and its limits.
 
 The core stage order is not user-configurable. MissionBay constructs the effective pipeline from a canonical sequence.
 
@@ -40,21 +40,23 @@ Optional stages can only be inserted at their canonical positions:
 
 ```text
 capability-discovery
-capability-selection
+capability-selection OR ai-capability-selection
 context-compaction
 semantic-verification
 ```
 
-The administration UI therefore uses checkboxes instead of drag-and-drop ordering. `AgentStagePipelineResolver` validates the same invariant again at runtime, so malformed or manually edited flow data cannot reorder the core pipeline.
+The administration UI therefore uses checkboxes instead of drag-and-drop ordering. `capability-selection` and `ai-capability-selection` are mutually exclusive alternatives at the same canonical position. `AgentStagePipelineResolver` validates both the order and this exclusivity again at runtime, so malformed or manually edited flow data cannot combine or reorder them.
 
 ### Built-in profiles
 
-MissionBay always exposes three read-only profiles:
+MissionBay always exposes five read-only profiles:
 
 | Profile | Intended use |
 |---|---|
 | `simple` | One bounded tool loop for small, direct tool tasks. |
-| `standard` | General multi-step tool orchestration with discovery, selection, compaction, and verification. |
+| `standard` | General multi-step tool orchestration with discovery, deterministic hybrid selection, compaction, and verification. |
+| `large-catalog` | Uses the explicit `ai-capability-selection` stage for large, heterogeneous tool catalogs with deterministic fallback. |
+| `deliberate` | Evidence-oriented orchestration with concise typed planning and a smaller loop limit. |
 | `governed` | Full orchestration for agents that may execute approved mutations. |
 
 Built-in profiles can be duplicated into custom profiles. They cannot be overwritten or deleted.
@@ -117,7 +119,7 @@ Agent settings
   -> preserve one shared base resource per preset
   -> build AgentFlow resources and docks
   -> capability discovery
-  -> bounded capability selection
+  -> selected deterministic or AI capability-selection stage
   -> model decision
 ```
 

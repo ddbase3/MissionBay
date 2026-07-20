@@ -200,12 +200,20 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		appendKeyValue(overview, 'Mode', record.orchestrator && record.orchestrator.mode);
 		appendKeyValue(overview, 'Max tool loops', record.orchestrator && record.orchestrator.max_tool_loops);
 		const selection = record.capability_selection || {};
-		appendKeyValue(overview, 'Capability selection', [
-			text(selection.enabled, true) === 'false' ? 'disabled' : text(selection.strategy, 'hybrid'),
+		const coreStages = Array.isArray(record.core_stage_ids) ? record.core_stage_ids : [];
+		const selectionStage = coreStages.includes('ai-capability-selection')
+			? 'ai-capability-selection'
+			: (coreStages.includes('capability-selection') ? 'capability-selection' : 'none');
+		const selectionParts = [
+			selectionStage,
 			'max ' + text(selection.max_tools ?? selection.maxTools, '16'),
-			'all threshold ' + text(selection.select_all_threshold ?? selection.selectAllThreshold, '16'),
-			(selection.sticky === false ? 'not sticky' : 'sticky')
-		].join(' · '));
+			'all threshold ' + text(selection.select_all_threshold ?? selection.selectAllThreshold, '16')
+		];
+		if (selectionStage === 'ai-capability-selection') {
+			selectionParts.push('candidates ' + text(selection.semantic_candidate_tools ?? selection.semanticCandidateTools, '48'));
+		}
+		selectionParts.push(selection.sticky === false ? 'not sticky' : 'sticky');
+		appendKeyValue(overview, 'Capability selection', selectionParts.join(' · '));
 		appendKeyValue(overview, 'Core stages', pills(record.core_stage_ids || []));
 		appendKeyValue(overview, 'Module stage mounts', pills((record.module_stage_mounts || []).map((mount) => text(mount.slot, 'slot') + ': ' + text(mount.stage_id, mount.stage_name))));
 		appendKeyValue(overview, 'Final stages', pills(record.final_stage_ids || []));

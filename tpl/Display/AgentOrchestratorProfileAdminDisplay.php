@@ -112,7 +112,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				<input type="number" name="max_tool_loops" min="1" max="100" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Selection strategy</label>
+				<label class="orchestrator-profile-label">Deterministic candidate strategy</label>
 				<select name="selection_strategy" class="orchestrator-profile-select"><option value="hybrid">Hybrid ranking</option><option value="all">All allowed tools</option></select>
 			</div>
 			<div>
@@ -123,11 +123,20 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				<label class="orchestrator-profile-label">Select-all threshold</label>
 				<input type="number" name="select_all_threshold" min="0" max="512" class="orchestrator-profile-input" />
 			</div>
+			<div>
+				<label class="orchestrator-profile-label">Semantic candidate tools</label>
+				<input type="number" name="semantic_candidate_tools" min="1" max="512" class="orchestrator-profile-input" />
+			</div>
+			<div>
+				<label class="orchestrator-profile-label">Semantic prompt character limit</label>
+				<input type="number" name="semantic_max_prompt_characters" min="8000" max="200000" class="orchestrator-profile-input" />
+			</div>
 			<div class="orchestrator-profile-field-full">
 				<label class="orchestrator-profile-label">Optional behavior and stages</label>
 				<div class="orchestrator-profile-checks">
 					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_discovery" /><span><strong>Capability discovery</strong><span>Build the allowed run-specific capability pool from configured profiles and providers.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_selection" /><span><strong>Capability selection</strong><span>Preselect a bounded relevant tool set before each model decision.</span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_selection" /><span><strong>Capability selection</strong><span>Preselect tools through deterministic filters and ranking without an additional AI call.</span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="ai_capability_selection" /><span><strong>AI capability selection</strong><span>Use the active chat model to rerank a bounded deterministic candidate pool. Mutually exclusive with Capability selection.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="context_compaction" /><span><strong>Context compaction</strong><span>Compact large contexts before the next tool observation/model step.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="semantic_verification" /><span><strong>Semantic verification</strong><span>Check whether enough information exists before producing the final answer.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="deliberate_planning" /><span><strong>Deliberate planning</strong><span>Build a concise typed execution plan from the normalized task without an extra model call or a separate planning stage.</span></span></label>
@@ -137,7 +146,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			<div class="orchestrator-profile-field-full orchestrator-profile-core">
 				<div class="orchestrator-profile-core-title">Effective fixed pipeline</div>
 				<div class="orchestrator-profile-pipeline" data-pipeline-preview></div>
-				<div class="orchestrator-profile-hint">Required stages are always active and ordered: model-decision → action-policy → tool-execution → tool-observation. Optional stages are inserted only at their canonical positions. Deliberate planning is a profile behavior inside the existing model-decision flow, not another model call or stage.</div>
+				<div class="orchestrator-profile-hint">Required stages are always active and ordered: model-decision → action-policy → tool-execution → tool-observation. Optional stages are inserted only at their canonical positions. Capability selection and AI capability selection are alternatives. Deliberate planning is a profile behavior inside the existing model-decision flow, not another model call or stage.</div>
 			</div>
 		</form>
 	</div>
@@ -151,10 +160,10 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	const GRID_SELECTOR = '#orchestrator-profile-grid';
 	const BATCH_SIZE = 50;
 	const MODE_DEFAULTS = {
-		simple: { max_tool_loops: 1, deliberate_planning: false, capability_discovery: false, capability_selection: true, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, sticky: false },
-		standard: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, sticky: true },
-		deliberate: { max_tool_loops: 4, deliberate_planning: true, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, sticky: true },
-		governed: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, sticky: true }
+		simple: { max_tool_loops: 1, deliberate_planning: false, capability_discovery: false, capability_selection: true, ai_capability_selection: false, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: false },
+		standard: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true },
+		deliberate: { max_tool_loops: 4, deliberate_planning: true, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true },
+		governed: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true }
 	};
 	let grid = null;
 	let dialog = null;
@@ -204,8 +213,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	}
 	function renderSelection(value, row) {
 		const wrapper = element('orchestrator-profile-cell');
-		wrapper.appendChild(element('orchestrator-profile-cell-main', text(row.selection_strategy) + ', max ' + text(row.max_tools)));
-		wrapper.appendChild(element('orchestrator-profile-cell-sub', 'select all ≤ ' + text(row.select_all_threshold) + '; sticky ' + (row.sticky ? 'yes' : 'no')));
+		const stage = text(row.selection_stage, 'none');
+		wrapper.appendChild(element('orchestrator-profile-cell-main', stage + ', max ' + text(row.max_tools)));
+		const detail = stage === 'ai-capability-selection'
+			? 'AI reranking; candidates ' + text(row.semantic_candidate_tools) + '; select all ≤ ' + text(row.select_all_threshold)
+			: text(row.selection_strategy) + '; select all ≤ ' + text(row.select_all_threshold) + '; sticky ' + (row.sticky ? 'yes' : 'no');
+		wrapper.appendChild(element('orchestrator-profile-cell-sub', detail));
 		return wrapper;
 	}
 	async function postJson(payload) {
@@ -231,11 +244,31 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const ids = [];
 		if (getChecked(form, 'capability_discovery')) ids.push('capability-discovery');
 		if (getChecked(form, 'capability_selection')) ids.push('capability-selection');
+		if (getChecked(form, 'ai_capability_selection')) ids.push('ai-capability-selection');
 		ids.push('model-decision', 'action-policy', 'tool-execution');
 		if (getChecked(form, 'context_compaction')) ids.push('context-compaction');
 		ids.push('tool-observation');
 		if (getChecked(form, 'semantic_verification')) ids.push('semantic-verification');
 		return ids;
+	}
+	function enforceCapabilitySelectionStageChoice(form, changedName = '') {
+		if (changedName === 'capability_selection' && getChecked(form, 'capability_selection')) {
+			setChecked(form, 'ai_capability_selection', false);
+		}
+		if (changedName === 'ai_capability_selection' && getChecked(form, 'ai_capability_selection')) {
+			setChecked(form, 'capability_selection', false);
+			setValue(form, 'selection_strategy', 'hybrid');
+		}
+	}
+	function updateCapabilitySelectionControls(form, readonly = false) {
+		const aiEnabled = getChecked(form, 'ai_capability_selection');
+		const strategy = field(form, 'selection_strategy');
+		const semanticCandidates = field(form, 'semantic_candidate_tools');
+		const semanticPromptLimit = field(form, 'semantic_max_prompt_characters');
+		if (aiEnabled) setValue(form, 'selection_strategy', 'hybrid');
+		if (strategy) strategy.disabled = readonly || aiEnabled;
+		if (semanticCandidates) semanticCandidates.disabled = readonly || !aiEnabled;
+		if (semanticPromptLimit) semanticPromptLimit.disabled = readonly || !aiEnabled;
 	}
 	function updatePipelinePreview(form) {
 		const preview = form.querySelector('[data-pipeline-preview]');
@@ -251,6 +284,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		Object.entries(defaults).forEach(([name, value]) => {
 			if (typeof value === 'boolean') setChecked(form, name, value); else setValue(form, name, value);
 		});
+		updateCapabilitySelectionControls(form);
 		updatePipelinePreview(form);
 	}
 	function setDialogStatus(message, type = '') { if (dialog) dialog.execute('setStatus', { message, type }); }
@@ -260,8 +294,8 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const payload = {
 			mode: 'save', old_id: getValue(form, 'old_id'), id: getValue(form, 'id'), label: getValue(form, 'label'), description: getValue(form, 'description'),
 			profile_mode: getValue(form, 'profile_mode'), enabled: getChecked(form, 'enabled'), max_tool_loops: Number(getValue(form, 'max_tool_loops') || 0),
-			deliberate_planning: getChecked(form, 'deliberate_planning'), capability_discovery: getChecked(form, 'capability_discovery'), capability_selection: getChecked(form, 'capability_selection'), context_compaction: getChecked(form, 'context_compaction'), semantic_verification: getChecked(form, 'semantic_verification'),
-			selection_strategy: getValue(form, 'selection_strategy'), max_tools: Number(getValue(form, 'max_tools') || 0), select_all_threshold: Number(getValue(form, 'select_all_threshold') || 0), sticky: getChecked(form, 'sticky')
+			deliberate_planning: getChecked(form, 'deliberate_planning'), capability_discovery: getChecked(form, 'capability_discovery'), capability_selection: getChecked(form, 'capability_selection'), ai_capability_selection: getChecked(form, 'ai_capability_selection'), context_compaction: getChecked(form, 'context_compaction'), semantic_verification: getChecked(form, 'semantic_verification'),
+			selection_strategy: getValue(form, 'selection_strategy'), max_tools: Number(getValue(form, 'max_tools') || 0), select_all_threshold: Number(getValue(form, 'select_all_threshold') || 0), semantic_candidate_tools: Number(getValue(form, 'semantic_candidate_tools') || 0), semantic_max_prompt_characters: Number(getValue(form, 'semantic_max_prompt_characters') || 0), sticky: getChecked(form, 'sticky')
 		};
 		if (validate && !payload.id) throw new Error('Profile ID is required.');
 		if (validate && !payload.label) throw new Error('Label is required.');
@@ -326,19 +360,23 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		setValue(form, 'selection_strategy', record.selection_strategy ?? 'hybrid');
 		setValue(form, 'max_tools', record.max_tools ?? 16);
 		setValue(form, 'select_all_threshold', record.select_all_threshold ?? 16);
+		setValue(form, 'semantic_candidate_tools', record.semantic_candidate_tools ?? 48);
+		setValue(form, 'semantic_max_prompt_characters', record.semantic_max_prompt_characters ?? 48000);
 		setChecked(form, 'enabled', record.enabled !== false);
 		setChecked(form, 'deliberate_planning', !!record.deliberate_planning);
 		setChecked(form, 'capability_discovery', !!record.capability_discovery);
-		setChecked(form, 'capability_selection', record.capability_selection !== false);
+		setChecked(form, 'capability_selection', !!record.capability_selection);
+		setChecked(form, 'ai_capability_selection', !!record.ai_capability_selection);
 		setChecked(form, 'context_compaction', !!record.context_compaction);
 		setChecked(form, 'semantic_verification', !!record.semantic_verification);
 		setChecked(form, 'sticky', record.sticky !== false);
 		const readonly = !!record.builtin;
 		form.querySelectorAll('input, select, textarea, button[data-action="apply-mode-defaults"]').forEach((node) => node.disabled = readonly);
+		updateCapabilitySelectionControls(form, readonly);
 		updatePipelinePreview(form);
 		dialog.execute('setTitle', readonly ? 'Built-in orchestrator profile' : (record.profile_id ? 'Edit orchestrator profile' : 'Add orchestrator profile'));
 		dialog.execute('setButtons', dialogButtons(record));
-		setDialogStatus(readonly ? 'Built-in profiles are read-only. Duplicate to customize.' : 'Core stage order is fixed and validated.', readonly ? '' : 'ok');
+		setDialogStatus(readonly ? 'Built-in profiles are read-only. Duplicate to customize.' : 'Core stage order is fixed and validated. Capability selection stages are mutually exclusive.', readonly ? '' : 'ok');
 		dialog.open({ source: 'orchestratorProfileEditor', record });
 	}
 	async function loadRowRecord(row) {
@@ -369,7 +407,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			dialog = dialogModule.createStandardDialog({ id: 'orchestrator-profile-dialog', className: 'orchestrator-profile-dialog', surfaceClassName: 'orchestrator-profile-dialog-surface', size: 'large', title: 'Orchestrator profile', content: getEditorContent(), status: '', closeButtonPlugin: { label: 'Close' }, statusPlugin: { renderEmpty: false }, buttons: [] });
 			dialog.init();
 			const form = getEditorForm();
-			form.addEventListener('change', () => updatePipelinePreview(form));
+			form.addEventListener('change', (event) => {
+				const name = event.target && event.target.name ? String(event.target.name) : '';
+				enforceCapabilitySelectionStageChoice(form, name);
+				updateCapabilitySelectionControls(form);
+				updatePipelinePreview(form);
+			});
 			form.addEventListener('click', (event) => { const button = event.target.closest('[data-action="apply-mode-defaults"]'); if (button) applyModeDefaults(form); });
 			const adapter = new AjaxAdapter({ url: ENDPOINT, method: 'POST', rowsPath: 'data', totalPath: 'total', mapRequest(request) {
 				const state = grid ? grid.getState() : {};

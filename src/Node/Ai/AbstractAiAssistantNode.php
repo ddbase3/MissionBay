@@ -129,7 +129,7 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			),
 			new AgentNodePort(
 				name: 'capabilityselection',
-				description: 'Optional capability selection policy. Supports strategy, maxTools, selectAllThreshold, include/exclude tools, tags and categories, alwaysAvailable, and sticky.',
+				description: 'Optional capability selection policy. Supports hybrid and all deterministic candidate strategies, selection limits, AI-stage candidate limits, hard include/exclude filters, alwaysAvailable, and sticky behavior. AI-based selection is enabled by the explicit ai-capability-selection stage.',
 				type: 'array',
 				default: [],
 				required: false
