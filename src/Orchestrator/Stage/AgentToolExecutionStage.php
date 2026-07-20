@@ -20,18 +20,15 @@ namespace MissionBay\Orchestrator\Stage;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentToolContractValidation;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Audit\AgentToolAuditContext;
 use MissionBay\Cache\AgentToolCacheKeyBuilder;
 use MissionBay\Cache\NullAgentToolResultCache;
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
 use MissionBay\Orchestrator\AgentStageResultAccumulator;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
@@ -324,7 +321,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 			'tool_call' => $call->getMetadata()
 		];
 
-
 		if (!$toolObj instanceof IAgentTool) {
 			$warn = 'Tool not found: ' . $toolName;
 			$this->logError($logger, $warn);
@@ -345,20 +341,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 				'call_index' => $callIndex
 			], $trace), $logger);
 
-			$this->fireToolFailedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$args,
-				$warn,
-				\RuntimeException::class,
-				0,
-				$iteration,
-				$callIndex,
-				$trace,
-				$logger
-			);
 
 			$errorOutput = [
 				'ok' => false,
@@ -398,20 +380,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 				'call_index' => $callIndex
 			], $trace), $logger);
 
-			$this->fireToolFailedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$args,
-				$message,
-				AgentMutationCommitDecision::class,
-				$errorCode,
-				$iteration,
-				$callIndex,
-				$trace,
-				$logger
-			);
 
 			return AgentToolResult::failure(
 				$callId,
@@ -441,19 +409,17 @@ final class AgentToolExecutionStage implements IAgentStage {
 			'call_index' => $callIndex
 		], $trace), $logger);
 
-		$this->fireToolStartedEvent(
-			$nodeId,
-			$callId,
-			$toolName,
-			$label,
-			$args,
-			$iteration,
-			$callIndex,
-			$trace,
-			$logger
-		);
-
 		$this->log($logger, 'Tool started: ' . $toolName . ' [' . $callId . ']');
+
+		$previousAuditContext = AgentToolAuditContext::push($context, [
+			'source' => AgentToolAuditContext::SOURCE_AGENT,
+			'node_id' => $nodeId,
+			'call_id' => $callId,
+			'label' => $label,
+			'iteration' => $iteration,
+			'call_index' => $callIndex,
+			'trace' => $trace
+		]);
 
 		try {
 			$result = $toolObj->callTool($toolName, $args, $context);
@@ -486,21 +452,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 					'iteration' => $iteration,
 					'call_index' => $callIndex
 				], $trace), $logger);
-
-				$this->fireToolFailedEvent(
-					$nodeId,
-					$callId,
-					$toolName,
-					$label,
-					$args,
-					$message,
-					AgentToolContractValidation::class,
-					$contractValidation->getReasonCode(),
-					$iteration,
-					$callIndex,
-					$trace,
-					$logger
-				);
 
 				$this->mutationCommitGuardService->recordCommitResult(
 					$call,
@@ -549,19 +500,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 				'iteration' => $iteration,
 				'call_index' => $callIndex
 			], $trace), $logger);
-
-			$this->fireToolFinishedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$args,
-				$result,
-				$iteration,
-				$callIndex,
-				$trace,
-				$logger
-			);
 
 			$this->log($logger, 'Tool finished: ' . $toolName . ' [' . $callId . ']');
 			$this->mutationCommitGuardService->recordCommitResult(
@@ -617,20 +555,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 				'call_index' => $callIndex
 			], $trace), $logger);
 
-			$this->fireToolFailedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$args,
-				$e->getMessage(),
-				get_class($e),
-				$e->getCode(),
-				$iteration,
-				$callIndex,
-				$trace,
-				$logger
-			);
 
 			return AgentToolResult::failure(
 				$callId,
@@ -641,6 +565,9 @@ final class AgentToolExecutionStage implements IAgentStage {
 				$metadata + ['error_type' => get_class($e), 'error_code_value' => $e->getCode()],
 				$errorOutput
 			);
+		}
+		finally {
+			AgentToolAuditContext::restore($context, $previousAuditContext);
 		}
 	}
 
@@ -717,116 +644,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 		}
 	}
 
-	/**
-	 * @param array<string,mixed> $arguments
-	 * @param array<string,mixed> $trace
-	 */
-	private function fireToolStartedEvent(
-		string $nodeId,
-		string $callId,
-		string $toolName,
-		string $label,
-		array $arguments,
-		int $iteration,
-		int $callIndex,
-		array $trace,
-		mixed $logger
-	): void {
-		try {
-			$this->eventManager->fire(
-				new MissionBayToolStartedEvent(
-					$nodeId,
-					$callId,
-					$toolName,
-					$label,
-					$arguments,
-					$iteration,
-					'',
-					$callIndex,
-					$trace
-				)
-			);
-		} catch (\Throwable $e) {
-			$this->logError($logger, 'Tool started event failed (' . $toolName . '): ' . $e->getMessage());
-		}
-	}
-
-	/**
-	 * @param array<string,mixed> $arguments
-	 * @param array<string,mixed> $trace
-	 */
-	private function fireToolFinishedEvent(
-		string $nodeId,
-		string $callId,
-		string $toolName,
-		string $label,
-		array $arguments,
-		mixed $result,
-		int $iteration,
-		int $callIndex,
-		array $trace,
-		mixed $logger
-	): void {
-		try {
-			$this->eventManager->fire(
-				new MissionBayToolFinishedEvent(
-					$nodeId,
-					$callId,
-					$toolName,
-					$label,
-					$arguments,
-					$result,
-					$iteration,
-					'',
-					$callIndex,
-					$trace
-				)
-			);
-		} catch (\Throwable $e) {
-			$this->logError($logger, 'Tool finished event failed (' . $toolName . '): ' . $e->getMessage());
-		}
-	}
-
-	/**
-	 * @param array<string,mixed> $arguments
-	 * @param array<string,mixed> $trace
-	 */
-	private function fireToolFailedEvent(
-		string $nodeId,
-		string $callId,
-		string $toolName,
-		string $label,
-		array $arguments,
-		string $errorMessage,
-		string $errorType,
-		int|string $errorCode,
-		int $iteration,
-		int $callIndex,
-		array $trace,
-		mixed $logger
-	): void {
-		try {
-			$this->eventManager->fire(
-				new MissionBayToolFailedEvent(
-					$nodeId,
-					$callId,
-					$toolName,
-					$label,
-					$arguments,
-					$errorMessage,
-					$errorType,
-					$errorCode,
-					$iteration,
-					'',
-					$callIndex,
-					$trace
-				)
-			);
-		} catch (\Throwable $e) {
-			$this->logError($logger, 'Tool failed event failed (' . $toolName . '): ' . $e->getMessage());
-		}
-	}
-
 	private function log(mixed $logger, string $message): void {
 		if (!$logger instanceof ILogger) {
 			return;
@@ -834,7 +651,6 @@ final class AgentToolExecutionStage implements IAgentStage {
 
 		$logger->log('agenttoolorchestrator', $message);
 	}
-
 	private function logError(mixed $logger, string $message): void {
 		$this->log($logger, '[ERROR] ' . $message);
 	}

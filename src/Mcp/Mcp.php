@@ -9,6 +9,7 @@ namespace MissionBay\Mcp;
 use Base3\Api\IClassMap;
 use Base3\Api\IOutput;
 use Base3\Api\IRequest;
+use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
@@ -29,7 +30,8 @@ class Mcp implements IOutput {
 		private readonly ISettingsStore $settingsStore,
 		private readonly IAgentComponentPresetRepository $presetRepository,
 		private readonly IAgentContextFactory $contextFactory,
-		private readonly ILogger $logger
+		private readonly ILogger $logger,
+		private readonly ?IEventManager $eventManager = null
 	) {}
 
 	public static function getName(): string {
@@ -244,7 +246,8 @@ class Mcp implements IOutput {
 
 		$confirmationService = new McpConfirmationService(
 			new McpConfirmationStore($this->settingsStore),
-			$this->logger
+			$this->logger,
+			$this->eventManager
 		);
 
 		return new McpJsonRpcHandler(

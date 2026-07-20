@@ -22,6 +22,7 @@ use Base3\Database\Api\IDatabase;
 use Base3\Event\Api\IEventManager;
 use Base3\Hook\Api\IHookListener;
 use Base3\Usermanager\Api\IUsermanager;
+use MissionBay\Event\MissionBayAgentActionAuditEvent;
 use MissionBay\Event\MissionBayToolFailedEvent;
 use MissionBay\Event\MissionBayToolFinishedEvent;
 use MissionBay\Event\MissionBayToolStartedEvent;
@@ -83,6 +84,11 @@ final class MissionBayToolEventRegistrationHookListener implements IHookListener
 
 		$eventManager->on(MissionBayToolFailedEvent::class, function(MissionBayToolFailedEvent $event): void {
 			$this->getToolEventDisplayListener()->onToolFailed($event);
+		});
+
+
+		$eventManager->on(MissionBayAgentActionAuditEvent::class, function(MissionBayAgentActionAuditEvent $event): void {
+			$this->getToolEventDisplayListener()->onAgentActionAudit($event);
 		});
 
 		$this->registered = true;

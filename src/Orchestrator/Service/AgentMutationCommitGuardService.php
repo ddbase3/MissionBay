@@ -204,7 +204,7 @@ final class AgentMutationCommitGuardService {
 		if (!$this->eventManager instanceof IEventManager) {
 			return;
 		}
-		$trace = $context->getVar(AgentToolLoopContextKeys::TRACE);
+		$trace = $this->buildAuditTrace($context);
 		try {
 			$this->eventManager->fire(new MissionBayAgentActionAuditEvent(
 				$succeeded
@@ -212,7 +212,7 @@ final class AgentMutationCommitGuardService {
 					: MissionBayAgentActionAuditEvent::TYPE_COMMIT_FAILED,
 				$action,
 				$reason,
-				is_array($trace) ? $trace : [],
+				$trace,
 				$metadata
 			));
 		} catch (\Throwable) {
@@ -343,6 +343,22 @@ final class AgentMutationCommitGuardService {
 		return $annotations;
 	}
 
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildAuditTrace(IAgentContext $context): array {
+		$trace = $context->getVar(AgentToolLoopContextKeys::TRACE);
+		$trace = is_array($trace) ? $trace : [];
+		$trace['source'] = 'agent';
+
+		$nodeId = trim((string)($context->getVar(AgentToolLoopContextKeys::NODE_ID) ?? ''));
+		if ($nodeId !== '') {
+			$trace['node_id'] = $nodeId;
+		}
+
+		return $trace;
+	}
+
 	private function emitAudit(
 		string $type,
 		AgentAction $action,
@@ -352,13 +368,13 @@ final class AgentMutationCommitGuardService {
 		if (!$this->eventManager instanceof IEventManager) {
 			return;
 		}
-		$trace = $context->getVar(AgentToolLoopContextKeys::TRACE);
+		$trace = $this->buildAuditTrace($context);
 		try {
 			$this->eventManager->fire(new MissionBayAgentActionAuditEvent(
 				$type,
 				$action,
 				$decision->getReason(),
-				is_array($trace) ? $trace : [],
+				$trace,
 				['commit_decision' => $decision->toArray()]
 			));
 		} catch (\Throwable) {

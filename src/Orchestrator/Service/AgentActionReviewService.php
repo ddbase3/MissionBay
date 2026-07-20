@@ -268,12 +268,19 @@ final class AgentActionReviewService {
 			return;
 		}
 		$trace = $context->getVar(AgentToolLoopContextKeys::TRACE);
+		$trace = is_array($trace) ? $trace : [];
+		$trace['source'] = 'agent';
+		$nodeId = trim((string)($context->getVar(AgentToolLoopContextKeys::NODE_ID) ?? ''));
+		if ($nodeId !== '') {
+			$trace['node_id'] = $nodeId;
+		}
+
 		try {
 			$this->eventManager->fire(new MissionBayAgentActionAuditEvent(
 				$type,
 				$action,
 				$reason,
-				is_array($trace) ? $trace : [],
+				$trace,
 				$metadata
 			));
 		} catch (\Throwable) {

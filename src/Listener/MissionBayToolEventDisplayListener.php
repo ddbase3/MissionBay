@@ -19,6 +19,7 @@ namespace MissionBay\Listener;
 
 use Base3\Database\Api\IDatabase;
 use Base3\Usermanager\Api\IUsermanager;
+use MissionBay\Event\MissionBayAgentActionAuditEvent;
 use MissionBay\Event\MissionBayToolFailedEvent;
 use MissionBay\Event\MissionBayToolFinishedEvent;
 use MissionBay\Event\MissionBayToolStartedEvent;
@@ -37,46 +38,64 @@ class MissionBayToolEventDisplayListener {
 	}
 
 	public function onToolStarted(MissionBayToolStartedEvent $event): void {
-		try {
-			$this->database->connect();
-			$this->ensureSchema();
-
-			if ($this->recordExists($event->getNodeId(), $event->getCallId())) {
-				$this->updateStarted($event);
-				return;
-			}
-
-			$this->insertStarted($event);
-		} catch (\Throwable $e) {
-		}
+		$this->storeToolEvent($event, 'started');
 	}
 
 	public function onToolFinished(MissionBayToolFinishedEvent $event): void {
+		$this->storeToolEvent($event, 'finished');
+	}
+
+	public function onToolFailed(MissionBayToolFailedEvent $event): void {
+		$this->storeToolEvent($event, 'failed');
+	}
+
+	public function onAgentActionAudit(MissionBayAgentActionAuditEvent $event): void {
 		try {
 			$this->database->connect();
 			$this->ensureSchema();
 
-			if ($this->recordExists($event->getNodeId(), $event->getCallId())) {
-				$this->updateFinished($event);
+			$action = $event->getAction();
+			$trace = $event->getTrace();
+			$nodeId = $this->traceString($trace, 'node_id', 'agent_action');
+			$callId = trim($action->getId());
+
+			if ($callId === '') {
 				return;
 			}
 
-			$this->insertFinished($event);
+			$current = $this->getRecord($nodeId, $callId);
+			$currentMeta = $this->decodeJsonArray($current['meta_json'] ?? null);
+			$status = $this->resolveActionStatus($event, $current['status'] ?? '');
+			$time = $this->normalizeTimestamp($event->getTimestamp());
+			$record = $this->buildActionRecord(
+				$event,
+				$nodeId,
+				$callId,
+				$status,
+				$time,
+				$currentMeta,
+				$current ?? []
+			);
+
+			$this->writeRecord($record, $current !== null);
 		} catch (\Throwable $e) {
 		}
 	}
 
-	public function onToolFailed(MissionBayToolFailedEvent $event): void {
+	private function storeToolEvent(object $event, string $phase): void {
 		try {
 			$this->database->connect();
 			$this->ensureSchema();
 
-			if ($this->recordExists($event->getNodeId(), $event->getCallId())) {
-				$this->updateFailed($event);
-				return;
-			}
+			$nodeId = $event->getNodeId();
+			$callId = $event->getCallId();
+			$current = $this->getRecord($nodeId, $callId);
+			$currentMeta = $this->decodeJsonArray($current['meta_json'] ?? null);
+			$status = $this->resolveToolStatus($phase, $current['status'] ?? '', $currentMeta);
+			$time = $this->normalizeTimestamp($event->getTimestamp());
+			$record = $this->buildToolRecord($event, $status, $time, $currentMeta);
 
-			$this->insertFailed($event);
+			$this->writeRecord($record, $current !== null);
 		} catch (\Throwable $e) {
 		}
 	}
@@ -128,9 +147,12 @@ class MissionBayToolEventDisplayListener {
 		$this->schemaEnsured = true;
 	}
 
-	private function recordExists(string $nodeId, string $callId): bool {
+	/**
+	 * @return array<string,mixed>|null
+	 */
+	private function getRecord(string $nodeId, string $callId): ?array {
 		$sql = '
-			SELECT `id`
+			SELECT *
 			FROM `' . self::TABLE . '`
 			WHERE `node_id` = ' . $this->quote($nodeId) . '
 				AND `call_id` = ' . $this->quote($callId) . '
@@ -138,13 +160,25 @@ class MissionBayToolEventDisplayListener {
 		';
 
 		$row = $this->database->singleQuery($sql);
-		return is_array($row);
+		return is_array($row) ? $row : null;
 	}
 
-	private function insertStarted(MissionBayToolStartedEvent $event): void {
-		$time = $this->normalizeTimestamp($event->getTimestamp());
-		$record = $this->buildBaseRecord($event);
+	/**
+	 * @param array<string,mixed> $record
+	 */
+	private function writeRecord(array $record, bool $exists): void {
+		if ($exists) {
+			$this->updateRecord($record);
+			return;
+		}
 
+		$this->insertRecord($record);
+	}
+
+	/**
+	 * @param array<string,mixed> $record
+	 */
+	private function insertRecord(array $record): void {
 		$sql = '
 			INSERT INTO `' . self::TABLE . '` (
 				`turn_id`,
@@ -172,247 +206,286 @@ class MissionBayToolEventDisplayListener {
 				`finished_at`
 			) VALUES (
 				' . $this->quote($record['turn_id']) . ',
-				' . $this->quote($event->getNodeId()) . ',
-				' . $this->quote($event->getCallId()) . ',
+				' . $this->quote($record['node_id']) . ',
+				' . $this->quote($record['call_id']) . ',
 				' . (int)$record['call_index'] . ',
 				' . $this->quote($record['chatbot_key']) . ',
 				' . $this->quote($record['config_group']) . ',
 				' . $this->quote($record['config_name']) . ',
 				' . (int)$record['user_id'] . ',
 				' . $this->quote($record['user_login']) . ',
-				NULL,
-				NULL,
-				' . $this->quote($event->getToolName()) . ',
-				' . $this->quote($event->getLabel()) . ',
-				' . (int)$event->getIteration() . ',
-				' . $this->quote('started') . ',
-				' . $this->quoteNullable($this->encodeJson($event->getArguments())) . ',
-				NULL,
-				NULL,
-				NULL,
-				NULL,
-				' . $this->quote($time) . ',
-				' . $this->quote($time) . ',
-				NULL
+				' . $this->quoteNullable($record['prompt_text']) . ',
+				' . $this->quoteNullable($record['meta_json']) . ',
+				' . $this->quote($record['tool_name']) . ',
+				' . $this->quote($record['label']) . ',
+				' . (int)$record['iteration'] . ',
+				' . $this->quote($record['status']) . ',
+				' . $this->quoteNullable($record['arguments_json']) . ',
+				' . $this->quoteNullable($record['result_json']) . ',
+				' . $this->quoteNullable($record['error_message']) . ',
+				' . $this->quoteNullable($record['error_type']) . ',
+				' . $this->quoteNullable($record['error_code']) . ',
+				' . $this->quote($record['created_at']) . ',
+				' . $this->quote($record['updated_at']) . ',
+				' . $this->quoteNullable($record['finished_at']) . '
 			)
-		';
-
-		$this->database->nonQuery($sql);
-	}
-
-	private function updateStarted(MissionBayToolStartedEvent $event): void {
-		$time = $this->normalizeTimestamp($event->getTimestamp());
-		$record = $this->buildBaseRecord($event);
-
-		$sql = '
-			UPDATE `' . self::TABLE . '`
-			SET
-				`turn_id` = ' . $this->quote($record['turn_id']) . ',
-				`call_index` = ' . (int)$record['call_index'] . ',
-				`chatbot_key` = ' . $this->quote($record['chatbot_key']) . ',
-				`config_group` = ' . $this->quote($record['config_group']) . ',
-				`config_name` = ' . $this->quote($record['config_name']) . ',
-				`user_id` = ' . (int)$record['user_id'] . ',
-				`user_login` = ' . $this->quote($record['user_login']) . ',
-				`tool_name` = ' . $this->quote($event->getToolName()) . ',
-				`label` = ' . $this->quote($event->getLabel()) . ',
-				`iteration` = ' . (int)$event->getIteration() . ',
-				`status` = ' . $this->quote('started') . ',
-				`arguments_json` = ' . $this->quoteNullable($this->encodeJson($event->getArguments())) . ',
-				`updated_at` = ' . $this->quote($time) . '
-			WHERE `node_id` = ' . $this->quote($event->getNodeId()) . '
-				AND `call_id` = ' . $this->quote($event->getCallId()) . '
-		';
-
-		$this->database->nonQuery($sql);
-	}
-
-	private function insertFinished(MissionBayToolFinishedEvent $event): void {
-		$time = $this->normalizeTimestamp($event->getTimestamp());
-		$record = $this->buildBaseRecord($event);
-
-		$sql = '
-			INSERT INTO `' . self::TABLE . '` (
-				`turn_id`,
-				`node_id`,
-				`call_id`,
-				`call_index`,
-				`chatbot_key`,
-				`config_group`,
-				`config_name`,
-				`user_id`,
-				`user_login`,
-				`prompt_text`,
-				`meta_json`,
-				`tool_name`,
-				`label`,
-				`iteration`,
-				`status`,
-				`arguments_json`,
-				`result_json`,
-				`error_message`,
-				`error_type`,
-				`error_code`,
-				`created_at`,
-				`updated_at`,
-				`finished_at`
-			) VALUES (
-				' . $this->quote($record['turn_id']) . ',
-				' . $this->quote($event->getNodeId()) . ',
-				' . $this->quote($event->getCallId()) . ',
-				' . (int)$record['call_index'] . ',
-				' . $this->quote($record['chatbot_key']) . ',
-				' . $this->quote($record['config_group']) . ',
-				' . $this->quote($record['config_name']) . ',
-				' . (int)$record['user_id'] . ',
-				' . $this->quote($record['user_login']) . ',
-				NULL,
-				NULL,
-				' . $this->quote($event->getToolName()) . ',
-				' . $this->quote($event->getLabel()) . ',
-				' . (int)$event->getIteration() . ',
-				' . $this->quote('finished') . ',
-				' . $this->quoteNullable($this->encodeJson($event->getArguments())) . ',
-				' . $this->quoteNullable($this->encodeJson($event->getResult())) . ',
-				NULL,
-				NULL,
-				NULL,
-				' . $this->quote($time) . ',
-				' . $this->quote($time) . ',
-				' . $this->quote($time) . '
-			)
-		';
-
-		$this->database->nonQuery($sql);
-	}
-
-	private function updateFinished(MissionBayToolFinishedEvent $event): void {
-		$time = $this->normalizeTimestamp($event->getTimestamp());
-		$record = $this->buildBaseRecord($event);
-
-		$sql = '
-			UPDATE `' . self::TABLE . '`
-			SET
-				`turn_id` = ' . $this->quote($record['turn_id']) . ',
-				`call_index` = ' . (int)$record['call_index'] . ',
-				`chatbot_key` = ' . $this->quote($record['chatbot_key']) . ',
-				`config_group` = ' . $this->quote($record['config_group']) . ',
-				`config_name` = ' . $this->quote($record['config_name']) . ',
-				`user_id` = ' . (int)$record['user_id'] . ',
-				`user_login` = ' . $this->quote($record['user_login']) . ',
-				`tool_name` = ' . $this->quote($event->getToolName()) . ',
-				`label` = ' . $this->quote($event->getLabel()) . ',
-				`iteration` = ' . (int)$event->getIteration() . ',
-				`status` = ' . $this->quote('finished') . ',
-				`arguments_json` = ' . $this->quoteNullable($this->encodeJson($event->getArguments())) . ',
-				`result_json` = ' . $this->quoteNullable($this->encodeJson($event->getResult())) . ',
-				`error_message` = NULL,
-				`error_type` = NULL,
-				`error_code` = NULL,
-				`updated_at` = ' . $this->quote($time) . ',
-				`finished_at` = ' . $this->quote($time) . '
-			WHERE `node_id` = ' . $this->quote($event->getNodeId()) . '
-				AND `call_id` = ' . $this->quote($event->getCallId()) . '
-		';
-
-		$this->database->nonQuery($sql);
-	}
-
-	private function insertFailed(MissionBayToolFailedEvent $event): void {
-		$time = $this->normalizeTimestamp($event->getTimestamp());
-		$record = $this->buildBaseRecord($event);
-
-		$sql = '
-			INSERT INTO `' . self::TABLE . '` (
-				`turn_id`,
-				`node_id`,
-				`call_id`,
-				`call_index`,
-				`chatbot_key`,
-				`config_group`,
-				`config_name`,
-				`user_id`,
-				`user_login`,
-				`prompt_text`,
-				`meta_json`,
-				`tool_name`,
-				`label`,
-				`iteration`,
-				`status`,
-				`arguments_json`,
-				`result_json`,
-				`error_message`,
-				`error_type`,
-				`error_code`,
-				`created_at`,
-				`updated_at`,
-				`finished_at`
-			) VALUES (
-				' . $this->quote($record['turn_id']) . ',
-				' . $this->quote($event->getNodeId()) . ',
-				' . $this->quote($event->getCallId()) . ',
-				' . (int)$record['call_index'] . ',
-				' . $this->quote($record['chatbot_key']) . ',
-				' . $this->quote($record['config_group']) . ',
-				' . $this->quote($record['config_name']) . ',
-				' . (int)$record['user_id'] . ',
-				' . $this->quote($record['user_login']) . ',
-				NULL,
-				NULL,
-				' . $this->quote($event->getToolName()) . ',
-				' . $this->quote($event->getLabel()) . ',
-				' . (int)$event->getIteration() . ',
-				' . $this->quote('failed') . ',
-				' . $this->quoteNullable($this->encodeJson($event->getArguments())) . ',
-				NULL,
-				' . $this->quoteNullable($event->getErrorMessage()) . ',
-				' . $this->quoteNullable($event->getErrorType()) . ',
-				' . $this->quoteNullable((string)$event->getErrorCode()) . ',
-				' . $this->quote($time) . ',
-				' . $this->quote($time) . ',
-				' . $this->quote($time) . '
-			)
-		';
-
-		$this->database->nonQuery($sql);
-	}
-
-	private function updateFailed(MissionBayToolFailedEvent $event): void {
-		$time = $this->normalizeTimestamp($event->getTimestamp());
-		$record = $this->buildBaseRecord($event);
-
-		$sql = '
-			UPDATE `' . self::TABLE . '`
-			SET
-				`turn_id` = ' . $this->quote($record['turn_id']) . ',
-				`call_index` = ' . (int)$record['call_index'] . ',
-				`chatbot_key` = ' . $this->quote($record['chatbot_key']) . ',
-				`config_group` = ' . $this->quote($record['config_group']) . ',
-				`config_name` = ' . $this->quote($record['config_name']) . ',
-				`user_id` = ' . (int)$record['user_id'] . ',
-				`user_login` = ' . $this->quote($record['user_login']) . ',
-				`tool_name` = ' . $this->quote($event->getToolName()) . ',
-				`label` = ' . $this->quote($event->getLabel()) . ',
-				`iteration` = ' . (int)$event->getIteration() . ',
-				`status` = ' . $this->quote('failed') . ',
-				`arguments_json` = ' . $this->quoteNullable($this->encodeJson($event->getArguments())) . ',
-				`result_json` = NULL,
-				`error_message` = ' . $this->quoteNullable($event->getErrorMessage()) . ',
-				`error_type` = ' . $this->quoteNullable($event->getErrorType()) . ',
-				`error_code` = ' . $this->quoteNullable((string)$event->getErrorCode()) . ',
-				`updated_at` = ' . $this->quote($time) . ',
-				`finished_at` = ' . $this->quote($time) . '
-			WHERE `node_id` = ' . $this->quote($event->getNodeId()) . '
-				AND `call_id` = ' . $this->quote($event->getCallId()) . '
 		';
 
 		$this->database->nonQuery($sql);
 	}
 
 	/**
+	 * @param array<string,mixed> $record
+	 */
+	private function updateRecord(array $record): void {
+		$sql = '
+			UPDATE `' . self::TABLE . '`
+			SET
+				`turn_id` = ' . $this->quote($record['turn_id']) . ',
+				`call_index` = ' . (int)$record['call_index'] . ',
+				`chatbot_key` = ' . $this->quote($record['chatbot_key']) . ',
+				`config_group` = ' . $this->quote($record['config_group']) . ',
+				`config_name` = ' . $this->quote($record['config_name']) . ',
+				`user_id` = ' . (int)$record['user_id'] . ',
+				`user_login` = ' . $this->quote($record['user_login']) . ',
+				`prompt_text` = ' . $this->quoteNullable($record['prompt_text']) . ',
+				`meta_json` = ' . $this->quoteNullable($record['meta_json']) . ',
+				`tool_name` = ' . $this->quote($record['tool_name']) . ',
+				`label` = ' . $this->quote($record['label']) . ',
+				`iteration` = ' . (int)$record['iteration'] . ',
+				`status` = ' . $this->quote($record['status']) . ',
+				`arguments_json` = ' . $this->quoteNullable($record['arguments_json']) . ',
+				`result_json` = ' . $this->quoteNullable($record['result_json']) . ',
+				`error_message` = ' . $this->quoteNullable($record['error_message']) . ',
+				`error_type` = ' . $this->quoteNullable($record['error_type']) . ',
+				`error_code` = ' . $this->quoteNullable($record['error_code']) . ',
+				`updated_at` = ' . $this->quote($record['updated_at']) . ',
+				`finished_at` = ' . $this->quoteNullable($record['finished_at']) . '
+			WHERE `node_id` = ' . $this->quote($record['node_id']) . '
+				AND `call_id` = ' . $this->quote($record['call_id']) . '
+		';
+
+		$this->database->nonQuery($sql);
+	}
+
+	/**
+	 * @param MissionBayToolStartedEvent|MissionBayToolFinishedEvent|MissionBayToolFailedEvent $event
+	 * @param array<string,mixed> $currentMeta
 	 * @return array<string,mixed>
 	 */
-	private function buildBaseRecord(mixed $event): array {
+	private function buildToolRecord(object $event, string $status, string $time, array $currentMeta): array {
+		$base = $this->buildBaseRecord($event);
+		$trace = $this->getTrace($event);
+		$meta = $this->mergeMeta($currentMeta, [
+			'source' => $this->traceString($trace, 'source', 'unknown'),
+			'resource_id' => $this->traceString($trace, 'resource_id', $event->getNodeId()),
+			'original_tool_name' => $this->traceString($trace, 'original_tool_name', $event->getToolName()),
+			'trace' => $trace
+		]);
+
+		$result = null;
+		$errorMessage = null;
+		$errorType = null;
+		$errorCode = null;
+		$finishedAt = null;
+
+		if ($event instanceof MissionBayToolFinishedEvent) {
+			$result = $this->encodeJson($event->getResult());
+			$finishedAt = $time;
+		}
+
+		if ($event instanceof MissionBayToolFailedEvent) {
+			$errorMessage = $event->getErrorMessage();
+			$errorType = $event->getErrorType();
+			$errorCode = (string)$event->getErrorCode();
+			$finishedAt = $time;
+		}
+
+		return [
+			'turn_id' => $base['turn_id'],
+			'node_id' => $event->getNodeId(),
+			'call_id' => $event->getCallId(),
+			'call_index' => $base['call_index'],
+			'chatbot_key' => $base['chatbot_key'],
+			'config_group' => $base['config_group'],
+			'config_name' => $base['config_name'],
+			'user_id' => $base['user_id'],
+			'user_login' => $base['user_login'],
+			'prompt_text' => null,
+			'meta_json' => $this->encodeJson($meta),
+			'tool_name' => $event->getToolName(),
+			'label' => $event->getLabel(),
+			'iteration' => $event->getIteration(),
+			'status' => $status,
+			'arguments_json' => $this->encodeJson($event->getArguments()),
+			'result_json' => $result,
+			'error_message' => $errorMessage,
+			'error_type' => $errorType,
+			'error_code' => $errorCode,
+			'created_at' => $time,
+			'updated_at' => $time,
+			'finished_at' => $finishedAt
+		];
+	}
+
+	/**
+	 * @param array<string,mixed> $currentMeta
+	 * @param array<string,mixed> $current
+	 * @return array<string,mixed>
+	 */
+	private function buildActionRecord(
+		MissionBayAgentActionAuditEvent $event,
+		string $nodeId,
+		string $callId,
+		string $status,
+		string $time,
+		array $currentMeta,
+		array $current
+	): array {
+		$action = $event->getAction();
+		$trace = $event->getTrace();
+		$user = $this->getCurrentUser();
+		$actionMetadata = $action->getMetadata();
+		$iteration = max(0, (int)($actionMetadata['iteration'] ?? 0));
+		$callIndex = max(0, (int)($actionMetadata['call_index'] ?? $iteration));
+		$meta = $this->buildActionMeta($event, $currentMeta);
+
+		return [
+			'turn_id' => $this->traceString($trace, 'turn_id', $this->recordString($current, 'turn_id', $callId)),
+			'node_id' => $nodeId,
+			'call_id' => $callId,
+			'call_index' => $callIndex > 0 ? $callIndex : (int)($current['call_index'] ?? 0),
+			'chatbot_key' => $this->traceString($trace, 'chatbot_key', $this->recordString($current, 'chatbot_key', 'unknown_chatbot')),
+			'config_group' => $this->traceString($trace, 'config_group', $this->recordString($current, 'config_group', 'unknown_group')),
+			'config_name' => $this->traceString($trace, 'config_name', $this->recordString($current, 'config_name', 'unknown_config')),
+			'user_id' => $user['id'],
+			'user_login' => $user['login'],
+			'prompt_text' => $this->nullableRecordString($current, 'prompt_text'),
+			'meta_json' => $this->encodeJson($meta),
+			'tool_name' => $action->getName(),
+			'label' => $this->traceString($trace, 'label', $this->recordString($current, 'label', $action->getName())),
+			'iteration' => $iteration > 0 ? $iteration : (int)($current['iteration'] ?? 0),
+			'status' => $status,
+			'arguments_json' => $this->encodeJson($action->getInput()),
+			'result_json' => $this->nullableRecordString($current, 'result_json'),
+			'error_message' => $this->nullableRecordString($current, 'error_message'),
+			'error_type' => $this->nullableRecordString($current, 'error_type'),
+			'error_code' => $this->nullableRecordString($current, 'error_code'),
+			'created_at' => $this->recordString($current, 'created_at', $time),
+			'updated_at' => $time,
+			'finished_at' => $event->getType() === MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED
+				? $time
+				: $this->nullableRecordString($current, 'finished_at')
+		];
+	}
+
+	/**
+	 * @param array<string,mixed> $currentMeta
+	 * @return array<string,mixed>
+	 */
+	private function buildActionMeta(MissionBayAgentActionAuditEvent $event, array $currentMeta): array {
+		$type = $event->getType();
+		$trace = $event->getTrace();
+		$entry = [
+			'type' => $type,
+			'reason' => $event->getReason(),
+			'timestamp' => $event->getTimestamp(),
+			'metadata' => $event->getMetadata()
+		];
+		$patch = [
+			'source' => $this->traceString($trace, 'source', 'agent'),
+			'trace' => $trace,
+			'action_audit' => $entry
+		];
+
+		if (in_array($type, [
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_REQUESTED,
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_GRANTED,
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED
+		], true)) {
+			$patch['approval'] = [
+				'status' => str_replace('approval_', '', $type),
+				'reason' => $event->getReason(),
+				'timestamp' => $event->getTimestamp(),
+				'metadata' => $event->getMetadata()
+			];
+		}
+
+		if (in_array($type, [
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_ALLOWED,
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_BLOCKED,
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_SUCCEEDED,
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_FAILED
+		], true)) {
+			$patch['commit'] = [
+				'status' => str_replace('commit_', '', $type),
+				'reason' => $event->getReason(),
+				'timestamp' => $event->getTimestamp(),
+				'metadata' => $event->getMetadata()
+			];
+		}
+
+		return $this->mergeMeta($currentMeta, $patch);
+	}
+
+	/**
+	 * @param array<string,mixed> $currentMeta
+	 */
+	private function resolveToolStatus(string $phase, string $currentStatus, array $currentMeta): string {
+		if (!$this->wasApproved($currentStatus, $currentMeta)) {
+			return $phase;
+		}
+
+		return match ($phase) {
+			'started' => 'approved_started',
+			'finished' => 'approved_finished',
+			'failed' => 'approved_failed',
+			default => $phase
+		};
+	}
+
+	/**
+	 * @param array<string,mixed> $currentMeta
+	 */
+	private function resolveActionStatus(MissionBayAgentActionAuditEvent $event, string $currentStatus): string {
+		return match ($event->getType()) {
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_REQUESTED => 'approval_requested',
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_GRANTED => $this->approvedStatusFor($currentStatus),
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED => 'approval_denied',
+			default => trim($currentStatus) !== '' ? $currentStatus : $event->getType()
+		};
+	}
+
+	private function approvedStatusFor(string $currentStatus): string {
+		return match ($currentStatus) {
+			'started', 'approved_started' => 'approved_started',
+			'finished', 'approved_finished' => 'approved_finished',
+			'failed', 'error', 'approved_failed' => 'approved_failed',
+			default => 'approval_granted'
+		};
+	}
+
+	/**
+	 * @param array<string,mixed> $meta
+	 */
+	private function wasApproved(string $status, array $meta): bool {
+		if (in_array($status, [
+			'approval_granted',
+			'approved_started',
+			'approved_finished',
+			'approved_failed'
+		], true)) {
+			return true;
+		}
+
+		$approval = $meta['approval'] ?? null;
+		return is_array($approval) && trim((string)($approval['status'] ?? '')) === 'granted';
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildBaseRecord(object $event): array {
 		$trace = $this->getTrace($event);
 		$user = $this->getCurrentUser();
 		$callIndex = $this->getEventCallIndex($event);
@@ -530,20 +603,12 @@ class MissionBayToolEventDisplayListener {
 	/**
 	 * @return array<string,mixed>
 	 */
-	private function getTrace(mixed $event): array {
-		if (!method_exists($event, 'getTrace')) {
-			return [];
-		}
-
+	private function getTrace(object $event): array {
 		$trace = $event->getTrace();
 		return is_array($trace) ? $trace : [];
 	}
 
-	private function getEventCallIndex(mixed $event): int {
-		if (!method_exists($event, 'getCallIndex')) {
-			return 0;
-		}
-
+	private function getEventCallIndex(object $event): int {
 		return max(0, (int)$event->getCallIndex());
 	}
 
@@ -563,12 +628,63 @@ class MissionBayToolEventDisplayListener {
 		return $default;
 	}
 
+
+	/**
+	 * @param array<string,mixed> $record
+	 */
+	private function recordString(array $record, string $key, string $default): string {
+		$value = $record[$key] ?? null;
+
+		if (is_scalar($value)) {
+			$value = trim((string)$value);
+			if ($value !== '') {
+				return $value;
+			}
+		}
+
+		return $default;
+	}
+
+	/**
+	 * @param array<string,mixed> $record
+	 */
+	private function nullableRecordString(array $record, string $key): ?string {
+		$value = $record[$key] ?? null;
+
+		if ($value === null) {
+			return null;
+		}
+
+		return (string)$value;
+	}
+
 	private function normalizeTimestamp(string $timestamp): string {
 		try {
 			return (new \DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
 		} catch (\Throwable $e) {
 			return (new \DateTimeImmutable())->format('Y-m-d H:i:s');
 		}
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function decodeJsonArray(mixed $value): array {
+		if (!is_string($value) || trim($value) === '') {
+			return [];
+		}
+
+		$decoded = json_decode($value, true);
+		return is_array($decoded) ? $decoded : [];
+	}
+
+	/**
+	 * @param array<string,mixed> $base
+	 * @param array<string,mixed> $patch
+	 * @return array<string,mixed>
+	 */
+	private function mergeMeta(array $base, array $patch): array {
+		return array_replace_recursive($base, $patch);
 	}
 
 	private function encodeJson(mixed $value): ?string {

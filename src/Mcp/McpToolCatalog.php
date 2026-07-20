@@ -11,6 +11,7 @@ use Base3\Logger\Api\ILogger;
 use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IConfirmableAgentTool;
+use MissionBay\Resource\ConfiguredAgentToolResource;
 
 /**
  * McpToolCatalog
@@ -163,6 +164,10 @@ class McpToolCatalog {
 	 */
 	private function withDefaultAnnotations(array $definition, IAgentTool $tool): array {
 		if(!$tool instanceof IConfirmableAgentTool) {
+			return $definition;
+		}
+
+		if($tool instanceof ConfiguredAgentToolResource && !$tool->supportsConfirmation()) {
 			return $definition;
 		}
 

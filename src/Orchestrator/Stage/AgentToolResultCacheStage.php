@@ -33,8 +33,6 @@ use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Cache\AgentToolCacheKeyBuilder;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
 
 /**
  * AgentToolResultCacheStage
@@ -134,7 +132,6 @@ final class AgentToolResultCacheStage implements IAgentStage {
 		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
 		$eventCallback = $context->getVar(AgentToolLoopContextKeys::EVENT_CALLBACK);
 		$trace = $context->getVar(AgentToolLoopContextKeys::TRACE);
-		$nodeId = (string)($context->getVar(AgentToolLoopContextKeys::NODE_ID) ?? '');
 		$logger = $context->getVar(AgentToolLoopContextKeys::LOGGER);
 
 		$calls = is_array($calls) ? $calls : [];
@@ -272,7 +269,6 @@ final class AgentToolResultCacheStage implements IAgentStage {
 				];
 				$this->emitCachedToolEvents(
 					$eventCallback,
-					$nodeId,
 					$callId,
 					$toolName,
 					$label,
@@ -570,7 +566,6 @@ final class AgentToolResultCacheStage implements IAgentStage {
 	 */
 	private function emitCachedToolEvents(
 		?callable $eventCallback,
-		string $nodeId,
 		string $callId,
 		string $toolName,
 		string $label,
@@ -604,39 +599,6 @@ final class AgentToolResultCacheStage implements IAgentStage {
 			}
 		}
 
-		try {
-			$eventTrace = $trace;
-			$eventTrace['tool_cache'] = $cacheMetadata;
-			$this->eventManager->fire(new MissionBayToolStartedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$arguments,
-				$iteration,
-				'',
-				$callIndex,
-				$eventTrace
-			));
-			$this->eventManager->fire(new MissionBayToolFinishedEvent(
-				$nodeId,
-				$callId,
-				$toolName,
-				$label,
-				$arguments,
-				[
-					'cached' => true,
-					'cache' => $cacheMetadata,
-					'output' => $result
-				],
-				$iteration,
-				'',
-				$callIndex,
-				$eventTrace
-			));
-		} catch (\Throwable $e) {
-			$this->logError($logger, 'Cached tool domain event failed: ' . $e->getMessage());
-		}
 	}
 
 	private function logError(mixed $logger, string $message): void {

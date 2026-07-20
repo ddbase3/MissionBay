@@ -29,7 +29,14 @@ class McpConfirmationStore {
 	 * @param array<string,mixed> $arguments
 	 * @return array<string,mixed>
 	 */
-	public function create(string $profileId, string $toolName, array $arguments, array $confirmation): array {
+	public function create(
+		string $profileId,
+		string $toolName,
+		array $arguments,
+		array $confirmation,
+		string $callId,
+		string $nodeId
+	): array {
 		$id = $this->generateId();
 		$createdAt = time();
 		$ttl = (int)($confirmation['ttl_seconds'] ?? self::DEFAULT_TTL_SECONDS);
@@ -37,6 +44,8 @@ class McpConfirmationStore {
 
 		$record = [
 			'id' => $id,
+			'call_id' => $callId,
+			'node_id' => $nodeId,
 			'profile' => $profileId,
 			'tool' => $toolName,
 			'arguments' => $arguments,
@@ -86,7 +95,10 @@ class McpConfirmationStore {
 		return $record;
 	}
 
-	public function mark(string $id, string $status): void {
+	/**
+	 * @param array<string,mixed> $metadata
+	 */
+	public function mark(string $id, string $status, array $metadata = []): void {
 		$record = $this->settingsStore->get(self::GROUP, $id, []);
 
 		if($record === [] || !is_array($record)) {
@@ -95,6 +107,13 @@ class McpConfirmationStore {
 
 		$record['status'] = $status;
 		$record['updated_at'] = gmdate('c');
+
+		if($metadata !== []) {
+			$record['decision'] = array_replace(
+				is_array($record['decision'] ?? null) ? $record['decision'] : [],
+				$metadata
+			);
+		}
 
 		$this->settingsStore->set(self::GROUP, $id, $record);
 		$this->settingsStore->save();

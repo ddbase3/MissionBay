@@ -18,9 +18,6 @@ use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Context\AgentContext;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
 use MissionBay\Orchestrator\AgentToolOrchestratorResult;
@@ -584,7 +581,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 	}
 
 
-	public function testToolExecutionDispatchesPersistentToolEvents(): void {
+	public function testLegacyToolExecutionDoesNotDispatchPersistentToolEvents(): void {
 		$model = new QueueChatModel([
 			[
 				'choices' => [[
@@ -623,9 +620,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 			new AgentContext()
 		);
 
-		$this->assertCount(2, $eventManager->getFiredEvents());
-		$this->assertInstanceOf(MissionBayToolStartedEvent::class, $eventManager->getFiredEvents()[0]);
-		$this->assertInstanceOf(MissionBayToolFinishedEvent::class, $eventManager->getFiredEvents()[1]);
+		$this->assertSame([], $eventManager->getFiredEvents());
 	}
 
 	public function testLoopLimitAllowsPartialFinalResponse(): void {

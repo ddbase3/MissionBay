@@ -7,9 +7,15 @@ use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use AssistantFoundation\Dto\AiToolCall;
+use Base3\Event\Api\IEventManager;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Audit\AgentToolAuditContext;
+use MissionBay\Context\AgentContext;
+use MissionBay\Event\MissionBayToolFailedEvent;
+use MissionBay\Event\MissionBayToolFinishedEvent;
+use MissionBay\Event\MissionBayToolStartedEvent;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
@@ -26,7 +32,11 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$resolver->method('resolveValue')->willReturnCallback(fn(mixed $value): mixed => $value);
 		$context = $this->createStub(IAgentContext::class);
 		$tool = new GuardedConfiguredToolTestDouble();
-		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_userprefs');
+		$wrapper = new ConfiguredAgentToolResource(
+			$resolver,
+			'configured_userprefs',
+			$this->createStub(IEventManager::class)
+		);
 		$wrapper->setConfig(['namespace' => 'prefs']);
 		$wrapper->init(['tool' => [$tool]], $context);
 
@@ -55,7 +65,11 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$resolver = $this->createStub(IAgentConfigValueResolver::class);
 		$resolver->method('resolveValue')->willReturnCallback(fn(mixed $value): mixed => $value);
 		$tool = new GuardedConfiguredToolTestDouble();
-		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_userprefs');
+		$wrapper = new ConfiguredAgentToolResource(
+			$resolver,
+			'configured_userprefs',
+			$this->createStub(IEventManager::class)
+		);
 		$context = $this->createStub(IAgentContext::class);
 		$wrapper->init(['tool' => [$tool]], $context);
 		$definitions = $wrapper->getToolDefinitions();
@@ -85,11 +99,76 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$this->assertSame('set_user_pref', $tool->getCapturedActionName());
 	}
 
+	public function testConfiguredWrapperEmitsCorrelatedExecutionEvents(): void {
+		$resolver = $this->createStub(IAgentConfigValueResolver::class);
+		$resolver->method('resolveValue')->willReturnCallback(fn(mixed $value): mixed => $value);
+		$eventManager = new ConfiguredToolRecordingEventManager();
+		$context = new AgentContext();
+		$tool = new GuardedConfiguredToolTestDouble();
+		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_userprefs', $eventManager);
+		$wrapper->setConfig(['namespace' => 'prefs']);
+		$wrapper->init(['tool' => [$tool]], $context);
+		$wrapper->getToolDefinitions();
+
+		AgentToolAuditContext::push($context, [
+			'source' => AgentToolAuditContext::SOURCE_AGENT,
+			'node_id' => 'node-1',
+			'call_id' => 'call-audit-1',
+			'iteration' => 2,
+			'call_index' => 3,
+			'trace' => [
+				'turn_id' => 'turn-1',
+				'chatbot_key' => 'chatbot-1'
+			]
+		]);
+
+		$result = $wrapper->callTool('prefs__set_user_pref', ['key' => 'tone'], $context);
+		$events = $eventManager->getFiredEvents();
+
+		$this->assertSame(['ok' => true], $result);
+		$this->assertCount(2, $events);
+		$this->assertInstanceOf(MissionBayToolStartedEvent::class, $events[0]);
+		$this->assertInstanceOf(MissionBayToolFinishedEvent::class, $events[1]);
+		$this->assertSame('node-1', $events[0]->getNodeId());
+		$this->assertSame('call-audit-1', $events[0]->getCallId());
+		$this->assertSame('prefs__set_user_pref', $events[0]->getToolName());
+		$this->assertSame('set_user_pref', $events[0]->getTrace()['original_tool_name']);
+		$this->assertSame('call-audit-1', $events[1]->getCallId());
+	}
+
+	public function testConfiguredWrapperEmitsFailedEventAndRethrowsToolError(): void {
+		$resolver = $this->createStub(IAgentConfigValueResolver::class);
+		$resolver->method('resolveValue')->willReturnCallback(fn(mixed $value): mixed => $value);
+		$eventManager = new ConfiguredToolRecordingEventManager();
+		$context = new AgentContext();
+		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_failure', $eventManager);
+		$wrapper->init(['tool' => [new FailingConfiguredToolTestDouble()]], $context);
+		$wrapper->getToolDefinitions();
+
+		try {
+			$wrapper->callTool('failing_tool', [], $context);
+			$this->fail('Expected configured tool exception.');
+		}
+		catch(\RuntimeException $e) {
+			$this->assertSame('Configured tool failed.', $e->getMessage());
+		}
+
+		$events = $eventManager->getFiredEvents();
+		$this->assertCount(2, $events);
+		$this->assertInstanceOf(MissionBayToolStartedEvent::class, $events[0]);
+		$this->assertInstanceOf(MissionBayToolFailedEvent::class, $events[1]);
+		$this->assertSame('Configured tool failed.', $events[1]->getErrorMessage());
+	}
+
 	public function testConfiguredWrapperRejectsGuardedMutationWhenDockedToolHasNoGuard(): void {
 		$resolver = $this->createStub(IAgentConfigValueResolver::class);
 		$resolver->method('resolveValue')->willReturnCallback(fn(mixed $value): mixed => $value);
 		$context = $this->createStub(IAgentContext::class);
-		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_unguarded');
+		$wrapper = new ConfiguredAgentToolResource(
+			$resolver,
+			'configured_unguarded',
+			$this->createStub(IEventManager::class)
+		);
 		$wrapper->init(['tool' => [new UnguardedConfiguredToolTestDouble()]], $context);
 		$wrapper->getToolDefinitions();
 
@@ -216,5 +295,59 @@ final class UnguardedConfiguredToolTestDouble implements IAgentTool {
 
 	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
 		return ['ok' => true];
+	}
+}
+
+final class ConfiguredToolRecordingEventManager implements IEventManager {
+
+	/** @var array<int,object|string> */
+	private array $events = [];
+
+	public function on(string $event, callable $listener, int $priority = 0): void {
+	}
+
+	public function once(string $event, callable $listener, int $priority = 0): void {
+	}
+
+	public function off(string $event, callable $listener): void {
+	}
+
+	public function fire(object|string $event, ...$args): array {
+		$this->events[] = $event;
+		return [];
+	}
+
+	/** @return array<int,object|string> */
+	public function getFiredEvents(): array {
+		return $this->events;
+	}
+}
+
+final class FailingConfiguredToolTestDouble implements IAgentTool {
+
+	public static function getName(): string {
+		return 'failingconfiguredtooltestdouble';
+	}
+
+	public function getDescription(): string {
+		return 'Failing configured tool test double.';
+	}
+
+	public function getToolDefinitions(): array {
+		return [[
+			'type' => 'function',
+			'function' => [
+				'name' => 'failing_tool',
+				'description' => 'Always fails.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => []
+				]
+			]
+		]];
+	}
+
+	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
+		throw new \RuntimeException('Configured tool failed.');
 	}
 }

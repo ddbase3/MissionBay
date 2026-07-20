@@ -17,15 +17,21 @@
 
 namespace MissionBay\Resource;
 
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use Base3\Api\IOutputSchemaProvider;
+use Base3\Event\Api\IEventManager;
+use MissionBay\Agent\AgentNodeDock;
+use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Api\IConfirmableAgentTool;
+use MissionBay\Audit\AgentToolAuditContext;
+use MissionBay\Event\MissionBayToolFailedEvent;
+use MissionBay\Event\MissionBayToolFinishedEvent;
+use MissionBay\Event\MissionBayToolStartedEvent;
 
 /**
  * ConfiguredAgentToolResource
@@ -33,8 +39,11 @@ use MissionBay\Api\IAgentTool;
  * Wraps one docked IAgentTool and exposes a configured tool surface.
  * This allows per-agent naming, labels and metadata without changing the
  * underlying tool implementation.
+ *
+ * The wrapper is also the canonical execution audit boundary for configured
+ * tools, independent from the orchestrator or transport that invokes it.
  */
-class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentTool, IAgentMutationGuardedTool, IOutputSchemaProvider {
+class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentTool, IAgentMutationGuardedTool, IConfirmableAgentTool, IOutputSchemaProvider {
 
 	private ?IAgentTool $tool = null;
 	private bool $enabled = true;
@@ -50,9 +59,15 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 	 */
 	private array $nameMap = [];
 
+	/**
+	 * @var array<string,string> Effective tool name => effective label
+	 */
+	private array $labelMap = [];
+
 	public function __construct(
 		private readonly IAgentConfigValueResolver $resolver,
-		?string $id = null
+		?string $id = null,
+		private readonly ?IEventManager $eventManager = null
 	) {
 		parent::__construct($id);
 	}
@@ -105,6 +120,7 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 	 */
 	public function getToolDefinitions(): array {
 		$this->nameMap = [];
+		$this->labelMap = [];
 
 		if (!$this->enabled || !$this->tool instanceof IAgentTool) {
 			return [];
@@ -147,6 +163,7 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 			}
 
 			$this->nameMap[$effectiveName] = $originalName;
+			$this->labelMap[$effectiveName] = trim((string)($definition['label'] ?? $effectiveName));
 			$definitions[] = $definition;
 		}
 
@@ -155,7 +172,75 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 
 	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
 		$tool = $this->requireTool($name);
-		return $tool->callTool($this->resolveOriginalToolName($name), $arguments, $context);
+		$originalName = $this->resolveOriginalToolName($name);
+		$audit = $this->buildAuditData($name, $originalName, $context);
+
+		$this->fireEvent(new MissionBayToolStartedEvent(
+			$audit['node_id'],
+			$audit['call_id'],
+			$name,
+			$audit['label'],
+			$arguments,
+			$audit['iteration'],
+			'',
+			$audit['call_index'],
+			$audit['trace']
+		));
+
+		try {
+			$result = $tool->callTool($originalName, $arguments, $context);
+
+			$this->fireEvent(new MissionBayToolFinishedEvent(
+				$audit['node_id'],
+				$audit['call_id'],
+				$name,
+				$audit['label'],
+				$arguments,
+				$result,
+				$audit['iteration'],
+				'',
+				$audit['call_index'],
+				$audit['trace']
+			));
+
+			return $result;
+		}
+		catch (\Throwable $e) {
+			$this->fireEvent(new MissionBayToolFailedEvent(
+				$audit['node_id'],
+				$audit['call_id'],
+				$name,
+				$audit['label'],
+				$arguments,
+				$e->getMessage(),
+				get_class($e),
+				$e->getCode(),
+				$audit['iteration'],
+				'',
+				$audit['call_index'],
+				$audit['trace']
+			));
+
+			throw $e;
+		}
+	}
+
+	public function supportsConfirmation(): bool {
+		return $this->tool instanceof IConfirmableAgentTool;
+	}
+
+	public function getConfirmationRequest(string $name, array $arguments, IAgentContext $context): ?array {
+		$tool = $this->requireTool($name);
+
+		if (!$tool instanceof IConfirmableAgentTool) {
+			return null;
+		}
+
+		return $tool->getConfirmationRequest(
+			$this->resolveOriginalToolName($name),
+			$arguments,
+			$context
+		);
 	}
 
 	public function captureMutationCommitSnapshot(
@@ -255,6 +340,100 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 			$action->getInput(),
 			$action->getMetadata()
 		);
+	}
+
+	/**
+	 * @return array{node_id:string,call_id:string,label:string,iteration:int,call_index:int,trace:array<string,mixed>}
+	 */
+	private function buildAuditData(string $effectiveName, string $originalName, IAgentContext $context): array {
+		try {
+			$metadata = AgentToolAuditContext::read($context);
+		}
+		catch (\Throwable) {
+			$metadata = [];
+		}
+
+		$trace = is_array($metadata['trace'] ?? null) ? $metadata['trace'] : [];
+		$source = $this->metadataString($metadata, 'source');
+
+		if ($source === '') {
+			$source = $this->readContextVar($context, 'mcp') === true
+				? AgentToolAuditContext::SOURCE_MCP
+				: AgentToolAuditContext::SOURCE_DIRECT;
+		}
+
+		$callId = $this->metadataString($metadata, 'call_id');
+		if ($callId === '') {
+			$callId = AgentToolAuditContext::generateCallId($source === AgentToolAuditContext::SOURCE_MCP ? 'mcp-call' : 'toolcall');
+		}
+
+		$nodeId = $this->metadataString($metadata, 'node_id');
+		if ($nodeId === '') {
+			$nodeId = $this->getId();
+		}
+
+		$label = $this->metadataString($metadata, 'label');
+		if ($label === '') {
+			$label = $this->labelMap[$effectiveName] ?? $effectiveName;
+		}
+
+		$trace['source'] = $source;
+		$trace['resource_id'] = $this->getId();
+		$trace['original_tool_name'] = $originalName;
+
+		if ($source === AgentToolAuditContext::SOURCE_MCP) {
+			$profileId = trim((string)($this->readContextVar($context, 'mcp_profile_id') ?? ''));
+			$profileLabel = trim((string)($this->readContextVar($context, 'mcp_profile_label') ?? ''));
+
+			if ($profileId !== '') {
+				$trace['mcp_profile_id'] = $profileId;
+				$trace['config_group'] = (string)($trace['config_group'] ?? 'mcp');
+				$trace['config_name'] = (string)($trace['config_name'] ?? $profileId);
+				$trace['chatbot_key'] = (string)($trace['chatbot_key'] ?? ('mcp:' . $profileId));
+			}
+
+			if ($profileLabel !== '') {
+				$trace['mcp_profile_label'] = $profileLabel;
+			}
+
+			$trace['turn_id'] = (string)($trace['turn_id'] ?? $callId);
+		}
+
+		return [
+			'node_id' => $nodeId,
+			'call_id' => $callId,
+			'label' => $label,
+			'iteration' => max(0, (int)($metadata['iteration'] ?? 0)),
+			'call_index' => max(0, (int)($metadata['call_index'] ?? 0)),
+			'trace' => $trace
+		];
+	}
+
+	private function fireEvent(object $event): void {
+		try {
+			if ($this->eventManager instanceof IEventManager) {
+				$this->eventManager->fire($event);
+			}
+		}
+		catch (\Throwable) {
+		}
+	}
+
+	/**
+	 * @param array<string,mixed> $metadata
+	 */
+	private function metadataString(array $metadata, string $key): string {
+		$value = $metadata[$key] ?? null;
+		return is_scalar($value) ? trim((string)$value) : '';
+	}
+
+	private function readContextVar(IAgentContext $context, string $key): mixed {
+		try {
+			return $context->getVar($key);
+		}
+		catch (\Throwable) {
+			return null;
+		}
 	}
 
 	private function buildEffectiveToolName(string $originalName): string {

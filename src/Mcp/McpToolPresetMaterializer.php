@@ -13,6 +13,7 @@ use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Resource\ConfiguredAgentToolResource;
 
 /**
  * McpToolPresetMaterializer
@@ -99,7 +100,13 @@ class McpToolPresetMaterializer {
 				continue;
 			}
 
-			$tools[] = $resource;
+			$configuredTool = $this->createConfiguredTool($presetId, $resource, $context);
+
+			if(!$configuredTool instanceof IAgentTool) {
+				continue;
+			}
+
+			$tools[] = $configuredTool;
 		}
 
 		return $tools;
@@ -110,6 +117,34 @@ class McpToolPresetMaterializer {
 	 */
 	public function getWarnings(): array {
 		return $this->warnings;
+	}
+
+	private function createConfiguredTool(
+		string $presetId,
+		IAgentTool $tool,
+		IAgentContext $context
+	): ?ConfiguredAgentToolResource {
+		if($tool instanceof ConfiguredAgentToolResource) {
+			return $tool;
+		}
+
+		$wrapper = $this->classMap->getInstanceByInterfaceName(
+			IAgentResource::class,
+			ConfiguredAgentToolResource::getName()
+		);
+
+		if(!$wrapper instanceof ConfiguredAgentToolResource) {
+			$this->warn('Configured MCP tool wrapper could not be instantiated.', [
+				'preset' => $presetId
+			]);
+			return null;
+		}
+
+		$wrapper->setId($this->buildConfiguredToolResourceId($presetId));
+		$wrapper->setConfig([]);
+		$wrapper->init(['tool' => [$tool]], $context);
+
+		return $wrapper;
 	}
 
 	private function materializePreset(string $presetId, IAgentContext $context): ?IAgentResource {
@@ -227,6 +262,11 @@ class McpToolPresetMaterializer {
 		$capabilities = $this->normalizeStringList($preset['capabilities'] ?? []);
 
 		return $capabilities === [] || in_array('tool', $capabilities, true);
+	}
+
+	private function buildConfiguredToolResourceId(string $presetId): string {
+		$id = $this->buildResourceId($presetId);
+		return 'configured_tool_' . (string)preg_replace('/^preset_/', '', $id);
 	}
 
 	private function buildResourceId(string $presetId): string {

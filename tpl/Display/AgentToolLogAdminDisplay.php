@@ -331,17 +331,39 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		border-color: #cfcfcf;
 	}
 
-	.agent-tool-log-pill-status-finished {
+	.agent-tool-log-pill-status-finished,
+	.agent-tool-log-pill-status-approved-finished {
 		background: #eef7ee;
 		border-color: #bddfbd;
 		color: #226622;
 	}
 
 	.agent-tool-log-pill-status-error,
-	.agent-tool-log-pill-status-failed {
+	.agent-tool-log-pill-status-failed,
+	.agent-tool-log-pill-status-approved-failed {
 		background: #fff0f0;
 		border-color: #e4b9b9;
 		color: #8a1f1f;
+	}
+
+
+	.agent-tool-log-pill-status-approval-requested {
+		background: #fff8e8;
+		border-color: #e5cf92;
+		color: #775b11;
+	}
+
+	.agent-tool-log-pill-status-approval-denied {
+		background: #f4f1ed;
+		border-color: #d8c8b8;
+		color: #6f4c2c;
+	}
+
+	.agent-tool-log-pill-status-approval-granted,
+	.agent-tool-log-pill-status-approved-started {
+		background: #edf4fb;
+		border-color: #b9cee4;
+		color: #26577f;
 	}
 
 	.agent-tool-log-output {
@@ -842,12 +864,30 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	function getStatusClass(status) {
 		const normalized = String(status || '').toLowerCase();
 
-		if (normalized === 'finished') {
-			return 'agent-tool-log-pill-status-finished';
+		if (normalized === 'finished' || normalized === 'approved_finished') {
+			return normalized === 'approved_finished'
+				? 'agent-tool-log-pill-status-approved-finished'
+				: 'agent-tool-log-pill-status-finished';
 		}
 
-		if (normalized === 'error' || normalized === 'failed') {
-			return 'agent-tool-log-pill-status-error';
+		if (normalized === 'error' || normalized === 'failed' || normalized === 'approved_failed') {
+			return normalized === 'approved_failed'
+				? 'agent-tool-log-pill-status-approved-failed'
+				: 'agent-tool-log-pill-status-error';
+		}
+
+		if (normalized === 'approval_requested') {
+			return 'agent-tool-log-pill-status-approval-requested';
+		}
+
+		if (normalized === 'approval_denied') {
+			return 'agent-tool-log-pill-status-approval-denied';
+		}
+
+		if (normalized === 'approval_granted' || normalized === 'approved_started') {
+			return normalized === 'approved_started'
+				? 'agent-tool-log-pill-status-approved-started'
+				: 'agent-tool-log-pill-status-approval-granted';
 		}
 
 		return '';

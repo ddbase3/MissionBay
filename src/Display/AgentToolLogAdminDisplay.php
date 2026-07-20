@@ -220,8 +220,8 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 			'MIN(t.`id`) AS `group_anchor_id`, ' .
 			'MAX(t.`created_at`) AS `group_last_created`, ' .
 			'MAX(COALESCE(t.`finished_at`, t.`updated_at`)) AS `group_last_changed`, ' .
-			'SUM(CASE WHEN t.`status` = \'finished\' THEN 1 ELSE 0 END) AS `group_finished_count`, ' .
-			'SUM(CASE WHEN t.`status` = \'failed\' OR t.`status` = \'error\' THEN 1 ELSE 0 END) AS `group_error_count`, ' .
+			'SUM(CASE WHEN t.`status` IN (\'finished\', \'approved_finished\') THEN 1 ELSE 0 END) AS `group_finished_count`, ' .
+			'SUM(CASE WHEN t.`status` IN (\'failed\', \'error\', \'approved_failed\') THEN 1 ELSE 0 END) AS `group_error_count`, ' .
 			'SUM(TIMESTAMPDIFF(SECOND, t.`created_at`, COALESCE(t.`finished_at`, t.`updated_at`))) AS `group_duration_sum`, ' .
 			'GROUP_CONCAT(DISTINCT t.`tool_name` ORDER BY t.`tool_name` SEPARATOR \', \') AS `group_tools_preview`, ' .
 			'GROUP_CONCAT(DISTINCT t.`user_login` ORDER BY t.`user_login` SEPARATOR \', \') AS `group_users_preview` ' .
@@ -1368,7 +1368,7 @@ final class AgentToolLogAdminDisplay implements IDisplay {
 
 			$options[] = [
 				'value' => $status,
-				'label' => ucfirst($status),
+				'label' => ucwords(str_replace('_', ' ', $status)),
 			];
 		}
 
