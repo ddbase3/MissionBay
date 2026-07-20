@@ -6,6 +6,7 @@ use AssistantFoundation\Dto\AgentBudget;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use PHPUnit\Framework\TestCase;
 
 final class AgentAssistantTurnOptionsTest extends TestCase {
@@ -66,6 +67,13 @@ final class AgentAssistantTurnOptionsTest extends TestCase {
 		$this->assertSame($config, $options->getCapabilitySelectionConfig());
 	}
 
+
+	public function testModelDecisionConfigDefaultsToAiGuarded(): void {
+		$options = new AgentAssistantTurnOptions(prompt: 'test');
+
+		$this->assertSame(AgentModelDecisionConfig::STRATEGY_AI_GUARDED, $options->getModelDecisionConfig()->getStrategy());
+		$this->assertTrue($options->getModelDecisionConfig()->isRepairEnabled());
+	}
 
 	public function testCapabilitySourceConfigIsExposed(): void {
 		$config = AgentCapabilitySourceConfig::fromArray(['modules' => ['coding-style']]);

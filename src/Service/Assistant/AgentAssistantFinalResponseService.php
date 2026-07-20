@@ -21,34 +21,45 @@ use AssistantFoundation\Api\IAiChatModel;
 use MissionBay\Api\IAgentAssistantFinalResponseService;
 use MissionBay\Api\IAgentAssistantMessageFactory;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use MissionBay\Dto\Assistant\AgentExecutionLedger;
 
 final class AgentAssistantFinalResponseService implements IAgentAssistantFinalResponseService {
 
-	public function __construct(private IAgentAssistantMessageFactory $messageFactory) {
+	private AgentFinalResponseGuardService $guardService;
+
+	public function __construct(
+		private IAgentAssistantMessageFactory $messageFactory,
+		?AgentFinalResponseGuardService $guardService = null
+	) {
+		$this->guardService = $guardService ?? new AgentFinalResponseGuardService();
 	}
 
 	public function createDirectResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult): string {
+		$ledger = AgentExecutionLedger::fromTurnResult($turnResult);
 		$providerAnswer = $this->findTerminalProviderAnswer($turnResult);
 		if ($providerAnswer !== '') {
-			return $providerAnswer;
+			return $this->guardResponse($model, $turnResult, $ledger, $providerAnswer);
 		}
 
 		if (!$turnResult->canGenerateFinalResponse()) {
 			return $turnResult->getFallbackContent() ?? '';
 		}
 
-		$result = $model->complete($this->buildFinalResponseMessages($turnResult));
+		$result = $model->complete($this->buildFinalResponseMessages($turnResult, $ledger));
 		$turnResult->addModelResult($result->getMetadata());
+		$draft = $this->messageFactory->normalizeContent($result->getContent());
 
-		return $this->messageFactory->normalizeContent($result->getContent());
+		return $this->guardResponse($model, $turnResult, $ledger, $draft);
 	}
 
 	public function createStreamingResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult, callable $onData, ?callable $onMeta = null): string {
+		$ledger = AgentExecutionLedger::fromTurnResult($turnResult);
 		$providerAnswer = $this->findTerminalProviderAnswer($turnResult);
 		if ($providerAnswer !== '') {
-			$onData($providerAnswer);
+			$content = $this->guardResponse($model, $turnResult, $ledger, $providerAnswer);
+			$onData($content);
 
-			return $providerAnswer;
+			return $content;
 		}
 
 		if (!$turnResult->canGenerateFinalResponse()) {
@@ -61,8 +72,31 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 		}
 
 		$metaCallback = $onMeta ?? function(array $meta): void {};
+		if ($ledger->requiresBufferedStreaming()) {
+			$buffer = '';
+			$result = $model->streamResult(
+				$this->buildFinalResponseMessages($turnResult, $ledger),
+				[],
+				function(string $delta) use (&$buffer): void {
+					$buffer .= $delta;
+				},
+				$metaCallback
+			);
+			$turnResult->addModelResult($result->getMetadata());
+			$draft = $buffer !== '' ? $buffer : $result->getContent();
+			$content = $this->guardResponse(
+				$model,
+				$turnResult,
+				$ledger,
+				$this->messageFactory->normalizeContent($draft)
+			);
+			$onData($content);
+
+			return $content;
+		}
+
 		$result = $model->streamResult(
-			$this->buildFinalResponseMessages($turnResult),
+			$this->buildFinalResponseMessages($turnResult, $ledger),
 			[],
 			$onData,
 			$metaCallback
@@ -118,7 +152,7 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 	 *
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function buildFinalResponseMessages(AgentAssistantTurnResult $turnResult): array {
+	private function buildFinalResponseMessages(AgentAssistantTurnResult $turnResult, AgentExecutionLedger $ledger): array {
 		$messages = $turnResult->getMessages();
 		$instructions = [];
 
@@ -134,6 +168,11 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 		$continuationInstruction = trim($turnResult->getFinalResponseInstruction());
 		if ($continuationInstruction !== '') {
 			$instructions[] = $continuationInstruction;
+		}
+
+		$ledgerInstruction = trim($ledger->buildFinalResponseInstruction());
+		if ($ledgerInstruction !== '') {
+			$instructions[] = $ledgerInstruction;
 		}
 
 		if ($instructions === []) {
@@ -165,6 +204,16 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 		]);
 
 		return $messages;
+	}
+
+	private function guardResponse(
+		IAiChatModel $model,
+		AgentAssistantTurnResult $turnResult,
+		AgentExecutionLedger $ledger,
+		string $content
+	): string {
+		$guarded = $this->guardService->guard($model, $turnResult, $ledger, $content);
+		return $this->messageFactory->normalizeContent($guarded);
 	}
 
 	public function createAssistantMessage(AgentAssistantTurnResult $turnResult, string $content): array {

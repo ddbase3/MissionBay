@@ -11,6 +11,7 @@ use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfile;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use Throwable;
@@ -60,6 +61,10 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'name' => self::getName(),
 			'out' => 'json'
 		]));
+		$this->view->assign('model_decision_strategy_options', [
+			['id' => AgentModelDecisionConfig::STRATEGY_AI_GUARDED, 'label' => 'AI-guarded model decision'],
+			['id' => AgentModelDecisionConfig::STRATEGY_SIMPLE, 'label' => 'Simple model decision']
+		]);
 		$this->view->assign('mode_options', [
 			['id' => AgentOrchestratorProfile::MODE_SIMPLE, 'label' => 'Simple tool agent'],
 			['id' => AgentOrchestratorProfile::MODE_STANDARD, 'label' => 'Standard agent'],
@@ -123,6 +128,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 					(string)$row['label'],
 					(string)$row['description'],
 					(string)$row['mode'],
+					(string)$row['model_decision_strategy'],
 					(string)$row['stage_text']
 				])), $needle);
 			}));
@@ -218,6 +224,11 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'enabled' => $this->toBool($payload['enabled'] ?? true),
 			'mode' => strtolower(trim((string)($payload['profile_mode'] ?? AgentOrchestratorProfile::MODE_STANDARD))),
 			'max_tool_loops' => max(1, min(100, (int)($payload['max_tool_loops'] ?? 10))),
+			'model_decision' => [
+				'strategy' => strtolower(trim((string)($payload['model_decision_strategy'] ?? AgentModelDecisionConfig::STRATEGY_AI_GUARDED))),
+				'repair_enabled' => $this->toBool($payload['model_decision_repair_enabled'] ?? true),
+				'confidence_threshold' => max(0.0, min(1.0, (float)($payload['model_decision_confidence_threshold'] ?? 0.7)))
+			],
 			'deliberate_planning' => $this->toBool($payload['deliberate_planning'] ?? false),
 			'optional_stages' => [
 				'capability-discovery' => $this->toBool($payload['capability_discovery'] ?? false),
@@ -295,6 +306,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 		$stages = $profile->getStageIds();
 		$optional = $profile->getOptionalStages();
 		$selection = $profile->getCapabilitySelection()->toArray();
+		$modelDecision = $profile->getModelDecision()->toArray();
 
 		return array_merge($data, [
 			'profile_id' => $profile->getId(),
@@ -317,6 +329,9 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'semantic_candidate_tools' => (int)($selection['semantic_candidate_tools'] ?? 48),
 			'semantic_max_prompt_characters' => (int)($selection['semantic_max_prompt_characters'] ?? 48000),
 			'sticky' => (bool)($selection['sticky'] ?? true),
+			'model_decision_strategy' => (string)($modelDecision['strategy'] ?? AgentModelDecisionConfig::STRATEGY_AI_GUARDED),
+			'model_decision_repair_enabled' => (bool)($modelDecision['repair_enabled'] ?? true),
+			'model_decision_confidence_threshold' => (float)($modelDecision['confidence_threshold'] ?? 0.7),
 			'deliberate_planning' => $profile->isDeliberatePlanningEnabled(),
 			'profile_json' => $this->pretty($data)
 		]);

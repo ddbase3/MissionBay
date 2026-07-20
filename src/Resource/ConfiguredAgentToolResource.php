@@ -66,8 +66,8 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 
 	public function __construct(
 		private readonly IAgentConfigValueResolver $resolver,
-		?string $id = null,
-		private readonly ?IEventManager $eventManager = null
+		private readonly IEventManager $eventManager,
+		?string $id = null
 	) {
 		parent::__construct($id);
 	}
@@ -411,9 +411,7 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 
 	private function fireEvent(object $event): void {
 		try {
-			if ($this->eventManager instanceof IEventManager) {
-				$this->eventManager->fire($event);
-			}
+			$this->eventManager->fire($event);
 		}
 		catch (\Throwable) {
 		}

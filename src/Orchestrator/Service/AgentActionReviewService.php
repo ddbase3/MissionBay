@@ -217,6 +217,7 @@ final class AgentActionReviewService {
 			'executed_tool_calls' => $this->arrayValue($context, AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS, $projectedPatch),
 			'tool_call_indexes' => $this->arrayValue($context, AgentToolLoopContextKeys::TOOL_CALL_INDEXES, $projectedPatch),
 			'model_results' => $this->arrayValue($context, AgentToolLoopContextKeys::MODEL_RESULTS, $projectedPatch),
+			'model_decision_assessments' => $this->arrayValue($context, AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS, $projectedPatch),
 			'selected_tool_names' => $this->arrayValue($context, AgentToolLoopContextKeys::SELECTED_TOOL_NAMES, $projectedPatch),
 			'capability_selection_applied' => $this->boolValue($context, AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED, $projectedPatch)
 		];

@@ -36,10 +36,15 @@ final class AgentMutationCommitGuardService {
 	public const TOOL_CALL_METADATA_APPROVAL_FINGERPRINT = 'approved_action_fingerprint';
 	public const TOOL_CALL_METADATA_INTERACTION_REQUEST = 'approved_interaction_request_id';
 
+	private AgentToolDefinitionSemantics $toolDefinitionSemantics;
+
 	public function __construct(
 		private readonly AgentActionFingerprint $fingerprint,
-		private readonly ?IEventManager $eventManager = null
-	) {}
+		private readonly ?IEventManager $eventManager = null,
+		?AgentToolDefinitionSemantics $toolDefinitionSemantics = null
+	) {
+		$this->toolDefinitionSemantics = $toolDefinitionSemantics ?? new AgentToolDefinitionSemantics();
+	}
 
 	public function capture(
 		AgentAction $action,
@@ -78,7 +83,8 @@ final class AgentMutationCommitGuardService {
 	}
 
 	public function isMutation(AiToolCall $call, IAgentContext $context): bool {
-		return $this->isMutationDefinition($this->findToolDefinition($call->getName(), $context));
+		$definition = $this->findToolDefinition($call->getName(), $context);
+		return is_array($definition) && $this->toolDefinitionSemantics->isMutationDefinition($definition);
 	}
 
 
@@ -286,61 +292,12 @@ final class AgentMutationCommitGuardService {
 
 	/** @param ?array<string,mixed> $definition */
 	private function isMutationDefinition(?array $definition): bool {
-		if ($definition === null) {
-			return false;
-		}
-		$annotations = $this->readAnnotations($definition);
-		foreach ([
-			'destructiveHint', 'destructive', 'requiresApproval', 'requires_confirmation',
-			'requiresConfirmation', 'mutation', 'sideEffectHint', 'side_effect'
-		] as $key) {
-			if (($annotations[$key] ?? false) === true) {
-				return true;
-			}
-		}
-		foreach (['readOnlyHint', 'read_only', 'readonly'] as $key) {
-			if (array_key_exists($key, $annotations) && $annotations[$key] === false) {
-				return true;
-			}
-		}
-		return false;
+		return is_array($definition) && $this->toolDefinitionSemantics->isMutationDefinition($definition);
 	}
 
 	/** @param ?array<string,mixed> $definition */
 	private function isCommitGuardRequired(?array $definition): bool {
-		if ($definition === null) {
-			return false;
-		}
-		$annotations = $this->readAnnotations($definition);
-		if (array_key_exists('commitGuardRequired', $annotations)) {
-			return $annotations['commitGuardRequired'] === true;
-		}
-		if (array_key_exists('commit_guard_required', $annotations)) {
-			return $annotations['commit_guard_required'] === true;
-		}
-		return true;
-	}
-
-	/** @param array<string,mixed> $definition @return array<string,mixed> */
-	private function readAnnotations(array $definition): array {
-		$function = is_array($definition['function'] ?? null) ? $definition['function'] : [];
-		$annotations = is_array($definition['annotations'] ?? null) ? $definition['annotations'] : [];
-		if (is_array($function['annotations'] ?? null)) {
-			$annotations = array_merge($annotations, $function['annotations']);
-		}
-		foreach ([
-			'readOnlyHint', 'read_only', 'readonly', 'destructiveHint', 'destructive',
-			'requiresApproval', 'requires_confirmation', 'requiresConfirmation', 'mutation',
-			'sideEffectHint', 'side_effect', 'commitGuardRequired', 'commit_guard_required'
-		] as $key) {
-			if (array_key_exists($key, $definition)) {
-				$annotations[$key] = $definition[$key];
-			}
-			if (array_key_exists($key, $function)) {
-				$annotations[$key] = $function[$key];
-			}
-		}
-		return $annotations;
+		return is_array($definition) && $this->toolDefinitionSemantics->isCommitGuardRequired($definition);
 	}
 
 	/**

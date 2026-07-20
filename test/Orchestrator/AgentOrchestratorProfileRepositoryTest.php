@@ -4,6 +4,7 @@ namespace MissionBay\Test\Orchestrator;
 
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use PHPUnit\Framework\TestCase;
 
@@ -30,6 +31,15 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 		$this->assertSame(48, $config->getSemanticCandidateTools());
 		$this->assertSame(48000, $config->getSemanticMaxPromptCharacters());
 		$this->assertFalse($config->isSticky());
+	}
+
+	public function testBuiltinProfilesUseAiGuardedModelDecisionByDefault(): void {
+		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
+
+		foreach ($repository->getProfiles() as $profile) {
+			$this->assertSame(AgentModelDecisionConfig::STRATEGY_AI_GUARDED, $profile->getModelDecision()->getStrategy());
+			$this->assertTrue($profile->getModelDecision()->isRepairEnabled());
+		}
 	}
 
 	public function testLegacySemanticCustomProfileMigratesToExplicitAiStage(): void {

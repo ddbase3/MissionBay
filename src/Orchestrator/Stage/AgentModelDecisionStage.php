@@ -19,27 +19,21 @@ namespace MissionBay\Orchestrator\Stage;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentStageResult;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Ai\AgentChatMessageAdapter;
+use MissionBay\Api\IAgentModelDecisionStrategyResolver;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use MissionBay\Orchestrator\Decision\AiGuardedAgentModelDecisionStrategy;
+use MissionBay\Orchestrator\Decision\SimpleAgentModelDecisionStrategy;
 
 /**
- * AgentModelDecisionStage
- *
- * Executes one model decision for the current tool-loop iteration.
- *
- * A terminal assistant message completes the current tool phase. An
- * assistant message containing tool calls is appended to the working
- * message stack and handed to the following tool execution stage.
+ * Stable model-decision stage delegating decision behavior to a profile-selected strategy.
  */
 final class AgentModelDecisionStage implements IAgentStage {
 
-	private const TERMINAL_SIGNAL = 'TOOL_PHASE_COMPLETE';
-
 	public function __construct(
 		private readonly string $id = 'model-decision',
-		private readonly string $stageName = 'model-decision'
+		private readonly string $stageName = 'model-decision',
+		private readonly ?IAgentModelDecisionStrategyResolver $strategyResolver = null
 	) {}
 
 	public static function getName(): string {
@@ -55,7 +49,7 @@ final class AgentModelDecisionStage implements IAgentStage {
 	}
 
 	public function getDescription(): string {
-		return 'Calls the active chat model once to request tools or return a short tool-phase completion signal.';
+		return 'Calls the active chat model through the configured decision strategy and requires a reliable tool or terminal decision.';
 	}
 
 	public function getAiUsage(): string {
@@ -69,170 +63,36 @@ final class AgentModelDecisionStage implements IAgentStage {
 	}
 
 	public function process(IAgentContext $context): AgentStageResult {
-		$model = $context->getVar(AgentToolLoopContextKeys::MODEL);
-		$messages = $context->getVar(AgentToolLoopContextKeys::MESSAGES);
-		$toolDefinitions = $context->getVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS);
-		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
-		$logger = $context->getVar(AgentToolLoopContextKeys::LOGGER);
-		$continuationHint = $context->getVar(AgentToolLoopContextKeys::CONTINUATION_HINT);
-
-		if (!$model instanceof IAiChatModel) {
-			return $this->failure(
-				'stage_runtime_error',
-				'Model decision stage did not receive an AI chat model.',
-				[]
-			);
+		$config = $context->getVar(AgentToolLoopContextKeys::MODEL_DECISION_CONFIG);
+		if (!$config instanceof AgentModelDecisionConfig) {
+			$config = AgentModelDecisionConfig::simple();
 		}
-
-		if (!is_array($messages)) {
-			$messages = [];
-		}
-
-		if (!is_array($toolDefinitions)) {
-			$toolDefinitions = [];
-		}
-
-		$this->log($logger, 'Tool phase iteration ' . $iteration . ' started.');
 
 		try {
-			$result = $model->complete(
-				$this->buildDecisionMessages(
-					$messages,
-					is_scalar($continuationHint) ? trim((string)$continuationHint) : ''
-				),
-				$toolDefinitions
-			);
+			$strategy = $this->resolveStrategy($config);
+			return $strategy->decide($context, $config);
 		} catch (\Throwable $e) {
-			$this->logError($logger, 'Model completion call failed: ' . $e->getMessage());
-			$observations = $context->getVar(AgentToolLoopContextKeys::OBSERVATIONS);
-
-			if (is_array($observations) && $observations !== []) {
-				return AgentStageResult::patch([
-					AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_PARTIAL,
-					AgentToolLoopContextKeys::TERMINAL_EVIDENCE_READY => true,
-					AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION => implode("\n", [
-						'The next tool-decision call failed after successful tool observations were already collected.',
-						'Produce the most useful direct answer from the available observations.',
-						'State uncertainty where evidence is incomplete. Do not expose internal timeout or orchestration details.'
-					]),
-					AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
-					AgentToolLoopContextKeys::COMPLETED => true,
-					AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FINAL
-				], [
-					'recovered_from_model_error' => true,
-					'error_type' => get_class($e),
-					'error_message' => $e->getMessage(),
-					'error_code' => $e->getCode()
-				]);
-			}
-
-			return $this->failure(
-				'model_raw_error',
-				'Model call failed during tool orchestration.',
-				[
+			return AgentStageResult::patch([
+				AgentToolLoopContextKeys::FAILURE_CODE => 'model_decision_strategy_error',
+				AgentToolLoopContextKeys::FAILURE_MESSAGE => 'Model decision strategy failed.',
+				AgentToolLoopContextKeys::FAILURE_DETAIL => [
 					'type' => get_class($e),
 					'message' => $e->getMessage(),
-					'code' => $e->getCode()
-				]
-			);
-		}
-
-		$assistant = AgentChatMessageAdapter::assistantMessage($result);
-		$toolCalls = $result->getToolCalls();
-		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
-		if (!is_array($modelResults)) {
-			$modelResults = [];
-		}
-		$modelResults[] = $result->getMetadata()->toArray();
-
-		if ($toolCalls === []) {
-			$this->log($logger, 'Tool phase completed after ' . $iteration . ' iteration(s). Final answer phase starts.');
-
-			return AgentStageResult::patch([
-				AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE => $assistant,
-				AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_COMPLETE,
-				AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
-				AgentToolLoopContextKeys::CONTINUATION_HINT => '',
-				AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
-				AgentToolLoopContextKeys::COMPLETED => true,
-				AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FINAL
+					'strategy' => $config->getStrategy()
+				],
+				AgentToolLoopContextKeys::COMPLETED => false,
+				AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED
 			]);
 		}
-
-		$messages[] = $assistant;
-
-		return AgentStageResult::patch([
-			AgentToolLoopContextKeys::MESSAGES => $messages,
-			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
-			AgentToolLoopContextKeys::CONTINUATION_HINT => '',
-			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $toolCalls,
-			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_TOOLS
-		]);
 	}
 
-	/**
-	 * Adds a control-only instruction to the current model request without
-	 * persisting it in the working message stack. The dedicated final response
-	 * call therefore receives the original system prompt and observations.
-	 *
-	 * @param array<int,array<string,mixed>> $messages
-	 * @return array<int,array<string,mixed>>
-	 */
-	private function buildDecisionMessages(array $messages, string $continuationHint = ''): array {
-		$instruction = 'You are in the tool-decision phase. Request additional tools only when they are expected to add materially new evidence. When no further tool call is required, do not write the user-facing answer. Return exactly ' . self::TERMINAL_SIGNAL . ' and nothing else. The final answer is generated in a separate response phase.';
-
-		if ($continuationHint !== '') {
-			$instruction .= "\n\n" . $continuationHint;
-		}
-		$result = $messages;
-
-		foreach ($result as $index => $message) {
-			if (
-				!is_array($message) ||
-				($message['role'] ?? null) !== 'system' ||
-				!is_scalar($message['content'] ?? null)
-			) {
-				continue;
-			}
-
-			$content = trim((string)$message['content']);
-			$result[$index]['content'] = $content === ''
-				? $instruction
-				: $content . "\n\n" . $instruction;
-
-			return $result;
+	private function resolveStrategy(AgentModelDecisionConfig $config): \MissionBay\Api\IAgentModelDecisionStrategy {
+		if ($this->strategyResolver instanceof IAgentModelDecisionStrategyResolver) {
+			return $this->strategyResolver->resolve($config->getStrategy());
 		}
 
-		array_unshift($result, [
-			'role' => 'system',
-			'content' => $instruction
-		]);
-
-		return $result;
-	}
-
-	/**
-	 * @param array<string,mixed> $detail
-	 */
-	private function failure(string $code, string $message, array $detail): AgentStageResult {
-		return AgentStageResult::patch([
-			AgentToolLoopContextKeys::FAILURE_CODE => $code,
-			AgentToolLoopContextKeys::FAILURE_MESSAGE => $message,
-			AgentToolLoopContextKeys::FAILURE_DETAIL => $detail,
-			AgentToolLoopContextKeys::COMPLETED => false,
-			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED
-		]);
-	}
-
-	private function log(mixed $logger, string $message): void {
-		if (!$logger instanceof ILogger) {
-			return;
-		}
-
-		$logger->log('agenttoolorchestrator', $message);
-	}
-
-	private function logError(mixed $logger, string $message): void {
-		$this->log($logger, '[ERROR] ' . $message);
+		return $config->getStrategy() === AgentModelDecisionConfig::STRATEGY_AI_GUARDED
+			? new AiGuardedAgentModelDecisionStrategy()
+			: new SimpleAgentModelDecisionStrategy();
 	}
 }

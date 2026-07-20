@@ -7,6 +7,7 @@
 namespace MissionBay\Orchestrator\Profile;
 
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use Base3\Settings\Api\ISettingsStore;
 
 /**
@@ -112,7 +113,8 @@ final class AgentOrchestratorProfileRepository {
 				'mode' => $profile->getMode(),
 				'enabled' => $profile->isEnabled(),
 				'builtin' => $profile->isBuiltin(),
-				'stage_ids' => $profile->getStageIds()
+				'stage_ids' => $profile->getStageIds(),
+				'model_decision_strategy' => $profile->getModelDecision()->getStrategy()
 			];
 		}
 		return $options;
@@ -127,6 +129,7 @@ final class AgentOrchestratorProfileRepository {
 				'enabled' => true,
 				'mode' => AgentOrchestratorProfile::MODE_SIMPLE,
 				'max_tool_loops' => 1,
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'optional_stages' => [
 					'capability-discovery' => false,
 					'capability-selection' => true,
@@ -148,6 +151,7 @@ final class AgentOrchestratorProfileRepository {
 				'enabled' => true,
 				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
 				'max_tool_loops' => 10,
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
@@ -169,6 +173,7 @@ final class AgentOrchestratorProfileRepository {
 				'enabled' => true,
 				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
 				'max_tool_loops' => 10,
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => false,
@@ -193,6 +198,7 @@ final class AgentOrchestratorProfileRepository {
 				'mode' => AgentOrchestratorProfile::MODE_DELIBERATE,
 				'deliberate_planning' => true,
 				'max_tool_loops' => 4,
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
@@ -214,6 +220,7 @@ final class AgentOrchestratorProfileRepository {
 				'enabled' => true,
 				'mode' => AgentOrchestratorProfile::MODE_GOVERNED,
 				'max_tool_loops' => 10,
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'optional_stages' => [
 					'capability-discovery' => true,
 					'capability-selection' => true,
@@ -238,6 +245,7 @@ final class AgentOrchestratorProfileRepository {
 		$defaults = $this->defaultsForMode($mode);
 		$optional = is_array($settings['optional_stages'] ?? null) ? $settings['optional_stages'] : [];
 		$selection = is_array($settings['capability_selection'] ?? null) ? $settings['capability_selection'] : [];
+		$modelDecision = is_array($settings['model_decision'] ?? null) ? $settings['model_decision'] : [];
 		$selectionStrategy = strtolower(trim((string)($selection['strategy'] ?? $defaults['capability_selection']['strategy'])));
 		$hasExplicitAiSelectionStage = array_key_exists('ai-capability-selection', $optional);
 		$legacySemanticSelection = !$hasExplicitAiSelectionStage
@@ -273,6 +281,7 @@ final class AgentOrchestratorProfileRepository {
 			contextCompactionEnabled: $this->toBool($optional['context-compaction'] ?? $defaults['optional_stages']['context-compaction']),
 			semanticVerificationEnabled: $this->toBool($optional['semantic-verification'] ?? $defaults['optional_stages']['semantic-verification']),
 			capabilitySelection: AgentCapabilitySelectionConfig::fromArray(array_merge($defaults['capability_selection'], $selection)),
+			modelDecision: AgentModelDecisionConfig::fromArray(array_merge($defaults['model_decision'], $modelDecision)),
 			deliberatePlanningEnabled: $this->toBool($settings['deliberate_planning'] ?? $defaults['deliberate_planning']),
 			builtin: $builtin
 		);
@@ -291,6 +300,7 @@ final class AgentOrchestratorProfileRepository {
 					'context-compaction' => false,
 					'semantic-verification' => false
 				],
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'capability_selection' => ['enabled' => true, 'strategy' => 'hybrid', 'max_tools' => 12, 'select_all_threshold' => 12, 'sticky' => false]
 			],
 			AgentOrchestratorProfile::MODE_DELIBERATE => [
@@ -303,6 +313,7 @@ final class AgentOrchestratorProfileRepository {
 					'context-compaction' => true,
 					'semantic-verification' => true
 				],
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'capability_selection' => ['enabled' => true, 'strategy' => 'hybrid', 'max_tools' => 12, 'select_all_threshold' => 12, 'sticky' => true]
 			],
 			AgentOrchestratorProfile::MODE_GOVERNED,
@@ -316,6 +327,7 @@ final class AgentOrchestratorProfileRepository {
 					'context-compaction' => true,
 					'semantic-verification' => true
 				],
+				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
 				'capability_selection' => ['enabled' => true, 'strategy' => 'hybrid', 'max_tools' => 16, 'select_all_threshold' => 16, 'sticky' => true]
 			],
 			default => throw new \InvalidArgumentException('Unknown orchestrator profile mode: ' . $mode)

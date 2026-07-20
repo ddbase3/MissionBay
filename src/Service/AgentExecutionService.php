@@ -433,6 +433,7 @@ class AgentExecutionService implements IAgentExecutionService {
 		$flow['nodes'][$nodeIndex]['inputs']['stages'] = $profile->getStageIds();
 		$flow['nodes'][$nodeIndex]['inputs']['maxtoolloops'] = $profile->getMaxToolLoops();
 		$flow['nodes'][$nodeIndex]['inputs']['capabilityselection'] = $profile->getCapabilitySelection()->toArray();
+		$flow['nodes'][$nodeIndex]['inputs']['modeldecision'] = $profile->getModelDecision()->toArray();
 		$flow['nodes'][$nodeIndex]['inputs']['orchestratorprofile'] = $profile->getId();
 		$flow['nodes'][$nodeIndex]['inputs']['deliberateplanning'] = $profile->isDeliberatePlanningEnabled();
 

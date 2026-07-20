@@ -64,6 +64,7 @@ use MissionBay\Api\IAgentComponentFlowBuilder;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentConfigFormService;
 use MissionBay\Api\IAgentMemoryRoleResolver;
+use MissionBay\Api\IAgentModelDecisionStrategyResolver;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowFactory;
@@ -76,6 +77,7 @@ use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentStateSynchronizer;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
+use MissionBay\Orchestrator\Decision\AgentModelDecisionStrategyResolver;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use MissionBay\Orchestrator\Policy\ComponentAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
@@ -91,6 +93,7 @@ use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use MissionBay\Orchestrator\Service\AgentResultVerificationService;
 use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
 use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
 use MissionBay\Orchestrator\Stage\AgentCapabilityDiscoveryStage;
@@ -118,6 +121,7 @@ use MissionBay\Service\AgentExecutionService;
 use MissionBay\Service\Assistant\AgentAssistantContextContributionService;
 use MissionBay\Service\Assistant\AgentAssistantFallbackBuilder;
 use MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
+use MissionBay\Service\Assistant\AgentFinalResponseGuardService;
 use MissionBay\Service\Assistant\AgentAssistantMemoryService;
 use MissionBay\Service\Assistant\AgentAssistantMessageFactory;
 use MissionBay\Service\Assistant\AgentAssistantTurnService;
@@ -237,6 +241,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(AgentCapabilitySelectionGuardService::class, fn() => new AgentCapabilitySelectionGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 
 			->set(IAgentAssistantMessageFactory::class, fn() => new AgentAssistantMessageFactory(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentModelDecisionStrategyResolver::class, fn($c) => new AgentModelDecisionStrategyResolver(
+				$c->get(IClassMap::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentMemoryRoleResolver::class, fn() => new AgentMemoryRoleResolver(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentStateSynchronizer::class, fn() => new AgentStateSynchronizer(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantContextContributionService::class, fn($c) => new AgentAssistantContextContributionService(
@@ -251,9 +258,11 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentCapabilityCatalogBuilder::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionFingerprint::class, fn() => new AgentActionFingerprint(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentToolDefinitionSemantics::class, fn() => new AgentToolDefinitionSemantics(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentMutationCommitGuardService::class, fn($c) => new AgentMutationCommitGuardService(
 				$c->get(AgentActionFingerprint::class),
-				$c->get(IEventManager::class)
+				$c->get(IEventManager::class),
+				$c->get(AgentToolDefinitionSemantics::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentActionPolicyResolver::class, fn($c) => new ComponentAgentActionPolicyResolver(
 				$c->get(IComponentResolver::class)
@@ -315,10 +324,15 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentActionResumeService::class),
 				$c->get(AgentBudgetGuardService::class),
 				$c->get(AgentLoopProgressService::class),
-				$c->get(AgentStateSynchronizer::class)
+				$c->get(AgentStateSynchronizer::class),
+				$c->get(AgentToolDefinitionSemantics::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantFallbackBuilder::class, fn() => new AgentAssistantFallbackBuilder(), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentAssistantFinalResponseService::class, fn($c) => new AgentAssistantFinalResponseService($c->get(IAgentAssistantMessageFactory::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentFinalResponseGuardService::class, fn() => new AgentFinalResponseGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentAssistantFinalResponseService::class, fn($c) => new AgentAssistantFinalResponseService(
+				$c->get(IAgentAssistantMessageFactory::class),
+				$c->get(AgentFinalResponseGuardService::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentAssistantTurnService::class, fn($c) => new AgentAssistantTurnService(
 				$c->get(IAgentAssistantMemoryService::class),
 				$c->get(IAgentAssistantContextContributionService::class),
@@ -399,7 +413,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentModelDecisionStage::getName(),
 			arguments: [
 				'id' => 'model-decision',
-				'stageName' => 'model-decision'
+				'stageName' => 'model-decision',
+				'strategyResolver' => $this->container->get(IAgentModelDecisionStrategyResolver::class)
 			]
 		));
 

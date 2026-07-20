@@ -32,7 +32,7 @@ final class McpConfirmationAuditTest extends TestCase {
 		$context->setVar('mcp_profile_id', 'profile-1');
 		$context->setVar('mcp_profile_label', 'Profile 1');
 
-		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_mcp_tool', $eventManager);
+		$wrapper = new ConfiguredAgentToolResource($resolver, $eventManager, 'configured_mcp_tool');
 		$wrapper->init(['tool' => [new ConfirmableMcpToolTestDouble()]], $context);
 		$catalog = new McpToolCatalog([$wrapper], new McpToolDefinitionMapper(), $logger);
 		$service = new McpConfirmationService(
@@ -85,7 +85,7 @@ final class McpConfirmationAuditTest extends TestCase {
 		$eventManager = new McpAuditRecordingEventManager();
 		$context = new AgentContext();
 		$tool = new ConfirmableMcpToolTestDouble();
-		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_mcp_tool', $eventManager);
+		$wrapper = new ConfiguredAgentToolResource($resolver, $eventManager, 'configured_mcp_tool');
 		$wrapper->init(['tool' => [$tool]], $context);
 		$catalog = new McpToolCatalog([$wrapper], new McpToolDefinitionMapper(), $logger);
 		$service = new McpConfirmationService(

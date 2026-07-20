@@ -275,7 +275,8 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$capabilityCatalog instanceof AgentCapabilityCatalog ? $capabilityCatalog : null,
 			$capabilityDiscovery,
 			$capabilitySelectionConfig,
-			$requiredToolNames
+			$requiredToolNames,
+			$options->getModelDecisionConfig()
 		);
 
 		$this->storeOrchestratorContext($context, $orchestrationResult, $logger);

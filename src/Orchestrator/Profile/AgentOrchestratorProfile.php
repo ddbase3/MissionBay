@@ -7,6 +7,7 @@
 namespace MissionBay\Orchestrator\Profile;
 
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 
 /**
  * Immutable, runtime-ready orchestration profile.
@@ -15,6 +16,8 @@ use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
  * optional stages inside the canonical MissionBay pipeline.
  */
 final class AgentOrchestratorProfile {
+
+	private AgentModelDecisionConfig $modelDecision;
 
 	public const MODE_SIMPLE = 'simple';
 	public const MODE_STANDARD = 'standard';
@@ -43,8 +46,10 @@ final class AgentOrchestratorProfile {
 		private readonly bool $semanticVerificationEnabled,
 		private readonly AgentCapabilitySelectionConfig $capabilitySelection,
 		private readonly bool $deliberatePlanningEnabled = false,
-		private readonly bool $builtin = false
+		private readonly bool $builtin = false,
+		?AgentModelDecisionConfig $modelDecision = null
 	) {
+		$this->modelDecision = $modelDecision ?? AgentModelDecisionConfig::aiGuarded();
 		if (trim($this->id) === '') {
 			throw new \InvalidArgumentException('Orchestrator profile id must not be empty.');
 		}
@@ -67,6 +72,7 @@ final class AgentOrchestratorProfile {
 	public function getMaxToolLoops(): int { return $this->maxToolLoops; }
 	public function isBuiltin(): bool { return $this->builtin; }
 	public function getCapabilitySelection(): AgentCapabilitySelectionConfig { return $this->capabilitySelection; }
+	public function getModelDecision(): AgentModelDecisionConfig { return $this->modelDecision; }
 	public function isDeliberatePlanningEnabled(): bool { return $this->deliberatePlanningEnabled; }
 	public function isCapabilitySelectionEnabled(): bool { return $this->capabilitySelectionEnabled; }
 	public function isAiCapabilitySelectionEnabled(): bool { return $this->aiCapabilitySelectionEnabled; }
@@ -130,6 +136,7 @@ final class AgentOrchestratorProfile {
 			'optional_stages' => $this->getOptionalStages(),
 			'stage_ids' => $this->getStageIds(),
 			'capability_selection' => $this->capabilitySelection->toArray(),
+			'model_decision' => $this->modelDecision->toArray(),
 			'deliberate_planning' => $this->deliberatePlanningEnabled,
 			'builtin' => $this->builtin
 		];

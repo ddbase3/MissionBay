@@ -31,6 +31,7 @@ use AssistantFoundation\Dto\AgentResultVerification;
 use AssistantFoundation\Dto\AgentStageTraceEntry;
 use AssistantFoundation\Dto\AgentToolContractValidation;
 use AssistantFoundation\Dto\AgentToolCacheRecord;
+use AssistantFoundation\Dto\AgentToolResult;
 
 /**
  * Result of the complete MissionBay agent stage pipeline.
@@ -65,6 +66,9 @@ class AgentToolOrchestratorResult {
 	 * @param array<int,AgentInteractionRequest> $interactionRequests
 	 * @param array<int,AgentToolContractValidation> $toolContractValidations
 	 * @param array<int,AgentCapabilitySelection> $capabilitySelections
+	 * @param array<int,string> $mutationToolNames
+	 * @param array<int,array<string,mixed>> $modelDecisionAssessments
+	 * @param array<int,AgentToolResult> $toolResults
 	 */
 	public function __construct(
 		private array $messages,
@@ -93,7 +97,10 @@ class AgentToolOrchestratorResult {
 		private string $resumeHandle = '',
 		private array $toolContractValidations = [],
 		private array $capabilitySelections = [],
-		private ?AgentResult $agentResult = null
+		private ?AgentResult $agentResult = null,
+		private array $mutationToolNames = [],
+		private array $modelDecisionAssessments = [],
+		private array $toolResults = []
 	) {
 		if (!in_array($this->executionStatus, AgentExecutionStatus::all(), true)) {
 			throw new \InvalidArgumentException('Unsupported execution status: ' . $this->executionStatus);
@@ -116,6 +123,18 @@ class AgentToolOrchestratorResult {
 				throw new \InvalidArgumentException('Capability selections must contain only AgentCapabilitySelection instances.');
 			}
 		}
+
+
+		foreach ($this->toolResults as $toolResult) {
+			if (!$toolResult instanceof AgentToolResult) {
+				throw new \InvalidArgumentException('Tool results must contain only AgentToolResult instances.');
+			}
+		}
+
+		$this->mutationToolNames = array_values(array_unique(array_filter(array_map(
+			static fn(mixed $name): string => is_scalar($name) ? trim((string)$name) : '',
+			$this->mutationToolNames
+		), static fn(string $name): bool => $name !== '')));
 
 		if (AgentExecutionStatus::isSuspended($this->executionStatus)) {
 			if (trim($this->resumeHandle) === '' || $this->interactionRequests === []) {
@@ -357,6 +376,22 @@ class AgentToolOrchestratorResult {
 	/** @return array<int,AgentCapabilitySelection> */
 	public function getCapabilitySelections(): array {
 		return $this->capabilitySelections;
+	}
+
+
+	/** @return array<int,string> */
+	public function getMutationToolNames(): array {
+		return $this->mutationToolNames;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	public function getModelDecisionAssessments(): array {
+		return $this->modelDecisionAssessments;
+	}
+
+	/** @return array<int,AgentToolResult> */
+	public function getToolResults(): array {
+		return $this->toolResults;
 	}
 
 	public function getAgentResult(): ?AgentResult {

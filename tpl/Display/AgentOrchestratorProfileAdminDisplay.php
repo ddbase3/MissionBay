@@ -2,6 +2,7 @@
 $resolve = $this->_['resolve'];
 $serviceUrl = (string)($this->_['service'] ?? '');
 $modeOptions = is_array($this->_['mode_options'] ?? null) ? $this->_['mode_options'] : [];
+$modelDecisionStrategyOptions = is_array($this->_['model_decision_strategy_options'] ?? null) ? $this->_['model_decision_strategy_options'] : [];
 $gridCss = (string)$resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
 $gridJs = (string)$resolve('plugin/ClientStack/assets/modulargrid/index.js');
 $dialogCss = (string)$resolve('plugin/ClientStack/assets/modulardialog/styles/modulardialog.css');
@@ -112,6 +113,18 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				<input type="number" name="max_tool_loops" min="1" max="100" class="orchestrator-profile-input" />
 			</div>
 			<div>
+				<label class="orchestrator-profile-label">Model decision strategy</label>
+				<select name="model_decision_strategy" class="orchestrator-profile-select">
+<?php foreach($modelDecisionStrategyOptions as $option): ?>
+					<option value="<?php echo $e($option['id'] ?? ''); ?>"><?php echo $e($option['label'] ?? $option['id'] ?? ''); ?></option>
+<?php endforeach; ?>
+				</select>
+			</div>
+			<div>
+				<label class="orchestrator-profile-label">Decision confidence threshold</label>
+				<input type="number" name="model_decision_confidence_threshold" min="0" max="1" step="0.05" class="orchestrator-profile-input" />
+			</div>
+			<div>
 				<label class="orchestrator-profile-label">Deterministic candidate strategy</label>
 				<select name="selection_strategy" class="orchestrator-profile-select"><option value="hybrid">Hybrid ranking</option><option value="all">All allowed tools</option></select>
 			</div>
@@ -140,6 +153,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 					<label class="orchestrator-profile-check"><input type="checkbox" name="context_compaction" /><span><strong>Context compaction</strong><span>Compact large contexts before the next tool observation/model step.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="semantic_verification" /><span><strong>Semantic verification</strong><span>Check whether enough information exists before producing the final answer.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="deliberate_planning" /><span><strong>Deliberate planning</strong><span>Build a concise typed execution plan from the normalized task without an extra model call or a separate planning stage.</span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="model_decision_repair_enabled" /><span><strong>Decision repair</strong><span>Allow one guarded AI retry when the first model decision emits neither a real tool call nor a reliable terminal decision.</span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="sticky" /><span><strong>Sticky selection</strong><span>Keep recently selected or used tools stable across adjacent loops.</span></span></label>
 				</div>
 			</div>
@@ -160,10 +174,10 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	const GRID_SELECTOR = '#orchestrator-profile-grid';
 	const BATCH_SIZE = 50;
 	const MODE_DEFAULTS = {
-		simple: { max_tool_loops: 1, deliberate_planning: false, capability_discovery: false, capability_selection: true, ai_capability_selection: false, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: false },
-		standard: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true },
-		deliberate: { max_tool_loops: 4, deliberate_planning: true, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true },
-		governed: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true }
+		simple: { max_tool_loops: 1, deliberate_planning: false, capability_discovery: false, capability_selection: true, ai_capability_selection: false, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: false, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
+		standard: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
+		deliberate: { max_tool_loops: 4, deliberate_planning: true, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
+		governed: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
 	};
 	let grid = null;
 	let dialog = null;
@@ -209,6 +223,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const wrapper = element('orchestrator-profile-cell');
 		wrapper.appendChild(element('orchestrator-profile-cell-main', String(row.stage_count || 0) + ' stages'));
 		wrapper.appendChild(element('orchestrator-profile-cell-sub', text(row.stage_text)));
+		return wrapper;
+	}
+	function renderModelDecision(value, row) {
+		const wrapper = element('orchestrator-profile-cell');
+		wrapper.appendChild(element('orchestrator-profile-cell-main', text(row.model_decision_strategy)));
+		wrapper.appendChild(element('orchestrator-profile-cell-sub', 'repair ' + (row.model_decision_repair_enabled ? 'enabled' : 'disabled') + '; threshold ' + text(row.model_decision_confidence_threshold)));
 		return wrapper;
 	}
 	function renderSelection(value, row) {
@@ -294,6 +314,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const payload = {
 			mode: 'save', old_id: getValue(form, 'old_id'), id: getValue(form, 'id'), label: getValue(form, 'label'), description: getValue(form, 'description'),
 			profile_mode: getValue(form, 'profile_mode'), enabled: getChecked(form, 'enabled'), max_tool_loops: Number(getValue(form, 'max_tool_loops') || 0),
+			model_decision_strategy: getValue(form, 'model_decision_strategy'), model_decision_repair_enabled: getChecked(form, 'model_decision_repair_enabled'), model_decision_confidence_threshold: Number(getValue(form, 'model_decision_confidence_threshold') || 0),
 			deliberate_planning: getChecked(form, 'deliberate_planning'), capability_discovery: getChecked(form, 'capability_discovery'), capability_selection: getChecked(form, 'capability_selection'), ai_capability_selection: getChecked(form, 'ai_capability_selection'), context_compaction: getChecked(form, 'context_compaction'), semantic_verification: getChecked(form, 'semantic_verification'),
 			selection_strategy: getValue(form, 'selection_strategy'), max_tools: Number(getValue(form, 'max_tools') || 0), select_all_threshold: Number(getValue(form, 'select_all_threshold') || 0), semantic_candidate_tools: Number(getValue(form, 'semantic_candidate_tools') || 0), semantic_max_prompt_characters: Number(getValue(form, 'semantic_max_prompt_characters') || 0), sticky: getChecked(form, 'sticky')
 		};
@@ -357,6 +378,8 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		setValue(form, 'description', record.description ?? '');
 		setValue(form, 'profile_mode', record.mode ?? 'standard');
 		setValue(form, 'max_tool_loops', record.max_tool_loops ?? 10);
+		setValue(form, 'model_decision_strategy', record.model_decision_strategy ?? 'ai-guarded-model-decision');
+		setValue(form, 'model_decision_confidence_threshold', record.model_decision_confidence_threshold ?? 0.7);
 		setValue(form, 'selection_strategy', record.selection_strategy ?? 'hybrid');
 		setValue(form, 'max_tools', record.max_tools ?? 16);
 		setValue(form, 'select_all_threshold', record.select_all_threshold ?? 16);
@@ -369,6 +392,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		setChecked(form, 'ai_capability_selection', !!record.ai_capability_selection);
 		setChecked(form, 'context_compaction', !!record.context_compaction);
 		setChecked(form, 'semantic_verification', !!record.semantic_verification);
+		setChecked(form, 'model_decision_repair_enabled', record.model_decision_repair_enabled !== false);
 		setChecked(form, 'sticky', record.sticky !== false);
 		const readonly = !!record.builtin;
 		form.querySelectorAll('input, select, textarea, button[data-action="apply-mode-defaults"]').forEach((node) => node.disabled = readonly);
@@ -393,7 +417,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const wrapper = element('orchestrator-profile-detail');
 		const left = element('orchestrator-profile-card');
 		const right = element('orchestrator-profile-card');
-		[['ID', record.profile_id], ['Mode', record.mode], ['Kind', record.builtin_label], ['Enabled', record.enabled ? 'yes' : 'no'], ['Max loops', record.max_tool_loops], ['Pipeline', record.stage_text]].forEach(([key, value]) => {
+		[['ID', record.profile_id], ['Mode', record.mode], ['Model decision', record.model_decision_strategy], ['Decision repair', record.model_decision_repair_enabled ? 'yes' : 'no'], ['Decision threshold', record.model_decision_confidence_threshold], ['Kind', record.builtin_label], ['Enabled', record.enabled ? 'yes' : 'no'], ['Max loops', record.max_tool_loops], ['Pipeline', record.stage_text]].forEach(([key, value]) => {
 			const row = element('orchestrator-profile-detail-row'); row.appendChild(element('', key)); row.appendChild(element('', text(value))); left.appendChild(row);
 		});
 		const pre = document.createElement('pre'); pre.className = 'orchestrator-profile-json'; pre.textContent = record.profile_json || JSON.stringify(record, null, 2); right.appendChild(pre);
@@ -442,6 +466,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 					{ key: 'mode', label: 'Mode / state', width: 320, render: renderMode },
 					{ key: 'stage_text', label: 'Fixed pipeline', width: 610, render: renderPipeline },
 					{ key: 'max_tool_loops', label: 'Loops', width: 90 },
+					{ key: 'model_decision_strategy', label: 'Model decision', width: 250, render: renderModelDecision },
 					{ key: 'selection_strategy', label: 'Tool selection', width: 230, render: renderSelection }
 				]
 			});

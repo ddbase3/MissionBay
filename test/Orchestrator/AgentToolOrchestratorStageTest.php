@@ -233,6 +233,10 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 				'result' => ['found' => 'BASE3']
 			]
 		], $result->getToolCalls());
+		$this->assertCount(1, $result->getToolResults());
+		$this->assertTrue($result->getToolResults()[0]->isSuccess());
+		$this->assertSame('call-1', $result->getToolResults()[0]->getCallId());
+		$this->assertSame(['found' => 'BASE3'], $result->getToolResults()[0]->getOutput());
 	}
 
 	public function testAdditionalStageCanWorkBetweenToolExecutionAndNextModelDecision(): void {

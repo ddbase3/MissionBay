@@ -42,6 +42,7 @@ use MissionBay\Api\IAgentTool;
 use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use MissionBay\Node\AbstractAgentNode;
 
@@ -97,6 +98,14 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 				description: 'Resolved orchestrator profile id for diagnostics and persisted flow inspection.',
 				type: 'string',
 				default: 'standard',
+				required: false
+			),
+
+			new AgentNodePort(
+				name: 'modeldecision',
+				description: 'Model decision strategy configuration. Supports AI-guarded and simple strategies, one guarded repair call, and a confidence threshold.',
+				type: 'array',
+				default: [],
 				required: false
 			),
 			new AgentNodePort(
@@ -248,7 +257,8 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			resume: $this->readResume($inputs),
 			capabilitySelectionConfig: $this->readCapabilitySelectionConfig($inputs),
 			capabilitySourceConfig: $this->readCapabilitySourceConfig($inputs),
-			deliberatePlanningEnabled: $this->readBoolInput($inputs, 'deliberateplanning', false)
+			deliberatePlanningEnabled: $this->readBoolInput($inputs, 'deliberateplanning', false),
+			modelDecisionConfig: $this->readModelDecisionConfig($inputs)
 		);
 	}
 
@@ -409,6 +419,21 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 		return $value;
 	}
 
+
+
+	protected function readModelDecisionConfig(array $inputs): AgentModelDecisionConfig {
+		$value = $inputs['modeldecision'] ?? [];
+
+		if ($value === null || $value === '') {
+			return AgentModelDecisionConfig::aiGuarded();
+		}
+
+		if (!is_array($value)) {
+			throw new \RuntimeException('Input modeldecision must be an associative array.');
+		}
+
+		return AgentModelDecisionConfig::fromArray($value);
+	}
 
 	protected function readCapabilitySourceConfig(array $inputs): AgentCapabilitySourceConfig {
 		$value = $inputs['capabilitysources'] ?? [];

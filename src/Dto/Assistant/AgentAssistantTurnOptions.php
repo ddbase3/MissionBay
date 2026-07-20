@@ -22,6 +22,7 @@ use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentToolCacheConfig;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 
 final class AgentAssistantTurnOptions {
 
@@ -41,7 +42,8 @@ final class AgentAssistantTurnOptions {
 		private ?AgentResume $resume = null,
 		private ?AgentCapabilitySelectionConfig $capabilitySelectionConfig = null,
 		private ?AgentCapabilitySourceConfig $capabilitySourceConfig = null,
-		private bool $deliberatePlanningEnabled = false
+		private bool $deliberatePlanningEnabled = false,
+		private ?AgentModelDecisionConfig $modelDecisionConfig = null
 	) {
 		$this->prompt = trim($this->prompt);
 		$this->system = trim($this->system);
@@ -127,6 +129,10 @@ final class AgentAssistantTurnOptions {
 
 	public function isDeliberatePlanningEnabled(): bool {
 		return $this->deliberatePlanningEnabled;
+	}
+
+	public function getModelDecisionConfig(): AgentModelDecisionConfig {
+		return $this->modelDecisionConfig ?? AgentModelDecisionConfig::aiGuarded();
 	}
 
 	/**

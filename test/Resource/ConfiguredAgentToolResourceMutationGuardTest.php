@@ -34,8 +34,8 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$tool = new GuardedConfiguredToolTestDouble();
 		$wrapper = new ConfiguredAgentToolResource(
 			$resolver,
-			'configured_userprefs',
-			$this->createStub(IEventManager::class)
+			$this->createStub(IEventManager::class),
+			'configured_userprefs'
 		);
 		$wrapper->setConfig(['namespace' => 'prefs']);
 		$wrapper->init(['tool' => [$tool]], $context);
@@ -67,8 +67,8 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$tool = new GuardedConfiguredToolTestDouble();
 		$wrapper = new ConfiguredAgentToolResource(
 			$resolver,
-			'configured_userprefs',
-			$this->createStub(IEventManager::class)
+			$this->createStub(IEventManager::class),
+			'configured_userprefs'
 		);
 		$context = $this->createStub(IAgentContext::class);
 		$wrapper->init(['tool' => [$tool]], $context);
@@ -105,7 +105,7 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$eventManager = new ConfiguredToolRecordingEventManager();
 		$context = new AgentContext();
 		$tool = new GuardedConfiguredToolTestDouble();
-		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_userprefs', $eventManager);
+		$wrapper = new ConfiguredAgentToolResource($resolver, $eventManager, 'configured_userprefs');
 		$wrapper->setConfig(['namespace' => 'prefs']);
 		$wrapper->init(['tool' => [$tool]], $context);
 		$wrapper->getToolDefinitions();
@@ -141,7 +141,7 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$resolver->method('resolveValue')->willReturnCallback(fn(mixed $value): mixed => $value);
 		$eventManager = new ConfiguredToolRecordingEventManager();
 		$context = new AgentContext();
-		$wrapper = new ConfiguredAgentToolResource($resolver, 'configured_failure', $eventManager);
+		$wrapper = new ConfiguredAgentToolResource($resolver, $eventManager, 'configured_failure');
 		$wrapper->init(['tool' => [new FailingConfiguredToolTestDouble()]], $context);
 		$wrapper->getToolDefinitions();
 
@@ -166,8 +166,8 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 		$context = $this->createStub(IAgentContext::class);
 		$wrapper = new ConfiguredAgentToolResource(
 			$resolver,
-			'configured_unguarded',
-			$this->createStub(IEventManager::class)
+			$this->createStub(IEventManager::class),
+			'configured_unguarded'
 		);
 		$wrapper->init(['tool' => [new UnguardedConfiguredToolTestDouble()]], $context);
 		$wrapper->getToolDefinitions();
