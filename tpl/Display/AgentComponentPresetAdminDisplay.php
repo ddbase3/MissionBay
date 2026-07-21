@@ -1036,8 +1036,12 @@ function createDefinitionRow(labelText, required = false) {
 	};
 }
 
-function createConfigControl(key, schema, value, mode) {
+function createConfigControl(key, schema, value, mode, required = false) {
 	const type = getSchemaType(schema);
+	const ui = schema && schema['x-ui'] && typeof schema['x-ui'] === 'object' && !Array.isArray(schema['x-ui'])
+		? schema['x-ui']
+		: {};
+	const uiControl = String(ui.control || '').toLowerCase();
 	let control;
 
 	if (Array.isArray(schema && schema.enum) && schema.enum.length > 0) {
@@ -1060,11 +1064,13 @@ function createConfigControl(key, schema, value, mode) {
 		control.step = type === 'integer' ? '1' : 'any';
 		control.className = 'agent-component-preset-step5-input';
 		control.value = value === null || value === undefined ? '' : String(value);
-	} else if (type === 'object' || type === 'array') {
+	} else if (type === 'object' || type === 'array' || (type === 'string' && uiControl === 'textarea')) {
 		control = document.createElement('textarea');
 		control.className = 'agent-component-preset-step5-textarea';
-		control.rows = 5;
-		control.value = stringifyJson(value === undefined ? getSchemaDefault(schema) : value);
+		control.rows = Math.max(2, Math.min(40, Number(ui.rows || (type === 'string' ? 8 : 5)) || 5));
+		control.value = type === 'string'
+			? (value === null || value === undefined ? '' : String(value))
+			: stringifyJson(value === undefined ? getSchemaDefault(schema) : value);
 	} else {
 		control = document.createElement('input');
 		control.type = 'text';
@@ -1075,6 +1081,10 @@ function createConfigControl(key, schema, value, mode) {
 	control.dataset.configKey = key;
 	control.dataset.configType = type;
 	control.dataset.configMode = mode || '';
+	control.setAttribute('aria-required', required ? 'true' : 'false');
+	if (required && type !== 'boolean') {
+		control.required = true;
+	}
 	control.addEventListener('input', () => syncDefinitionFields(control.form || getEditorElements().form));
 	control.addEventListener('change', () => syncDefinitionFields(control.form || getEditorElements().form));
 
@@ -1105,7 +1115,7 @@ function renderConfigControls(form, config) {
 		const raw = getRawConfigValue(config, key, propertySchema);
 		const unwrapped = unwrapConfigValue(raw);
 		const parts = createDefinitionRow(key, required.has(key));
-		const control = createConfigControl(key, propertySchema, unwrapped.value, unwrapped.mode);
+		const control = createConfigControl(key, propertySchema, unwrapped.value, unwrapped.mode, required.has(key));
 
 		parts.control.appendChild(control);
 
@@ -1953,6 +1963,10 @@ function getSelectedCapabilities(form) {
 }
 
 function validateEditorRequiredFields(form, capabilities) {
+	if (typeof form.reportValidity === 'function' && !form.reportValidity()) {
+		throw new Error('Complete all required preset fields.');
+	}
+
 	const id = getFormFieldValue(form, 'id');
 	const label = getFormFieldValue(form, 'label');
 	const type = getFormFieldValue(form, 'type');

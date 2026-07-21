@@ -12,8 +12,8 @@ use Base3\Api\IRequest;
 use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Api\IAgentComponentPresetMaterializer;
 use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentContextFactory;
 
 /**
  * Mcp
@@ -29,7 +29,7 @@ class Mcp implements IOutput {
 		private readonly IClassMap $classMap,
 		private readonly ISettingsStore $settingsStore,
 		private readonly IAgentComponentPresetRepository $presetRepository,
-		private readonly IAgentContextFactory $contextFactory,
+		private readonly IAgentComponentPresetMaterializer $presetMaterializer,
 		private readonly ILogger $logger,
 		private readonly ?IEventManager $eventManager = null
 	) {}
@@ -238,9 +238,7 @@ class Mcp implements IOutput {
 		$definitionMapper = new McpToolDefinitionMapper();
 		$resultMapper = new McpToolResultMapper();
 		$materializer = new McpToolPresetMaterializer(
-			$this->presetRepository,
-			$this->classMap,
-			$this->contextFactory,
+			$this->presetMaterializer,
 			$this->logger
 		);
 

@@ -8,11 +8,13 @@ use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Dto\AgentInstructionBlock;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
+use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Profile\AgentContextProfileResolver;
 use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Resource\AbstractAgentResource;
+use MissionBay\Resource\AgentContext\Text\StaticTextContextAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class AgentMemoryProfileResolverTest extends TestCase {
@@ -50,15 +52,15 @@ final class AgentMemoryProfileResolverTest extends TestCase {
 				'page-context' => [
 					'label' => 'Page context',
 					'enabled' => true,
-					'contexts' => ['current-time', 'user-prefs']
+					'contexts' => ['current-time', 'static-text', 'user-prefs']
 				]
 			]
 		]);
 		$resolver = new AgentContextProfileResolver($store, $this->presetRepository(), $this->resourceFactory());
 
-		$this->assertSame(['current-time', 'user-prefs'], array_column($resolver->getPresetOptions(), 'id'));
-		$this->assertSame(['current-time', 'user-prefs'], array_column($resolver->resolveComponents('page-context'), 'preset'));
-		$this->assertSame([['context'], ['context']], array_column($resolver->resolveComponents('page-context'), 'attach_as'));
+		$this->assertSame(['current-time', 'static-text', 'user-prefs'], array_column($resolver->getPresetOptions(), 'id'));
+		$this->assertSame(['current-time', 'static-text', 'user-prefs'], array_column($resolver->resolveComponents('page-context'), 'preset'));
+		$this->assertSame([['context'], ['context'], ['context']], array_column($resolver->resolveComponents('page-context'), 'attach_as'));
 	}
 
 	public function testLegacyCombinedProfileIsSplitByActualRuntimeContract(): void {
@@ -102,6 +104,7 @@ final class AgentMemoryProfileResolverTest extends TestCase {
 			private array $presets = [
 				'session-main' => ['id' => 'session-main', 'label' => 'Main session memory', 'type' => 'testconversationmemory', 'enabled' => true, 'config' => ['namespace' => 'main', 'max' => 20]],
 				'current-time' => ['id' => 'current-time', 'label' => 'Current time', 'type' => 'testcontextcontributor', 'enabled' => true, 'config' => []],
+				'static-text' => ['id' => 'static-text', 'label' => 'Static text', 'type' => 'statictextcontextagentresource', 'enabled' => true, 'config' => ['text' => 'Reusable system context.']],
 				'user-prefs' => ['id' => 'user-prefs', 'label' => 'User preferences', 'type' => 'testdualtoolcontext', 'enabled' => true, 'config' => ['priority' => 20]],
 				'tool-only' => ['id' => 'tool-only', 'label' => 'Tool only', 'type' => 'testtoolonly', 'enabled' => true, 'config' => []]
 			];
@@ -132,6 +135,12 @@ final class AgentMemoryProfileResolverTest extends TestCase {
 						public function contribute(IAgentContext $context): iterable { return [new AgentInstructionBlock('test', 'context')]; }
 						public function getPriority(): int { return 20; }
 					},
+					'statictextcontextagentresource' => new StaticTextContextAgentResource(
+						new class implements IAgentConfigValueResolver {
+							public function resolveValue(array|string|int|float|bool|null $config): mixed { return $config; }
+						},
+						'static-text'
+					),
 					default => null
 				};
 			}

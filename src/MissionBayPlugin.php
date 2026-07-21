@@ -29,6 +29,7 @@ use Base3\Core\ComponentDefinition;
 use Base3\Database\Api\IDatabase;
 use Base3\Event\Api\IEventManager;
 use Base3\Event\EventManager;
+use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\State\Api\IStateStore;
 use Base3\Usermanager\Api\IUsermanager;
@@ -45,7 +46,6 @@ use MissionBay\Agent\AgentNodeFactory;
 use MissionBay\Agent\AgentRagPayloadNormalizer;
 use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Cache\AgentToolCacheKeyBuilder;
-use MissionBay\Cache\NullAgentToolResultCache;
 use MissionBay\Cache\StateStoreAgentToolResultCache;
 use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use MissionBay\Capability\AgentCapabilityDiscoveryService;
@@ -61,6 +61,7 @@ use MissionBay\Api\IAgentAssistantMessageFactory;
 use MissionBay\Api\IAgentAssistantToolSetupFactory;
 use MissionBay\Api\IAgentAssistantTurnService;
 use MissionBay\Api\IAgentComponentFlowBuilder;
+use MissionBay\Api\IAgentComponentPresetMaterializer;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentConfigFormService;
 use MissionBay\Api\IAgentMemoryRoleResolver;
@@ -100,7 +101,6 @@ use MissionBay\Orchestrator\Stage\AgentCapabilityDiscoveryStage;
 use MissionBay\Orchestrator\Stage\AgentAiCapabilitySelectionStage;
 use MissionBay\Orchestrator\Stage\AgentCapabilitySelectionStage;
 use MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository;
-use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 use MissionBay\Orchestrator\Stage\AgentContextCompactionStage;
 use MissionBay\Orchestrator\Stage\AgentFinalAnswerStage;
 use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
@@ -115,6 +115,8 @@ use MissionBay\Profile\AgentContextProfileResolver;
 use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 use MissionBay\Service\AgentComponentFlowBuilder;
+use MissionBay\Service\AgentComponentPresetMaterializer;
+use MissionBay\Service\AgentComponentPresetToolTestService;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\AgentExecutionService;
@@ -172,6 +174,12 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfigValueResolver::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)
 			->set(IAgentComponentPresetRepository::class, fn($c) => new AgentComponentPresetRepository($c->get(ISettingsStore::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentComponentPresetMaterializer::class, fn($c) => new AgentComponentPresetMaterializer(
+				$c->get(IAgentComponentPresetRepository::class),
+				$c->get(IAgentResourceFactory::class),
+				$c->get(IAgentContextFactory::class),
+				$c->get(ILogger::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentComponentFlowBuilder::class, fn($c) => new AgentComponentFlowBuilder($c->get(IAgentComponentPresetRepository::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentOrchestratorProfileRepository::class, fn($c) => new AgentOrchestratorProfileRepository(
 				$c->get(ISettingsStore::class)
@@ -268,20 +276,12 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IComponentResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentToolCacheKeyBuilder::class, fn() => new AgentToolCacheKeyBuilder(), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentToolResultCache::class, function($c): IAgentToolResultCache {
-				if ($c->has(IStateStore::class)) {
-					return new StateStoreAgentToolResultCache($c->get(IStateStore::class));
-				}
-
-				return new NullAgentToolResultCache();
-			}, IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentSuspensionRepository::class, function($c): IAgentSuspensionRepository {
-				if ($c->has(IStateStore::class)) {
-					return new StateStoreAgentSuspensionRepository($c->get(IStateStore::class));
-				}
-
-				return new UnavailableAgentSuspensionRepository();
-			}, IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentToolResultCache::class, fn($c) => new StateStoreAgentToolResultCache(
+				$c->get(IStateStore::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentSuspensionRepository::class, fn($c) => new StateStoreAgentSuspensionRepository(
+				$c->get(IStateStore::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentInteractionResponseResolver::class, fn() => new AgentInteractionResponseResolver(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionResumeService::class, fn($c) => new AgentActionResumeService(
 				$c->get(AgentActionFingerprint::class),
@@ -312,6 +312,17 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentToolCacheKeyBuilder::class),
 				$c->get(AgentMutationCommitGuardService::class),
 				$c->get(AgentToolContractValidationService::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentComponentPresetToolTestService::class, fn($c) => new AgentComponentPresetToolTestService(
+				$c->get(IAgentActionPolicyResolver::class),
+				$c->get(AgentActionFingerprint::class),
+				$c->get(AgentActionReviewService::class),
+				$c->get(AgentActionResumeService::class),
+				$c->get(AgentToolContractValidationService::class),
+				$c->get(AgentCapabilitySelectionGuardService::class),
+				$c->get(AgentMutationCommitGuardService::class),
+				$c->get(IEventManager::class),
+				$c->get(AgentToolDefinitionSemantics::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentStagePipelineResolver::class, fn($c) => new AgentStagePipelineResolver(
 				$c->get(IComponentResolver::class),
