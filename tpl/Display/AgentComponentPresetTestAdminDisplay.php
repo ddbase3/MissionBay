@@ -558,6 +558,43 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		color: #8a4f10;
 	}
 
+	.agent-preset-confirmation-summary {
+		display: grid;
+		grid-template-columns: minmax(150px, 0.8fr) minmax(0, 1.4fr);
+		gap: 6px 12px;
+		margin: 0;
+		padding: 10px;
+		border: 1px solid #ead5ba;
+		border-radius: 6px;
+		background: #fff;
+	}
+
+	.agent-preset-confirmation-summary dt,
+	.agent-preset-confirmation-summary dd {
+		margin: 0;
+		min-width: 0;
+		font-size: 12px;
+		line-height: 1.4;
+		word-break: break-word;
+	}
+
+	.agent-preset-confirmation-summary dt {
+		font-weight: 600;
+		color: #5f482c;
+	}
+
+	.agent-preset-confirmation-details summary {
+		cursor: pointer;
+		font-size: 12px;
+		font-weight: 600;
+		color: #6d512f;
+	}
+
+	.agent-preset-confirmation-details .agent-preset-json-holder {
+		margin-top: 8px;
+		max-height: 320px;
+	}
+
 	.agent-preset-json-holder {
 		min-width: 0;
 		max-height: 620px;
@@ -1501,12 +1538,57 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		setLog('Approval required for ' + getText(request.action && request.action.name, payload.preset_id) + '.');
 	}
 
+	function renderInteractionSummary(summary) {
+		const list = document.createElement('dl');
+		list.className = 'agent-preset-confirmation-summary';
+		const entries = summary && typeof summary === 'object' && !Array.isArray(summary)
+			? Object.entries(summary)
+			: [];
+
+		if (entries.length === 0) {
+			const empty = createElement('agent-preset-detail-summary', 'No additional user-facing summary is available.');
+			return empty;
+		}
+
+		entries.forEach(([label, value]) => {
+			const term = document.createElement('dt');
+			term.textContent = String(label);
+			const description = document.createElement('dd');
+			description.textContent = formatInteractionValue(value);
+			list.appendChild(term);
+			list.appendChild(description);
+		});
+
+		return list;
+	}
+
+	function renderInteractionTechnicalDetails(action) {
+		const details = document.createElement('details');
+		details.className = 'agent-preset-confirmation-details';
+		const summary = document.createElement('summary');
+		summary.textContent = 'Technical details';
+		details.appendChild(summary);
+		details.appendChild(createJsonValue({
+			tool: getText(action && action.name, ''),
+			input: action && action.input && typeof action.input === 'object' ? action.input : {}
+		}));
+		return details;
+	}
+
+	function formatInteractionValue(value) {
+		if (value === null || value === undefined || value === '') return '-';
+		if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+		if (typeof value === 'object') return stringifyJson(value);
+		return String(value);
+	}
+
 	function renderConfirmation(response, request, payload, contextVars, resultRoot, status) {
 		const card = createElement('agent-preset-confirmation');
 		card.appendChild(createElement('agent-preset-confirmation-title', getText(request.title, 'Confirm tool action')));
 		card.appendChild(createElement('agent-preset-confirmation-risk', 'Risk: ' + getText(request.risk, 'medium')));
 		card.appendChild(createElement('agent-preset-detail-summary', getText(request.message, 'Review the exact action before approval.')));
-		card.appendChild(createJsonValue(request.summary || request.action || {}));
+		card.appendChild(renderInteractionSummary(request.summary || {}));
+		card.appendChild(renderInteractionTechnicalDetails(request.action || {}));
 		const note = createInput('');
 		card.appendChild(createField('Optional decision note', note, true));
 		const actions = createElement('agent-preset-actions');

@@ -52,11 +52,6 @@ final class MutationApprovalAgentActionPolicy implements IAgentActionPolicy {
 			return AgentActionDecision::allow($action->getId(), 'Tool definition does not declare a mutation requiring approval.');
 		}
 
-		$function = is_array($definition['function'] ?? null) ? $definition['function'] : $definition;
-		$title = trim((string)($definition['label'] ?? $function['title'] ?? $function['name'] ?? $action->getName()));
-		if ($title === '') {
-			$title = $action->getName();
-		}
 		$risk = ($annotations['destructiveHint'] ?? $annotations['destructive'] ?? false) === true
 			? 'high'
 			: 'medium';
@@ -66,9 +61,6 @@ final class MutationApprovalAgentActionPolicy implements IAgentActionPolicy {
 			'This tool call may change data and requires explicit approval before execution.',
 			[
 				'interaction' => [
-					'title' => 'Confirm: ' . $title,
-					'message' => 'Review the exact tool and input data before approving this mutation.',
-					'summary' => ['tool' => $action->getName(), 'input' => $action->getInput()],
 					'risk' => $risk
 				],
 				'tool_annotations' => $annotations

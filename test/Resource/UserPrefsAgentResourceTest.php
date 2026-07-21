@@ -430,6 +430,36 @@ class UserPrefsAgentResourceTest extends TestCase {
 		$this->assertSame(AgentMutationCommitDecision::CODE_ALLOWED, $decision->getCode());
 	}
 
+	public function testMutationSnapshotProducesUserFacingActionReview(): void {
+		$definition = $this->preferenceDefinition();
+		$values = [
+			$this->preferenceValue('user', 'u:42', 'Du', 1),
+			$this->preferenceValue('session', 's:sess-1', 'Sie', 2)
+		];
+		$resource = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
+		$action = $this->preferenceAction(
+			'call-review',
+			'set_user_pref',
+			['key' => 'address_form', 'value' => 'Sie', 'scope' => 'user']
+		);
+		$snapshot = $resource->captureMutationCommitSnapshot(
+			$action,
+			(new AgentActionFingerprint())->create($action),
+			$this->createStub(IAgentContext::class)
+		);
+
+		$review = $resource->getActionReview(
+			$action,
+			$snapshot,
+			$this->createStub(IAgentContext::class)
+		);
+
+		$this->assertSame('Change user preference', $review->getTitle());
+		$this->assertSame('Address form', $review->getSummary()['Preference']);
+		$this->assertSame('User', $review->getSummary()['Scope']);
+		$this->assertSame('Sie', $review->getSummary()['New value']);
+	}
+
 	public function testMutationCommitRejectsChangedUserIdentity(): void {
 		$definition = $this->preferenceDefinition();
 		$values = [$this->preferenceValue('user', 'u:42', 'Sie', 1)];

@@ -27,6 +27,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentInstructionBlock;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
@@ -326,6 +327,49 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 		);
 	}
 
+	public function getActionReview(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentActionReview {
+		$metadata = $snapshot->getMetadata();
+		$review = is_array($metadata['review'] ?? null) ? $metadata['review'] : null;
+		if ($review === null || trim((string)($metadata['operation'] ?? '')) !== $action->getName()) {
+			throw new \RuntimeException('User preference mutation snapshot does not contain a matching action review.');
+		}
+
+		$preference = trim((string)($review['preference'] ?? $review['key'] ?? 'User preference'));
+		$scope = $this->describeReviewScope((string)($review['scope'] ?? ''));
+		$currentValue = $this->describeCurrentReviewValues(
+			is_array($review['current_values'] ?? null) ? $review['current_values'] : []
+		);
+
+		if ($action->getName() === 'set_user_pref') {
+			$newValue = $this->describeReviewValue($review['new_value'] ?? null);
+			return new AgentActionReview(
+				'Change user preference',
+				'The preference "' . $preference . '" will be changed.',
+				[
+					'Preference' => $preference,
+					'Scope' => $scope,
+					'Current value' => $currentValue,
+					'New value' => $newValue
+				]
+			);
+		}
+
+		return new AgentActionReview(
+			'Remove user preference',
+			'The preference "' . $preference . '" will be removed.',
+			[
+				'Preference' => $preference,
+				'Scope' => $scope,
+				'Current value' => $currentValue,
+				'Result' => 'Removed'
+			]
+		);
+	}
+
 	public function validateMutationCommit(
 		AgentAction $action,
 		AgentMutationCommitSnapshot $snapshot,
@@ -603,6 +647,38 @@ class UserPrefsAgentResource extends AbstractAgentResource implements IAgentCont
 			'current_values' => $currentValues,
 			'new_value' => $mutation['value']
 		];
+	}
+
+	private function describeReviewScope(string $scope): string {
+		return match(strtolower(trim($scope))) {
+			'user' => 'User',
+			'session' => 'Current session',
+			'both' => 'User and current session',
+			default => $scope !== '' ? $scope : 'Current identity'
+		};
+	}
+
+	/** @param array<string,mixed> $values */
+	private function describeCurrentReviewValues(array $values): string {
+		$parts = [];
+		foreach ($values as $scope => $value) {
+			$parts[] = $this->describeReviewScope((string)$scope) . ': ' . $this->describeReviewValue($value);
+		}
+		return $parts !== [] ? implode('; ', $parts) : 'Not set';
+	}
+
+	private function describeReviewValue(mixed $value): string {
+		if ($value === null || $value === '') {
+			return 'Not set';
+		}
+		if (is_bool($value)) {
+			return $value ? 'Yes' : 'No';
+		}
+		if (is_scalar($value)) {
+			return (string)$value;
+		}
+		$json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		return is_string($json) ? $json : get_debug_type($value);
 	}
 
 	/** @param array<mixed> $value */

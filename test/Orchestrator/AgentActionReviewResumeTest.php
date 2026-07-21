@@ -5,6 +5,7 @@ namespace MissionBay\Test\Orchestrator;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
@@ -53,6 +54,8 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertSame(0, $tool->getCallCount());
 
 		$request = $firstResult->getInteractionRequests()[0];
+		$this->assertSame('Update record', $request->getTitle());
+		$this->assertSame(['Record' => '42', 'New title' => 'Reviewed title'], $request->getSummary());
 		$this->assertArrayNotHasKey(
 			AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT,
 			$request->getMetadata()
@@ -673,6 +676,21 @@ final class ApprovalMutationTool implements IAgentTool, IAgentMutationGuardedToo
 			gmdate('c')
 		);
 	}
+	public function getActionReview(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentActionReview {
+		return new AgentActionReview(
+			'Update record',
+			'Record ' . (string)($action->getInput()['id'] ?? '') . ' will be updated.',
+			[
+				'Record' => (string)($action->getInput()['id'] ?? ''),
+				'New title' => (string)($action->getInput()['title'] ?? '')
+			]
+		);
+	}
+
 	public function validateMutationCommit(
 		AgentAction $action,
 		AgentMutationCommitSnapshot $snapshot,

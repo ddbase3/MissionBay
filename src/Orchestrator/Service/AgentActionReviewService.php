@@ -20,6 +20,7 @@ namespace MissionBay\Orchestrator\Service;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentActionDecision;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
@@ -86,11 +87,7 @@ final class AgentActionReviewService {
 			}
 			$actionFingerprint = $this->fingerprint->create($action);
 			$requestId = 'air-' . substr($actionFingerprint, 0, 16) . '-' . $action->getId();
-			$title = trim((string)($interaction['title'] ?? 'Review tool action'));
-			$message = trim((string)($interaction['message'] ?? $decision->getReason()));
-			$summary = is_array($interaction['summary'] ?? null)
-				? $interaction['summary']
-				: ['tool' => $action->getName(), 'input' => $action->getInput()];
+			$review = $this->buildDefaultReview($action, $decision, $interaction, $kind, $context);
 			$risk = trim((string)($interaction['risk'] ?? 'medium'));
 
 			$publicMetadata = [
@@ -110,6 +107,20 @@ final class AgentActionReviewService {
 					);
 				}
 				if ($commitSnapshot !== null) {
+					try {
+						$review = $this->mutationCommitGuardService->getActionReview(
+							$action,
+							$toolCall,
+							$commitSnapshot,
+							$context
+						);
+					} catch (\Throwable $e) {
+						return $this->failure(
+							'mutation_action_review_failed',
+							$e->getMessage(),
+							['type' => get_class($e), 'action_id' => $action->getId()]
+						);
+					}
 					$suspensionMetadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT] = $commitSnapshot->toArray();
 				}
 			}
@@ -119,9 +130,9 @@ final class AgentActionReviewService {
 				'kind' => $kind,
 				'action' => $action,
 				'actionFingerprint' => $actionFingerprint,
-				'title' => $title !== '' ? $title : 'Review tool action',
-				'message' => $message !== '' ? $message : 'Explicit user input is required before this action may continue.',
-				'summary' => $summary,
+				'title' => $review->getTitle(),
+				'message' => $review->getMessage(),
+				'summary' => $review->getSummary(),
 				'risk' => $risk !== '' ? $risk : 'medium'
 			];
 			$requests[] = new AgentInteractionRequest(...$requestArguments, metadata: $publicMetadata);
@@ -192,6 +203,114 @@ final class AgentActionReviewService {
 			'request_count' => count($requests),
 			'ttl_seconds' => $this->suspensionTtlSeconds
 		]);
+	}
+
+	/**
+	 * Builds a deterministic review for actions that do not use the guarded
+	 * mutation contract. Guarded mutation tools replace this review with their
+	 * domain-specific AgentActionReview based on the captured snapshot.
+	 *
+	 * @param array<string,mixed> $interaction
+	 */
+	private function buildDefaultReview(
+		AgentAction $action,
+		AgentActionDecision $decision,
+		array $interaction,
+		string $kind,
+		IAgentContext $context
+	): AgentActionReview {
+		$definition = $this->findToolDefinition($action->getName(), $context);
+		$function = is_array($definition['function'] ?? null) ? $definition['function'] : $definition;
+		$function = is_array($function) ? $function : [];
+
+		$baseTitle = trim((string)(
+			$definition['label']
+			?? $function['title']
+			?? $function['name']
+			?? $action->getName()
+		));
+		$title = trim((string)($interaction['title'] ?? ''));
+		if ($title === '') {
+			$title = $kind === AgentInteractionRequest::KIND_APPROVAL
+				? 'Confirm: ' . ($baseTitle !== '' ? $baseTitle : 'Tool action')
+				: ($baseTitle !== '' ? $baseTitle : 'Review tool action');
+		}
+
+		$message = trim((string)($interaction['message'] ?? ''));
+		if ($message === '') {
+			$message = trim($decision->getReason());
+		}
+		if ($message === '') {
+			$message = 'Explicit user input is required before this action may continue.';
+		}
+
+		$summary = is_array($interaction['summary'] ?? null)
+			? $interaction['summary']
+			: $this->buildSchemaSummary($action, $function);
+
+		return new AgentActionReview($title, $message, $summary);
+	}
+
+	/** @param array<string,mixed> $function @return array<string,mixed> */
+	private function buildSchemaSummary(AgentAction $action, array $function): array {
+		$parameters = is_array($function['parameters'] ?? null) ? $function['parameters'] : [];
+		$properties = is_array($parameters['properties'] ?? null) ? $parameters['properties'] : [];
+		$summary = [];
+		foreach ($action->getInput() as $key => $value) {
+			$property = is_array($properties[$key] ?? null) ? $properties[$key] : [];
+			$label = trim((string)($property['title'] ?? ''));
+			$summary[$label !== '' ? $label : $this->humanizeName((string)$key)] = $this->formatSummaryValue($value);
+		}
+
+		return $summary !== []
+			? $summary
+			: ['Action' => $this->humanizeName($action->getName())];
+	}
+
+	private function formatSummaryValue(mixed $value): mixed {
+		if ($value === null) {
+			return 'Not specified';
+		}
+		if (is_bool($value)) {
+			return $value ? 'Yes' : 'No';
+		}
+		if (is_scalar($value)) {
+			return (string)$value;
+		}
+		if (is_array($value) && array_is_list($value)) {
+			$scalars = array_filter($value, static fn(mixed $entry): bool => is_scalar($entry) || $entry === null);
+			if (count($scalars) === count($value)) {
+				return implode(', ', array_map(fn(mixed $entry): string => (string)$this->formatSummaryValue($entry), $value));
+			}
+		}
+
+		$json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		return is_string($json) ? $json : get_debug_type($value);
+	}
+
+	private function humanizeName(string $name): string {
+		$name = preg_replace('/([a-z0-9])([A-Z])/', '$1 $2', $name) ?? $name;
+		$name = str_replace(['_', '-', '.'], ' ', $name);
+		$name = trim(preg_replace('/\s+/', ' ', $name) ?? $name);
+		return $name === '' ? 'Value' : ucfirst($name);
+	}
+
+	/** @return array<string,mixed> */
+	private function findToolDefinition(string $toolName, IAgentContext $context): array {
+		$definitions = $context->getVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS);
+		if (!is_array($definitions)) {
+			return [];
+		}
+		foreach ($definitions as $definition) {
+			if (!is_array($definition)) {
+				continue;
+			}
+			$function = is_array($definition['function'] ?? null) ? $definition['function'] : $definition;
+			if (trim((string)($function['name'] ?? '')) === $toolName) {
+				return $definition;
+			}
+		}
+		return [];
 	}
 
 	private function resolveKind(AgentActionDecision $decision): string {

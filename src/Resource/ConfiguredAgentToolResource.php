@@ -19,6 +19,7 @@ namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use Base3\Api\IOutputSchemaProvider;
@@ -253,6 +254,20 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 		return $tool->captureMutationCommitSnapshot(
 			$this->translateAction($action),
 			$actionFingerprint,
+			$context
+		);
+	}
+
+	public function getActionReview(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentActionReview {
+		$tool = $this->requireGuardedTool($action->getName());
+
+		return $tool->getActionReview(
+			$this->translateAction($action),
+			$snapshot,
 			$context
 		);
 	}

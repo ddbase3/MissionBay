@@ -12,6 +12,7 @@ MissionBay therefore performs a final commit check inside `tool-execution`, imme
 action-policy requires approval
   -> AgentActionReviewService
        -> capture authorization/resource snapshot
+       -> build the user-facing review from that exact snapshot
        -> persist snapshot with the durable suspension
 
 user approves exact action
@@ -37,19 +38,28 @@ A mutation tool that requires final validation implements:
 MissionBay\Api\IAgentMutationGuardedTool
 ```
 
-It provides two operations:
+It provides three operations:
 
 ```text
 captureMutationCommitSnapshot()
+getActionReview()
 validateMutationCommit()
 ```
+
+`getActionReview()` returns an `AgentActionReview` containing a user-facing
+title, message, and directly renderable summary. The review should resolve
+technical IDs to names and describe relevant current/target values. It must be
+built without side effects, preferably from domain data stored in the snapshot
+metadata. The exact tool name and original input remain available separately
+through `AgentAction` as technical details.
 
 The captured `AgentMutationCommitSnapshot` stays inside the server-owned suspension and is not included in the public interaction request. It should contain only the stable data needed for the later check, typically:
 
 - authorization subject or tenant identity;
 - required permission or scope;
 - target resource IDs;
-- expected versions, revisions, hashes, or ETags.
+- expected versions, revisions, hashes, or ETags;
+- domain data required for the user-facing review.
 
 Immediately before commit, the tool returns an `AgentMutationCommitDecision`.
 
@@ -152,6 +162,13 @@ The tool still performs its normal input validation inside `callTool()`. The com
 
 Agent component presets are exposed to the assistant through `ConfiguredAgentToolResource`. The wrapper must preserve optional tool capabilities instead of hiding them.
 
-For guarded mutations, the wrapper therefore also implements `IAgentMutationGuardedTool` and delegates both guard operations to the docked tool. When a namespace changes the externally visible function name, the wrapper translates the reviewed action back to the original function name before delegation. The reviewed action ID, input, metadata, and outer action fingerprint remain unchanged.
+For guarded mutations, the wrapper therefore also implements `IAgentMutationGuardedTool` and delegates snapshot capture, action review, and commit validation to the docked tool. When a namespace changes the externally visible function name, the wrapper translates the reviewed action back to the original function name before delegation. The reviewed action ID, input, metadata, and outer action fingerprint remain unchanged.
 
 This keeps the wrapper transparent for guarded tools without adding tool-specific behavior to the policy, approval, or execution services. A wrapped mutation that requires a commit guard still fails closed when the docked tool does not implement `IAgentMutationGuardedTool`.
+
+
+## Tool developer guide
+
+A complete implementation guide with definition examples, review rules, wrapper
+requirements, and a testing checklist is available in
+[AGENT_TOOL_DEVELOPMENT.md](AGENT_TOOL_DEVELOPMENT.md).

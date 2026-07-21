@@ -22,16 +22,30 @@ use AssistantFoundation\Api\IAgentContext;
 /**
  * IConfirmableAgentTool
  *
- * Allows tools to request an explicit confirmation before a tool call is
- * executed. The caller stores the returned confirmation request and later
- * executes or declines it through the confirmation workflow.
+ * Optional compatibility contract for callers, especially the direct MCP tool
+ * endpoint, where the tool itself decides whether one concrete invocation must
+ * be confirmed before it is executed.
+ *
+ * This contract combines the confirmation decision with legacy array-based
+ * presentation data. It is intentionally separate from
+ * IAgentMutationGuardedTool. In the policy-controlled agent harness, action
+ * policies decide whether approval is required, while guarded mutation tools
+ * create an AgentActionReview from a server-owned commit snapshot and validate
+ * that snapshot before execution.
+ *
+ * Implementing this interface does not mark a function as mutating and does not
+ * replace mutation, requiresApproval or commitGuardRequired annotations in
+ * getToolDefinitions(). Wrappers exposing this capability under configured
+ * names must translate the effective function name before delegation.
  */
 interface IConfirmableAgentTool {
 
 	/**
-	 * Builds a confirmation request for a tool call.
+	 * Builds the direct/MCP confirmation request for a tool invocation.
 	 *
-	 * Return null when the call can be executed immediately.
+	 * Return null when this direct caller may execute the call immediately. In a
+	 * policy-controlled agent run, null must never be interpreted as permission
+	 * to bypass an approval already required by an action policy.
 	 *
 	 * @param string $name Name of the function as declared in getToolDefinitions
 	 * @param array<string, mixed> $arguments Arguments passed to the tool call

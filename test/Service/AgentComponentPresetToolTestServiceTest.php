@@ -6,6 +6,7 @@ use AssistantFoundation\Api\IAgentActionPolicy;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use AssistantFoundation\Dto\AgentSuspension;
@@ -46,6 +47,9 @@ final class AgentComponentPresetToolTestServiceTest extends TestCase {
 		$this->assertSame(0, $tool->getCallCount());
 
 		$request = $first['interaction_requests'][0] ?? [];
+		$this->assertSame('Change test value', $request['title'] ?? null);
+		$this->assertSame(['New value' => 'A'], $request['summary'] ?? null);
+		$this->assertSame('set_value', $request['action']['name'] ?? null);
 		$approved = $service->resume(
 			$tool,
 			(string)($first['resume_handle'] ?? ''),
@@ -234,6 +238,18 @@ final class ComponentPresetApprovalMutationTool implements IAgentTool, IAgentMut
 		IAgentContext $context
 	): AgentMutationCommitSnapshot {
 		return new AgentMutationCommitSnapshot($action->getId(), $actionFingerprint);
+	}
+
+	public function getActionReview(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentActionReview {
+		return new AgentActionReview(
+			'Change test value',
+			'The configured test value will be changed.',
+			['New value' => (string)($action->getInput()['value'] ?? '')]
+		);
 	}
 
 	public function validateMutationCommit(

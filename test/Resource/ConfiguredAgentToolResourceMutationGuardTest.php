@@ -4,6 +4,7 @@ namespace MissionBay\Test\Resource;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use AssistantFoundation\Dto\AiToolCall;
@@ -50,10 +51,13 @@ final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 			['key' => 'addressing_style', 'value' => 'informal']
 		);
 		$snapshot = $wrapper->captureMutationCommitSnapshot($action, 'fingerprint-1', $context);
+		$review = $wrapper->getActionReview($action, $snapshot, $context);
 		$decision = $wrapper->validateMutationCommit($action, $snapshot, $context);
 		$result = $wrapper->callTool('prefs__set_user_pref', $action->getInput(), $context);
 
 		$this->assertSame('set_user_pref', $tool->getCapturedActionName());
+		$this->assertSame('set_user_pref', $tool->getReviewedActionName());
+		$this->assertSame('Set user preference', $review->getTitle());
 		$this->assertSame('set_user_pref', $tool->getValidatedActionName());
 		$this->assertSame('set_user_pref', $tool->getCalledToolName());
 		$this->assertSame('fingerprint-1', $snapshot->getActionFingerprint());
@@ -194,6 +198,7 @@ final class GuardedConfiguredToolTestDouble implements IAgentTool, IAgentMutatio
 
 	private string $capturedActionName = '';
 	private string $validatedActionName = '';
+	private string $reviewedActionName = '';
 	private string $calledToolName = '';
 
 	public static function getName(): string {
@@ -243,6 +248,19 @@ final class GuardedConfiguredToolTestDouble implements IAgentTool, IAgentMutatio
 		);
 	}
 
+	public function getActionReview(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentActionReview {
+		$this->reviewedActionName = $action->getName();
+		return new AgentActionReview(
+			'Set user preference',
+			'The user preference will be changed.',
+			['Preference' => (string)($action->getInput()['key'] ?? '')]
+		);
+	}
+
 	public function validateMutationCommit(
 		AgentAction $action,
 		AgentMutationCommitSnapshot $snapshot,
@@ -254,6 +272,10 @@ final class GuardedConfiguredToolTestDouble implements IAgentTool, IAgentMutatio
 
 	public function getCapturedActionName(): string {
 		return $this->capturedActionName;
+	}
+
+	public function getReviewedActionName(): string {
+		return $this->reviewedActionName;
 	}
 
 	public function getValidatedActionName(): string {

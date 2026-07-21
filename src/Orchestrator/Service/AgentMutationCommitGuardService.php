@@ -19,6 +19,7 @@ namespace MissionBay\Orchestrator\Service;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Dto\AgentAction;
+use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use AssistantFoundation\Dto\AiToolCall;
@@ -80,6 +81,37 @@ final class AgentMutationCommitGuardService {
 		}
 
 		return $snapshot;
+	}
+
+	/**
+	 * Builds the user-facing review from the exact snapshot captured for the
+	 * guarded mutation.
+	 *
+	 * @throws \RuntimeException when the resolved tool does not provide the
+	 * guarded mutation contract or returns a review for another action state
+	 */
+	public function getActionReview(
+		AgentAction $action,
+		AiToolCall $call,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentActionReview {
+		$fingerprint = $this->fingerprint->create($action);
+		if (
+			$snapshot->getActionId() !== $action->getId()
+			|| !hash_equals($fingerprint, $snapshot->getActionFingerprint())
+		) {
+			throw new \RuntimeException('Mutation action review snapshot does not match the reviewed action.');
+		}
+
+		$tool = $this->findTool($call->getName(), $context);
+		if (!$tool instanceof IAgentMutationGuardedTool) {
+			throw new \RuntimeException(
+				'Mutation action review requires IAgentMutationGuardedTool: ' . $call->getName()
+			);
+		}
+
+		return $tool->getActionReview($action, $snapshot, $context);
 	}
 
 	public function isMutation(AiToolCall $call, IAgentContext $context): bool {

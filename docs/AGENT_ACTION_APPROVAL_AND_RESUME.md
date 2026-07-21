@@ -23,7 +23,8 @@ capability-discovery
   -> return awaiting_approval or awaiting_input plus opaque resume_handle
 
 external transport
-  -> shows exact tool name and structured input
+  -> shows the user-facing title, message, and summary
+  -> keeps the exact tool name and structured input under technical details
   -> ends the current request or stream
   -> collects the next user response
   -> starts a new request with resume_handle plus either natural-language or explicit responses
@@ -162,6 +163,21 @@ readOnlyHint: false
 ```
 
 New mutation tools must declare this metadata. Tool-name guessing is intentionally not used.
+
+
+## User-facing review data
+
+Public interaction requests contain `title`, `message`, and `summary` for the
+primary user-facing display. Guarded mutation tools create these values through
+`IAgentMutationGuardedTool::getActionReview()` from the same server-owned
+snapshot that will later be validated at commit time.
+
+The exact `AgentAction` remains part of the interaction request. Transports
+should render `action.name` and `action.input` separately under technical
+details instead of using raw JSON as the main confirmation text.
+
+Tool-development rules and examples are documented in
+[AGENT_TOOL_DEVELOPMENT.md](AGENT_TOOL_DEVELOPMENT.md).
 
 ## Exact review binding
 
