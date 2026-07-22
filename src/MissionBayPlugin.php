@@ -47,6 +47,7 @@ use MissionBay\Agent\AgentRagPayloadNormalizer;
 use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Cache\AgentToolCacheKeyBuilder;
 use MissionBay\Cache\StateStoreAgentToolResultCache;
+use MissionBay\Context\Profile\MissionBayContextProfileProvider;
 use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use MissionBay\Capability\AgentCapabilityDiscoveryService;
 use MissionBay\Capability\HybridAgentCapabilitySelector;
@@ -199,6 +200,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(ISettingsStore::class),
 				$c->get(IAgentComponentPresetRepository::class),
 				$c->get(IAgentResourceFactory::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(MissionBayContextProfileProvider::class, fn($c) => new MissionBayContextProfileProvider(
+				$c->get(AgentContextProfileResolver::class),
+				$c->get(IAgentComponentPresetMaterializer::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentFlowCompiler::class, fn($c) => new AgentFlowCompiler(
 				$c->get(IAgentComponentFlowBuilder::class),
