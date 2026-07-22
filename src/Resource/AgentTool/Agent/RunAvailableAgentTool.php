@@ -18,6 +18,7 @@
 namespace MissionBay\Resource\AgentTool\Agent;
 
 use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Dto\AgentExecutionRequest;
 use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
@@ -425,11 +426,11 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 				return $this->errorResult('No user prompt was provided and the selected agent has no default prompt.', 'missing_prompt', $agentId);
 			}
 
-			$result = $this->agentExecutionService->run(
+			$result = $this->agentExecutionService->execute(new AgentExecutionRequest(
 				$settings,
 				$this->buildAgentInputs($settings, $prompt),
 				$this->buildAgentContextVars($agentId, $settings, $arguments, $prompt, $promptResult['source'])
-			);
+			));
 
 			$output = $result->getOutput();
 			$assistantNodeId = $this->getAssistantNodeId($settings);

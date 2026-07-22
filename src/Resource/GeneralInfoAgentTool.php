@@ -84,7 +84,7 @@ class GeneralInfoAgentTool extends AbstractAgentResource implements IAgentTool, 
 			'label' => 'General Info',
 			'category' => 'info',
 			'tags' => ['info', 'inspection', 'readonly', 'topics', 'diagnostics'],
-			'priority' => 50,
+			'priority' => 100,
 			'function' => [
 				'name' => self::TOOL_NAME,
 				'description' => 'Read-only information lookup. Use topic "topics" to list available information topics.',

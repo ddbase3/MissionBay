@@ -70,6 +70,8 @@ Model, provider, result, memory, and vector contracts are normally implemented b
 | `IAgentContext` | shared run context used by external stages, modules, memories, and tools | direct contract/factory | `MissionBay\Agent\AgentContext` |
 | `IAgentContextContributor` | plugins may add system-context sources | configured component | `MissionBay\Resource\AgentMemory\Time\TimeMemoryAgentResource` |
 | `IAgentConversationMemory` | plugins may add conversation-history backends | resource/direct contract | `MissionBay\Resource\SessionMemoryAgentResource` |
+| `IAgentConfigFormService` | host UIs can embed runtime-specific agent configuration without importing the runtime plugin | container service | `MissionBay\Service\AgentConfigFormService` |
+| `IAgentEventSink` | runtimes emit incremental output without knowing HTTP, SSE, jobs, or UI implementations | run-scoped adapter | `Chatbot\Service\EventStreamAgentEventSink` |
 | `IAgentExecutionService` | other plugins execute configured agents without depending on MissionBay internals | container service | `MissionBay\Service\AgentExecutionService` |
 | `IAgentMemory` | stable legacy/base memory contract shared by existing plugins | direct contract | `MissionBay\Memory\VolatileMemory` |
 | `IAgentModule` | plugins may activate run-local instruction/capability bundles | configured component | test example in `AgentCapabilityDiscoveryServiceTest` |
@@ -80,7 +82,7 @@ Model, provider, result, memory, and vector contracts are normally implemented b
 | `IAiEmbeddingModel` | plugins may provide embedding adapters | direct adapter/resource | `MissionBay\Resource\ConfiguredEmbeddingModelAgentResource` |
 | `IAiProvider` | plugins may provide transport/provider implementations | direct adapter | `MissionBay\Transport\OpenAiCompatibleTransport` |
 | `IAiResult` | plugins may add provider-neutral result DTOs | result contract | `AssistantFoundation\Dto\AiChatResult` |
-| `IAiServiceTester` | plugins may add service health tests | class-map discovery | `AssistantFoundation\Display\AiServiceDashboardDisplay` consumer |
+| `IAiServiceTester` | plugins may add service health tests | class-map discovery | `AssistantRuntime\Display\AiServiceDashboardDisplay` consumer |
 | `IAiTaskService` | other plugins may invoke or replace simple AI-task execution | container service | `MissionBay\Service\MissionBayAiTaskService` |
 | `IVectorSearch` | plugins may provide vector-search backends | direct adapter/resource | `MissionBay\Resource\QdrantVectorSearch` |
 
@@ -473,7 +475,9 @@ Expose configured implementations as Component Presets and select them through a
 
 ### Use case
 
-Consume this interface from another plugin when it needs to execute stored agent settings without depending on MissionBay factories, nodes, profile resolvers, or orchestration internals. Replace it only when the project provides a complete alternate execution runtime.
+Consume this interface from another plugin when it needs to execute an agent without depending on MissionBay factories, nodes, profile resolvers, or orchestration internals. A different runtime, such as Neuron AI, can replace the MissionBay implementation through container wiring.
+
+REST and streaming callers use the same `execute()` operation. Incremental events are optional and are delivered through `IAgentEventSink`; the runtime never owns HTTP response formatting.
 
 ### Example consumer
 
@@ -483,28 +487,41 @@ Consume this interface from another plugin when it needs to execute stored agent
 namespace ProjectAgent\Job;
 
 use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Dto\AgentExecutionRequest;
 
 final class ScheduledAgentRunner {
 
     public function __construct(private readonly IAgentExecutionService $agents) {}
 
     public function run(array $settings): string {
-        $result = $this->agents->run(
+        $result = $this->agents->execute(new AgentExecutionRequest(
             $settings,
             ['prompt' => 'Create the scheduled summary.'],
             ['job_id' => 'nightly-summary']
-        );
+        ));
 
         $output = $result->getOutput();
 
-        return (string)($output['assistant']['content'] ?? $output['content'] ?? '');
+        return (string)($output['assistant']['message']['content'] ?? $output['message']['content'] ?? '');
     }
 }
 ```
 
+### Streaming adapter
+
+A transport creates an `IAgentEventSink` implementation and passes it as the second argument to `execute()`. The sink decides whether events are pushed through SSE, collected for diagnostics, written to a job log, or discarded. Cancellation is reported through `isCancelled()`.
+
 ### Replacement implementation
 
-A replacement must implement all four operations: effective-flow building, buffered execution, streaming execution, and non-fatal warning reporting. Register it in the container under `IAgentExecutionService::class` in the project plugin.
+A runtime implements `IAgentRuntimeService` and its paired `IAgentRuntimeConfigFormService` under one stable runtime ID. AssistantRuntime registers the single generic `IAgentExecutionService` router and selects the runtime from `agent_runtime`. Runtime-specific compilation and inspection APIs do not belong to the generic interface.
+
+## `IAgentConfigFormService`
+
+Host configuration displays consume this facade. AssistantRuntime provides the composite implementation that lists all paired runtime forms. MissionBay and Neuron AI each provide an `IAgentRuntimeConfigFormService`; Chatbot and Agent Admin remain independent of either runtime plugin.
+
+## `IAgentEventSink`
+
+Agent runtimes and tools emit named `AgentExecutionEvent` objects through this run-scoped interface. Implementations must not assume SSE: the caller owns transport selection, connection lifecycle, and response formatting.
 
 ## `IAgentMemory`
 

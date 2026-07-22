@@ -23,12 +23,13 @@ use Base3\Settings\Api\ISettingsStore;
 use Base3\Worker\Api\IJob;
 use Base3\Worker\Api\IJobExecutionPolicy;
 use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Dto\AgentExecutionRequest;
 use Throwable;
 
 /**
  * ScheduledAgentRunnerJob
  *
- * Dispatcher job for scheduled MissionBay agents.
+ * Dispatcher job for scheduled runtime-selectable agents.
  *
  * The job runs whenever the worker cycle reaches it, then evaluates the
  * configured execution policy of each active agent record individually.
@@ -146,11 +147,11 @@ final class ScheduledAgentRunnerJob implements IJob {
                         $stats['due']++;
 
                         try {
-                                $this->agentExecutionService->run(
+                                $this->agentExecutionService->execute(new AgentExecutionRequest(
                                         $settings,
                                         $this->buildAgentInputs($settings),
                                         $this->buildAgentContextVars($agentId, $settings)
-                                );
+                                ));
 
                                 $policy->markRun($jobName);
                                 $stats['ran']++;

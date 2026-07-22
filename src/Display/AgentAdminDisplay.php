@@ -26,14 +26,15 @@ use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\Worker\Api\IJobExecutionPolicy;
 use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Dto\AgentExecutionRequest;
 use JsonException;
-use MissionBay\Api\IAgentConfigFormService;
+use AssistantFoundation\Api\IAgentConfigFormService;
 use Throwable;
 
 /**
  * AgentAdminDisplay
  *
- * Provides a ModularGrid based administration surface for MissionBay
+ * Provides a ModularGrid based administration surface for runtime-selectable
  * agent configurations stored in ISettingsStore.
  */
 final class AgentAdminDisplay implements IDisplay {
@@ -76,7 +77,7 @@ final class AgentAdminDisplay implements IDisplay {
         }
 
         public function getHelp(): string {
-                return 'Administrates MissionBay agent configurations.';
+                return 'Administrates runtime-selectable agent configurations.';
         }
 
         private function handleHtml(): string {
@@ -259,7 +260,9 @@ final class AgentAdminDisplay implements IDisplay {
                                 'policy' => $row['policy'],
                                 'policy_label' => $row['policy_label'],
                                 'policy_data_text' => $row['policy_data_text'],
-                                'llm' => $row['llm'],
+                                'agent_runtime' => $row['agent_runtime'],
+                                'agent_provider' => $row['agent_provider'],
+                                'agent_model' => $row['agent_model'],
                                 'orchestrator_profile' => $row['orchestrator_profile'],
                                 'memory_profile' => $row['memory_profile'],
                                 'tool_profile_count' => $row['tool_profile_count'],
@@ -458,36 +461,57 @@ final class AgentAdminDisplay implements IDisplay {
 
                 $settings = $this->normalizeAgentSettings($settings);
                 $userPrompt = $this->normalizeTextBlock($this->getRunUserPrompt($payload, $settings));
+                if(trim($userPrompt) === '') {
+                        return $this->buildErrorResponse('Please enter a user prompt before running the agent.', 'run');
+                }
 
                 try {
-                        $result = $this->agentExecutionService->run(
+                        $result = $this->agentExecutionService->execute(new AgentExecutionRequest(
                                 $settings,
                                 $this->buildAgentInputs($settings, $userPrompt),
                                 $this->buildAgentContextVars($id, $settings, $userPrompt)
-                        );
+                        ));
                 }
                 catch(Throwable $e) {
                         return $this->buildErrorResponse('Agent execution failed: ' . $e->getMessage(), 'run');
                 }
 
                 $output = $result->getOutput();
+                $agentResult = $result->getAgentResult();
+                if ($output === [] && $agentResult !== null) {
+                        $output = $agentResult->getOutput();
+                }
+
                 $assistantNodeId = $this->getAssistantNodeId($settings);
                 $message = $this->extractAssistantMessage($output, $assistantNodeId);
                 $flowError = $this->extractFlowError($output, $assistantNodeId);
                 $messageText = $message !== null ? $this->normalizeMessageContent($message['content'] ?? '') : '';
+                $status = $agentResult?->getStatus() ?? ($flowError === '' ? 'completed' : 'failed');
+
+                if ($flowError === '' && $agentResult?->hasFailure()) {
+                        $metadata = $agentResult->getMetadata();
+                        $flowError = trim((string)($metadata['error'] ?? $metadata['message'] ?? 'Agent runtime reported a failed execution.'));
+                }
+                if ($flowError === '' && $messageText === '') {
+                        $flowError = 'Agent execution returned no assistant message.';
+                }
+
+                $success = $flowError === '' && $messageText !== '';
 
                 return [
-                        'ok' => $flowError === '',
+                        'ok' => $success,
                         'mode' => 'run',
-                        'action' => $flowError === '' ? 'ran' : 'failed',
+                        'action' => $success ? 'ran' : 'failed',
                         'id' => $id,
+                        'status' => $status,
                         'assistant_node_id' => $assistantNodeId,
                         'message' => $message,
                         'message_text' => $messageText,
                         'flow_error' => $flowError,
                         'result_text' => $this->formatRunResultText($messageText, $flowError, $output),
                         'output' => $output,
-                        'warnings' => $this->agentExecutionService->getWarnings()
+                        'warnings' => $result->getWarnings(),
+                        'agent_result' => $agentResult?->toArray()
                 ];
         }
 
@@ -703,7 +727,10 @@ final class AgentAdminDisplay implements IDisplay {
                 $toolProfiles = is_array($values['tool_profiles'] ?? null) ? array_values(array_map('strval', $values['tool_profiles'])) : [];
                 $orchestratorProfile = trim((string)($values['orchestrator_profile'] ?? 'standard'));
                 $memoryProfile = trim((string)($values['memory_profile'] ?? ''));
-                $settingsJson = $this->encodePrettyJson($settings);
+                $settingsJson = $this->encodePrettyJson($this->redactSensitiveData($settings));
+                $runtimeSummary = is_array($values['agent_runtime_summary'] ?? null)
+                        ? $values['agent_runtime_summary']
+                        : [];
 
                 return array_merge($values, [
                         'id' => $id,
@@ -716,6 +743,9 @@ final class AgentAdminDisplay implements IDisplay {
                         'policy' => $policyId,
                         'policy_label' => $this->getPolicyLabel($policyId),
                         'policy_data_text' => $this->formatPolicyDataText($policyData),
+                        'agent_runtime' => trim((string)($values['agent_runtime'] ?? '')),
+                        'agent_provider' => trim((string)($runtimeSummary['provider'] ?? '')),
+                        'agent_model' => trim((string)($runtimeSummary['model'] ?? '')),
                         'orchestrator_profile' => $orchestratorProfile !== '' ? $orchestratorProfile : 'standard',
                         'memory_profile' => $memoryProfile,
                         'tool_profile_count' => count($toolProfiles),
@@ -778,7 +808,8 @@ final class AgentAdminDisplay implements IDisplay {
                         'label',
                         'enabled_label',
                         'policy_label',
-                        'llm',
+                        'agent_runtime',
+                        'agent_model',
                         'tool_profile_count',
                         'component_count',
                         'user_prompt_preview'
@@ -826,7 +857,7 @@ final class AgentAdminDisplay implements IDisplay {
 
                 $out = [];
 
-                foreach(['enabled', 'policy', 'llm'] as $key) {
+                foreach(['enabled', 'policy', 'model'] as $key) {
                         if(!array_key_exists($key, $filters) || $filters[$key] === null || $filters[$key] === '') {
                                 continue;
                         }
@@ -856,7 +887,9 @@ final class AgentAdminDisplay implements IDisplay {
                                 (string)($row['enabled_label'] ?? ''),
                                 (string)($row['policy'] ?? ''),
                                 (string)($row['policy_label'] ?? ''),
-                                (string)($row['llm'] ?? ''),
+                                (string)($row['agent_runtime'] ?? ''),
+                                (string)($row['agent_provider'] ?? ''),
+                                (string)($row['agent_model'] ?? ''),
                                 (string)($row['orchestrator_profile'] ?? ''),
                                 (string)($row['memory_profile'] ?? ''),
                                 (string)($row['tool_profile_text'] ?? ''),
@@ -897,8 +930,11 @@ final class AgentAdminDisplay implements IDisplay {
                                 continue;
                         }
 
-                        if(isset($filters['llm']) && str_contains($this->toLower((string)($row['llm'] ?? '')), $this->toLower((string)$filters['llm'])) === false) {
-                                continue;
+                        if(isset($filters['model'])) {
+                                $modelText = trim((string)($row['agent_provider'] ?? '') . ' ' . (string)($row['agent_model'] ?? ''));
+                                if(str_contains($this->toLower($modelText), $this->toLower((string)$filters['model'])) === false) {
+                                        continue;
+                                }
                         }
 
                         $result[] = $row;
@@ -1315,6 +1351,59 @@ final class AgentAdminDisplay implements IDisplay {
                 }
 
                 return substr($value, 0, max(0, $maxLength - 3)) . '...';
+        }
+
+        private function redactSensitiveData(mixed $value, string $key = ''): mixed {
+                if($this->isSensitiveSettingsKey($key)) {
+                        return '[redacted]';
+                }
+
+                if(!is_array($value)) {
+                        return $value;
+                }
+
+                $result = [];
+
+                foreach($value as $childKey => $childValue) {
+                        $result[$childKey] = $this->redactSensitiveData($childValue, (string)$childKey);
+                }
+
+                return $result;
+        }
+
+        private function isSensitiveSettingsKey(string $key): bool {
+                $key = trim(strtolower(preg_replace('/[^a-z0-9]+/i', '_', $key) ?? $key), '_');
+
+                if($key === '') {
+                        return false;
+                }
+
+                if(in_array($key, [
+                        'password',
+                        'passwd',
+                        'secret',
+                        'token',
+                        'api_key',
+                        'apikey',
+                        'authorization',
+                        'credential',
+                        'credentials',
+                        'private_key',
+                        'client_secret',
+                        'access_token',
+                        'auth_token',
+                        'bearer_token'
+                ], true)) {
+                        return true;
+                }
+
+                foreach(['_password', '_passwd', '_secret', '_api_key', '_private_key', '_access_token', '_auth_token', '_bearer_token'] as $suffix) {
+                        if(str_ends_with($key, $suffix)) {
+                                return true;
+                        }
+                }
+
+                return false;
         }
 
         private function encodePrettyJson(mixed $value): string {

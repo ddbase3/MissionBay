@@ -25,7 +25,7 @@ use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\Worker\Api\IJobExecutionPolicy;
 use JsonException;
-use MissionBay\Api\IAgentConfigFormService;
+use AssistantFoundation\Api\IAgentConfigFormService;
 use Throwable;
 
 class AgentConfigDisplay implements IDisplay {

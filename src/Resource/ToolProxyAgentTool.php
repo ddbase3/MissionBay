@@ -19,6 +19,7 @@ namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentTool;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantRuntime\Service\AgentEventDispatcher;
 use MissionBay\Agent\AgentNodeDock;
 
 class ToolProxyAgentTool extends AbstractAgentResource implements IAgentTool {
@@ -636,10 +637,10 @@ class ToolProxyAgentTool extends AbstractAgentResource implements IAgentTool {
 	}
 
 	private function emitSubtoolEvent(IAgentContext $context, string $event, array $payload): void {
-		$stream = $context->getVar('eventstream');
-
-		if (is_object($stream) && method_exists($stream, 'push')) {
-			$stream->push($event, $payload);
-		}
+		AgentEventDispatcher::emit(
+			AgentEventDispatcher::fromContext($context),
+			$event,
+			$payload
+		);
 	}
 }

@@ -19,6 +19,7 @@ namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentTool;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantRuntime\Service\AgentEventDispatcher;
 
 /**
  * CanvasCloseAgentTool
@@ -67,20 +68,18 @@ class CanvasCloseAgentTool extends AbstractAgentResource implements IAgentTool {
 		$canvasId = trim((string)($arguments['canvas_id'] ?? 'main'));
 		if ($canvasId === '') $canvasId = 'main';
 
-		$stream = $context->getVar('eventstream');
-		if (!$stream) {
+		$eventSink = AgentEventDispatcher::fromContext($context);
+		if ($eventSink === null) {
 			return [
 				'ok' => false,
-				'error' => 'Missing eventstream in context.'
+				'error' => 'Missing agent event sink in context.'
 			];
 		}
 
 		try {
-			if (!$stream->isDisconnected()) {
-				$stream->push('canvas.close', [
-					'id' => $canvasId
-				]);
-			}
+			AgentEventDispatcher::emit($eventSink, 'canvas.close', [
+				'id' => $canvasId
+			]);
 		} catch (\Throwable $e) {
 			return [
 				'ok' => false,

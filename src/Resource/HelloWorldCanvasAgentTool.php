@@ -19,6 +19,7 @@ namespace MissionBay\Resource;
 
 use MissionBay\Api\IAgentTool;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantRuntime\Service\AgentEventDispatcher;
 
 class HelloWorldCanvasAgentTool extends AbstractAgentResource implements IAgentTool {
 
@@ -76,11 +77,11 @@ class HelloWorldCanvasAgentTool extends AbstractAgentResource implements IAgentT
 		$open = filter_var($open, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
 		if ($open === null) $open = true;
 
-		$stream = $context->getVar('eventstream');
-		if (!$stream) {
+		$eventSink = AgentEventDispatcher::fromContext($context);
+		if ($eventSink === null) {
 			return [
 				'ok' => false,
-				'error' => 'Missing eventstream in context.'
+				'error' => 'Missing agent event sink in context.'
 			];
 		}
 
@@ -98,22 +99,20 @@ class HelloWorldCanvasAgentTool extends AbstractAgentResource implements IAgentT
 		];
 
 		try {
-			if ($open && !$stream->isDisconnected()) {
-				$stream->push('canvas.open', [
+			if ($open) {
+				AgentEventDispatcher::emit($eventSink, 'canvas.open', [
 					'id' => $canvasId,
 					'title' => $title,
 					'focus' => true
 				]);
 			}
 
-			if (!$stream->isDisconnected()) {
-				$stream->push('canvas.render', [
-					'id' => $canvasId,
-					'mode' => 'replace',
-					'title' => $title,
-					'blocks' => $blocks
-				]);
-			}
+			AgentEventDispatcher::emit($eventSink, 'canvas.render', [
+				'id' => $canvasId,
+				'mode' => 'replace',
+				'title' => $title,
+				'blocks' => $blocks
+			]);
 		} catch (\Throwable $e) {
 			return [
 				'ok' => false,

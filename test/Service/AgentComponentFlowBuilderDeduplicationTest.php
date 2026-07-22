@@ -59,7 +59,7 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 		return [
 			'nodes' => [[
 				'id' => 'assistant',
-				'type' => 'streamingaiassistantnode'
+				'type' => 'aiassistantnode'
 			]],
 			'resources' => [],
 			'connections' => []

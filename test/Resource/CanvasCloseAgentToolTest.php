@@ -5,6 +5,8 @@ namespace MissionBay\Resource\Test;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\CanvasCloseAgentTool;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
+use AssistantFoundation\Dto\AgentExecutionEvent;
 use MissionBay\Api\IAgentTool;
 use AssistantFoundation\Api\IAgentMemory;
 
@@ -61,7 +63,7 @@ class CanvasCloseAgentToolTest extends TestCase {
 		$tool->callTool('no', [], $context);
 	}
 
-	public function testCallToolReturnsErrorIfEventStreamMissing(): void {
+	public function testCallToolReturnsErrorIfEventSinkMissing(): void {
 		$tool = new CanvasCloseAgentTool('id1');
 		$context = new AgentContextStub(null);
 
@@ -69,12 +71,12 @@ class CanvasCloseAgentToolTest extends TestCase {
 
 		$this->assertSame([
 			'ok' => false,
-			'error' => 'Missing eventstream in context.'
+			'error' => 'Missing agent event sink in context.'
 		], $result);
 	}
 
 	public function testCallToolUsesDefaultCanvasIdMainIfNotProvided(): void {
-		$stream = new EventStreamStub();
+		$stream = new AgentEventSinkStub();
 		$context = new AgentContextStub($stream);
 
 		$tool = new CanvasCloseAgentTool('id1');
@@ -86,7 +88,7 @@ class CanvasCloseAgentToolTest extends TestCase {
 	}
 
 	public function testCallToolTrimsCanvasIdAndFallsBackToMainOnEmptyString(): void {
-		$stream = new EventStreamStub();
+		$stream = new AgentEventSinkStub();
 		$context = new AgentContextStub($stream);
 
 		$tool = new CanvasCloseAgentTool('id1');
@@ -98,7 +100,7 @@ class CanvasCloseAgentToolTest extends TestCase {
 	}
 
 	public function testCallToolPushesCanvasCloseIfConnected(): void {
-		$stream = new EventStreamStub();
+		$stream = new AgentEventSinkStub();
 		$context = new AgentContextStub($stream);
 
 		$tool = new CanvasCloseAgentTool('id1');
@@ -111,7 +113,7 @@ class CanvasCloseAgentToolTest extends TestCase {
 	}
 
 	public function testCallToolDoesNotPushIfDisconnectedButStillReturnsOk(): void {
-		$stream = new EventStreamStub();
+		$stream = new AgentEventSinkStub();
 		$stream->disconnected = true;
 
 		$context = new AgentContextStub($stream);
@@ -125,7 +127,7 @@ class CanvasCloseAgentToolTest extends TestCase {
 	}
 
 	public function testCallToolReturnsErrorIfPushThrows(): void {
-		$stream = new EventStreamStub();
+		$stream = new AgentEventSinkStub();
 		$stream->throwOnPush = true;
 
 		$context = new AgentContextStub($stream);
@@ -151,9 +153,11 @@ class AgentContextStub implements IAgentContext {
 	private IAgentMemory $memory;
 
 	public function __construct(
-		private mixed $eventStream
+		private ?IAgentEventSink $eventSink
 	) {
-		$this->vars['eventstream'] = $eventStream;
+		if ($eventSink !== null) {
+			$this->vars[IAgentEventSink::CONTEXT_KEY] = $eventSink;
+		}
 		$this->memory = new AgentMemoryStub();
 	}
 
@@ -219,9 +223,9 @@ class AgentMemoryStub implements IAgentMemory {
 }
 
 /**
- * A tiny eventstream stub matching the methods used by CanvasCloseAgentTool.
+ * A recording event sink used by CanvasCloseAgentTool tests.
  */
-class EventStreamStub {
+class AgentEventSinkStub implements IAgentEventSink {
 
 	public bool $disconnected = false;
 	public bool $throwOnPush = false;
@@ -229,15 +233,15 @@ class EventStreamStub {
 	/** @var array<int, array{0:string,1:array<string,mixed>}> */
 	public array $pushed = [];
 
-	public function isDisconnected(): bool {
-		return $this->disconnected;
-	}
-
-	public function push(string $event, array $payload): void {
+	public function emit(AgentExecutionEvent $event): void {
 		if ($this->throwOnPush) {
 			throw new \RuntimeException('push failed');
 		}
-		$this->pushed[] = [$event, $payload];
+		$this->pushed[] = [$event->getName(), $event->getPayload()];
+	}
+
+	public function isCancelled(): bool {
+		return $this->disconnected;
 	}
 
 }

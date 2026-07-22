@@ -238,7 +238,12 @@
                         </div>
                 </div>
         </div>
-<?php include DIR_PLUGIN . 'MissionBay/tpl/Content/AgentConfigFormSection.php'; ?>
+<?php
+        $agentConfigTemplate = (string)($this->_['agent_config_template'] ?? '');
+        if ($agentConfigTemplate !== '' && is_file($agentConfigTemplate)) {
+                include $agentConfigTemplate;
+        }
+?>
 </div>
 
 <script>

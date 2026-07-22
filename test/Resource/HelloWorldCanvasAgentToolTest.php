@@ -5,6 +5,8 @@ namespace Test\Resource;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\HelloWorldCanvasAgentTool;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
+use AssistantFoundation\Dto\AgentExecutionEvent;
 use AssistantFoundation\Api\IAgentMemory;
 
 /**
@@ -92,26 +94,29 @@ class HelloWorldCanvasAgentToolTest extends TestCase {
 		};
 	}
 
-	private function makeFakeStream(bool $disconnected = false, bool $throwOnPush = false): object {
-		return new class($disconnected, $throwOnPush) {
+	private function makeFakeSink(bool $cancelled = false, bool $throwOnEmit = false): object {
+		return new class($cancelled, $throwOnEmit) implements IAgentEventSink {
 			public array $events = [];
-			private bool $disconnected;
-			private bool $throwOnPush;
+			private bool $cancelled;
+			private bool $throwOnEmit;
 
-			public function __construct(bool $disconnected, bool $throwOnPush) {
-				$this->disconnected = $disconnected;
-				$this->throwOnPush = $throwOnPush;
+			public function __construct(bool $cancelled, bool $throwOnEmit) {
+				$this->cancelled = $cancelled;
+				$this->throwOnEmit = $throwOnEmit;
 			}
 
-			public function isDisconnected(): bool {
-				return $this->disconnected;
-			}
-
-			public function push(string $event, array $data): void {
-				if ($this->throwOnPush) {
+			public function emit(AgentExecutionEvent $event): void {
+				if ($this->throwOnEmit) {
 					throw new \RuntimeException('push failed');
 				}
-				$this->events[] = ['event' => $event, 'data' => $data];
+				$this->events[] = [
+					'event' => $event->getName(),
+					'data' => $event->getPayload()
+				];
+			}
+
+			public function isCancelled(): bool {
+				return $this->cancelled;
 			}
 		};
 	}
@@ -156,22 +161,22 @@ class HelloWorldCanvasAgentToolTest extends TestCase {
 		$t->callTool('no_such_tool', [], $ctx);
 	}
 
-	public function testCallToolReturnsErrorWhenEventstreamMissing(): void {
+	public function testCallToolReturnsErrorWhenEventSinkMissing(): void {
 		$t = new HelloWorldCanvasAgentTool('t3');
-		$ctx = $this->makeContext([]); // no eventstream
+		$ctx = $this->makeContext([]);
 
 		$res = $t->callTool('hello_world_canvas', [], $ctx);
 
 		$this->assertIsArray($res);
 		$this->assertSame(false, $res['ok'] ?? null);
-		$this->assertSame('Missing eventstream in context.', $res['error'] ?? null);
+		$this->assertSame('Missing agent event sink in context.', $res['error'] ?? null);
 	}
 
 	public function testCallToolNormalizesArgumentsAndPushesOpenAndRender(): void {
 		$t = new HelloWorldCanvasAgentTool('t4');
 
-		$stream = $this->makeFakeStream(false, false);
-		$ctx = $this->makeContext(['eventstream' => $stream]);
+		$sink = $this->makeFakeSink(false, false);
+		$ctx = $this->makeContext([IAgentEventSink::CONTEXT_KEY => $sink]);
 
 		$res = $t->callTool('hello_world_canvas', [
 			'canvas_id' => '  myCanvas  ',
@@ -182,15 +187,15 @@ class HelloWorldCanvasAgentToolTest extends TestCase {
 		$this->assertSame(true, $res['ok'] ?? null);
 		$this->assertSame('myCanvas', $res['canvas_id'] ?? null);
 
-		$this->assertCount(2, $stream->events);
+		$this->assertCount(2, $sink->events);
 
-		$this->assertSame('canvas.open', $stream->events[0]['event']);
-		$this->assertSame('myCanvas', $stream->events[0]['data']['id'] ?? null);
-		$this->assertSame('My Title', $stream->events[0]['data']['title'] ?? null);
-		$this->assertSame(true, $stream->events[0]['data']['focus'] ?? null);
+		$this->assertSame('canvas.open', $sink->events[0]['event']);
+		$this->assertSame('myCanvas', $sink->events[0]['data']['id'] ?? null);
+		$this->assertSame('My Title', $sink->events[0]['data']['title'] ?? null);
+		$this->assertSame(true, $sink->events[0]['data']['focus'] ?? null);
 
-		$this->assertSame('canvas.render', $stream->events[1]['event']);
-		$render = $stream->events[1]['data'];
+		$this->assertSame('canvas.render', $sink->events[1]['event']);
+		$render = $sink->events[1]['data'];
 		$this->assertSame('myCanvas', $render['id'] ?? null);
 		$this->assertSame('replace', $render['mode'] ?? null);
 		$this->assertSame('My Title', $render['title'] ?? null);
@@ -209,8 +214,8 @@ class HelloWorldCanvasAgentToolTest extends TestCase {
 	public function testCallToolDefaultsCanvasIdAndTitleWhenEmptyAndOpenParsesToFalse(): void {
 		$t = new HelloWorldCanvasAgentTool('t5');
 
-		$stream = $this->makeFakeStream(false, false);
-		$ctx = $this->makeContext(['eventstream' => $stream]);
+		$sink = $this->makeFakeSink(false, false);
+		$ctx = $this->makeContext([IAgentEventSink::CONTEXT_KEY => $sink]);
 
 		$res = $t->callTool('hello_world_canvas', [
 			'canvas_id' => '   ',
@@ -221,30 +226,30 @@ class HelloWorldCanvasAgentToolTest extends TestCase {
 		$this->assertSame(true, $res['ok'] ?? null);
 		$this->assertSame('main', $res['canvas_id'] ?? null);
 
-		$this->assertCount(1, $stream->events);
-		$this->assertSame('canvas.render', $stream->events[0]['event']);
-		$this->assertSame('main', $stream->events[0]['data']['id'] ?? null);
-		$this->assertSame('Hello Canvas', $stream->events[0]['data']['title'] ?? null);
+		$this->assertCount(1, $sink->events);
+		$this->assertSame('canvas.render', $sink->events[0]['event']);
+		$this->assertSame('main', $sink->events[0]['data']['id'] ?? null);
+		$this->assertSame('Hello Canvas', $sink->events[0]['data']['title'] ?? null);
 	}
 
 	public function testCallToolDoesNotPushWhenDisconnected(): void {
 		$t = new HelloWorldCanvasAgentTool('t6');
 
-		$stream = $this->makeFakeStream(true, false);
-		$ctx = $this->makeContext(['eventstream' => $stream]);
+		$sink = $this->makeFakeSink(true, false);
+		$ctx = $this->makeContext([IAgentEventSink::CONTEXT_KEY => $sink]);
 
 		$res = $t->callTool('hello_world_canvas', [], $ctx);
 
 		$this->assertSame(true, $res['ok'] ?? null);
 		$this->assertSame('main', $res['canvas_id'] ?? null);
-		$this->assertCount(0, $stream->events);
+		$this->assertCount(0, $sink->events);
 	}
 
 	public function testCallToolReturnsErrorWhenPushThrows(): void {
 		$t = new HelloWorldCanvasAgentTool('t7');
 
-		$stream = $this->makeFakeStream(false, true);
-		$ctx = $this->makeContext(['eventstream' => $stream]);
+		$sink = $this->makeFakeSink(false, true);
+		$ctx = $this->makeContext([IAgentEventSink::CONTEXT_KEY => $sink]);
 
 		$res = $t->callTool('hello_world_canvas', [], $ctx);
 

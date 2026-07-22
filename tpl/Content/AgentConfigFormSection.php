@@ -1,5 +1,7 @@
 <?php
-$agentConfigForm = is_array($this->_['agent_config_form'] ?? null) ? $this->_['agent_config_form'] : [];
+$agentConfigForm = is_array($runtimeAgentConfigForm ?? null)
+	? $runtimeAgentConfigForm
+	: (is_array($this->_['agent_config_form'] ?? null) ? $this->_['agent_config_form'] : []);
 $values = is_array($agentConfigForm['values'] ?? null) ? $agentConfigForm['values'] : [];
 $llmOptions = is_array($agentConfigForm['llm_options'] ?? null) ? $agentConfigForm['llm_options'] : [];
 $orchestratorProfiles = is_array($agentConfigForm['orchestrator_profile_options'] ?? null) ? $agentConfigForm['orchestrator_profile_options'] : [];
@@ -49,7 +51,7 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 @media(max-width:700px){ .base3-agent-config-row,.base3-agent-config-grid,.base3-agent-config-component-row{display:block}.base3-agent-config-label{display:block;padding:0;margin:0 0 5px}.base3-agent-config-component-row>*{margin-bottom:7px} }
 </style>
 
-<div id="<?php echo $e($rootId); ?>" class="base3-agent-config-root" data-base3-agent-config-root="1">
+<div id="<?php echo $e($rootId); ?>" class="base3-agent-config-root" data-base3-agent-runtime-config-root="missionbay">
 	<div class="base3-agent-config-section">
 		<h3>Model and instructions</h3>
 		<div class="base3-agent-config-row">
@@ -116,6 +118,19 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 		</div>
 	</div>
 
+
+	<div class="base3-agent-config-section">
+		<h3>AgentFlow</h3>
+		<div class="base3-agent-config-row">
+			<label class="base3-agent-config-label" for="<?php echo $e($formId); ?>_agent_flow">Flow JSON</label>
+			<div>
+				<textarea id="<?php echo $e($formId); ?>_agent_flow" name="agent_flow" class="base3-agent-config-agent-flow"><?php echo $e($values['agent_flow_json']??'{}'); ?></textarea>
+				<input type="hidden" name="agent_flow_b64" data-agent-flow-b64 value="">
+				<p class="base3-agent-config-help">Required MissionBay flow definition. It must contain at least one node.</p>
+			</div>
+		</div>
+	</div>
+
 	<details class="base3-agent-config-expert"<?php echo !empty($values['expert_overrides_enabled']) ? ' open="open"' : ''; ?>>
 		<summary>Expert / legacy configuration</summary>
 		<div class="base3-agent-config-expert-body">
@@ -151,9 +166,6 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 			<input type="hidden" name="agent_components_json" data-agent-components-json value="[]">
 			<input type="hidden" name="agent_components_json_b64" data-agent-components-b64 value="">
 
-			<h4>Raw AgentFlow</h4>
-			<textarea name="agent_flow" class="base3-agent-config-agent-flow"><?php echo $e($values['agent_flow_json']??'{}'); ?></textarea>
-			<input type="hidden" name="agent_flow_b64" data-agent-flow-b64 value="">
 		</div>
 	</details>
 
@@ -210,10 +222,9 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 	function buildExport(){var config=currentAgentConfig();var memoryProfile=resolveMemoryProfile(config.memory_profile);var contextProfile=resolveContextProfile(config.context_profile);var effectiveLlmId=config.llm;var flowResources=config.agent_flow&&Array.isArray(config.agent_flow.resources)?config.agent_flow.resources:[];if(!effectiveLlmId){flowResources.some(function(resource){if(String(resource.type||'')!=='configuredchatmodelagentresource')return false;var service=resource.config&&resource.config.service?resource.config.service:null;if(service&&typeof service==='object'&&service.mode==='fixed')effectiveLlmId=String(service.value||'');return effectiveLlmId!==''})}var identity={kind:outerFieldValue(['chatbot_config_group'])?'chatbot':'agent',settings_group:outerFieldValue(['chatbot_config_group','agent_config_group'])||'agent',settings_name:outerFieldValue(['chatbot_config_name','agent_id','agent_config_name'])||'',instance_hint:outerFieldValue(['chatbot_config_name','agent_id','agent_config_name'])||''};var resolved={llm:clone(catalogRecord('llm_settings',effectiveLlmId)),orchestrator_profile:clone(catalogRecord('orchestrator_profiles',config.orchestrator_profile)),tool_profiles:resolveToolProfiles(config.tool_profiles),memory_profile:memoryProfile,context_profile:contextProfile,direct_components:resolveDirectComponents(config.agent_components)};return redact({schema:'missionbay-agent-configuration-export',schema_version:1,exported_at:new Date().toISOString(),identity:identity,agent_config:config,resolved:resolved,diagnostics:{warnings:memoryWarnings(memoryProfile)},form_values_flat:readFlatFormValues()},'');}
 	async function copyText(text){if(navigator.clipboard&&typeof navigator.clipboard.writeText==='function'){await navigator.clipboard.writeText(text);return}var area=document.createElement('textarea');area.value=text;area.setAttribute('readonly','readonly');area.style.position='fixed';area.style.left='-9999px';document.body.appendChild(area);area.select();var ok=document.execCommand('copy');document.body.removeChild(area);if(!ok)throw new Error('Clipboard copy was rejected by the browser.');}
 	var exportButton=root.querySelector('[data-agent-config-export]');var exportStatus=root.querySelector('[data-agent-config-export-status]');if(exportButton)exportButton.addEventListener('click',async function(){try{var payload=buildExport();await copyText(JSON.stringify(payload,null,2));var warningCount=payload.diagnostics&&Array.isArray(payload.diagnostics.warnings)?payload.diagnostics.warnings.length:0;if(exportStatus){exportStatus.dataset.state=warningCount>0?'warning':'ok';exportStatus.textContent='Complete configuration copied to clipboard'+(warningCount>0?' with '+String(warningCount)+' diagnostic warning(s).':'.')}}catch(error){if(exportStatus){exportStatus.dataset.state='error';exportStatus.textContent='Export failed: '+String(error&&error.message?error.message:error)}}});
-	root.__base3AgentConfigBuildExport=buildExport;
 	function setValue(name,value){var fields=root.querySelectorAll('[name="'+name.replace(/"/g,'\\"')+'"]');fields.forEach(function(f){if(f.type==='checkbox'){f.checked=!!value}else{f.value=value==null?'':String(value)}})}
 	function setMulti(name,values){var f=root.querySelector('select[multiple][name="'+name.replace(/"/g,'\\"')+'"]');if(!f)return;values=Array.isArray(values)?values.map(String):[];Array.prototype.forEach.call(f.options,function(o){o.selected=values.indexOf(String(o.value))!==-1})}
-	root.__base3AgentConfigUpdateValues=function(v){if(!v||typeof v!=='object')return;setValue('llm',v.llm||'');setValue('system_prompt',v.system_prompt||'');setValue('orchestrator_profile',v.orchestrator_profile||'standard');setMulti('tool_profiles[]',v.tool_profiles||[]);setValue('memory_profile',v.memory_profile||'');setValue('context_profile',v.context_profile||'');setValue('expert_overrides_enabled',!!v.expert_overrides_enabled);var flow=root.querySelector('[name="agent_flow"]');if(flow)flow.value=v.agent_flow_json||'{}';renderComponents(v.agent_components||[]);var src=v.capability_sources||{};['tools','providers','modules','resourceProviders','promptProviders'].forEach(function(k){setMulti('capability_sources['+k+'][]',src[k]||[])});var sel=v.capability_selection||{};setValue('capability_selection[strategy]',sel.strategy||'hybrid');setValue('capability_selection[max_tools]',sel.max_tools==null?16:sel.max_tools);setValue('capability_selection[select_all_threshold]',sel.select_all_threshold==null?16:sel.select_all_threshold);['include_tools','exclude_tools','include_tags','exclude_tags','include_categories','exclude_categories','always_available'].forEach(function(k){setValue('capability_selection['+k+']',Array.isArray(sel[k])?sel[k].join('\n'):'')});updateSummary();sync()};
-	root.__base3AgentConfigPrepareSubmit=function(){sync();return true};
+	root.__base3AgentRuntimeConfigUpdateValues=function(v){if(!v||typeof v!=='object')return;setValue('llm',v.llm||'');setValue('system_prompt',v.system_prompt||'');setValue('orchestrator_profile',v.orchestrator_profile||'standard');setMulti('tool_profiles[]',v.tool_profiles||[]);setValue('memory_profile',v.memory_profile||'');setValue('context_profile',v.context_profile||'');setValue('expert_overrides_enabled',!!v.expert_overrides_enabled);var flow=root.querySelector('[name="agent_flow"]');if(flow)flow.value=v.agent_flow_json||'{}';renderComponents(v.agent_components||[]);var src=v.capability_sources||{};['tools','providers','modules','resourceProviders','promptProviders'].forEach(function(k){setMulti('capability_sources['+k+'][]',src[k]||[])});var sel=v.capability_selection||{};setValue('capability_selection[strategy]',sel.strategy||'hybrid');setValue('capability_selection[max_tools]',sel.max_tools==null?16:sel.max_tools);setValue('capability_selection[select_all_threshold]',sel.select_all_threshold==null?16:sel.select_all_threshold);['include_tools','exclude_tools','include_tags','exclude_tags','include_categories','exclude_categories','always_available'].forEach(function(k){setValue('capability_selection['+k+']',Array.isArray(sel[k])?sel[k].join('\n'):'')});updateSummary();sync()};
+	root.__base3AgentRuntimeConfigPrepareSubmit=function(){sync();return true};
 })();
 </script>

@@ -20,11 +20,10 @@ namespace MissionBay\Service;
 use Base3\Api\IClassMap;
 use Base3\Api\IComponent;
 use Base3\Api\IComponentResolver;
-use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\Settings\Api\ISettingsStore;
 use JsonException;
-use MissionBay\Api\IAgentConfigFormService;
+use AssistantFoundation\Api\IAgentRuntimeConfigFormService;
 use AssistantFoundation\Api\IAgentCapabilityProvider;
 use AssistantFoundation\Api\IAgentModule;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
@@ -42,7 +41,7 @@ use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 use Throwable;
 
-class AgentConfigFormService implements IAgentConfigFormService {
+class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 	protected const LLM_SETTINGS_GROUP = 'service-llm';
 	protected const AGENT_COMPONENT_PRESET_GROUP = 'agent-component-preset';
@@ -61,9 +60,17 @@ class AgentConfigFormService implements IAgentConfigFormService {
 		private readonly IComponentResolver $componentResolver,
 		private readonly AgentOrchestratorProfileRepository $orchestratorProfileRepository,
 		private readonly AgentToolProfileResolver $toolProfileResolver,
-		private readonly ?AgentMemoryProfileResolver $memoryProfileResolver = null,
-		private readonly ?AgentContextProfileResolver $contextProfileResolver = null
+		private readonly AgentMemoryProfileResolver $memoryProfileResolver,
+		private readonly AgentContextProfileResolver $contextProfileResolver
 	) {}
+
+	public static function getName(): string {
+		return 'missionbayagentconfigformservice';
+	}
+
+	public static function getRuntimeId(): string {
+		return 'missionbay';
+	}
 
 	// ---------------------------------------------------------------------
 	// Defaults and request handling
@@ -138,41 +145,35 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 		$memoryProfile = $this->normalizeTechnicalKey((string)$this->request->request('memory_profile', ''));
 		if ($memoryProfile !== '') {
-			if (!$this->memoryProfileResolver instanceof AgentMemoryProfileResolver) {
-				$errors[] = 'Memory profiles are not available in this runtime.';
+			try {
+				$profile = $this->memoryProfileResolver->getProfile($memoryProfile);
+				if (empty($profile['enabled'])) {
+					$errors[] = 'Selected memory profile is disabled: ' . $memoryProfile;
+				}
 			}
-			else {
-				try {
-					$profile = $this->memoryProfileResolver->getProfile($memoryProfile);
-					if (empty($profile['enabled'])) {
-						$errors[] = 'Selected memory profile is disabled: ' . $memoryProfile;
-					}
-				}
-				catch (\Throwable $e) {
-					$errors[] = 'Selected memory profile is not available: ' . $memoryProfile . ' (' . $e->getMessage() . ')';
-				}
+			catch (\Throwable $e) {
+				$errors[] = 'Selected memory profile is not available: ' . $memoryProfile . ' (' . $e->getMessage() . ')';
 			}
 		}
 
 		$contextProfile = $this->normalizeTechnicalKey((string)$this->request->request('context_profile', ''));
 		if ($contextProfile !== '') {
-			if (!$this->contextProfileResolver instanceof AgentContextProfileResolver) {
-				$errors[] = 'Context profiles are not available in this runtime.';
+			try {
+				$profile = $this->contextProfileResolver->getProfile($contextProfile);
+				if (empty($profile['enabled'])) {
+					$errors[] = 'Selected context profile is disabled: ' . $contextProfile;
+				}
 			}
-			else {
-				try {
-					$profile = $this->contextProfileResolver->getProfile($contextProfile);
-					if (empty($profile['enabled'])) {
-						$errors[] = 'Selected context profile is disabled: ' . $contextProfile;
-					}
-				}
-				catch (\Throwable $e) {
-					$errors[] = 'Selected context profile is not available: ' . $contextProfile . ' (' . $e->getMessage() . ')';
-				}
+			catch (\Throwable $e) {
+				$errors[] = 'Selected context profile is not available: ' . $contextProfile . ' (' . $e->getMessage() . ')';
 			}
 		}
 
 		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
+
+		if (!$this->hasUsableAgentFlow($agentFlow)) {
+			$errors[] = 'MissionBay AgentFlow configuration must contain at least one node.';
+		}
 
 		if ($errors === [] && $llm !== '') {
 			$agentFlow = $this->applyLlmToAgentFlow($agentFlow, $llm);
@@ -237,7 +238,6 @@ class AgentConfigFormService implements IAgentConfigFormService {
 		$contextProfile = $this->normalizeTechnicalKey((string)($settings['context_profile'] ?? $defaults['context_profile']));
 
 		if ($contextProfile === '' && $memoryProfile !== ''
-			&& $this->contextProfileResolver instanceof AgentContextProfileResolver
 			&& $this->contextProfileResolver->hasProfile($memoryProfile)) {
 			$contextProfile = $memoryProfile;
 		}
@@ -275,30 +275,38 @@ class AgentConfigFormService implements IAgentConfigFormService {
 		];
 	}
 
-	public function assignViewData(IMvcView $view, array $values, array $options = []): void {
+	public function getConfigurationSummary(array $settings): array {
+		$settings = $this->normalizeSettings($settings);
+
+		return [
+			'provider' => 'MissionBay',
+			'model' => (string)$settings['llm']
+		];
+	}
+
+	public function getTemplate(): string {
+		return DIR_PLUGIN . 'MissionBay/tpl/Content/AgentConfigFormSection.php';
+	}
+
+	public function getTemplateData(array $values, array $options = []): array {
 		$formId = trim((string)($options['form_id'] ?? 'base3_agent_config'));
 
 		if ($formId === '') {
 			$formId = 'base3_agent_config';
 		}
 
-		$view->assign('agent_config_template', DIR_PLUGIN . 'MissionBay/tpl/Content/AgentConfigFormSection.php');
-		$view->assign('agent_config_form', [
+		return [
 			'form_id' => $formId,
 			'values' => $values,
 			'llm_options' => $this->listLlmOptions(),
 			'orchestrator_profile_options' => $this->orchestratorProfileRepository->getOptions(),
 			'tool_profile_options' => $this->toolProfileResolver->getOptions(),
-			'memory_profile_options' => $this->memoryProfileResolver instanceof AgentMemoryProfileResolver
-				? $this->memoryProfileResolver->getOptions()
-				: [],
-			'context_profile_options' => $this->contextProfileResolver instanceof AgentContextProfileResolver
-				? $this->contextProfileResolver->getOptions()
-				: [],
+			'memory_profile_options' => $this->memoryProfileResolver->getOptions(),
+			'context_profile_options' => $this->contextProfileResolver->getOptions(),
 			'agent_component_presets' => $this->listAgentComponentPresetOptions(),
 			'capability_component_options' => $this->listCapabilityComponentOptions(),
 			'export_catalog' => $this->buildExportCatalog()
-		]);
+		];
 	}
 
 	/**
@@ -319,9 +327,7 @@ class AgentConfigFormService implements IAgentConfigFormService {
 			'llm_settings' => $this->normalizeExportGroup(self::LLM_SETTINGS_GROUP),
 			'orchestrator_profiles' => $orchestratorProfiles,
 			'tool_profiles' => $this->normalizeExportGroup(AgentToolProfileResolver::SETTINGS_GROUP),
-			'memory_profiles' => $this->memoryProfileResolver instanceof AgentMemoryProfileResolver
-				? $this->normalizeExportGroup(AgentMemoryProfileResolver::SETTINGS_GROUP)
-				: [],
+			'memory_profiles' => $this->normalizeExportGroup(AgentMemoryProfileResolver::SETTINGS_GROUP),
 			'context_profiles' => $this->normalizeContextProfileExportGroup(),
 			'component_presets' => $this->normalizeExportGroup(self::AGENT_COMPONENT_PRESET_GROUP)
 		]);
@@ -329,10 +335,6 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 	/** @return array<string,array<string,mixed>> */
 	protected function normalizeContextProfileExportGroup(): array {
-		if (!$this->contextProfileResolver instanceof AgentContextProfileResolver) {
-			return [];
-		}
-
 		$result = [];
 		foreach ($this->contextProfileResolver->getOptions() as $option) {
 			$id = $this->normalizeTechnicalKey((string)($option['id'] ?? ''));
@@ -1253,6 +1255,21 @@ class AgentConfigFormService implements IAgentConfigFormService {
 
 	protected function normalizeTextBlock(string $value): string {
 		return str_replace(["\r\n", "\r"], "\n", $value);
+	}
+
+	/** @param array<string,mixed> $flow */
+	protected function hasUsableAgentFlow(array $flow): bool {
+		if (!isset($flow['nodes']) || !is_array($flow['nodes']) || $flow['nodes'] === []) {
+			return false;
+		}
+
+		foreach ($flow['nodes'] as $node) {
+			if (is_array($node) && trim((string)($node['id'] ?? '')) !== '') {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	protected function normalizeTechnicalKey(string $value): string {

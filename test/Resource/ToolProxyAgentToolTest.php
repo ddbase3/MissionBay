@@ -4,6 +4,8 @@ namespace MissionBay\Test\Resource;
 
 use PHPUnit\Framework\TestCase;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
+use AssistantFoundation\Dto\AgentExecutionEvent;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Resource\ToolProxyAgentTool;
 
@@ -12,25 +14,29 @@ use MissionBay\Resource\ToolProxyAgentTool;
  */
 class ToolProxyAgentToolTest extends TestCase {
 
-	private function makeContextWithEventStream(array &$events): IAgentContext {
-		$stream = new class($events) {
+	private function makeContextWithEventSink(array &$events): IAgentContext {
+		$sink = new class($events) implements IAgentEventSink {
 			private array $events;
 
 			public function __construct(array &$events) {
 				$this->events = &$events;
 			}
 
-			public function push(string $event, array $payload): void {
-				$this->events[] = ['event' => $event, 'payload' => $payload];
+			public function emit(AgentExecutionEvent $event): void {
+				$this->events[] = [
+					'event' => $event->getName(),
+					'payload' => $event->getPayload()
+				];
+			}
+
+			public function isCancelled(): bool {
+				return false;
 			}
 		};
 
 		$context = $this->createStub(IAgentContext::class);
-		$context->method('getVar')->willReturnCallback(function (string $key) use ($stream): mixed {
-			if ($key === 'eventstream') {
-				return $stream;
-			}
-			return null;
+		$context->method('getVar')->willReturnCallback(function(string $key) use ($sink): mixed {
+			return $key === IAgentEventSink::CONTEXT_KEY ? $sink : null;
 		});
 
 		return $context;
@@ -212,7 +218,7 @@ class ToolProxyAgentToolTest extends TestCase {
 		$r = new ToolProxyAgentTool('x6');
 
 		$events = [];
-		$context = $this->makeContextWithEventStream($events);
+		$context = $this->makeContextWithEventSink($events);
 
 		$okTool = $this->makeTool('alpha', 'memory', ['prefs'], 10, ['worked' => true]);
 

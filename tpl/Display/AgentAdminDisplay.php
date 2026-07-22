@@ -447,7 +447,7 @@
 <div class="agent-admin-shell">
         <h1>Agent Admin</h1>
         <p>
-                Manage configured MissionBay agents that can be executed by worker timing policies. The editor uses the agent configuration form and stores records in SettingsStore group <code><?php echo $e($settingsGroup); ?></code>.
+                Manage configured agents and select their execution runtime. Worker timing policies use the same stored runtime selection. The editor stores records in SettingsStore group <code><?php echo $e($settingsGroup); ?></code>.
         </p>
 
 
@@ -507,7 +507,9 @@
                 label: 'string',
                 enabled_label: 'string',
                 policy_label: 'string',
-                llm: 'string',
+                agent_runtime: 'string',
+                agent_provider: 'string',
+                agent_model: 'string',
                 tool_profile_count: 'int',
                 component_count: 'int',
                 user_prompt_preview: 'string'
@@ -834,12 +836,14 @@
                 left.appendChild(createDetailRow('Enabled', record.enabled ? 'yes' : 'no'));
                 left.appendChild(createDetailRow('Policy', record.policy_label || record.policy));
                 left.appendChild(createDetailRow('Policy data', record.policy_data_text));
-                left.appendChild(createDetailRow('LLM', record.llm));
+                left.appendChild(createDetailRow('Agent runtime', record.agent_runtime));
+                left.appendChild(createDetailRow('Provider', record.agent_provider));
+                left.appendChild(createDetailRow('Model', record.agent_model));
                 left.appendChild(createDetailRow('Orchestrator profile', record.orchestrator_profile));
                 left.appendChild(createDetailRow('Tool profiles', record.tool_profile_text || 'none'));
                 left.appendChild(createDetailRow('Memory profile', record.memory_profile || 'none'));
 				left.appendChild(createDetailRow('Context profile', record.context_profile || 'none'));
-                left.appendChild(createDetailRow('Direct legacy components', record.component_count));
+                left.appendChild(createDetailRow('Direct components', record.component_count));
                 left.appendChild(createDetailRow('User prompt', record.user_prompt_preview));
 
                 right.appendChild(createElement('agent-admin-detail-title', 'Settings JSON'));
@@ -1199,15 +1203,11 @@
                 if (agentRoot && typeof agentRoot.__base3AgentConfigUpdateValues === 'function') {
                         try {
                                 agentRoot.__base3AgentConfigUpdateValues(values);
-                                log('agent config form helper updated values', { llm: values.llm || '', components: Array.isArray(values.agent_components) ? values.agent_components.length : 0 });
+                                log('agent runtime form helper updated values', { runtime: values.agent_runtime || '' });
                         } catch (error) {
-                                log('agent config form helper failed', error && error.message ? error.message : String(error));
+                                log('agent runtime form helper failed', error && error.message ? error.message : String(error));
                         }
                 }
-
-                setFormValue(form, 'llm', values.llm || '');
-                setFormValue(form, 'system_prompt', values.system_prompt || '');
-                setFormValue(form, 'agent_flow', values.agent_flow_json || '{}');
 
                 if (agentRoot && typeof agentRoot.__base3AgentConfigPrepareSubmit === 'function') {
                         try {
@@ -1553,13 +1553,20 @@
                                 user_prompt: elements.prompt.value || ''
                         });
 
-                        if (!response || !response.ok) {
-                                throw new Error(response && response.error ? response.error : 'Run failed.');
+                        if (!response) {
+                                throw new Error('Run failed without a response.');
                         }
 
                         renderRunnerResponse(elements, response);
-                        setRunnerStatus('Agent run finished.', 'ok');
-                        setLog('Agent run finished for ' + id + '.');
+                        if (!response.ok) {
+                                const message = String(response.result_text || response.flow_error || response.error || 'Run failed.');
+                                setRunnerStatus(message, 'error');
+                                setLog('Run failed for ' + id + ': ' + message);
+                                return;
+                        }
+
+                        setRunnerStatus('Agent response received.', 'ok');
+                        setLog('Agent response received for ' + id + '.');
                 } catch (error) {
                         const message = getText(error && error.message ? error.message : error);
                         elements.result.textContent = message;
@@ -1592,7 +1599,9 @@
                                 assistant_node_id: response.assistant_node_id || '',
                                 message: response.message || null,
                                 flow_error: response.flow_error || '',
+                                status: response.status || '',
                                 warnings: response.warnings || [],
+                                agent_result: response.agent_result || null,
                                 output: response.output || {}
                         });
                 }
@@ -1632,12 +1641,6 @@
                         } catch (error) {
                                 log('agent config prepare helper failed', error && error.message ? error.message : String(error));
                         }
-                }
-
-                const agentFlow = form.elements.namedItem('agent_flow');
-                const agentFlowB64 = form.querySelector('[data-base3-agent-config-agent-flow-b64]');
-                if (agentFlow && agentFlowB64) {
-                        agentFlowB64.value = encodeUtf8Base64(agentFlow.value || '{}');
                 }
 
                 if (nameField) {
@@ -2030,10 +2033,10 @@
                                                         options: POLICY_FILTER_OPTIONS
                                                 },
                                                 {
-                                                        key: 'llm',
-                                                        label: 'LLM',
+                                                        key: 'model',
+                                                        label: 'Provider / model',
                                                         type: 'text',
-                                                        placeholder: 'LLM',
+                                                        placeholder: 'Provider or model',
                                                         width: 220
                                                 }
                                         ]
@@ -2149,8 +2152,20 @@
                                         }
                                 },
                                 {
-                                        key: 'llm',
-                                        label: 'LLM',
+                                        key: 'agent_runtime',
+                                        label: 'Runtime',
+                                        width: 150,
+                                        headerMenu: {
+                                                defaultSortKey: 'agent_runtime',
+                                                defaultSortDirection: 'asc'
+                                        },
+                                        render(value) {
+                                                return renderPills(value);
+                                        }
+                                },
+                                {
+                                        key: 'agent_model',
+                                        label: 'Model',
                                         width: 180,
                                         render(value) {
                                                 return renderPills(value);

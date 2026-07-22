@@ -34,8 +34,8 @@ use Base3\Settings\Api\ISettingsStore;
 use Base3\State\Api\IStateStore;
 use Base3\Usermanager\Api\IUsermanager;
 use AssistantFoundation\Api\IAgentActionPolicy;
+use AssistantFoundation\Api\IAiModelConfigurationProvider;
 use AssistantFoundation\Api\IAgentCapabilitySelector;
-use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Api\IAgentToolResultCache;
@@ -63,11 +63,11 @@ use MissionBay\Api\IAgentAssistantTurnService;
 use MissionBay\Api\IAgentComponentFlowBuilder;
 use MissionBay\Api\IAgentComponentPresetMaterializer;
 use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentConfigFormService;
 use MissionBay\Api\IAgentMemoryRoleResolver;
 use MissionBay\Api\IAgentModelDecisionStrategyResolver;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
+use MissionBay\Api\IAgentFlowCompiler;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentRagPayloadNormalizer;
@@ -119,7 +119,9 @@ use MissionBay\Service\AgentComponentPresetMaterializer;
 use MissionBay\Service\AgentComponentPresetToolTestService;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\AgentConfigFormService;
+use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
 use MissionBay\Service\AgentExecutionService;
+use MissionBay\Service\AgentFlowCompiler;
 use MissionBay\Service\Assistant\AgentAssistantContextContributionService;
 use MissionBay\Service\Assistant\AgentAssistantFallbackBuilder;
 use MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
@@ -198,18 +200,21 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentComponentPresetRepository::class),
 				$c->get(IAgentResourceFactory::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentExecutionService::class, fn($c) => new AgentExecutionService(
-				$c->get(IAgentContextFactory::class),
-				$c->get(IAgentFlowFactory::class),
+			->set(IAgentFlowCompiler::class, fn($c) => new AgentFlowCompiler(
 				$c->get(IAgentComponentFlowBuilder::class),
 				$c->get(AgentOrchestratorProfileRepository::class),
 				$c->get(AgentToolProfileResolver::class),
 				$c->get(AgentMemoryProfileResolver::class),
 				$c->get(AgentContextProfileResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentExecutionService::class, fn($c) => new AgentExecutionService(
+				$c->get(IAgentContextFactory::class),
+				$c->get(IAgentFlowFactory::class),
+				$c->get(IAgentFlowCompiler::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentCompositionInspector::class, fn($c) => new AgentCompositionInspector(
 				$c->get(ISettingsStore::class),
-				$c->get(IAgentExecutionService::class),
+				$c->get(IAgentFlowCompiler::class),
 				$c->get(IAgentContextFactory::class),
 				$c->get(IAgentFlowFactory::class),
 				$c->get(AgentOrchestratorProfileRepository::class),
@@ -222,7 +227,12 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentStagePipelineResolver::class),
 				$c->get(IAgentMemoryRoleResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentConfigFormService::class, fn($c) => new AgentConfigFormService(
+			->set(ConfiguredAiModelConfigurationProvider::class, fn($c) => new ConfiguredAiModelConfigurationProvider(
+				$c->get(ISettingsStore::class),
+				$c->get(IAgentConfigValueResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAiModelConfigurationProvider::class, fn($c) => $c->get(ConfiguredAiModelConfigurationProvider::class), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentConfigFormService::class, fn($c) => new AgentConfigFormService(
 				$c->get(IRequest::class),
 				$c->get(ISettingsStore::class),
 				$c->get(IClassMap::class),

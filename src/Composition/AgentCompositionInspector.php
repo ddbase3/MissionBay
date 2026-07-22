@@ -7,12 +7,12 @@
 namespace MissionBay\Composition;
 
 use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Api\IAgentMemory;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentContextFactory;
+use MissionBay\Api\IAgentFlowCompiler;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Api\IAgentMemoryRoleResolver;
 use MissionBay\Api\IAgentResource;
@@ -38,7 +38,7 @@ final class AgentCompositionInspector {
 
 	public function __construct(
 		private readonly ISettingsStore $settingsStore,
-		private readonly IAgentExecutionService $executionService,
+		private readonly IAgentFlowCompiler $flowCompiler,
 		private readonly IAgentContextFactory $contextFactory,
 		private readonly IAgentFlowFactory $flowFactory,
 		private readonly AgentOrchestratorProfileRepository $orchestratorProfiles,
@@ -84,8 +84,9 @@ final class AgentCompositionInspector {
 
 		$effectiveFlow = [];
 		try {
-			$effectiveFlow = $this->executionService->buildEffectiveFlow($settings);
-			$warnings = array_merge($warnings, $this->executionService->getWarnings());
+			$compilation = $this->flowCompiler->compile($settings);
+			$effectiveFlow = $compilation->getFlow();
+			$warnings = array_merge($warnings, $compilation->getWarnings());
 		}
 		catch (\Throwable $e) {
 			$errors[] = 'Effective flow could not be built: ' . $e->getMessage();
@@ -743,7 +744,7 @@ final class AgentCompositionInspector {
 			if ((string)($node['id'] ?? '') === $preferredId) {
 				return $node;
 			}
-			if ($fallback === [] && in_array((string)($node['type'] ?? ''), ['aiassistantnode', 'streamingaiassistantnode'], true)) {
+			if ($fallback === [] && (string)($node['type'] ?? '') === 'aiassistantnode') {
 				$fallback = $node;
 			}
 		}

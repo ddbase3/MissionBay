@@ -171,58 +171,10 @@ class OpenAiCompatibleTransport implements IAiProvider {
 	}
 
 	private function buildUrl(string $path): string {
-		$endpoint = trim((string)($this->options['endpoint'] ?? ''));
-		$path = trim($path);
-
-		if($path !== '' && preg_match('#^https?://#i', $path) === 1) {
-			return $path;
-		}
-
-		if($endpoint === '') {
-			throw new \RuntimeException('Missing OpenAI-compatible transport endpoint.');
-		}
-
-		if($path === '') {
-			return $endpoint;
-		}
-
-		$endpointQuery = parse_url($endpoint, PHP_URL_QUERY);
-		if($endpointQuery !== null && $endpointQuery !== false && $endpointQuery !== '') {
-			return $endpoint;
-		}
-
-		$normalizedPath = '/' . ltrim($path, '/');
-		$endpointPath = (string)(parse_url($endpoint, PHP_URL_PATH) ?? '');
-
-		if($endpointPath !== '') {
-			$normalizedEndpointPath = '/' . trim($endpointPath, '/');
-
-			if(rtrim($normalizedEndpointPath, '/') === rtrim($normalizedPath, '/')) {
-				return $endpoint;
-			}
-
-			if(
-				$normalizedEndpointPath !== '/'
-				&& str_ends_with(rtrim($normalizedEndpointPath, '/'), rtrim($normalizedPath, '/'))
-			) {
-				return $endpoint;
-			}
-
-			if(
-				$normalizedEndpointPath !== '/'
-				&& str_starts_with($normalizedPath . '/', rtrim($normalizedEndpointPath, '/') . '/')
-			) {
-				$suffix = substr($normalizedPath, strlen(rtrim($normalizedEndpointPath, '/')));
-
-				if($suffix === false || $suffix === '') {
-					return $endpoint;
-				}
-
-				$normalizedPath = '/' . ltrim($suffix, '/');
-			}
-		}
-
-		return rtrim($endpoint, '/') . $normalizedPath;
+		return ChatCompletionEndpointResolver::resolve(
+			(string)($this->options['endpoint'] ?? ''),
+			$path
+		);
 	}
 
 	/**

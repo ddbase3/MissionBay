@@ -466,3 +466,27 @@ Have a node idea? Feel free to propose a PR!
 - [Agent state and result](docs/AGENT_STATE_AND_RESULT.md)
 - [Agent harness cleanup ledger](docs/AGENT_LEGACY_CLEANUP.md)
 - [Agent tool development](docs/AGENT_TOOL_DEVELOPMENT.md)
+
+## Runtime registration
+
+MissionBay registers `AgentExecutionService` and `AgentConfigFormService` as a
+paired runtime with ID `missionbay`. AssistantRuntime owns the generic
+execution router and composite form. Agent Admin and scheduled jobs honor the
+stored `agent_runtime` value. Chatbot resolves its combined `chatbot_backend`
+selection to the same runtime router.
+
+## AgentFlow form validation
+
+MissionBay runtime configuration requires an AgentFlow containing at least one
+node. The shared runtime form preserves stored flow JSON and rejects newly saved
+MissionBay configurations whose flow is empty, rather than allowing a later
+execution with no assistant output.
+
+## Runtime-neutral configured LLM resolution
+
+`ConfiguredAiModelConfigurationProvider` exposes selected `service-llm` entries
+through the AssistantFoundation contract. It resolves the referenced connection,
+credential and the exact chat-completions request URL. The same
+`ChatCompletionEndpointResolver` is used by MissionBay's own HTTP transport, so
+alternative runtimes receive the identical endpoint that MissionBay uses.
+

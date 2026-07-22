@@ -28,7 +28,7 @@ use MissionBay\Api\IAgentComponentPresetRepository;
  */
 class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
-	private const ASSISTANT_NODE_TYPE = 'streamingaiassistantnode';
+	private const ASSISTANT_NODE_TYPE = 'aiassistantnode';
 	private const TOOL_WRAPPER_TYPE = 'configuredagenttoolresource';
 	private const MEMORY_WRAPPER_TYPE = 'configuredagentmemoryresource';
 
