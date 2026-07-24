@@ -76,7 +76,7 @@ Model, provider, result, memory, and vector contracts are normally implemented b
 | `IAgentMemory` | stable legacy/base memory contract shared by existing plugins | direct contract | `MissionBay\Memory\VolatileMemory` |
 | `IAgentModule` | plugins may activate run-local instruction/capability bundles | configured component | test example in `AgentCapabilityDiscoveryServiceTest` |
 | `IAgentStage` | plugins may add semantic pipeline stages | configured component | `MissionBay\Orchestrator\Stage\AgentCapabilityDiscoveryStage` |
-| `IAgentSuspensionRepository` | projects may replace durable suspension storage | container service | `MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository` |
+| `IAgentSuspensionRepository` | projects may replace durable suspension storage | container service | `AssistantRuntime\Service\StateStoreAgentSuspensionRepository` |
 | `IAgentToolResultCache` | projects may replace tool-result cache storage | container service | `MissionBay\Cache\StateStoreAgentToolResultCache` |
 | `IAiChatModel` | plugins may provide chat-model adapters | direct adapter/resource | `MissionBay\Resource\ConfiguredChatModelAgentResource` |
 | `IAiEmbeddingModel` | plugins may provide embedding adapters | direct adapter/resource | `MissionBay\Resource\ConfiguredEmbeddingModelAgentResource` |

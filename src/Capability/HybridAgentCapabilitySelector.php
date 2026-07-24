@@ -63,7 +63,7 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 		$ranked = [];
 
 		foreach ($eligible as $capability) {
-			[$score, $reasons] = $this->score(
+			$rank = $this->rank(
 				$capability,
 				$contextText,
 				$contextTokens,
@@ -73,15 +73,26 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 			);
 			$ranked[] = [
 				'capability' => $capability,
-				'score' => $score,
-				'reasons' => $reasons
+				'required' => $rank['required'],
+				'relevance' => $rank['relevance'],
+				'stability' => $rank['stability'],
+				'score' => $rank['score'],
+				'reasons' => $rank['reasons']
 			];
 		}
 
 		usort($ranked, static function(array $left, array $right): int {
-			$score = $right['score'] <=> $left['score'];
-			if ($score !== 0) {
-				return $score;
+			$required = $right['required'] <=> $left['required'];
+			if ($required !== 0) {
+				return $required;
+			}
+			$relevance = $right['relevance'] <=> $left['relevance'];
+			if ($relevance !== 0) {
+				return $relevance;
+			}
+			$stability = $right['stability'] <=> $left['stability'];
+			if ($stability !== 0) {
+				return $stability;
 			}
 			$priority = $right['capability']->getPriority() <=> $left['capability']->getPriority();
 			if ($priority !== 0) {
@@ -215,8 +226,8 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 		);
 	}
 
-	/** @return array{0:float,1:array<int,string>} */
-	private function score(
+	/** @return array{required:int,relevance:float,stability:int,score:float,reasons:array<int,string>} */
+	private function rank(
 		AgentCapability $capability,
 		string $contextText,
 		array $contextTokens,
@@ -224,41 +235,41 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 		bool $recent,
 		bool $required
 	): array {
-		$score = max(-100, min(100, $capability->getPriority())) / 10;
+		$relevance = 0.0;
+		$stability = 0;
 		$reasons = ['priority'];
 		$name = strtolower($capability->getName());
 		$title = strtolower($capability->getTitle());
 		$category = strtolower($capability->getCategory());
 
 		if ($required) {
-			$score += 1000;
 			$reasons[] = 'mandatory';
 		}
 		if ($recent) {
-			$score += 90;
+			$stability += 2;
 			$reasons[] = 'recent-tool';
 		}
 		if ($previous) {
-			$score += 18;
+			$stability++;
 			$reasons[] = 'sticky';
 		}
 		if ($name !== '' && str_contains($contextText, $name)) {
-			$score += 90;
+			$relevance += 90;
 			$reasons[] = 'name-match';
 		}
 		if ($title !== '' && str_contains($contextText, $title)) {
-			$score += 45;
+			$relevance += 45;
 			$reasons[] = 'title-match';
 		}
 		if ($category !== '' && isset($contextTokens[$category])) {
-			$score += 30;
+			$relevance += 30;
 			$reasons[] = 'category-match';
 		}
 
 		foreach ($capability->getTags() as $tag) {
 			$tag = strtolower($tag);
 			if ($tag !== '' && (isset($contextTokens[$tag]) || str_contains($contextText, $tag))) {
-				$score += 24;
+				$relevance += 24;
 				$reasons[] = 'tag:' . $tag;
 			}
 		}
@@ -278,11 +289,17 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 			}
 		}
 		if ($overlap > 0) {
-			$score += min(36, $overlap * 4);
+			$relevance += min(36, $overlap * 4);
 			$reasons[] = 'token-overlap:' . $overlap;
 		}
 
-		return [$score, array_values(array_unique($reasons))];
+		return [
+			'required' => $required ? 1 : 0,
+			'relevance' => $relevance,
+			'stability' => $stability,
+			'score' => ($required ? 1000.0 : 0.0) + $relevance,
+			'reasons' => array_values(array_unique($reasons))
+		];
 	}
 
 	/** @return array<string,bool> */

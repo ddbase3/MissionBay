@@ -44,7 +44,7 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 			return $this->recoverModelFailure($context, $e, $runtime['model_results']);
 		}
 
-		$firstDecision = $this->inspectResult($first, false, $runtime['mutation_tool_names']);
+		$firstDecision = $this->inspectResult($first, false, $runtime['mutation_tool_names'], $runtime['tool_definitions']);
 		if ($firstDecision['tool_calls'] !== []) {
 			return $this->toolCallResult(
 				$context,
@@ -108,7 +108,7 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 			);
 		}
 
-		$repairDecision = $this->inspectResult($repair, true, $runtime['mutation_tool_names']);
+		$repairDecision = $this->inspectResult($repair, true, $runtime['mutation_tool_names'], $runtime['tool_definitions']);
 		if ($repairDecision['tool_calls'] !== []) {
 			return $this->toolCallResult(
 				$context,
@@ -161,8 +161,17 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 		);
 	}
 
-	/** @param array<int,string> $mutationToolNames @return array{tool_calls:array<int,AiToolCall>,assessment:AgentModelDecisionAssessment} */
-	private function inspectResult(AiChatResult $result, bool $repairAttempted, array $mutationToolNames): array {
+	/**
+	 * @param array<int,string> $mutationToolNames
+	 * @param array<int,array<string,mixed>> $toolDefinitions
+	 * @return array{tool_calls:array<int,AiToolCall>,assessment:AgentModelDecisionAssessment}
+	 */
+	private function inspectResult(
+		AiChatResult $result,
+		bool $repairAttempted,
+		array $mutationToolNames,
+		array $toolDefinitions
+	): array {
 		$actualCalls = [];
 		$controlCall = null;
 		foreach ($result->getToolCalls() as $call) {
@@ -188,13 +197,22 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 		}
 
 		if ($controlCall instanceof AiToolCall) {
+			$assessment = AgentModelDecisionAssessment::fromControlCall(
+				$controlCall,
+				$repairAttempted,
+				$mutationToolNames
+			);
+			if ($assessment->isClarificationRequired() && !$this->isGroundedClarification($assessment, $toolDefinitions)) {
+				$assessment = AgentModelDecisionAssessment::unresolved(
+					$repairAttempted,
+					'The clarification decision was not grounded in missing required tool arguments.',
+					$assessment->indicatesMutationIntent()
+				);
+			}
+
 			return [
 				'tool_calls' => [],
-				'assessment' => AgentModelDecisionAssessment::fromControlCall(
-					$controlCall,
-					$repairAttempted,
-					$mutationToolNames
-				)
+				'assessment' => $assessment
 			];
 		}
 
@@ -207,12 +225,59 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 		];
 	}
 
+
+	/** @param array<int,array<string,mixed>> $toolDefinitions */
+	private function isGroundedClarification(
+		AgentModelDecisionAssessment $assessment,
+		array $toolDefinitions
+	): bool {
+		if (trim($assessment->getClarification()) === '') {
+			return false;
+		}
+
+		$candidateToolNames = $assessment->getCandidateToolNames();
+		if ($assessment->getIntent() === AgentModelDecisionAssessment::INTENT_CONVERSATION && $candidateToolNames === []) {
+			return true;
+		}
+
+		$missingArgumentNames = $assessment->getMissingArgumentNames();
+		if ($candidateToolNames === [] || $missingArgumentNames === []) {
+			return false;
+		}
+
+		$candidateMap = array_fill_keys($candidateToolNames, true);
+		$requiredArgumentMap = [];
+		foreach ($toolDefinitions as $definition) {
+			$name = trim((string)($definition['function']['name'] ?? ''));
+			if ($name === '' || !isset($candidateMap[$name])) {
+				continue;
+			}
+			foreach ((array)($definition['function']['parameters']['required'] ?? []) as $requiredName) {
+				if (is_string($requiredName) && trim($requiredName) !== '') {
+					$requiredArgumentMap[trim($requiredName)] = true;
+				}
+			}
+		}
+
+		if ($requiredArgumentMap === []) {
+			return false;
+		}
+		foreach ($missingArgumentNames as $missingArgumentName) {
+			if (!isset($requiredArgumentMap[$missingArgumentName])) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	private function buildPrimaryInstruction(string $continuationHint): string {
 		$instruction = implode("\n", [
 			'You are in the tool-decision phase. Do not write the user-facing final answer in this phase.',
 			'If the user request requires an available tool and the required arguments are known, call that real tool now.',
 			'If no tool is required, call ' . self::CONTROL_TOOL_NAME . ' with decision=complete.',
-			'If required information is missing, call ' . self::CONTROL_TOOL_NAME . ' with decision=clarification_required and provide the clarification question.',
+			'If a required tool argument is missing, call ' . self::CONTROL_TOOL_NAME . ' with decision=clarification_required, provide the clarification question, and list the missing required argument names.',
+			'Approval is enforced by the host action policy after a real tool call. Approval is not missing input and must not be requested in this phase.',
 			'Use decision=tool_required only when a tool action is necessary but no executable tool call can be emitted.',
 			'Always provide the semantic intent, confidence, candidate tool names, and a short reason in the control call.',
 			'Never claim that an action was executed unless a real tool call is emitted and later succeeds.'
@@ -228,7 +293,9 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 			'The previous tool-decision response did not produce a reliable executable or terminal decision.',
 			'Re-evaluate the current user request using the complete conversation and the available tools.',
 			'If a tool is required and its arguments can be determined, call the real tool now.',
-			'Otherwise call ' . self::CONTROL_TOOL_NAME . ' with either decision=complete or decision=clarification_required.',
+			'If a required tool argument is missing, use decision=clarification_required and list the missing required argument names.',
+			'Approval is handled by the host action policy after a real tool call and is not a clarification reason.',
+			'Otherwise call ' . self::CONTROL_TOOL_NAME . ' with decision=complete.',
 			'Do not produce a user-facing answer and do not claim that any state change already happened.'
 		]);
 	}
@@ -280,6 +347,7 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 						],
 						'confidence' => ['type' => 'number', 'minimum' => 0, 'maximum' => 1],
 						'candidate_tools' => ['type' => 'array', 'items' => ['type' => 'string']],
+						'missing_arguments' => ['type' => 'array', 'items' => ['type' => 'string']],
 						'reason' => ['type' => 'string'],
 						'clarification' => ['type' => 'string']
 					],

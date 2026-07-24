@@ -63,6 +63,55 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 		$this->assertSame('semantic', $result->getMetadata()['strategy']);
 	}
 
+	public function testStageRoutesOnlyTheCurrentUserTurnAndItsObservations(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_plugins', 'List registered plugins.', ['plugins', 'list'], 60, 'plugins'),
+			$this->capability('run_ilias_cron_job', 'Run a configured cron job.', ['cron', 'run'], 60, 'cron-jobs')
+		]);
+		$model = $this->chatModel('{"selected_tools":["run_ilias_cron_job"]}');
+		$vars = [
+			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_MODEL,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::FAILURE_CODE => '',
+			AgentToolLoopContextKeys::CAPABILITY_CATALOG => $catalog,
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG => new AgentCapabilitySelectionConfig(
+				maxTools: 1,
+				selectAllThreshold: 0,
+				semanticCandidateTools: 2,
+				sticky: false
+			),
+			AgentToolLoopContextKeys::CAPABILITY_SELECTIONS => [],
+			AgentToolLoopContextKeys::SELECTED_TOOL_NAMES => [],
+			AgentToolLoopContextKeys::REQUIRED_TOOL_NAMES => [],
+			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => [],
+			AgentToolLoopContextKeys::MESSAGES => [
+				['role' => 'system', 'content' => 'Old routing instructions.'],
+				['role' => 'user', 'content' => 'List all plugins.'],
+				['role' => 'assistant', 'content' => 'The plugins were listed.'],
+				['role' => 'user', 'content' => 'Run the scheduled maintenance job.'],
+				['role' => 'tool', 'content' => 'The matching job identifier is maintenance-nightly.']
+			],
+			AgentToolLoopContextKeys::ITERATION => 2,
+			AgentToolLoopContextKeys::MODEL => $model,
+			AgentToolLoopContextKeys::MODEL_RESULTS => []
+		];
+		$context = $this->createMock(IAgentContext::class);
+		$context->method('getVar')->willReturnCallback(static fn(string $key): mixed => $vars[$key] ?? null);
+		$stage = new AgentAiCapabilitySelectionStage(
+			new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector())
+		);
+
+		$stage->process($context);
+		$routerPrompt = $model->getMessages()[1]['content'];
+		$routerContext = strstr($routerPrompt, "\n\nMaximum selected tools:", true);
+		$this->assertTrue(is_string($routerContext));
+
+		$this->assertStringContainsString('user: Run the scheduled maintenance job.', $routerContext);
+		$this->assertStringContainsString('tool: The matching job identifier is maintenance-nightly.', $routerContext);
+		$this->assertStringNotContainsString('List all plugins.', $routerContext);
+		$this->assertStringNotContainsString('Old routing instructions.', $routerContext);
+	}
+
 	private function capability(
 		string $name,
 		string $description,
@@ -95,11 +144,13 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 
 	private function chatModel(string $content): IAiChatModel {
 		return new class($content) implements IAiChatModel {
+			private array $messages = [];
 			private array $options = [];
 
 			public function __construct(private readonly string $content) {}
 
 			public function complete(array $messages, array $tools = []): AiChatResult {
+				$this->messages = $messages;
 				return new AiChatResult(
 					$this->content,
 					[],
@@ -107,6 +158,7 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 				);
 			}
 
+			public function getMessages(): array { return $this->messages; }
 			public function chat(array $messages): string { return $this->content; }
 			public function raw(array $messages, array $tools = []): mixed { return $this->content; }
 			public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {

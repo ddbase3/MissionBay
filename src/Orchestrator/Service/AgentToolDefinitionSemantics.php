@@ -10,7 +10,7 @@ final class AgentToolDefinitionSemantics {
 
 	/** @param array<string,mixed> $definition */
 	public function isMutationDefinition(array $definition): bool {
-		$annotations = $this->readAnnotations($definition);
+		$annotations = $this->getAnnotations($definition);
 		foreach ([
 			'destructiveHint', 'destructive', 'requiresApproval', 'requires_confirmation',
 			'requiresConfirmation', 'mutation', 'sideEffectHint', 'side_effect'
@@ -28,8 +28,51 @@ final class AgentToolDefinitionSemantics {
 	}
 
 	/** @param array<string,mixed> $definition */
+	public function isExplicitReadOnlyDefinition(array $definition): bool {
+		if ($this->isMutationDefinition($definition)) {
+			return false;
+		}
+
+		$annotations = $this->getAnnotations($definition);
+		foreach (['readOnlyHint', 'read_only', 'readonly'] as $key) {
+			if (array_key_exists($key, $annotations)) {
+				return $annotations[$key] === true;
+			}
+		}
+
+		return false;
+	}
+
+	/** @param array<string,mixed> $definition */
+	public function requiresApprovalDefinition(array $definition): bool {
+		$annotations = $this->getAnnotations($definition);
+		foreach (['destructiveHint', 'destructive'] as $key) {
+			if (($annotations[$key] ?? false) === true) {
+				return true;
+			}
+		}
+		if (array_key_exists('requiresApproval', $annotations)) {
+			return $annotations['requiresApproval'] === true;
+		}
+		foreach ([
+			'requires_confirmation', 'requiresConfirmation', 'mutation',
+			'sideEffectHint', 'side_effect'
+		] as $key) {
+			if (($annotations[$key] ?? false) === true) {
+				return true;
+			}
+		}
+		foreach (['readOnlyHint', 'read_only', 'readonly'] as $key) {
+			if (array_key_exists($key, $annotations) && $annotations[$key] === false) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** @param array<string,mixed> $definition */
 	public function isCommitGuardRequired(array $definition): bool {
-		$annotations = $this->readAnnotations($definition);
+		$annotations = $this->getAnnotations($definition);
 		if (array_key_exists('commitGuardRequired', $annotations)) {
 			return $annotations['commitGuardRequired'] === true;
 		}
@@ -71,7 +114,7 @@ final class AgentToolDefinitionSemantics {
 	}
 
 	/** @param array<string,mixed> $definition @return array<string,mixed> */
-	private function readAnnotations(array $definition): array {
+	public function getAnnotations(array $definition): array {
 		$function = is_array($definition['function'] ?? null) ? $definition['function'] : [];
 		$annotations = is_array($definition['annotations'] ?? null) ? $definition['annotations'] : [];
 		if (is_array($function['annotations'] ?? null)) {

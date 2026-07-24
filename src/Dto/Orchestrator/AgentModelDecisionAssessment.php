@@ -38,7 +38,10 @@ final class AgentModelDecisionAssessment {
 		self::INTENT_UNKNOWN
 	];
 
-	/** @param array<int,string> $candidateToolNames */
+	/**
+	 * @param array<int,string> $candidateToolNames
+	 * @param array<int,string> $missingArgumentNames
+	 */
 	public function __construct(
 		private readonly string $decision,
 		private readonly string $intent,
@@ -46,6 +49,7 @@ final class AgentModelDecisionAssessment {
 		private readonly array $candidateToolNames = [],
 		private readonly string $reason = '',
 		private readonly string $clarification = '',
+		private readonly array $missingArgumentNames = [],
 		private readonly bool $repairAttempted = false,
 		private readonly bool $mutationIntent = false
 	) {
@@ -72,6 +76,7 @@ final class AgentModelDecisionAssessment {
 			$intent = self::INTENT_UNKNOWN;
 		}
 		$candidateToolNames = self::normalizeToolNames($arguments['candidate_tools'] ?? []);
+		$missingArgumentNames = self::normalizeToolNames($arguments['missing_arguments'] ?? []);
 		$mutationIntent = $intent === self::INTENT_MUTATION
 			|| array_intersect($candidateToolNames, $mutationToolNames) !== [];
 
@@ -82,6 +87,7 @@ final class AgentModelDecisionAssessment {
 			candidateToolNames: $candidateToolNames,
 			reason: trim((string)($arguments['reason'] ?? '')),
 			clarification: trim((string)($arguments['clarification'] ?? '')),
+			missingArgumentNames: $missingArgumentNames,
 			repairAttempted: $repairAttempted,
 			mutationIntent: $mutationIntent
 		);
@@ -139,6 +145,11 @@ final class AgentModelDecisionAssessment {
 		return $this->clarification;
 	}
 
+	/** @return array<int,string> */
+	public function getMissingArgumentNames(): array {
+		return $this->missingArgumentNames;
+	}
+
 	public function wasRepairAttempted(): bool {
 		return $this->repairAttempted;
 	}
@@ -166,6 +177,7 @@ final class AgentModelDecisionAssessment {
 			'candidate_tools' => $this->candidateToolNames,
 			'reason' => $this->reason,
 			'clarification' => $this->clarification,
+			'missing_arguments' => $this->missingArgumentNames,
 			'repair_attempted' => $this->repairAttempted,
 			'mutation_intent' => $this->mutationIntent
 		];

@@ -33,14 +33,13 @@ The serialized `AgentSuspension` is never accepted from the client.
 
 `AssistantFoundation\Api\IAgentSuspensionRepository` defines the storage boundary.
 
-MissionBay provides:
+`AssistantRuntime` provides the shared default implementation:
 
 ```text
-StateStoreAgentSuspensionRepository
-UnavailableAgentSuspensionRepository
+AssistantRuntime\Service\StateStoreAgentSuspensionRepository
 ```
 
-The normal implementation stores suspension state through `IStateStore`. The unavailable implementation fails closed when a project has not configured persistent runtime state.
+It stores suspension state through `IStateStore`. MissionBay consumes only the `IAgentSuspensionRepository` contract and may be composed with another host-provided implementation.
 
 ## Lifecycle
 

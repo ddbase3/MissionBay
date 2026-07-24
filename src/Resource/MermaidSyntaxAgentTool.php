@@ -61,6 +61,9 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 			'category' => 'syntax',
 			'tags' => ['mermaid', 'diagram', 'syntax', 'types'],
 			'priority' => 70,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'list_supported_mermaid_types',
 				'description' => 'Lists the Mermaid diagram types supported by this helper tool.',
@@ -76,6 +79,9 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 			'category' => 'syntax',
 			'tags' => ['mermaid', 'diagram', 'syntax', 'detect'],
 			'priority' => 75,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'detect_existing_mermaid_type',
 				'description' => 'Detects the Mermaid diagram type from existing Mermaid code using simple prefix rules.',
@@ -97,6 +103,9 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 			'category' => 'syntax',
 			'tags' => ['mermaid', 'diagram', 'syntax', 'guide'],
 			'priority' => 80,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'get_mermaid_type_guide',
 				'description' => 'Returns compact syntax guidance for one supported Mermaid diagram type.',
@@ -118,6 +127,9 @@ class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool
 			'category' => 'syntax',
 			'tags' => ['mermaid', 'diagram', 'syntax', 'template'],
 			'priority' => 85,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'get_mermaid_template',
 				'description' => 'Returns a minimal valid Mermaid starter template for one supported diagram type.',

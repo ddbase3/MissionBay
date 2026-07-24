@@ -100,6 +100,9 @@ class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool {
 			'category' => 'knowledge',
 			'tags' => ['retrieval', 'search'],
 			'priority' => 50,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'retrieval_search',
 				'description' => 'Searches the vector store for documents relevant to a query.',

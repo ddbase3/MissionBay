@@ -43,6 +43,9 @@ final class WebFetchTextAgentTool extends AbstractAgentResource implements IAgen
 			'category' => 'web',
 			'tags' => ['web', 'fetch', 'http', 'html', 'text'],
 			'priority' => 50,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'web_fetch_text',
 				'description' => 'Fetches a webpage (GET) and extracts text + metadata (size-capped).',

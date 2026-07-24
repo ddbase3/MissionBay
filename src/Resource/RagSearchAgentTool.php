@@ -88,6 +88,9 @@ class RagSearchAgentTool extends AbstractAgentResource implements IAgentTool {
 			'category' => 'knowledge',
 			'tags' => ['rag', 'search', 'docs', 'schema'],
 			'priority' => 50,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'rag_search',
 				'description' => 'Searches the vector database for documents relevant to a query.',

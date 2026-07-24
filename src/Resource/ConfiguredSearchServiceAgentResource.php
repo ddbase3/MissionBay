@@ -128,6 +128,9 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 			'category' => 'web',
 			'tags' => ['web', 'search', 'current-information'],
 			'priority' => 60,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => self::TOOL_NAME,
 				'description' => 'Searches the web through the configured MissionBay search service. Use it for current or external information that is not already available in the conversation.',

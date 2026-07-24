@@ -140,9 +140,7 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		$maxCharacters = $config->getSemanticMaxPromptCharacters();
 		$fixedCharacters = strlen($candidateJson) + 3000;
 		$availableContextCharacters = max(1000, $maxCharacters - $fixedCharacters);
-		if (strlen($contextText) > $availableContextCharacters) {
-			$contextText = substr($contextText, -$availableContextCharacters);
-		}
+		$contextText = $this->limitText($contextText, $availableContextCharacters);
 
 		return [
 			[
@@ -150,8 +148,10 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 				'content' => implode("\n", [
 					'You are a capability router for an AI agent.',
 					'Select only callable tool function names from the supplied candidate list.',
-					'Choose the smallest sufficient set for the current user request and likely immediate follow-up steps.',
-					'Distinguish resources by source, category, title and description. Do not confuse plugins with cron jobs or similarly named domains.',
+					'Choose the smallest dependency-complete set for the current user request and its immediate tool steps.',
+					'Cover every independent action in the current user turn.',
+					'When an action needs a required argument that is not available in the current context, include an available discovery or lookup capability that can resolve it.',
+					'Distinguish resources by source, category, title and description. Do not confuse similarly named domains.',
 					'Return JSON only in this exact shape: {"selected_tools":["tool_name"]}.',
 					'Do not explain the choice and do not invent tool names.'
 				])
@@ -172,6 +172,8 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 			$description = substr($description, 0, 600);
 		}
 
+		$parameters = (array)($capability->getDefinition()['function']['parameters'] ?? []);
+
 		return [
 			'name' => $capability->getName(),
 			'title' => $capability->getTitle(),
@@ -180,8 +182,25 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 			'tags' => $capability->getTags(),
 			'source_id' => $capability->getSourceId(),
 			'source_name' => $capability->getSourceName(),
-			'parameter_names' => array_keys((array)($capability->getDefinition()['function']['parameters']['properties'] ?? []))
+			'parameter_names' => array_keys((array)($parameters['properties'] ?? [])),
+			'required_parameter_names' => array_values(array_filter(
+				(array)($parameters['required'] ?? []),
+				static fn(mixed $name): bool => is_string($name) && trim($name) !== ''
+			))
 		];
+	}
+
+	private function limitText(string $text, int $maxCharacters): string {
+		if (strlen($text) <= $maxCharacters) {
+			return $text;
+		}
+
+		$separator = "\n...\n";
+		$available = $maxCharacters - strlen($separator);
+		$headLength = intdiv($available, 2);
+		$tailLength = $available - $headLength;
+
+		return substr($text, 0, $headLength) . $separator . substr($text, -$tailLength);
 	}
 
 	/** @return array<int,string> */

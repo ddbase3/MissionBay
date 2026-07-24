@@ -135,30 +135,57 @@ abstract class AbstractAgentCapabilitySelectionStage implements IAgentStage {
 		$continuationHint = $context->getVar(AgentToolLoopContextKeys::CONTINUATION_HINT);
 		$parts = [];
 
-		if (is_array($messages)) {
-			foreach (array_slice($messages, -12) as $message) {
-				if (!is_array($message)) {
-					continue;
-				}
-				$content = $message['content'] ?? '';
-				if (is_scalar($content)) {
-					$content = trim((string)$content);
-					if ($content !== '') {
-						$parts[] = $content;
-					}
-				}
+		foreach ($this->currentTurnMessages(is_array($messages) ? $messages : []) as $message) {
+			if (!is_array($message)) {
+				continue;
+			}
+			$role = strtolower(trim((string)($message['role'] ?? 'message')));
+			if ($role === 'system') {
+				continue;
+			}
+			$content = $message['content'] ?? '';
+			if (!is_scalar($content)) {
+				continue;
+			}
+			$content = trim((string)$content);
+			if ($content !== '') {
+				$parts[] = ($role === '' ? 'message' : $role) . ': ' . $content;
 			}
 		}
 
 		if (is_scalar($continuationHint) && trim((string)$continuationHint) !== '') {
-			$parts[] = trim((string)$continuationHint);
+			$parts[] = 'continuation: ' . trim((string)$continuationHint);
 		}
 
-		$text = implode("\n", $parts);
-		if (strlen($text) > $this->maxContextCharacters) {
-			$text = substr($text, -$this->maxContextCharacters);
+		return $this->limitContextText(implode("\n", $parts));
+	}
+
+	/** @param array<int,mixed> $messages @return array<int,mixed> */
+	private function currentTurnMessages(array $messages): array {
+		for ($index = count($messages) - 1; $index >= 0; $index--) {
+			$message = $messages[$index] ?? null;
+			if (!is_array($message)) {
+				continue;
+			}
+			if (strtolower(trim((string)($message['role'] ?? ''))) === 'user') {
+				return array_slice($messages, $index);
+			}
 		}
-		return $text;
+
+		return array_slice($messages, -12);
+	}
+
+	private function limitContextText(string $text): string {
+		if (strlen($text) <= $this->maxContextCharacters) {
+			return $text;
+		}
+
+		$separator = "\n...\n";
+		$available = $this->maxContextCharacters - strlen($separator);
+		$headLength = intdiv($available, 2);
+		$tailLength = $available - $headLength;
+
+		return substr($text, 0, $headLength) . $separator . substr($text, -$tailLength);
 	}
 
 	/** @return array<int,string> */

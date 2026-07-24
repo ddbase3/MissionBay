@@ -451,3 +451,14 @@ See also:
 - [AGENT_ACTION_APPROVAL_AND_RESUME.md](AGENT_ACTION_APPROVAL_AND_RESUME.md)
 - [AGENT_MUTATION_COMMIT_GUARD.md](AGENT_MUTATION_COMMIT_GUARD.md)
 - [AGENT_TOOL_CONTRACT_VALIDATION.md](AGENT_TOOL_CONTRACT_VALIDATION.md)
+
+
+## Shared runtime export
+
+A function can be exposed to non-MissionBay runtimes when its side-effect
+semantics are explicit. Read-only functions require `readOnlyHint=true`. Mutation
+functions require `mutation=true` and `requiresApproval=true`; guarded mutations
+additionally require the concrete `IAgentMutationGuardedTool` implementation.
+Missing safety metadata is intentionally treated as unsafe. The normal
+MissionBay execution path remains unchanged; these rules control only the shared
+runtime tool-profile adapter.

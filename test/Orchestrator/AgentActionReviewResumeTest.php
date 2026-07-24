@@ -30,7 +30,7 @@ use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
 use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
 use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
 use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
-use MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository;
+use AssistantRuntime\Service\StateStoreAgentSuspensionRepository;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
 use MissionBay\Policy\MutationApprovalAgentActionPolicy;
 use PHPUnit\Framework\TestCase;

@@ -101,7 +101,6 @@ use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
 use MissionBay\Orchestrator\Stage\AgentCapabilityDiscoveryStage;
 use MissionBay\Orchestrator\Stage\AgentAiCapabilitySelectionStage;
 use MissionBay\Orchestrator\Stage\AgentCapabilitySelectionStage;
-use MissionBay\Orchestrator\Suspension\StateStoreAgentSuspensionRepository;
 use MissionBay\Orchestrator\Stage\AgentContextCompactionStage;
 use MissionBay\Orchestrator\Stage\AgentFinalAnswerStage;
 use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
@@ -121,6 +120,7 @@ use MissionBay\Service\AgentComponentPresetToolTestService;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
+use MissionBay\Tool\Profile\MissionBayAgentToolProfileProvider;
 use MissionBay\Service\AgentExecutionService;
 use MissionBay\Service\AgentFlowCompiler;
 use MissionBay\Service\Assistant\AgentAssistantContextContributionService;
@@ -294,9 +294,6 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentToolResultCache::class, fn($c) => new StateStoreAgentToolResultCache(
 				$c->get(IStateStore::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentSuspensionRepository::class, fn($c) => new StateStoreAgentSuspensionRepository(
-				$c->get(IStateStore::class)
-			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentInteractionResponseResolver::class, fn() => new AgentInteractionResponseResolver(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionResumeService::class, fn($c) => new AgentActionResumeService(
 				$c->get(AgentActionFingerprint::class),
@@ -320,6 +317,16 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(JsonSchemaValidator::class, fn() => new JsonSchemaValidator(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentToolContractValidationService::class, fn($c) => new AgentToolContractValidationService(
 				$c->get(JsonSchemaValidator::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(MissionBayAgentToolProfileProvider::class, fn($c) => new MissionBayAgentToolProfileProvider(
+				$c->get(AgentToolProfileResolver::class),
+				$c->get(IAgentComponentPresetMaterializer::class),
+				$c->get(AgentCapabilityCatalogBuilder::class),
+				$c->get(AgentToolDefinitionSemantics::class),
+				$c->get(AgentToolContractValidationService::class),
+				$c->get(AgentActionFingerprint::class),
+				$c->get(AgentMutationCommitGuardService::class),
+				$c->get(IEventManager::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentToolResultCacheService::class, fn($c) => new AgentToolResultCacheService(
 				$c->get(IAgentToolResultCache::class),

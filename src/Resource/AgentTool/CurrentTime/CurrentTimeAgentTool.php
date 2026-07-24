@@ -49,6 +49,9 @@ class CurrentTimeAgentTool extends AbstractAgentResource implements IAgentTool {
 			'category' => 'lookup',
 			'tags' => ['date', 'time'],
 			'priority' => 50,
+			'readOnlyHint' => true,
+			'mutation' => false,
+			'requiresApproval' => false,
 			'function' => [
 				'name' => 'get_current_time',
 				'description' => 'Returns the current server time and date.',

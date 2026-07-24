@@ -311,7 +311,7 @@ class MissionBayToolEventDisplayListener {
 			'config_name' => $base['config_name'],
 			'user_id' => $base['user_id'],
 			'user_login' => $base['user_login'],
-			'prompt_text' => null,
+			'prompt_text' => $this->nullableTraceString($trace, 'prompt_text'),
 			'meta_json' => $this->encodeJson($meta),
 			'tool_name' => $event->getToolName(),
 			'label' => $event->getLabel(),
@@ -626,6 +626,19 @@ class MissionBayToolEventDisplayListener {
 		}
 
 		return $default;
+	}
+
+	/**
+	 * @param array<string,mixed> $trace
+	 */
+	private function nullableTraceString(array $trace, string $key): ?string {
+		$value = $trace[$key] ?? null;
+		if (!is_scalar($value) && $value !== null) {
+			return null;
+		}
+
+		$value = trim((string)$value);
+		return $value !== '' ? $value : null;
 	}
 
 

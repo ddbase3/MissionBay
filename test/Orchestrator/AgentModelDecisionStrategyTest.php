@@ -84,6 +84,85 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 		$this->assertSame('set_ilias_plugin_activation_state', $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS][0]->getName());
 	}
 
+	public function testAiGuardedStrategyRepairsUngroundedToolClarification(): void {
+		$model = new ModelDecisionQueueChatModel([
+			new AiChatResult(
+				'',
+				[new AiToolCall('control-1', 'missionbay_tool_phase_decision', [
+					'decision' => AgentModelDecisionAssessment::DECISION_CLARIFICATION_REQUIRED,
+					'intent' => AgentModelDecisionAssessment::INTENT_MUTATION,
+					'confidence' => 0.98,
+					'candidate_tools' => ['set_ilias_plugin_activation_state'],
+					'missing_arguments' => [],
+					'reason' => 'The action requires approval.',
+					'clarification' => 'Please confirm the requested action.'
+				])],
+				new AiResultMetadata('model_decision', 'test', 'primary')
+			),
+			new AiChatResult(
+				'',
+				[new AiToolCall('call-1', 'set_ilias_plugin_activation_state', [
+					'plugin' => 'ExamplePlugin',
+					'state' => 'inactive'
+				])],
+				new AiResultMetadata('model_decision', 'test', 'repair')
+			)
+		]);
+		$context = $this->context($model, AgentModelDecisionConfig::aiGuarded());
+
+		$patch = (new AgentModelDecisionStage())->process($context)->getPatch();
+
+		$this->assertSame(2, $model->getCompleteCalls());
+		$this->assertSame(AgentToolLoopContextKeys::PHASE_TOOLS, $patch[AgentToolLoopContextKeys::PHASE]);
+		$this->assertSame('set_ilias_plugin_activation_state', $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS][0]->getName());
+		$this->assertSame(AgentModelDecisionAssessment::DECISION_UNRESOLVED, $patch[AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS][0]['decision']);
+		$this->assertSame(AgentModelDecisionAssessment::DECISION_TOOL_CALL, $patch[AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS][1]['decision']);
+	}
+
+	public function testAiGuardedStrategyAcceptsClarificationForMissingRequiredToolArgument(): void {
+		$model = new ModelDecisionQueueChatModel([
+			new AiChatResult(
+				'',
+				[new AiToolCall('control-1', 'missionbay_tool_phase_decision', [
+					'decision' => AgentModelDecisionAssessment::DECISION_CLARIFICATION_REQUIRED,
+					'intent' => AgentModelDecisionAssessment::INTENT_READ,
+					'confidence' => 0.94,
+					'candidate_tools' => ['get_record'],
+					'missing_arguments' => ['record_id'],
+					'reason' => 'A required identifier is missing.',
+					'clarification' => 'Which record should be read?'
+				])],
+				new AiResultMetadata('model_decision', 'test', 'primary')
+			)
+		]);
+		$toolDefinitions = [[
+			'type' => 'function',
+			'function' => [
+				'name' => 'get_record',
+				'description' => 'Read one record.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => ['record_id' => ['type' => 'string']],
+					'required' => ['record_id']
+				]
+			]
+		]];
+		$context = $this->context(
+			$model,
+			AgentModelDecisionConfig::aiGuarded(),
+			$toolDefinitions,
+			[]
+		);
+
+		$patch = (new AgentModelDecisionStage())->process($context)->getPatch();
+
+		$this->assertSame(1, $model->getCompleteCalls());
+		$this->assertTrue($patch[AgentToolLoopContextKeys::COMPLETED]);
+		$this->assertSame(AgentToolLoopContextKeys::PHASE_FINAL, $patch[AgentToolLoopContextKeys::PHASE]);
+		$this->assertSame(['record_id'], $patch[AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS][0]['missing_arguments']);
+		$this->assertStringContainsString('Which record should be read?', $patch[AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION]);
+	}
+
 	public function testAiGuardedStrategyAcceptsStructuredHighConfidenceCompletion(): void {
 		$model = new ModelDecisionQueueChatModel([
 			new AiChatResult(
@@ -109,7 +188,30 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 		$this->assertSame(AgentModelDecisionAssessment::DECISION_COMPLETE, $patch[AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS][0]['decision']);
 	}
 
-	private function context(IAiChatModel $model, AgentModelDecisionConfig $config): AgentContext {
+	private function context(
+		IAiChatModel $model,
+		AgentModelDecisionConfig $config,
+		?array $toolDefinitions = null,
+		?array $mutationToolNames = null
+	): AgentContext {
+		$toolDefinitions ??= [[
+			'type' => 'function',
+			'readOnlyHint' => false,
+			'function' => [
+				'name' => 'set_ilias_plugin_activation_state',
+				'description' => 'Changes an ILIAS plugin activation state.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => [
+						'plugin' => ['type' => 'string'],
+						'state' => ['type' => 'string']
+					],
+					'required' => ['plugin', 'state']
+				]
+			]
+		]];
+		$mutationToolNames ??= ['set_ilias_plugin_activation_state'];
+
 		return new AgentContext(vars: [
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_MODEL,
 			AgentToolLoopContextKeys::COMPLETED => false,
@@ -119,16 +221,8 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 				['role' => 'system', 'content' => 'You are a tool-using assistant.'],
 				['role' => 'user', 'content' => 'deaktoviern']
 			],
-			AgentToolLoopContextKeys::TOOL_DEFINITIONS => [[
-				'type' => 'function',
-				'readOnlyHint' => false,
-				'function' => [
-					'name' => 'set_ilias_plugin_activation_state',
-					'description' => 'Changes an ILIAS plugin activation state.',
-					'parameters' => ['type' => 'object', 'properties' => []]
-				]
-			]],
-			AgentToolLoopContextKeys::MUTATION_TOOL_NAMES => ['set_ilias_plugin_activation_state'],
+			AgentToolLoopContextKeys::TOOL_DEFINITIONS => $toolDefinitions,
+			AgentToolLoopContextKeys::MUTATION_TOOL_NAMES => $mutationToolNames,
 			AgentToolLoopContextKeys::MODEL_DECISION_CONFIG => $config,
 			AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS => [],
 			AgentToolLoopContextKeys::MODEL_RESULTS => [],
