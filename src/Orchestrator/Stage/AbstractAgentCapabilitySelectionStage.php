@@ -25,6 +25,7 @@ use AssistantFoundation\Dto\AgentCapabilityCatalog;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
 use AssistantFoundation\Dto\AgentStageResult;
+use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 
 /**
  * Shared execution mechanics for deterministic and AI-based capability
@@ -32,12 +33,16 @@ use AssistantFoundation\Dto\AgentStageResult;
  */
 abstract class AbstractAgentCapabilitySelectionStage implements IAgentStage {
 
+	private AgentToolDefinitionSemantics $toolDefinitionSemantics;
+
 	public function __construct(
 		private readonly IAgentCapabilitySelector $selector,
 		private readonly string $id,
 		private readonly string $stageName,
-		private readonly int $maxContextCharacters = 24000
+		private readonly int $maxContextCharacters = 24000,
+		?AgentToolDefinitionSemantics $toolDefinitionSemantics = null
 	) {
+		$this->toolDefinitionSemantics = $toolDefinitionSemantics ?? new AgentToolDefinitionSemantics();
 		if (trim($this->id) === '') {
 			throw new \InvalidArgumentException('Capability selection stage id must not be empty.');
 		}
@@ -97,7 +102,10 @@ abstract class AbstractAgentCapabilitySelectionStage implements IAgentStage {
 					previousSelectedToolNames: $previous,
 					recentToolNames: $this->recentToolNames($context),
 					requiredToolNames: $required,
-					model: $this->resolveModel($context)
+					model: $this->resolveModel($context),
+					messages: is_array($context->getVar(AgentToolLoopContextKeys::MESSAGES))
+						? $context->getVar(AgentToolLoopContextKeys::MESSAGES)
+						: []
 				)
 			);
 		} catch (\Throwable $e) {
@@ -117,13 +125,19 @@ abstract class AbstractAgentCapabilitySelectionStage implements IAgentStage {
 		}
 		$this->emitSelection($context, $selection->toArray());
 
-		return AgentStageResult::patch([
-			AgentToolLoopContextKeys::TOOL_DEFINITIONS => $selection->getToolDefinitions(),
+		$selectedDefinitions = $selection->getToolDefinitions();
+		$patch = [
+			AgentToolLoopContextKeys::TOOL_DEFINITIONS => $selectedDefinitions,
 			AgentToolLoopContextKeys::SELECTED_TOOL_NAMES => $selection->getToolNames(),
 			AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED => true,
 			AgentToolLoopContextKeys::CAPABILITY_SELECTIONS => $selections,
 			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults
-		], $selection->toArray());
+		];
+		if ($config->selectsSources()) {
+			$patch[AgentToolLoopContextKeys::MUTATION_TOOL_NAMES] = $this->toolDefinitionSemantics->getMutationToolNames($selectedDefinitions);
+		}
+
+		return AgentStageResult::patch($patch, $selection->toArray());
 	}
 
 	protected function resolveModel(IAgentContext $context): ?IAiChatModel {

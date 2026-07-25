@@ -62,6 +62,17 @@ final class AgentOrchestratorProfile {
 		if ($this->capabilitySelectionEnabled && $this->aiCapabilitySelectionEnabled) {
 			throw new \InvalidArgumentException('Deterministic and AI capability selection stages are mutually exclusive.');
 		}
+		if ($this->capabilitySelection->selectsSources() && !$this->aiCapabilitySelectionEnabled) {
+			throw new \InvalidArgumentException('Source-complete capability selection requires the AI capability selection stage.');
+		}
+		if (
+			$this->modelDecision->getStrategy() === AgentModelDecisionConfig::STRATEGY_NATIVE
+			&& $this->semanticVerificationEnabled
+		) {
+			throw new \InvalidArgumentException(
+				'Native model decision cannot be combined with semantic verification because terminal output may already be visible.'
+			);
+		}
 	}
 
 	public function getId(): string { return $this->id; }

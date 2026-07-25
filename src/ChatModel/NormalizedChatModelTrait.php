@@ -19,6 +19,7 @@ namespace MissionBay\ChatModel;
 
 use AssistantFoundation\Dto\AiChatResult;
 use MissionBay\Ai\AiResultNormalizer;
+use RuntimeException;
 
 trait NormalizedChatModelTrait {
 
@@ -55,14 +56,24 @@ trait NormalizedChatModelTrait {
 			}
 		);
 
+		$metadata = AiResultNormalizer::streamMetadata(
+			$metadataEvents,
+			$this->buildResultHints($startedAt),
+			$startedAt
+		);
+		$toolCalls = AiResultNormalizer::streamToolCalls($metadataEvents);
+		$finishReason = strtolower((string)$metadata->getFinishReason());
+
+		if($toolCalls === [] && in_array($finishReason, ['tool_calls', 'tool_use', 'function_call'], true)) {
+			throw new RuntimeException(
+				'Chat model stream ended with tool calls but did not provide reconstructable tool-call metadata.'
+			);
+		}
+
 		return new AiChatResult(
 			$content,
-			[],
-			AiResultNormalizer::streamMetadata(
-				$metadataEvents,
-				$this->buildResultHints($startedAt),
-				$startedAt
-			),
+			$toolCalls,
+			$metadata,
 			$metadataEvents
 		);
 	}

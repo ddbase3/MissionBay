@@ -255,6 +255,30 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 		?IAgentEventSink $eventSink,
 		AgentAssistantTurnResult $turnResult
 	): array {
+		if ($turnResult->isFinalOutputStreamed() && trim($turnResult->getFinalOutputContent()) !== '') {
+			$finalContent = $turnResult->getFinalOutputContent();
+			$warning = $turnResult->getFailureCode() !== ''
+				? $turnResult->getFailureCode()
+				: 'native_stream_incomplete';
+			AgentEventDispatcher::emit($eventSink, 'error', [
+				'message' => $turnResult->getFailureMessage(),
+				'user_message' => 'The streamed response could not be completed.',
+				'code' => $warning,
+				'partial_output' => true
+			]);
+			AgentEventDispatcher::emit($eventSink, 'done', ['status' => 'error']);
+
+			$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
+			$this->finalizeTypedAgentResult($context, $turnResult, $assistantMessage, $finalContent);
+
+			return [
+				'message' => $assistantMessage,
+				'tool_calls' => $turnResult->getToolCalls(),
+				'status' => $turnResult->getExecutionStatus(),
+				'warning' => $warning
+			];
+		}
+
 		$finalContent = $turnResult->getFallbackContent()
 			?? 'Ich konnte die Anfrage nicht vollständig abschließen. Bitte versuche es erneut oder grenze die Anfrage etwas ein.';
 		AgentEventDispatcher::emit($eventSink, 'token', ['text' => $finalContent]);

@@ -346,6 +346,7 @@ class AgentToolOrchestrator {
 			AgentToolLoopContextKeys::LOOP_PROGRESS_TERMINATED => false,
 			AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE => null,
 			AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT => '',
+			AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY => AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_NONE,
 			AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
 			AgentToolLoopContextKeys::MODEL_RESULTS => [],
 			AgentToolLoopContextKeys::CONTEXT_ASSESSMENTS => [],
@@ -561,6 +562,7 @@ class AgentToolOrchestrator {
 		$messages = $context->getVar(AgentToolLoopContextKeys::MESSAGES);
 		$finalAssistantMessage = $context->getVar(AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE);
 		$finalOutputContent = $context->getVar(AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT);
+		$finalOutputDelivery = $context->getVar(AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY);
 		$finalResponseMode = $context->getVar(AgentToolLoopContextKeys::FINAL_RESPONSE_MODE);
 		$executedToolCalls = $context->getVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS);
 		$failureDetail = $context->getVar(AgentToolLoopContextKeys::FAILURE_DETAIL);
@@ -618,7 +620,8 @@ class AgentToolOrchestrator {
 			$agentResult,
 			is_array($mutationToolNames) ? $mutationToolNames : [],
 			is_array($modelDecisionAssessments) ? $modelDecisionAssessments : [],
-			$toolResults
+			$toolResults,
+			is_scalar($finalOutputDelivery) ? (string)$finalOutputDelivery : AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_NONE
 		);
 	}
 

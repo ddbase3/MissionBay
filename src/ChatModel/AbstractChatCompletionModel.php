@@ -174,7 +174,7 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 			$payload['stream'] = true;
 		}
 
-		if(!$stream && $this->supportsTools() && !empty($tools)) {
+		if($this->supportsTools() && !empty($tools)) {
 			$cleanTools = $this->sanitizeTools($tools);
 
 			if(count($cleanTools) > 0) {

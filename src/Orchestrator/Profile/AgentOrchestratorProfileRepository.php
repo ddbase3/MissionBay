@@ -145,6 +145,28 @@ final class AgentOrchestratorProfileRepository {
 					'sticky' => false
 				]
 			], true),
+			'native-tool-loop' => $this->fromArray('native-tool-loop', [
+				'label' => 'Native tool loop',
+				'description' => 'Neuron-like provider-native tool loop with direct terminal streaming, structured MissionBay tool execution and no separate final-response call.',
+				'enabled' => true,
+				'mode' => AgentOrchestratorProfile::MODE_SIMPLE,
+				'max_tool_loops' => 10,
+				'model_decision' => AgentModelDecisionConfig::native()->toArray(),
+				'optional_stages' => [
+					'capability-discovery' => false,
+					'capability-selection' => false,
+					'ai-capability-selection' => false,
+					'context-compaction' => false,
+					'semantic-verification' => false
+				],
+				'capability_selection' => [
+					'enabled' => false,
+					'strategy' => 'hybrid',
+					'max_tools' => 512,
+					'select_all_threshold' => 512,
+					'sticky' => false
+				]
+			], true),
 			'standard' => $this->fromArray('standard', [
 				'label' => 'MissionBay standard',
 				'description' => 'General-purpose multi-step orchestration with discovery, selection, compaction and verification.',
@@ -189,6 +211,32 @@ final class AgentOrchestratorProfileRepository {
 					'semantic_candidate_tools' => 48,
 					'semantic_max_prompt_characters' => 48000,
 					'sticky' => false
+				]
+			], true),
+			'large-catalog-native' => $this->fromArray('large-catalog-native', [
+				'label' => 'Large catalog native tool loop',
+				'description' => 'Neuron-like native tool loop with AI-selected complete tool sources for large capability catalogs and direct terminal streaming.',
+				'enabled' => true,
+				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
+				'max_tool_loops' => 10,
+				'model_decision' => AgentModelDecisionConfig::native()->toArray(),
+				'optional_stages' => [
+					'capability-discovery' => true,
+					'capability-selection' => false,
+					'ai-capability-selection' => true,
+					'context-compaction' => true,
+					'semantic-verification' => false
+				],
+				'capability_selection' => [
+					'enabled' => true,
+					'strategy' => 'hybrid',
+					'max_tools' => 64,
+					'max_sources' => 8,
+					'selection_unit' => AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+					'select_all_threshold' => 12,
+					'semantic_candidate_tools' => 64,
+					'semantic_max_prompt_characters' => 48000,
+					'sticky' => true
 				]
 			], true),
 			'deliberate' => $this->fromArray('deliberate', [

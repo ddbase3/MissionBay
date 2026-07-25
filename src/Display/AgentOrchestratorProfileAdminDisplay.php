@@ -6,6 +6,7 @@
 
 namespace MissionBay\Display;
 
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use Base3\Api\IAssetResolver;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
@@ -63,7 +64,8 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 		]));
 		$this->view->assign('model_decision_strategy_options', [
 			['id' => AgentModelDecisionConfig::STRATEGY_AI_GUARDED, 'label' => 'AI-guarded model decision'],
-			['id' => AgentModelDecisionConfig::STRATEGY_SIMPLE, 'label' => 'Simple model decision']
+			['id' => AgentModelDecisionConfig::STRATEGY_NATIVE, 'label' => 'Native model decision (live)'],
+			['id' => AgentModelDecisionConfig::STRATEGY_SIMPLE, 'label' => 'Legacy compatibility model decision (text sentinel)']
 		]);
 		$this->view->assign('mode_options', [
 			['id' => AgentOrchestratorProfile::MODE_SIMPLE, 'label' => 'Simple tool agent'],
@@ -217,6 +219,13 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 		if ($capabilitySelectionEnabled && $aiCapabilitySelectionEnabled) {
 			return $this->error('Capability selection stages are mutually exclusive.', 'save');
 		}
+		$selectionUnit = strtolower(trim((string)($payload['selection_unit'] ?? AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION)));
+		if (!in_array($selectionUnit, [AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION, AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE], true)) {
+			return $this->error('Unsupported capability selection unit: ' . $selectionUnit, 'save');
+		}
+		if ($selectionUnit === AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE && !$aiCapabilitySelectionEnabled) {
+			return $this->error('Source-complete capability selection requires AI capability selection.', 'save');
+		}
 
 		$settings = [
 			'label' => trim((string)($payload['label'] ?? $id)),
@@ -246,6 +255,8 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 				'select_all_threshold' => max(0, min(512, (int)($payload['select_all_threshold'] ?? 16))),
 				'semantic_candidate_tools' => max(1, min(512, (int)($payload['semantic_candidate_tools'] ?? 48))),
 				'semantic_max_prompt_characters' => max(8000, min(200000, (int)($payload['semantic_max_prompt_characters'] ?? 48000))),
+				'selection_unit' => $selectionUnit,
+				'max_sources' => max(1, min(128, (int)($payload['max_sources'] ?? 8))),
 				'sticky' => $this->toBool($payload['sticky'] ?? true)
 			]
 		];
@@ -328,6 +339,8 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'select_all_threshold' => (int)($selection['select_all_threshold'] ?? 16),
 			'semantic_candidate_tools' => (int)($selection['semantic_candidate_tools'] ?? 48),
 			'semantic_max_prompt_characters' => (int)($selection['semantic_max_prompt_characters'] ?? 48000),
+			'selection_unit' => (string)($selection['selection_unit'] ?? AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION),
+			'max_sources' => (int)($selection['max_sources'] ?? 8),
 			'sticky' => (bool)($selection['sticky'] ?? true),
 			'model_decision_strategy' => (string)($modelDecision['strategy'] ?? AgentModelDecisionConfig::STRATEGY_AI_GUARDED),
 			'model_decision_repair_enabled' => (bool)($modelDecision['repair_enabled'] ?? true),

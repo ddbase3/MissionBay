@@ -28,6 +28,11 @@ class McpToolCatalog {
 	private array $definitions = [];
 
 	/**
+	 * @var array<string,array<string,mixed>>
+	 */
+	private array $definitionsByName = [];
+
+	/**
 	 * @var array<string,IAgentTool>
 	 */
 	private array $toolsByName = [];
@@ -70,6 +75,17 @@ class McpToolCatalog {
 	}
 
 	/**
+	 * @return array<string,mixed>
+	 */
+	public function getDefinition(string $name): array {
+		if(!isset($this->definitionsByName[$name])) {
+			throw new \InvalidArgumentException('Unknown MCP tool definition: ' . $name);
+		}
+
+		return $this->definitionsByName[$name];
+	}
+
+	/**
 	 * @param IAgentTool[] $tools
 	 */
 	private function build(array $tools): void {
@@ -102,6 +118,7 @@ class McpToolCatalog {
 				$definition = $this->withDefaultAnnotations($definition, $tool);
 
 				$this->definitions[] = $definition;
+				$this->definitionsByName[$name] = $definition;
 				$this->toolsByName[$name] = $tool;
 			}
 		}

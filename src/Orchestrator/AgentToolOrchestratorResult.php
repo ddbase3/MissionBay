@@ -32,6 +32,7 @@ use AssistantFoundation\Dto\AgentStageTraceEntry;
 use AssistantFoundation\Dto\AgentToolContractValidation;
 use AssistantFoundation\Dto\AgentToolCacheRecord;
 use AssistantFoundation\Dto\AgentToolResult;
+use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Result of the complete MissionBay agent stage pipeline.
@@ -39,7 +40,8 @@ use AssistantFoundation\Dto\AgentToolResult;
  * Important:
  * - messages contains the exact working message stack after the last tool result
  * - finalAssistantMessage stores the terminal model response
- * - finalOutputContent stores the response published by final-answer
+ * - finalOutputContent stores the canonical visible assistant response
+ * - finalOutputDelivery records whether that response was already streamed
  * - incomplete results still carry messages and tool calls for graceful recovery
  */
 class AgentToolOrchestratorResult {
@@ -47,6 +49,10 @@ class AgentToolOrchestratorResult {
 	public const FINAL_RESPONSE_NONE = 'none';
 	public const FINAL_RESPONSE_COMPLETE = 'complete';
 	public const FINAL_RESPONSE_PARTIAL = 'partial';
+
+	public const FINAL_OUTPUT_DELIVERY_NONE = AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_NONE;
+	public const FINAL_OUTPUT_DELIVERY_BUFFERED = AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_BUFFERED;
+	public const FINAL_OUTPUT_DELIVERY_STREAMED = AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_STREAMED;
 
 	/**
 	 * @param array<int,array<string,mixed>> $messages
@@ -69,6 +75,7 @@ class AgentToolOrchestratorResult {
 	 * @param array<int,string> $mutationToolNames
 	 * @param array<int,array<string,mixed>> $modelDecisionAssessments
 	 * @param array<int,AgentToolResult> $toolResults
+	 * @param string $finalOutputDelivery
 	 */
 	public function __construct(
 		private array $messages,
@@ -100,7 +107,8 @@ class AgentToolOrchestratorResult {
 		private ?AgentResult $agentResult = null,
 		private array $mutationToolNames = [],
 		private array $modelDecisionAssessments = [],
-		private array $toolResults = []
+		private array $toolResults = [],
+		private string $finalOutputDelivery = self::FINAL_OUTPUT_DELIVERY_NONE
 	) {
 		if (!in_array($this->executionStatus, AgentExecutionStatus::all(), true)) {
 			throw new \InvalidArgumentException('Unsupported execution status: ' . $this->executionStatus);
@@ -148,6 +156,13 @@ class AgentToolOrchestratorResult {
 		], true)) {
 			throw new \InvalidArgumentException('Unsupported final response mode: ' . $this->finalResponseMode);
 		}
+		if (!in_array($this->finalOutputDelivery, [
+			self::FINAL_OUTPUT_DELIVERY_NONE,
+			self::FINAL_OUTPUT_DELIVERY_BUFFERED,
+			self::FINAL_OUTPUT_DELIVERY_STREAMED
+		], true)) {
+			throw new \InvalidArgumentException('Unsupported final output delivery: ' . $this->finalOutputDelivery);
+		}
 	}
 
 	/**
@@ -182,6 +197,14 @@ class AgentToolOrchestratorResult {
 	 */
 	public function getFinalOutputContent(): string {
 		return $this->finalOutputContent;
+	}
+
+	public function getFinalOutputDelivery(): string {
+		return $this->finalOutputDelivery;
+	}
+
+	public function isFinalOutputStreamed(): bool {
+		return $this->finalOutputDelivery === self::FINAL_OUTPUT_DELIVERY_STREAMED;
 	}
 
 	public function isCompleted(): bool {

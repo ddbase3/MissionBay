@@ -119,6 +119,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 					<option value="<?php echo $e($option['id'] ?? ''); ?>"><?php echo $e($option['label'] ?? $option['id'] ?? ''); ?></option>
 <?php endforeach; ?>
 				</select>
+				<div class="orchestrator-profile-hint" data-model-decision-hint></div>
 			</div>
 			<div>
 				<label class="orchestrator-profile-label">Decision confidence threshold</label>
@@ -129,8 +130,16 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				<select name="selection_strategy" class="orchestrator-profile-select"><option value="hybrid">Hybrid ranking</option><option value="all">All allowed tools</option></select>
 			</div>
 			<div>
+				<label class="orchestrator-profile-label">AI selection unit</label>
+				<select name="selection_unit" class="orchestrator-profile-select"><option value="function">Individual functions</option><option value="source">Complete tool sources</option></select>
+			</div>
+			<div>
 				<label class="orchestrator-profile-label">Maximum tools per model call</label>
 				<input type="number" name="max_tools" min="1" max="512" class="orchestrator-profile-input" />
+			</div>
+			<div>
+				<label class="orchestrator-profile-label">Maximum selected sources</label>
+				<input type="number" name="max_sources" min="1" max="128" class="orchestrator-profile-input" />
 			</div>
 			<div>
 				<label class="orchestrator-profile-label">Select-all threshold</label>
@@ -174,10 +183,10 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	const GRID_SELECTOR = '#orchestrator-profile-grid';
 	const BATCH_SIZE = 50;
 	const MODE_DEFAULTS = {
-		simple: { max_tool_loops: 1, deliberate_planning: false, capability_discovery: false, capability_selection: true, ai_capability_selection: false, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: false, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
-		standard: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
-		deliberate: { max_tool_loops: 4, deliberate_planning: true, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 12, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
-		governed: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', max_tools: 16, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
+		simple: { max_tool_loops: 1, deliberate_planning: false, capability_discovery: false, capability_selection: true, ai_capability_selection: false, context_compaction: false, semantic_verification: false, selection_strategy: 'hybrid', selection_unit: 'function', max_tools: 12, max_sources: 8, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: false, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
+		standard: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', selection_unit: 'function', max_tools: 16, max_sources: 8, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
+		deliberate: { max_tool_loops: 4, deliberate_planning: true, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', selection_unit: 'function', max_tools: 12, max_sources: 8, select_all_threshold: 12, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
+		governed: { max_tool_loops: 10, deliberate_planning: false, capability_discovery: true, capability_selection: true, ai_capability_selection: false, context_compaction: true, semantic_verification: true, selection_strategy: 'hybrid', selection_unit: 'function', max_tools: 16, max_sources: 8, select_all_threshold: 16, semantic_candidate_tools: 48, semantic_max_prompt_characters: 48000, sticky: true, model_decision_strategy: 'ai-guarded-model-decision', model_decision_repair_enabled: true, model_decision_confidence_threshold: 0.7 },
 	};
 	let grid = null;
 	let dialog = null;
@@ -274,6 +283,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	function enforceCapabilitySelectionStageChoice(form, changedName = '') {
 		if (changedName === 'capability_selection' && getChecked(form, 'capability_selection')) {
 			setChecked(form, 'ai_capability_selection', false);
+			setValue(form, 'selection_unit', 'function');
 		}
 		if (changedName === 'ai_capability_selection' && getChecked(form, 'ai_capability_selection')) {
 			setChecked(form, 'capability_selection', false);
@@ -283,12 +293,39 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	function updateCapabilitySelectionControls(form, readonly = false) {
 		const aiEnabled = getChecked(form, 'ai_capability_selection');
 		const strategy = field(form, 'selection_strategy');
+		const selectionUnit = field(form, 'selection_unit');
+		const maxSources = field(form, 'max_sources');
 		const semanticCandidates = field(form, 'semantic_candidate_tools');
 		const semanticPromptLimit = field(form, 'semantic_max_prompt_characters');
 		if (aiEnabled) setValue(form, 'selection_strategy', 'hybrid');
 		if (strategy) strategy.disabled = readonly || aiEnabled;
+		if (selectionUnit) selectionUnit.disabled = readonly || !aiEnabled;
+		if (maxSources) maxSources.disabled = readonly || !aiEnabled || getValue(form, 'selection_unit') !== 'source';
 		if (semanticCandidates) semanticCandidates.disabled = readonly || !aiEnabled;
 		if (semanticPromptLimit) semanticPromptLimit.disabled = readonly || !aiEnabled;
+	}
+	function updateModelDecisionControls(form, readonly = false) {
+		const strategy = getValue(form, 'model_decision_strategy');
+		const native = strategy === 'native-model-decision';
+		const legacy = strategy === 'simple-model-decision';
+		const repair = field(form, 'model_decision_repair_enabled');
+		const threshold = field(form, 'model_decision_confidence_threshold');
+		const verification = field(form, 'semantic_verification');
+		const hint = form.querySelector('[data-model-decision-hint]');
+		if (native) {
+			setChecked(form, 'model_decision_repair_enabled', false);
+			setChecked(form, 'semantic_verification', false);
+		}
+		if (repair) repair.disabled = readonly || native;
+		if (threshold) threshold.disabled = readonly || native;
+		if (verification) verification.disabled = readonly || native;
+		if (hint) {
+			hint.textContent = native
+				? 'Native mode streams a normal terminal assistant response directly, skips the separate final-response model call, and requires semantic verification to be disabled.'
+				: legacy
+					? 'Compatibility only. This strategy uses the textual TOOL_PHASE_COMPLETE sentinel and a separate final-response call. Existing saved profiles remain supported; use AI-guarded or native model decision for new profiles.'
+					: 'Controlled strategies terminate the tool phase explicitly and generate the visible response afterwards.';
+		}
 	}
 	function updatePipelinePreview(form) {
 		const preview = form.querySelector('[data-pipeline-preview]');
@@ -305,6 +342,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			if (typeof value === 'boolean') setChecked(form, name, value); else setValue(form, name, value);
 		});
 		updateCapabilitySelectionControls(form);
+		updateModelDecisionControls(form);
 		updatePipelinePreview(form);
 	}
 	function setDialogStatus(message, type = '') { if (dialog) dialog.execute('setStatus', { message, type }); }
@@ -316,7 +354,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			profile_mode: getValue(form, 'profile_mode'), enabled: getChecked(form, 'enabled'), max_tool_loops: Number(getValue(form, 'max_tool_loops') || 0),
 			model_decision_strategy: getValue(form, 'model_decision_strategy'), model_decision_repair_enabled: getChecked(form, 'model_decision_repair_enabled'), model_decision_confidence_threshold: Number(getValue(form, 'model_decision_confidence_threshold') || 0),
 			deliberate_planning: getChecked(form, 'deliberate_planning'), capability_discovery: getChecked(form, 'capability_discovery'), capability_selection: getChecked(form, 'capability_selection'), ai_capability_selection: getChecked(form, 'ai_capability_selection'), context_compaction: getChecked(form, 'context_compaction'), semantic_verification: getChecked(form, 'semantic_verification'),
-			selection_strategy: getValue(form, 'selection_strategy'), max_tools: Number(getValue(form, 'max_tools') || 0), select_all_threshold: Number(getValue(form, 'select_all_threshold') || 0), semantic_candidate_tools: Number(getValue(form, 'semantic_candidate_tools') || 0), semantic_max_prompt_characters: Number(getValue(form, 'semantic_max_prompt_characters') || 0), sticky: getChecked(form, 'sticky')
+			selection_strategy: getValue(form, 'selection_strategy'), selection_unit: getValue(form, 'selection_unit'), max_tools: Number(getValue(form, 'max_tools') || 0), max_sources: Number(getValue(form, 'max_sources') || 0), select_all_threshold: Number(getValue(form, 'select_all_threshold') || 0), semantic_candidate_tools: Number(getValue(form, 'semantic_candidate_tools') || 0), semantic_max_prompt_characters: Number(getValue(form, 'semantic_max_prompt_characters') || 0), sticky: getChecked(form, 'sticky')
 		};
 		if (validate && !payload.id) throw new Error('Profile ID is required.');
 		if (validate && !payload.label) throw new Error('Label is required.');
@@ -381,7 +419,9 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		setValue(form, 'model_decision_strategy', record.model_decision_strategy ?? 'ai-guarded-model-decision');
 		setValue(form, 'model_decision_confidence_threshold', record.model_decision_confidence_threshold ?? 0.7);
 		setValue(form, 'selection_strategy', record.selection_strategy ?? 'hybrid');
+		setValue(form, 'selection_unit', record.selection_unit ?? 'function');
 		setValue(form, 'max_tools', record.max_tools ?? 16);
+		setValue(form, 'max_sources', record.max_sources ?? 8);
 		setValue(form, 'select_all_threshold', record.select_all_threshold ?? 16);
 		setValue(form, 'semantic_candidate_tools', record.semantic_candidate_tools ?? 48);
 		setValue(form, 'semantic_max_prompt_characters', record.semantic_max_prompt_characters ?? 48000);
@@ -397,6 +437,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const readonly = !!record.builtin;
 		form.querySelectorAll('input, select, textarea, button[data-action="apply-mode-defaults"]').forEach((node) => node.disabled = readonly);
 		updateCapabilitySelectionControls(form, readonly);
+		updateModelDecisionControls(form, readonly);
 		updatePipelinePreview(form);
 		dialog.execute('setTitle', readonly ? 'Built-in orchestrator profile' : (record.profile_id ? 'Edit orchestrator profile' : 'Add orchestrator profile'));
 		dialog.execute('setButtons', dialogButtons(record));
@@ -435,6 +476,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				const name = event.target && event.target.name ? String(event.target.name) : '';
 				enforceCapabilitySelectionStageChoice(form, name);
 				updateCapabilitySelectionControls(form);
+				updateModelDecisionControls(form);
 				updatePipelinePreview(form);
 			});
 			form.addEventListener('click', (event) => { const button = event.target.closest('[data-action="apply-mode-defaults"]'); if (button) applyModeDefaults(form); });

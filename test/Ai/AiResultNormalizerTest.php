@@ -153,4 +153,134 @@ final class AiResultNormalizerTest extends TestCase {
 		$this->assertTrue($metadata->getExtra()['stream']);
 	}
 
+	public function testNormalizesFragmentedStreamingToolCalls(): void {
+		$toolCalls = AiResultNormalizer::streamToolCalls([
+			[
+				'event' => 'toolcall',
+				'tool_calls' => [
+					[
+						'index' => 0,
+						'id' => 'call-lookup',
+						'type' => 'function',
+						'function' => [
+							'name' => 'lookup',
+							'arguments' => '{"query":"'
+						]
+					],
+					[
+						'index' => 1,
+						'id' => 'call-sum',
+						'type' => 'function',
+						'function' => [
+							'name' => 'sum',
+							'arguments' => '{"a":1,'
+						]
+					]
+				]
+			],
+			[
+				'event' => 'toolcall',
+				'tool_calls' => [
+					[
+						'index' => 0,
+						'function' => ['arguments' => 'BASE3"}']
+					],
+					[
+						'index' => 1,
+						'function' => ['arguments' => '"b":2}']
+					]
+				]
+			]
+		]);
+
+		$this->assertCount(2, $toolCalls);
+		$this->assertSame('call-lookup', $toolCalls[0]->getId());
+		$this->assertSame('lookup', $toolCalls[0]->getName());
+		$this->assertSame(['query' => 'BASE3'], $toolCalls[0]->getArguments());
+		$this->assertSame(0, $toolCalls[0]->getMetadata()['index']);
+		$this->assertSame('call-sum', $toolCalls[1]->getId());
+		$this->assertSame('sum', $toolCalls[1]->getName());
+		$this->assertSame(['a' => 1, 'b' => 2], $toolCalls[1]->getArguments());
+		$this->assertSame(1, $toolCalls[1]->getMetadata()['index']);
+	}
+
+	public function testNormalizesCompleteStreamingToolCallWithoutIndex(): void {
+		$toolCalls = AiResultNormalizer::streamToolCalls([
+			[
+				'event' => 'toolcall',
+				'tool_calls' => [[
+					'id' => 'gemini-call',
+					'type' => 'function',
+					'function' => [
+						'name' => 'lookup',
+						'arguments' => '{"query":"BASE3"}'
+					]
+				]]
+			]
+		]);
+
+		$this->assertCount(1, $toolCalls);
+		$this->assertSame('gemini-call', $toolCalls[0]->getId());
+		$this->assertSame('lookup', $toolCalls[0]->getName());
+		$this->assertSame(['query' => 'BASE3'], $toolCalls[0]->getArguments());
+	}
+
+	public function testPreservesRepeatedArgumentFragments(): void {
+		$toolCalls = AiResultNormalizer::streamToolCalls([
+			[
+				'event' => 'toolcall',
+				'tool_calls' => [[
+					'index' => 0,
+					'id' => 'call-repeat',
+					'function' => [
+						'name' => 'echo',
+						'arguments' => '{"value":"a'
+					]
+				]]
+			],
+			[
+				'event' => 'toolcall',
+				'tool_calls' => [[
+					'index' => 0,
+					'function' => ['arguments' => 'a"}']
+				]]
+			]
+		]);
+
+		$this->assertSame(['value' => 'aa'], $toolCalls[0]->getArguments());
+	}
+
+	public function testPreservesMalformedStreamingArgumentsForValidation(): void {
+		$toolCalls = AiResultNormalizer::streamToolCalls([
+			[
+				'event' => 'toolcall',
+				'tool_calls' => [[
+					'index' => 0,
+					'id' => 'call-invalid',
+					'function' => [
+						'name' => 'lookup',
+						'arguments' => '{"query":'
+					]
+				]]
+			]
+		]);
+
+		$this->assertSame(['_raw' => '{"query":'], $toolCalls[0]->getArguments());
+	}
+
+	public function testRejectsStreamedToolCallWithoutFunctionName(): void {
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('missing function name');
+
+		AiResultNormalizer::streamToolCalls([
+			[
+				'event' => 'toolcall',
+				'tool_calls' => [[
+					'index' => 0,
+					'id' => 'call-invalid',
+					'function' => ['arguments' => '{}']
+				]]
+			]
+		]);
+	}
 }

@@ -79,6 +79,65 @@ final class AgentAssistantFinalResponseGuardTest extends TestCase {
 		$this->assertSame(1, $model->getStreamCalls());
 	}
 
+	public function testStreamingResponseDoesNotRepublishPreparedNativeStream(): void {
+		$model = new FinalResponseGuardChatModel(completeResults: []);
+		$service = new AgentAssistantFinalResponseService(new AgentAssistantMessageFactory());
+		$chunks = [];
+
+		$content = $service->createStreamingResponse(
+			$model,
+			$this->nativeTerminalTurnResult(AgentToolOrchestratorResult::FINAL_OUTPUT_DELIVERY_STREAMED),
+			static function(string $chunk) use (&$chunks): void { $chunks[] = $chunk; }
+		);
+
+		$this->assertSame('Der Datensatz 42 ist aktiv.', $content);
+		$this->assertSame([], $chunks);
+		$this->assertSame(0, $model->getCompleteCalls());
+		$this->assertSame(0, $model->getStreamCalls());
+	}
+
+	public function testStreamingResponsePublishesBufferedNativeOutputOnce(): void {
+		$model = new FinalResponseGuardChatModel(completeResults: []);
+		$service = new AgentAssistantFinalResponseService(new AgentAssistantMessageFactory());
+		$chunks = [];
+
+		$content = $service->createStreamingResponse(
+			$model,
+			$this->nativeTerminalTurnResult(AgentToolOrchestratorResult::FINAL_OUTPUT_DELIVERY_BUFFERED),
+			static function(string $chunk) use (&$chunks): void { $chunks[] = $chunk; }
+		);
+
+		$this->assertSame('Der Datensatz 42 ist aktiv.', $content);
+		$this->assertSame(['Der Datensatz 42 ist aktiv.'], $chunks);
+		$this->assertSame(0, $model->getCompleteCalls());
+		$this->assertSame(0, $model->getStreamCalls());
+	}
+
+	private function nativeTerminalTurnResult(string $delivery): AgentAssistantTurnResult {
+		$orchestrationResult = new AgentToolOrchestratorResult(
+			messages: [
+				['role' => 'system', 'content' => 'You are a helpful assistant.'],
+				['role' => 'user', 'content' => 'Ist Datensatz 42 aktiv?']
+			],
+			finalAssistantMessage: ['role' => 'assistant', 'content' => 'Der Datensatz 42 ist aktiv.'],
+			completed: true,
+			iterations: 2,
+			finalOutputContent: 'Der Datensatz 42 ist aktiv.',
+			finalResponseMode: AgentToolOrchestratorResult::FINAL_RESPONSE_COMPLETE,
+			finalOutputDelivery: $delivery
+		);
+
+		return new AgentAssistantTurnResult(
+			messages: $orchestrationResult->getMessages(),
+			userMessage: ['role' => 'user', 'content' => 'Ist Datensatz 42 aktiv?'],
+			memories: [],
+			nodeId: 'assistant',
+			assistantMessageId: 'assistant-message',
+			memoryWriteEnabled: false,
+			orchestrationResult: $orchestrationResult
+		);
+	}
+
 	private function turnResult(): AgentAssistantTurnResult {
 		$orchestrationResult = new AgentToolOrchestratorResult(
 			messages: [

@@ -58,7 +58,8 @@ final class ProfileAwareAgentCapabilitySelector implements IAgentCapabilitySelec
 				previousSelectedToolNames: $request->getPreviousSelectedToolNames(),
 				recentToolNames: $request->getRecentToolNames(),
 				requiredToolNames: $request->getRequiredToolNames(),
-				model: $request->getModel()
+				model: $request->getModel(),
+				messages: $request->getMessages()
 			)
 		);
 	}

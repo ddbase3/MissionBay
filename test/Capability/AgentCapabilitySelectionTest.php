@@ -281,6 +281,197 @@ final class AgentCapabilitySelectionTest extends TestCase {
 		$this->assertNotNull($selection->getModelMetadata());
 	}
 
+
+	public function testSemanticSourceSelectionExposesCompleteSelectedToolSourcesAndCanonicalMessages(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_plugins', 'List ILIAS plugins.', ['plugins', 'list'], 20, 'plugins'),
+			$this->capability('get_ilias_plugin_details', 'Read one ILIAS plugin.', ['plugins', 'details'], 20, 'plugins'),
+			$this->capability('set_ilias_plugin_activation_state', 'Change an ILIAS plugin state.', ['plugins', 'mutation'], 20, 'plugins'),
+			$this->capability('list_ilias_cron_jobs', 'List ILIAS cron jobs.', ['cron', 'list'], 20, 'cron-jobs'),
+			$this->capability('run_ilias_cron_job', 'Run one ILIAS cron job.', ['cron', 'mutation'], 20, 'cron-jobs'),
+			$this->capability('get_global_webdav_status', 'Read WebDAV status.', ['webdav', 'status'], 20, 'webdav'),
+			$this->capability('update_global_webdav_settings', 'Change WebDAV settings.', ['webdav', 'mutation'], 20, 'webdav')
+		]);
+		$messages = [
+			['role' => 'system', 'content' => 'You are an ILIAS assistant.'],
+			['role' => 'user', 'content' => 'Is ReadSpeaker active and is Igor2Base available?'],
+			['role' => 'assistant', 'content' => '', 'tool_calls' => [['id' => 'call-1']]],
+			['role' => 'tool', 'tool_call_id' => 'call-1', 'content' => '{"plugin":"ReadSpeaker","active":true}'],
+			['role' => 'assistant', 'content' => 'ReadSpeaker is active.'],
+			['role' => 'user', 'content' => 'Disable ReadSpeaker and run Igor2Base.']
+		];
+		$model = $this->recordingChatModel('{"selected_sources":["plugins","cron-jobs"]}');
+		$selector = new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector());
+
+		$selection = $selector->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Disable ReadSpeaker and run Igor2Base.',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 16,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 16,
+					sticky: true,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+					maxSources: 4
+				),
+				model: $model,
+				messages: $messages
+			)
+		);
+
+		$this->assertSame([
+			'list_ilias_plugins',
+			'get_ilias_plugin_details',
+			'set_ilias_plugin_activation_state',
+			'list_ilias_cron_jobs',
+			'run_ilias_cron_job'
+		], $selection->getToolNames());
+		$this->assertNotContains('get_global_webdav_status', $selection->getToolNames());
+		$this->assertSame($messages, array_slice($model->getMessages(), 1, count($messages)));
+		$this->assertStringContainsString('"source_id":"plugins"', $model->getMessages()[array_key_last($model->getMessages())]['content']);
+		$this->assertStringContainsString('"source_id":"cron-jobs"', $model->getMessages()[array_key_last($model->getMessages())]['content']);
+	}
+
+	public function testSemanticSourceSelectionAllowsAnEmptySelectionForNormalConversation(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_plugins', 'List ILIAS plugins.', ['plugins', 'list'], 20, 'plugins'),
+			$this->capability('list_ilias_cron_jobs', 'List ILIAS cron jobs.', ['cron', 'list'], 20, 'cron-jobs')
+		]);
+		$selector = new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector());
+
+		$selection = $selector->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Hi',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 8,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 8,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE
+				),
+				model: $this->chatModel('{"selected_sources":[]}'),
+				messages: [['role' => 'user', 'content' => 'Hi']]
+			)
+		);
+
+		$this->assertSame([], $selection->getToolNames());
+		$this->assertSame(AgentCapabilitySelectionConfig::STRATEGY_SEMANTIC, $selection->getStrategy());
+	}
+
+	public function testSemanticSourceSelectionKeepsPreviouslySelectedSourcesCompleteWithinTheTurn(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_plugins', 'List ILIAS plugins.', ['plugins', 'list'], 20, 'plugins'),
+			$this->capability('set_ilias_plugin_activation_state', 'Change an ILIAS plugin state.', ['plugins', 'mutation'], 20, 'plugins'),
+			$this->capability('list_ilias_cron_jobs', 'List ILIAS cron jobs.', ['cron', 'list'], 20, 'cron-jobs'),
+			$this->capability('run_ilias_cron_job', 'Run one ILIAS cron job.', ['cron', 'mutation'], 20, 'cron-jobs')
+		]);
+		$selector = new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector());
+
+		$selection = $selector->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 2,
+				contextText: 'The matching cron job is Igor2Base.',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 16,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 16,
+					sticky: true,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE
+				),
+				previousSelectedToolNames: ['list_ilias_plugins', 'set_ilias_plugin_activation_state'],
+				model: $this->chatModel('{"selected_sources":["cron-jobs"]}'),
+				messages: [
+					['role' => 'user', 'content' => 'Disable ReadSpeaker and run Igor2Base.'],
+					['role' => 'tool', 'content' => 'The matching cron job is Igor2Base.']
+				]
+			)
+		);
+
+		$this->assertSame([
+			'list_ilias_plugins',
+			'set_ilias_plugin_activation_state',
+			'list_ilias_cron_jobs',
+			'run_ilias_cron_job'
+		], $selection->getToolNames());
+		$this->assertContains('sticky-source', $selection->getReasons()['set_ilias_plugin_activation_state']);
+	}
+
+	public function testSemanticSourceSelectionIsGenericForArbitraryFutureToolSources(): void {
+		$capabilities = [];
+		for ($source = 1; $source <= 24; $source++) {
+			$sourceId = 'future-source-' . $source;
+			$capabilities[] = $this->capability(
+				'future_source_' . $source . '_read',
+				'Read data from future source ' . $source . '.',
+				['future', 'read'],
+				10,
+				$sourceId
+			);
+			$capabilities[] = $this->capability(
+				'future_source_' . $source . '_write',
+				'Change data in future source ' . $source . '.',
+				['future', 'write'],
+				10,
+				$sourceId
+			);
+		}
+
+		$selection = (new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector()))->select(
+			new AgentCapabilityCatalog($capabilities),
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Use future source 19.',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 12,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 48,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+					maxSources: 4
+				),
+				model: $this->chatModel('{"selected_sources":["future-source-19"]}'),
+				messages: [['role' => 'user', 'content' => 'Use future source 19.']]
+			)
+		);
+
+		$this->assertSame([
+			'future_source_19_read',
+			'future_source_19_write'
+		], $selection->getToolNames());
+	}
+
+	public function testSemanticSourceSelectionNeverSilentlyCutsASelectedSource(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('source_read_1', 'Read one.', ['source'], 20, 'large-source'),
+			$this->capability('source_read_2', 'Read two.', ['source'], 20, 'large-source'),
+			$this->capability('source_read_3', 'Read three.', ['source'], 20, 'large-source'),
+			$this->capability('source_write_1', 'Write one.', ['source'], 20, 'large-source')
+		]);
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('Capability source "large-source" exposes 4 functions but maxTools is 3.');
+
+		(new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector()))->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Use the large source.',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 3,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 4,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+					maxSources: 2
+				),
+				model: $this->chatModel('{"selected_sources":["large-source"]}'),
+				messages: [['role' => 'user', 'content' => 'Use the large source.']]
+			)
+		);
+	}
+
 	private function capability(
 		string $name,
 		string $description,

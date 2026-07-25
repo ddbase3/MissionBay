@@ -49,13 +49,32 @@ final class AgentExecutionLedger {
 			return new self([], [], [], [], [], [], false);
 		}
 
-		$mutationToolNames = self::normalizeNames($orchestrationResult->getMutationToolNames());
+		return self::fromEvidence(
+			$orchestrationResult->getMutationToolNames(),
+			$orchestrationResult->getToolResults(),
+			$orchestrationResult->getModelDecisionAssessments()
+		);
+	}
+
+	/**
+	 * Builds the same authoritative ledger while orchestration is still active.
+	 *
+	 * @param array<int,mixed> $mutationToolNames
+	 * @param array<int,mixed> $toolResults
+	 * @param array<int,mixed> $modelDecisionAssessments
+	 */
+	public static function fromEvidence(
+		array $mutationToolNames,
+		array $toolResults,
+		array $modelDecisionAssessments
+	): self {
+		$mutationToolNames = self::normalizeNames($mutationToolNames);
 		$mutationNameMap = array_fill_keys($mutationToolNames, true);
 		$successful = [];
 		$failed = [];
 		$cached = [];
 
-		foreach ($orchestrationResult->getToolResults() as $toolResult) {
+		foreach ($toolResults as $toolResult) {
 			if (!$toolResult instanceof AgentToolResult) {
 				continue;
 			}
@@ -88,7 +107,7 @@ final class AgentExecutionLedger {
 			$failed[] = $record;
 		}
 
-		$assessments = $orchestrationResult->getModelDecisionAssessments();
+		$assessments = array_values(array_filter($modelDecisionAssessments, 'is_array'));
 		$latestAssessment = [];
 		$mutationIntent = $successful !== [] || $failed !== [] || $cached !== [];
 		foreach ($assessments as $assessment) {
@@ -106,7 +125,7 @@ final class AgentExecutionLedger {
 			$successful,
 			$failed,
 			$cached,
-			array_values(array_filter($assessments, 'is_array')),
+			$assessments,
 			$latestAssessment,
 			$mutationIntent
 		);

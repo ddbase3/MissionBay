@@ -17,6 +17,9 @@ use MissionBay\Mcp\McpConfirmationService;
 use MissionBay\Mcp\McpConfirmationStore;
 use MissionBay\Mcp\McpToolCatalog;
 use MissionBay\Mcp\McpToolDefinitionMapper;
+use MissionBay\Orchestrator\AgentActionFingerprint;
+use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 use MissionBay\Resource\ConfiguredAgentToolResource;
 use PHPUnit\Framework\TestCase;
 
@@ -35,9 +38,12 @@ final class McpConfirmationAuditTest extends TestCase {
 		$wrapper = new ConfiguredAgentToolResource($resolver, $eventManager, 'configured_mcp_tool');
 		$wrapper->init(['tool' => [new ConfirmableMcpToolTestDouble()]], $context);
 		$catalog = new McpToolCatalog([$wrapper], new McpToolDefinitionMapper(), $logger);
+		$semantics = new AgentToolDefinitionSemantics();
 		$service = new McpConfirmationService(
 			new McpConfirmationStore(new InMemoryMcpSettingsStore()),
 			$logger,
+			new AgentMutationCommitGuardService(new AgentActionFingerprint(), $eventManager, $semantics),
+			$semantics,
 			$eventManager
 		);
 
@@ -88,9 +94,12 @@ final class McpConfirmationAuditTest extends TestCase {
 		$wrapper = new ConfiguredAgentToolResource($resolver, $eventManager, 'configured_mcp_tool');
 		$wrapper->init(['tool' => [$tool]], $context);
 		$catalog = new McpToolCatalog([$wrapper], new McpToolDefinitionMapper(), $logger);
+		$semantics = new AgentToolDefinitionSemantics();
 		$service = new McpConfirmationService(
 			new McpConfirmationStore(new InMemoryMcpSettingsStore()),
 			$logger,
+			new AgentMutationCommitGuardService(new AgentActionFingerprint(), $eventManager, $semantics),
+			$semantics,
 			$eventManager
 		);
 		$pending = $service->createPendingIfNeeded(

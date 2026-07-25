@@ -18,9 +18,7 @@ use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 abstract class AbstractAgentModelDecisionStrategy {
 
-	protected const TERMINAL_SIGNAL = 'TOOL_PHASE_COMPLETE';
-
-	/** @return array{model:IAiChatModel,messages:array,tool_definitions:array,iteration:int,logger:mixed,continuation_hint:string,model_results:array,mutation_tool_names:array} */
+	/** @return array{model:IAiChatModel,messages:array,tool_definitions:array,iteration:int,logger:mixed,continuation_hint:string,model_results:array,mutation_tool_names:array,event_callback:mixed} */
 	protected function readRuntime(IAgentContext $context): array {
 		$model = $context->getVar(AgentToolLoopContextKeys::MODEL);
 		if (!$model instanceof IAiChatModel) {
@@ -40,13 +38,28 @@ abstract class AbstractAgentModelDecisionStrategy {
 			'logger' => $context->getVar(AgentToolLoopContextKeys::LOGGER),
 			'continuation_hint' => is_scalar($continuationHint) ? trim((string)$continuationHint) : '',
 			'model_results' => is_array($modelResults) ? $modelResults : [],
-			'mutation_tool_names' => is_array($mutationToolNames) ? array_values(array_filter($mutationToolNames, 'is_string')) : []
+			'mutation_tool_names' => is_array($mutationToolNames) ? array_values(array_filter($mutationToolNames, 'is_string')) : [],
+			'event_callback' => $context->getVar(AgentToolLoopContextKeys::EVENT_CALLBACK)
 		];
 	}
 
 	/** @param array<int,array<string,mixed>> $messages @param array<int,array<string,mixed>> $toolDefinitions */
 	protected function callModel(IAiChatModel $model, array $messages, array $toolDefinitions, array &$modelResults): AiChatResult {
 		$result = $model->complete($messages, $toolDefinitions);
+		$modelResults[] = $result->getMetadata()->toArray();
+		return $result;
+	}
+
+	/** @param array<int,array<string,mixed>> $messages @param array<int,array<string,mixed>> $toolDefinitions */
+	protected function streamModel(
+		IAiChatModel $model,
+		array $messages,
+		array $toolDefinitions,
+		callable $onData,
+		?callable $onMeta,
+		array &$modelResults
+	): AiChatResult {
+		$result = $model->streamResult($messages, $toolDefinitions, $onData, $onMeta);
 		$modelResults[] = $result->getMetadata()->toArray();
 		return $result;
 	}
@@ -87,7 +100,9 @@ abstract class AbstractAgentModelDecisionStrategy {
 
 	/** @param array<int,array<string,mixed>> $messages @param array<int,AiToolCall> $toolCalls @param array<int,array<string,mixed>> $modelResults @param array<int,AgentModelDecisionAssessment> $priorAssessments */
 	protected function toolCallResult(IAgentContext $context, array $messages, AiChatResult $result, array $toolCalls, array $modelResults, AgentModelDecisionAssessment $assessment, array $priorAssessments = []): AgentStageResult {
-		$assistantResult = new AiChatResult($result->getContent(), $toolCalls, $result->getMetadata());
+		// Text accompanying tool calls is control-phase output. It must not become
+		// a visible assistant message or compete with structured review stages.
+		$assistantResult = new AiChatResult('', $toolCalls, $result->getMetadata());
 		$messages[] = AgentChatMessageAdapter::assistantMessage($assistantResult);
 
 		$existing = $context->getVar(AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS);
@@ -98,16 +113,28 @@ abstract class AbstractAgentModelDecisionStrategy {
 			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
 			AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS => $assessments,
 			AgentToolLoopContextKeys::CONTINUATION_HINT => '',
+			AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT => '',
+			AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY => AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_NONE,
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $toolCalls,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_TOOLS
 		]);
 	}
 
 	/** @param array<int,array<string,mixed>> $modelResults @param array<int,AgentModelDecisionAssessment> $priorAssessments */
-	protected function completeResult(IAgentContext $context, AiChatResult $result, array $modelResults, AgentModelDecisionAssessment $assessment, string $instruction = '', array $priorAssessments = []): AgentStageResult {
+	protected function completeResult(
+		IAgentContext $context,
+		AiChatResult $result,
+		array $modelResults,
+		AgentModelDecisionAssessment $assessment,
+		string $instruction = '',
+		array $priorAssessments = [],
+		?string $finalOutputContent = null,
+		string $finalOutputDelivery = AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_NONE
+	): AgentStageResult {
 		$existing = $context->getVar(AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS);
 		$assessments = $this->appendAssessments(is_array($existing) ? $existing : [], $priorAssessments, $assessment);
-		$assistant = AgentChatMessageAdapter::assistantMessage(new AiChatResult($result->getContent(), [], $result->getMetadata()));
+		$assistantContent = $finalOutputContent ?? $result->getContent();
+		$assistant = AgentChatMessageAdapter::assistantMessage(new AiChatResult($assistantContent, [], $result->getMetadata()));
 		$patch = [
 			AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE => $assistant,
 			AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_COMPLETE,
@@ -120,6 +147,10 @@ abstract class AbstractAgentModelDecisionStrategy {
 		];
 		if (trim($instruction) !== '') {
 			$patch[AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION] = trim($instruction);
+		}
+		if ($finalOutputContent !== null) {
+			$patch[AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT] = $finalOutputContent;
+			$patch[AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY] = $finalOutputDelivery;
 		}
 		return AgentStageResult::patch($patch);
 	}
@@ -190,6 +221,13 @@ abstract class AbstractAgentModelDecisionStrategy {
 			AgentToolLoopContextKeys::COMPLETED => false,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED
 		]);
+	}
+
+	/** @param array<string,mixed> $payload */
+	protected function emitEvent(mixed $callback, string $event, array $payload): void {
+		if (is_callable($callback)) {
+			$callback($event, $payload);
+		}
 	}
 
 	protected function log(mixed $logger, string $message): void {

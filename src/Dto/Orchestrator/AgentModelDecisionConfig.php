@@ -19,13 +19,16 @@ namespace MissionBay\Dto\Orchestrator;
 
 final class AgentModelDecisionConfig {
 
+	/** @deprecated Compatibility only. Use STRATEGY_AI_GUARDED or STRATEGY_NATIVE. */
 	public const STRATEGY_SIMPLE = 'simple-model-decision';
 	public const STRATEGY_AI_GUARDED = 'ai-guarded-model-decision';
+	public const STRATEGY_NATIVE = 'native-model-decision';
 
 	/** @var array<int,string> */
 	private const STRATEGIES = [
 		self::STRATEGY_SIMPLE,
-		self::STRATEGY_AI_GUARDED
+		self::STRATEGY_AI_GUARDED,
+		self::STRATEGY_NATIVE
 	];
 
 	public function __construct(
@@ -41,12 +44,17 @@ final class AgentModelDecisionConfig {
 		}
 	}
 
+	/** @deprecated Compatibility only. Use aiGuarded() or native(). */
 	public static function simple(): self {
 		return new self(self::STRATEGY_SIMPLE, false, 0.7);
 	}
 
 	public static function aiGuarded(): self {
 		return new self(self::STRATEGY_AI_GUARDED, true, 0.7);
+	}
+
+	public static function native(): self {
+		return new self(self::STRATEGY_NATIVE, false, 0.7);
 	}
 
 	/** @param array<string,mixed> $data */
@@ -56,9 +64,14 @@ final class AgentModelDecisionConfig {
 			$strategy = self::STRATEGY_AI_GUARDED;
 		}
 
+		$repairEnabled = self::toBool($data['repair_enabled'] ?? true);
+		if ($strategy === self::STRATEGY_NATIVE) {
+			$repairEnabled = false;
+		}
+
 		return new self(
 			strategy: $strategy,
-			repairEnabled: self::toBool($data['repair_enabled'] ?? true),
+			repairEnabled: $repairEnabled,
 			confidenceThreshold: max(0.0, min(1.0, (float)($data['confidence_threshold'] ?? 0.7)))
 		);
 	}

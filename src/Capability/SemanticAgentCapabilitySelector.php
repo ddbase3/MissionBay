@@ -45,6 +45,9 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 			$catalog,
 			$this->withConfig($request, $this->hybridConfig($config, $config->getMaxTools(), $config->getSelectAllThreshold()))
 		);
+		if ($config->selectsSources()) {
+			$fallback = $this->expandSelectedSources($catalog, $request, $fallback, 'semantic-source-fallback');
+		}
 
 		if (
 			!$config->isEnabled()
@@ -69,15 +72,15 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		);
 
 		try {
-			$result = $model->complete($this->buildMessages($request, $candidates), []);
-			$selectedNames = $this->parseSelectedToolNames($result->getContent());
-			$selection = $this->buildSelection(
-				$catalog,
-				$request,
-				$candidates,
-				$selectedNames,
-				$result->getMetadata()
-			);
+			$result = $model->complete($this->buildMessages($catalog, $request, $candidates), []);
+			$selectedNames = $this->parseSelectedNames($result->getContent(), $config->selectsSources());
+			if ($selectedNames === null) {
+				return $this->rewrap($fallback, 'semantic-invalid-output', $result->getMetadata());
+			}
+
+			$selection = $config->selectsSources()
+				? $this->buildSourceSelection($catalog, $request, $candidates, $selectedNames, $result->getMetadata())
+				: $this->buildFunctionSelection($catalog, $request, $candidates, $selectedNames, $result->getMetadata());
 
 			if ($selection !== null) {
 				return $selection;
@@ -115,12 +118,24 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 			previousSelectedToolNames: $preserveStability ? $request->getPreviousSelectedToolNames() : [],
 			recentToolNames: $preserveStability ? $request->getRecentToolNames() : [],
 			requiredToolNames: $request->getRequiredToolNames(),
-			model: $request->getModel()
+			model: $request->getModel(),
+			messages: $request->getMessages()
 		);
 	}
 
 	/** @return array<int,array<string,mixed>> */
 	private function buildMessages(
+		AgentCapabilityCatalog $catalog,
+		AgentCapabilitySelectionRequest $request,
+		AgentCapabilitySelection $candidates
+	): array {
+		return $request->getConfig()->selectsSources()
+			? $this->buildSourceMessages($catalog, $request, $candidates)
+			: $this->buildFunctionMessages($request, $candidates);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function buildFunctionMessages(
 		AgentCapabilitySelectionRequest $request,
 		AgentCapabilitySelection $candidates
 	): array {
@@ -131,11 +146,7 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 			$payload[] = $this->capabilitySummary($capability);
 		}
 
-		$candidateJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-		if (!is_string($candidateJson)) {
-			throw new \RuntimeException('Semantic capability candidates could not be encoded.');
-		}
-
+		$candidateJson = $this->encodePayload($payload);
 		$contextText = trim($request->getContextText());
 		$maxCharacters = $config->getSemanticMaxPromptCharacters();
 		$fixedCharacters = strlen($candidateJson) + 3000;
@@ -165,6 +176,75 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		];
 	}
 
+	/** @return array<int,array<string,mixed>> */
+	private function buildSourceMessages(
+		AgentCapabilityCatalog $catalog,
+		AgentCapabilitySelectionRequest $request,
+		AgentCapabilitySelection $candidates
+	): array {
+		$config = $request->getConfig();
+		$payload = $this->sourcePayload($catalog, $candidates);
+		$candidateJson = $this->encodePayload($payload);
+		$messages = [[
+			'role' => 'system',
+			'content' => implode("\n", [
+				'You are a capability-source router for an AI agent.',
+				'Select complete registered tool sources, not individual functions.',
+				'Each selected source exposes all functions listed for that source to the next model decision.',
+				'Choose the smallest source-complete set that covers every independent request in the current user turn.',
+				'Use the supplied canonical conversation messages, including assistant tool calls and tool observations, to resolve follow-up requests.',
+				'An empty selection is valid when the current turn does not require tools.',
+				'Return JSON only in this exact shape: {"selected_sources":["source_id"]}.',
+				'Do not explain the choice and do not invent source ids.'
+			])
+		]];
+
+		foreach ($request->getMessages() as $message) {
+			if (is_array($message) && trim((string)($message['role'] ?? '')) !== '') {
+				$messages[] = $message;
+			}
+		}
+
+		$messages[] = [
+			'role' => 'user',
+			'content' => "Select the tool sources for the next model decision."
+				. "\nMaximum selected sources: " . $config->getMaxSources()
+				. "\nMaximum exposed functions: " . $config->getMaxTools()
+				. "\nCandidate sources:\n" . $candidateJson
+		];
+
+		return $messages;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function sourcePayload(
+		AgentCapabilityCatalog $catalog,
+		AgentCapabilitySelection $candidates
+	): array {
+		$candidateSources = [];
+		foreach ($candidates->getCapabilities() as $capability) {
+			$candidateSources[$this->sourceKey($capability)] = true;
+		}
+
+		$sources = [];
+		foreach ($catalog->all() as $capability) {
+			$sourceKey = $this->sourceKey($capability);
+			if (!isset($candidateSources[$sourceKey])) {
+				continue;
+			}
+			if (!isset($sources[$sourceKey])) {
+				$sources[$sourceKey] = [
+					'source_id' => $sourceKey,
+					'source_name' => $capability->getSourceName(),
+					'functions' => []
+				];
+			}
+			$sources[$sourceKey]['functions'][] = $this->capabilitySummary($capability);
+		}
+
+		return array_values($sources);
+	}
+
 	/** @return array<string,mixed> */
 	private function capabilitySummary(AgentCapability $capability): array {
 		$description = trim($capability->getDescription());
@@ -190,6 +270,15 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		];
 	}
 
+	/** @param array<int,mixed> $payload */
+	private function encodePayload(array $payload): string {
+		$json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		if (!is_string($json)) {
+			throw new \RuntimeException('Semantic capability candidates could not be encoded.');
+		}
+		return $json;
+	}
+
 	private function limitText(string $text, int $maxCharacters): string {
 		if (strlen($text) <= $maxCharacters) {
 			return $text;
@@ -203,11 +292,11 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		return substr($text, 0, $headLength) . $separator . substr($text, -$tailLength);
 	}
 
-	/** @return array<int,string> */
-	private function parseSelectedToolNames(string $content): array {
+	/** @return ?array<int,string> */
+	private function parseSelectedNames(string $content, bool $sources): ?array {
 		$content = trim($content);
 		if ($content === '') {
-			return [];
+			return null;
 		}
 
 		$content = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', $content) ?? $content;
@@ -218,12 +307,13 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		}
 
 		$decoded = json_decode($content, true);
-		if (!is_array($decoded) || !is_array($decoded['selected_tools'] ?? null)) {
-			return [];
+		$key = $sources ? 'selected_sources' : 'selected_tools';
+		if (!is_array($decoded) || !is_array($decoded[$key] ?? null)) {
+			return null;
 		}
 
 		$result = [];
-		foreach ($decoded['selected_tools'] as $name) {
+		foreach ($decoded[$key] as $name) {
 			if (!is_scalar($name)) {
 				continue;
 			}
@@ -236,7 +326,7 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		return array_keys($result);
 	}
 
-	private function buildSelection(
+	private function buildFunctionSelection(
 		AgentCapabilityCatalog $catalog,
 		AgentCapabilitySelectionRequest $request,
 		AgentCapabilitySelection $candidates,
@@ -294,6 +384,174 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		);
 	}
 
+	private function buildSourceSelection(
+		AgentCapabilityCatalog $catalog,
+		AgentCapabilitySelectionRequest $request,
+		AgentCapabilitySelection $candidates,
+		array $selectedSources,
+		AiResultMetadata $metadata
+	): ?AgentCapabilitySelection {
+		$candidateSources = [];
+		foreach ($candidates->getCapabilities() as $capability) {
+			$candidateSources[$this->sourceKey($capability)] = true;
+		}
+		foreach ($selectedSources as $sourceName) {
+			if (!isset($candidateSources[$sourceName])) {
+				return null;
+			}
+		}
+
+		$requiredSources = $this->sourceKeysForToolNames($catalog, $this->requiredNames($catalog->all(), $request));
+		$previousSources = $request->getConfig()->isSticky()
+			? $this->sourceKeysForToolNames($catalog, $request->getPreviousSelectedToolNames())
+			: [];
+		$orderedSources = [];
+		foreach ([$requiredSources, $previousSources, $selectedSources] as $sourceNames) {
+			foreach ($sourceNames as $sourceName) {
+				if (isset($candidateSources[$sourceName]) || in_array($sourceName, $requiredSources, true) || in_array($sourceName, $previousSources, true)) {
+					$orderedSources[$sourceName] = true;
+				}
+			}
+		}
+
+		return $this->selectionForSources(
+			$catalog,
+			$request,
+			array_keys($orderedSources),
+			$candidates->getEligibleSize(),
+			$metadata,
+			$requiredSources,
+			$previousSources,
+			'semantic-source',
+			true
+		);
+	}
+
+	private function expandSelectedSources(
+		AgentCapabilityCatalog $catalog,
+		AgentCapabilitySelectionRequest $request,
+		AgentCapabilitySelection $selection,
+		string $reason
+	): AgentCapabilitySelection {
+		$sources = [];
+		foreach ($selection->getCapabilities() as $capability) {
+			$sources[$this->sourceKey($capability)] = true;
+		}
+		$requiredSources = $this->sourceKeysForToolNames($catalog, $this->requiredNames($catalog->all(), $request));
+		$previousSources = $request->getConfig()->isSticky()
+			? $this->sourceKeysForToolNames($catalog, $request->getPreviousSelectedToolNames())
+			: [];
+		foreach (array_merge($requiredSources, $previousSources) as $source) {
+			$sources[$source] = true;
+		}
+
+		return $this->selectionForSources(
+			$catalog,
+			$request,
+			array_keys($sources),
+			$selection->getEligibleSize(),
+			$selection->getModelMetadata(),
+			$requiredSources,
+			$previousSources,
+			$reason,
+			false
+		);
+	}
+
+	/**
+	 * @param array<int,string> $sourceKeys
+	 * @param array<int,string> $requiredSources
+	 * @param array<int,string> $previousSources
+	 */
+	private function selectionForSources(
+		AgentCapabilityCatalog $catalog,
+		AgentCapabilitySelectionRequest $request,
+		array $sourceKeys,
+		int $eligibleSize,
+		?AiResultMetadata $metadata,
+		array $requiredSources,
+		array $previousSources,
+		string $reason,
+		bool $strict
+	): AgentCapabilitySelection {
+		$sourceMap = [];
+		foreach ($catalog->all() as $capability) {
+			$sourceMap[$this->sourceKey($capability)][] = $capability;
+		}
+
+		$sourceKeys = array_values(array_unique($sourceKeys));
+		if ($strict && count($sourceKeys) > $request->getConfig()->getMaxSources()) {
+			throw new \RuntimeException(
+				'Source-complete capability selection requires ' . count($sourceKeys)
+				. ' sources but maxSources is ' . $request->getConfig()->getMaxSources() . '.'
+			);
+		}
+
+		$requiredFunctionCount = 0;
+		foreach ($sourceKeys as $sourceKey) {
+			if (!isset($sourceMap[$sourceKey])) {
+				throw new \RuntimeException('Selected capability source is unavailable: ' . $sourceKey);
+			}
+			$requiredFunctionCount += count($sourceMap[$sourceKey]);
+		}
+		if ($strict && $requiredFunctionCount > $request->getConfig()->getMaxTools()) {
+			throw new \RuntimeException(
+				'Source-complete capability selection requires ' . $requiredFunctionCount
+				. ' functions but maxTools is ' . $request->getConfig()->getMaxTools() . '.'
+			);
+		}
+
+		$capabilities = [];
+		$scores = [];
+		$reasons = [];
+		$sourceCount = 0;
+		$position = 0;
+		foreach ($sourceKeys as $sourceKey) {
+			$sourceCapabilities = $sourceMap[$sourceKey];
+			if (!$strict && $sourceCount >= $request->getConfig()->getMaxSources()) {
+				break;
+			}
+			if (!$strict && count($sourceCapabilities) > $request->getConfig()->getMaxTools()) {
+				throw new \RuntimeException(
+					'Capability source "' . $sourceKey . '" exposes ' . count($sourceCapabilities)
+					. ' functions but maxTools is ' . $request->getConfig()->getMaxTools() . '.'
+				);
+			}
+			if (!$strict && count($capabilities) + count($sourceCapabilities) > $request->getConfig()->getMaxTools()) {
+				continue;
+			}
+
+			$isRequired = in_array($sourceKey, $requiredSources, true);
+			$isPrevious = in_array($sourceKey, $previousSources, true);
+			foreach ($sourceCapabilities as $capability) {
+				$name = $capability->getName();
+				$capabilities[] = $capability;
+				$scores[$name] = $isRequired ? 1000.0 : max(1.0, 100.0 - $position);
+				$capabilityReasons = [$reason, 'source:' . $sourceKey];
+				if ($isRequired) {
+					$capabilityReasons[] = 'mandatory-source';
+				}
+				if ($isPrevious) {
+					$capabilityReasons[] = 'sticky-source';
+				}
+				$reasons[$name] = $capabilityReasons;
+				$position++;
+			}
+			$sourceCount++;
+		}
+
+		return new AgentCapabilitySelection(
+			iteration: $request->getIteration(),
+			strategy: AgentCapabilitySelectionConfig::STRATEGY_SEMANTIC,
+			catalogSize: count($catalog),
+			eligibleSize: $eligibleSize,
+			capabilities: $capabilities,
+			scores: $scores,
+			reasons: $reasons,
+			modelMetadata: $metadata
+		);
+	}
+
 	/**
 	 * @param array<int,AgentCapability> $capabilities
 	 * @return array<int,string>
@@ -313,6 +571,30 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		}
 
 		return array_keys($required);
+	}
+
+	/** @param array<int,string> $toolNames @return array<int,string> */
+	private function sourceKeysForToolNames(AgentCapabilityCatalog $catalog, array $toolNames): array {
+		$result = [];
+		foreach ($toolNames as $toolName) {
+			$capability = $catalog->get($toolName);
+			if ($capability !== null) {
+				$result[$this->sourceKey($capability)] = true;
+			}
+		}
+		return array_keys($result);
+	}
+
+	private function sourceKey(AgentCapability $capability): string {
+		$sourceId = trim($capability->getSourceId());
+		if ($sourceId !== '') {
+			return $sourceId;
+		}
+		$sourceName = trim($capability->getSourceName());
+		if ($sourceName !== '') {
+			return $sourceName;
+		}
+		return 'tool:' . $capability->getName();
 	}
 
 	private function rewrap(

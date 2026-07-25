@@ -27,6 +27,7 @@ class McpConfirmationStore {
 	/**
 	 * @param array<string,mixed> $confirmation
 	 * @param array<string,mixed> $arguments
+	 * @param array<string,mixed> $guardedMutation
 	 * @return array<string,mixed>
 	 */
 	public function create(
@@ -35,7 +36,8 @@ class McpConfirmationStore {
 		array $arguments,
 		array $confirmation,
 		string $callId,
-		string $nodeId
+		string $nodeId,
+		array $guardedMutation = []
 	): array {
 		$id = $this->generateId();
 		$createdAt = time();
@@ -54,6 +56,10 @@ class McpConfirmationStore {
 			'created_at' => gmdate('c', $createdAt),
 			'expires_at' => gmdate('c', $createdAt + $ttl)
 		];
+
+		if($guardedMutation !== []) {
+			$record['guarded_mutation'] = $guardedMutation;
+		}
 
 		$this->settingsStore->set(self::GROUP, $id, $record);
 		$this->settingsStore->save();
@@ -136,16 +142,16 @@ class McpConfirmationStore {
 		return [
 			'title' => trim((string)($confirmation['title'] ?? 'Confirm tool call')),
 			'message' => trim((string)($confirmation['message'] ?? 'Please confirm this tool call before it is executed.')),
-			'summary' => $this->normalizeList($confirmation['summary'] ?? []),
+			'summary' => $this->normalizeSummary($confirmation['summary'] ?? []),
 			'risk' => trim((string)($confirmation['risk'] ?? 'medium')),
 			'ttl_seconds' => (int)($confirmation['ttl_seconds'] ?? self::DEFAULT_TTL_SECONDS)
 		];
 	}
 
 	/**
-	 * @return array<int,string>
+	 * @return array<int|string,mixed>
 	 */
-	private function normalizeList(mixed $value): array {
+	private function normalizeSummary(mixed $value): array {
 		if(is_string($value) && trim($value) !== '') {
 			return [trim($value)];
 		}
@@ -154,16 +160,30 @@ class McpConfirmationStore {
 			return [];
 		}
 
-		$list = [];
+		$summary = [];
 
-		foreach($value as $entry) {
-			$entry = trim((string)$entry);
+		foreach($value as $key => $entry) {
+			if(is_string($entry)) {
+				$entry = trim($entry);
 
-			if($entry !== '') {
-				$list[] = $entry;
+				if($entry === '') {
+					continue;
+				}
 			}
+			elseif(is_array($entry)) {
+				$entry = $this->normalizeSummary($entry);
+
+				if($entry === []) {
+					continue;
+				}
+			}
+			elseif(!is_scalar($entry) && $entry !== null) {
+				continue;
+			}
+
+			$summary[$key] = $entry;
 		}
 
-		return $list;
+		return $summary;
 	}
 }

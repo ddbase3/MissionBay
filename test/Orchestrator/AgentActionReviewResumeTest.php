@@ -4,6 +4,7 @@ namespace MissionBay\Test\Orchestrator;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AiChatResult;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentExecutionStatus;
@@ -22,6 +23,7 @@ use MissionBay\Context\AgentContext;
 use MissionBay\Event\MissionBayAgentActionAuditEvent;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
+use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Service\AgentActionResumeService;
 use MissionBay\Orchestrator\Service\AgentActionReviewService;
@@ -89,6 +91,90 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertSame(['id' => 42, 'title' => 'Reviewed title'], $tool->getLastArguments());
 	}
 
+	public function testNativeMutationToolCallSuppressesModelConfirmationTextBeforeStructuredApproval(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator] = $this->createHarness();
+		$result = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->toolCallResponse(
+					'call-native-approval',
+					'update_record',
+					['id' => 42, 'title' => 'Native approval'],
+					'Ich ändere den Datensatz. Möchtest du fortfahren?'
+				)
+			]),
+			[['role' => 'user', 'content' => 'Update record 42.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			modelDecisionConfig: AgentModelDecisionConfig::native()
+		);
+
+		$this->assertTrue($result->isSuspended());
+		$this->assertSame(0, $tool->getCallCount());
+		$this->assertSame('', $result->getFinalOutputContent());
+		$this->assertCount(1, $result->getInteractionRequests());
+		$this->assertSame('', $result->getMessages()[1]['content']);
+		$this->assertArrayHasKey('tool_calls', $result->getMessages()[1]);
+	}
+
+
+
+	public function testNativeMutationResumeStreamsTerminalAnswerAfterSingleApprovedExecution(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator, $resumeService] = $this->createHarness();
+		$firstResult = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->toolCallResponse(
+					'call-native-live-approval',
+					'update_record',
+					['id' => 42, 'title' => 'Native live approval']
+				)
+			]),
+			[['role' => 'user', 'content' => 'Update record 42.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			modelDecisionConfig: AgentModelDecisionConfig::native()
+		);
+		$request = $firstResult->getInteractionRequests()[0];
+		$prepared = $resumeService->prepare(new AgentResume($firstResult->getResumeHandle(), [
+			new AgentInteractionResponse($request->getId(), AgentInteractionResponse::DECISION_APPROVE)
+		]));
+		$events = [];
+
+		$secondResult = $orchestrator->run(
+			new ApprovalQueueChatModel([[
+				'choices' => [[
+					'message' => [
+						'role' => 'assistant',
+						'content' => 'Record 42 was updated.'
+					]
+				]]
+			]]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			eventCallback: static function(string $event, array $payload) use (&$events): void {
+				$events[] = [$event, $payload];
+			},
+			resume: $prepared,
+			modelDecisionConfig: AgentModelDecisionConfig::native()
+		);
+
+		$this->assertTrue($secondResult->isCompleted());
+		$this->assertSame(1, $tool->getCallCount());
+		$this->assertSame('Record 42 was updated.', $secondResult->getFinalOutputContent());
+		$this->assertTrue($secondResult->isFinalOutputStreamed());
+		$tokenEvents = array_values(array_filter(
+			$events,
+			static fn(array $event): bool => ($event[0] ?? '') === 'token'
+		));
+		$this->assertSame([
+			['token', ['text' => 'Record 42 was updated.']]
+		], $tokenEvents);
+	}
 
 	public function testNaturalLanguageApprovalExecutesMutation(): void {
 		$tool = new ApprovalMutationTool();
@@ -555,12 +641,12 @@ final class AgentActionReviewResumeTest extends TestCase {
 	}
 
 	/** @param array<string,mixed> $arguments @return array<string,mixed> */
-	private function toolCallResponse(string $id, string $name, array $arguments): array {
+	private function toolCallResponse(string $id, string $name, array $arguments, ?string $content = null): array {
 		return [
 			'choices' => [[
 				'message' => [
 					'role' => 'assistant',
-					'content' => null,
+					'content' => $content,
 					'tool_calls' => [[
 						'id' => $id,
 						'function' => [
@@ -766,7 +852,16 @@ final class ApprovalQueueChatModel implements IAiChatModel {
 		}
 		return array_shift($this->responses);
 	}
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {}
+	public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
+		$result = $this->complete($messages, $tools);
+		if (!$result->hasToolCalls() && $result->getContent() !== '') {
+			$onData($result->getContent());
+		}
+		return $result;
+	}
+	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+		$this->streamResult($messages, $tools, $onData, $onMeta);
+	}
 	public function setOptions(array $options): void {}
 	public function getOptions(): array { return []; }
 }

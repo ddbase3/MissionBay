@@ -263,20 +263,7 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 					continue;
 				}
 
-				$choice = $json['choices'][0] ?? [];
-				$delta  = $choice['delta']['content'] ?? null;
-
-				if ($delta !== null) {
-					$onData($delta);
-				}
-
-				if ($onMeta && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
-					$onMeta([
-						'event'         => 'meta',
-						'finish_reason' => $choice['finish_reason'],
-						'full'          => $json
-					]);
-				}
+				$this->handleStreamPayload($json, $onData, $onMeta);
 			}
 
 			return strlen($chunk);
@@ -284,6 +271,34 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 
 		curl_exec($ch);
 		curl_close($ch);
+	}
+
+	protected function handleStreamPayload(array $json, callable $onData, ?callable $onMeta): void {
+		$choice = $json['choices'][0] ?? [];
+		if (!is_array($choice)) {
+			return;
+		}
+
+		$delta = $choice['delta']['content'] ?? null;
+
+		if (is_string($delta) && $delta !== '') {
+			$onData($delta);
+		}
+
+		if (!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
+			$onMeta([
+				'event' => 'toolcall',
+				'tool_calls' => $choice['delta']['tool_calls']
+			]);
+		}
+
+		if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+			$onMeta([
+				'event' => 'meta',
+				'finish_reason' => $choice['finish_reason'],
+				'full' => $json
+			]);
+		}
 	}
 
 	/**

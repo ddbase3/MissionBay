@@ -12,7 +12,16 @@ use MissionBay\Api\IAgentModelDecisionStrategy;
 use MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
 use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 
+/**
+ * Legacy compatibility strategy for profiles that still use the textual
+ * TOOL_PHASE_COMPLETE terminal sentinel. New profiles should use the
+ * AI-guarded or native model-decision strategies.
+ *
+ * @deprecated Use AgentModelDecisionConfig::aiGuarded() or ::native().
+ */
 final class SimpleAgentModelDecisionStrategy extends AbstractAgentModelDecisionStrategy implements IAgentModelDecisionStrategy {
+
+	private const TERMINAL_SIGNAL = 'TOOL_PHASE_COMPLETE';
 
 	public static function getName(): string {
 		return AgentModelDecisionConfig::STRATEGY_SIMPLE;
@@ -25,6 +34,7 @@ final class SimpleAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 			return $this->failure('stage_runtime_error', $e->getMessage(), []);
 		}
 
+		$this->log($runtime['logger'], 'Legacy simple model decision uses the textual TOOL_PHASE_COMPLETE sentinel for compatibility.');
 		$this->log($runtime['logger'], 'Tool phase iteration ' . $runtime['iteration'] . ' started with simple model decision.');
 		$instruction = 'You are in the tool-decision phase. Request additional tools only when they are expected to add materially new evidence. When no further tool call is required, do not write the user-facing answer. Return exactly ' . self::TERMINAL_SIGNAL . ' and nothing else. The final answer is generated in a separate response phase.';
 		if ($runtime['continuation_hint'] !== '') {

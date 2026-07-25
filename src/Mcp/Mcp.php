@@ -14,6 +14,8 @@ use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetMaterializer;
 use MissionBay\Api\IAgentComponentPresetRepository;
+use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 
 /**
  * Mcp
@@ -30,6 +32,8 @@ class Mcp implements IOutput {
 		private readonly ISettingsStore $settingsStore,
 		private readonly IAgentComponentPresetRepository $presetRepository,
 		private readonly IAgentComponentPresetMaterializer $presetMaterializer,
+		private readonly AgentMutationCommitGuardService $mutationCommitGuard,
+		private readonly AgentToolDefinitionSemantics $toolDefinitionSemantics,
 		private readonly ILogger $logger,
 		private readonly ?IEventManager $eventManager = null
 	) {}
@@ -245,6 +249,8 @@ class Mcp implements IOutput {
 		$confirmationService = new McpConfirmationService(
 			new McpConfirmationStore($this->settingsStore),
 			$this->logger,
+			$this->mutationCommitGuard,
+			$this->toolDefinitionSemantics,
 			$this->eventManager
 		);
 

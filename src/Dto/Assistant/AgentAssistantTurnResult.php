@@ -112,6 +112,15 @@ final class AgentAssistantTurnResult {
 		return $this->orchestrationResult?->getFinalOutputContent() ?? '';
 	}
 
+	public function getFinalOutputDelivery(): string {
+		return $this->orchestrationResult?->getFinalOutputDelivery()
+			?? AgentToolOrchestratorResult::FINAL_OUTPUT_DELIVERY_NONE;
+	}
+
+	public function isFinalOutputStreamed(): bool {
+		return $this->orchestrationResult?->isFinalOutputStreamed() ?? false;
+	}
+
 	public function getExecutionStatus(): string {
 		return $this->orchestrationResult?->getExecutionStatus()
 			?? ($this->completed ? AgentExecutionStatus::COMPLETED : AgentExecutionStatus::RUNNING);

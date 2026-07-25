@@ -49,17 +49,118 @@ The administration UI therefore uses checkboxes instead of drag-and-drop orderin
 
 ### Built-in profiles
 
-MissionBay always exposes five read-only profiles:
+MissionBay always exposes seven read-only profiles:
 
 | Profile | Intended use |
 |---|---|
 | `simple` | One bounded tool loop for small, direct tool tasks. |
+| `native-tool-loop` | Neuron-like provider-native tool loop: tool calls continue through MissionBay, while a normal terminal assistant response is streamed directly without a control signal or separate final-response model call. |
 | `standard` | General multi-step tool orchestration with discovery, deterministic hybrid selection, compaction, and verification. |
 | `large-catalog` | Uses the explicit `ai-capability-selection` stage for large, heterogeneous tool catalogs with deterministic fallback. |
+| `large-catalog-native` | Uses AI selection of complete tool sources, then the same native streaming decision semantics as `native-tool-loop`. |
 | `deliberate` | Evidence-oriented orchestration with concise typed planning and a smaller loop limit. |
 | `governed` | Full orchestration for agents that may execute approved mutations. |
 
 Built-in profiles can be duplicated into custom profiles. They cannot be overwritten or deleted.
+
+### Model-decision semantics
+
+MissionBay supports controlled and native model-decision semantics inside the same stable stage pipeline.
+
+Controlled strategies terminate the tool phase explicitly and create the visible answer afterwards:
+
+```text
+simple-model-decision
+ai-guarded-model-decision
+```
+
+`simple-model-decision` is retained only for persisted compatibility profiles that still use the textual `TOOL_PHASE_COMPLETE` sentinel. No built-in profile uses it, and new profiles should use `ai-guarded-model-decision` or `native-model-decision`. `ai-guarded-model-decision` uses the structured MissionBay control tool and remains the controlled default for the existing built-in profiles.
+
+The native strategy uses the provider's normal tool-calling contract:
+
+```text
+model response contains tool calls
+  -> action policy
+  -> tool execution
+  -> tool observation
+  -> next model-decision iteration
+
+model response contains no tool calls
+  -> reuse the normal assistant content as the final visible answer
+```
+
+The `native-tool-loop` profile uses this native contract directly. If an event sink is available, terminal assistant deltas are published through the existing execution event channel while the same complete content is collected as the canonical final assistant response. The assistant layer recognizes that this content has already been delivered and does not publish or generate it again. Without an event sink, the same native response remains buffered and is returned normally; the model is still called only once for that decision.
+
+Native model decision cannot be combined with `semantic-verification`. Semantic verification may reopen the loop after a terminal decision, but already visible native output cannot be recalled. MissionBay rejects this profile combination explicitly instead of silently changing strategies or delivery behavior.
+
+Native mode does not bypass action policy, tool execution guards, approval, contract validation, budgets, observation, tracing, or mutation safeguards. Mutation handling starts only after the model emits a concrete mutation tool call. The mere presence of mutation operations in the active tool catalog does not switch strategies, add routing calls, or disable native streaming.
+
+A mutation tool call is processed by the existing action-policy and execution path. Before approval, no mutation is executed and only the structured action-review interaction is authoritative. After a successful mutation, the next native terminal response may stream normally. If a concrete mutation attempt was rejected or failed, the terminal response remains buffered until the existing final-response guard has verified that it does not claim an unsupported success.
+
+The native instruction requires tool-call turns to contain only tool calls. MissionBay also stores every assistant tool-call message with empty text content, so model-authored narration cannot compete with structured approval. If a provider nevertheless emits visible text first and returns tool calls later in the same stream, that visible prefix cannot be retracted. MissionBay therefore fails the turn with `native_mixed_content_tool_call` and does not execute those tool calls. This is a provider contract violation, not a reason to introduce a catalog-wide fallback or a second orchestration path.
+
+If a provider stream is interrupted after visible output, MissionBay reports `native_stream_interrupted`, does not start a replacement final-response model call, and does not write the incomplete assistant response to conversation memory.
+
+### Large-catalog native selection
+
+The `large-catalog-native` profile combines the existing large-catalog stages with the same native model-decision implementation used by `native-tool-loop`:
+
+```text
+capability-discovery
+  -> ai-capability-selection
+  -> model-decision
+  -> action-policy
+  -> tool-execution
+  -> context-compaction
+  -> tool-observation
+```
+
+Unlike the existing controlled `large-catalog` profile, it disables semantic verification and reuses the terminal native model response directly. The existing `large-catalog` profile and all other built-in profiles keep their current behavior.
+
+For this profile, AI capability selection chooses complete registered tool sources rather than isolated function definitions. A selected administration component exposes all of its registered functions to the following model decision. This preserves the relationship between lookup, detail, and mutation operations of mixed components such as WebDAV, plugin, and cron administration. It does not split those components into artificial read-only and mutation profiles.
+
+The selector receives the canonical conversation messages already used by the orchestrator, including assistant tool calls and tool observations. It does not create a second routing history, a condensed continuation history, or a parallel memory representation. An empty source selection remains valid for ordinary conversation; selection only controls which tools are available and never forces a tool call.
+
+Within one orchestration turn, sticky selection keeps previously selected sources available while additional sources may be added after tool observations. Mutation handling still starts only when the native model emits a concrete mutation tool call. The existence of mutation functions in a selected source does not switch the decision strategy or introduce a controlled fallback.
+
+After tool execution, the next native decision receives the existing authoritative execution ledger. Claims about state changes must match successful mutation calls from the current turn; approval, intent, prior conversation text, or a successful unrelated mutation is not proof that another requested action completed.
+
+### Manual UI acceptance tests for native live mode
+
+Use an existing configured LLM that supports streaming and normal provider tool calling. No provider-specific connector is required.
+
+1. Open **Orchestrator Profiles** and inspect `native-tool-loop`. The effective pipeline must contain exactly `model-decision`, `action-policy`, `tool-execution`, and `tool-observation`. The strategy must be `native-model-decision`; decision repair and semantic verification must be disabled. No additional native profile is introduced.
+2. Assign `native-tool-loop` to a test agent and send: `Write the numbers one to twenty, one number per line. Do not use a tool.` The answer must build incrementally, must not expose `TOOL_PHASE_COMPLETE`, and must come from the single model-decision call.
+3. Send: `Reply exactly once with NATIVE-LIVE-ONCE. Do not use a tool.` The phrase must occur once in the chat. No duplicate response block may appear after the stream completes.
+4. Ask a read operation, for example: `Use the appropriate tool to read the current WebDAV status and summarize the result.` The trace must show the tool call and observation, followed by a terminal native model-decision whose answer streams directly. There must be no separate final-response model generation.
+5. Ask for an approval-protected mutation, for example: `Deactivate the ReadSpeaker plugin.` Before approval, the UI must show only the structured action-review card. No model-authored preface, confirmation question, or success claim may appear. The mutation must not run before approval.
+6. Approve the structured request. The mutation must execute exactly once. The following native model-decision must produce the visible final answer directly; no separate final-response call may follow.
+7. Repeat the mutation and reject it. No mutation may run. Any subsequent explanation must not claim success; MissionBay keeps that response buffered while the existing mutation final-response guard checks it.
+8. With conversation memory enabled, send: `Reply exactly with MEMORY-NATIVE-LIVE.` Then ask: `What was your immediately previous answer?` The stored assistant message must equal the once-streamed visible response.
+9. Repeat representative read and mutation tasks with `standard`. Its existing controlled two-phase behavior must remain unchanged.
+
+### Manual UI acceptance tests for large-catalog native mode
+
+1. Open **Orchestrator Profiles** and inspect `large-catalog-native`. Its effective stages must be `capability-discovery`, `ai-capability-selection`, `model-decision`, `action-policy`, `tool-execution`, `context-compaction`, and `tool-observation`. Its model-decision strategy must be native and semantic verification must be disabled.
+2. Send `Hi`. AI capability selection may return an empty source list. No tool implementation may execute, and the native model response must stream directly.
+3. With the real ILIAS administration tools, send: `What is the ReadSpeaker status and is there an Igor2 cron job?` Plugin Administration and Cron Administration must be selected as complete sources. The corresponding read tools must execute and the final answer must stream directly.
+4. Send: `Deactivate ReadSpeaker and run Igor2Base.` The same two complete sources must remain available. Before approval, only the structured action-review interaction may be shown. After approval, each requested mutation must execute exactly once.
+5. If only one requested mutation succeeds, the final response must identify the successful and unperformed actions separately. It must not infer success for one action from an unrelated successful mutation.
+6. Ask `Check the ReadSpeaker status again.` The selector must use the canonical conversation messages and select Plugin Administration. The answer must be based on a new read-tool result, not only on previous assistant text.
+7. Repeat the same tasks with `large-catalog`. Its existing controlled decision, semantic verification, and separate final-response behavior must remain unchanged.
+
+### Release acceptance
+
+The native orchestration release is complete when all of the following remain true in the same installed build:
+
+- all existing controlled built-in profiles keep their previous stage and final-response semantics;
+- `native-tool-loop` provides direct provider-native streaming without a separate final-response model call;
+- `large-catalog-native` adds source-complete AI capability selection without introducing a second selector, routing history, or mutation fallback;
+- capability selection controls availability only and never forces a tool call;
+- mutation approval starts only after a concrete mutation tool call;
+- visible output, returned assistant content, and conversation memory contain the same canonical final response;
+- `TOOL_PHASE_COMPLETE` is never shown to users and is referenced only by the legacy compatibility strategy;
+- no built-in profile uses `simple-model-decision`.
 
 ### Important boundary
 

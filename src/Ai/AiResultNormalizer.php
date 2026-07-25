@@ -231,6 +231,124 @@ final class AiResultNormalizer {
 	}
 
 	/**
+	 * Reconstructs provider-neutral tool calls from streamed metadata events.
+	 *
+	 * OpenAI-compatible providers split tool-call arguments across multiple
+	 * deltas and identify calls by index. Other providers emit complete calls
+	 * with an id. Both forms are merged without changing the original callback
+	 * events retained in AiChatResult::getRaw().
+	 *
+	 * @param array<int,array<string,mixed>> $events
+	 * @return array<int,AiToolCall>
+	 */
+	public static function streamToolCalls(array $events): array {
+		$pending = [];
+		$order = [];
+		$keysById = [];
+		$keysByIndex = [];
+		$keysByPosition = [];
+
+		foreach($events as $event) {
+			if(!is_array($event) || ($event['event'] ?? null) !== 'toolcall') {
+				continue;
+			}
+
+			$chunks = $event['tool_calls'] ?? null;
+			if(!is_array($chunks)) {
+				continue;
+			}
+
+			foreach($chunks as $position => $chunk) {
+				if(!is_array($chunk)) {
+					continue;
+				}
+
+				$id = trim((string)($chunk['id'] ?? ($chunk['call_id'] ?? '')));
+				$index = is_numeric($chunk['index'] ?? null) ? (int)$chunk['index'] : null;
+				$positionKey = (string)$position;
+
+				$key = null;
+				if($id !== '' && isset($keysById[$id])) {
+					$key = $keysById[$id];
+				} elseif($index !== null && isset($keysByIndex[$index])) {
+					$key = $keysByIndex[$index];
+				} elseif($id === '' && $index === null && isset($keysByPosition[$positionKey])) {
+					$key = $keysByPosition[$positionKey];
+				}
+
+				if($key === null) {
+					$key = 'stream_tool_call_' . count($order);
+					$order[] = $key;
+					$pending[$key] = [
+						'id' => '',
+						'name' => '',
+						'arguments' => '',
+						'type' => 'function',
+						'index' => $index
+					];
+				}
+
+				if($id !== '') {
+					$keysById[$id] = $key;
+					if($pending[$key]['id'] === '') {
+						$pending[$key]['id'] = $id;
+					}
+				}
+				if($index !== null) {
+					$keysByIndex[$index] = $key;
+					$pending[$key]['index'] = $index;
+				}
+				if($id === '' && $index === null) {
+					$keysByPosition[$positionKey] = $key;
+				}
+
+				$function = is_array($chunk['function'] ?? null) ? $chunk['function'] : $chunk;
+				$name = is_string($function['name'] ?? null) ? $function['name'] : '';
+				$pending[$key]['name'] = self::appendStreamString(
+					(string)$pending[$key]['name'],
+					$name
+				);
+				$pending[$key]['arguments'] = self::mergeStreamArguments(
+					$pending[$key]['arguments'],
+					$function['arguments'] ?? ($chunk['arguments'] ?? null)
+				);
+
+				$type = trim((string)($chunk['type'] ?? ''));
+				if($type !== '') {
+					$pending[$key]['type'] = $type;
+				}
+			}
+		}
+
+		$out = [];
+		foreach($order as $sequence => $key) {
+			$call = $pending[$key];
+			$name = trim((string)$call['name']);
+
+			if($name === '') {
+				throw new RuntimeException(
+					'Unable to normalize streamed tool call at position ' . $sequence . ': missing function name.'
+				);
+			}
+
+			$index = is_int($call['index']) ? $call['index'] : $sequence;
+			$id = trim((string)$call['id']);
+
+			$out[] = new AiToolCall(
+				$id !== '' ? $id : ('toolcall_' . $index),
+				$name,
+				self::decodeArguments($call['arguments']),
+				[
+					'provider_type' => (string)$call['type'],
+					'index' => $index
+				]
+			);
+		}
+
+		return $out;
+	}
+
+	/**
 	 * @param array<int,mixed> $rawResponses
 	 * @param array<string,mixed> $hints
 	 */
@@ -378,6 +496,28 @@ final class AiResultNormalizer {
 		}
 
 		return ['', [], false];
+	}
+
+	private static function appendStreamString(string $current, string $fragment): string {
+		return $fragment === '' ? $current : $current . $fragment;
+	}
+
+	private static function mergeStreamArguments(mixed $current, mixed $fragment): mixed {
+		if($fragment === null || $fragment === '') {
+			return $current;
+		}
+
+		if(is_array($fragment)) {
+			return is_array($current)
+				? array_replace_recursive($current, $fragment)
+				: $fragment;
+		}
+
+		if(is_string($fragment)) {
+			return self::appendStreamString(is_string($current) ? $current : '', $fragment);
+		}
+
+		return $current;
 	}
 
 	/**

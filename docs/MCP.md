@@ -127,33 +127,52 @@ Output schemas can be provided through `Base3\Api\IOutputSchemaProvider`.
 
 ## Pending confirmations
 
-MissionBay v1 uses a multi-call confirmation workflow instead of SSE-based elicitation.
+MissionBay v1 uses a synchronous multi-call confirmation workflow instead of SSE-based elicitation.
 
-A write-capable tool can implement:
+### Guarded mutations
+
+Tool functions that declare:
 
 ```text
-MissionBay\Api\IConfirmableAgentTool
+mutation=true
+requiresApproval=true
+commitGuardRequired=true
 ```
 
-When a tool call needs confirmation, the MCP server stores a pending confirmation and returns:
+must be provided by an `IAgentMutationGuardedTool`. The MCP endpoint uses the same guarded mutation lifecycle as the policy-controlled agent harness:
+
+```text
+captureMutationCommitSnapshot()
+-> getActionReview()
+-> user decision
+-> validateMutationCommit()
+-> callTool()
+```
+
+The review shown to the MCP client is created from the server-owned mutation snapshot. On acceptance, MissionBay validates the stored snapshot and the exact approved action again immediately before execution. A stale resource version, changed authorization, changed arguments or an unavailable guard blocks the call without executing the tool.
+
+Read-only functions in the same `IAgentTool` remain ordinary MCP calls. The presence of mutating functions in that tool or profile does not route read calls through confirmation.
+
+When a guarded mutation needs confirmation, the MCP server stores the snapshot and returns:
 
 ```json
 {
 	"requires_confirmation": true,
 	"confirmation_id": "mcp-cnf-...",
-	"tool": "example_write_tool",
-	"title": "Confirm action",
-	"message": "Please confirm this action.",
-	"summary": [
-		"Action detail"
-	],
+	"tool": "update_ilias_webdav_settings",
+	"title": "Update global ILIAS WebDAV settings",
+	"message": "The global WebDAV settings of the ILIAS installation will be changed.",
+	"summary": {
+		"WebDAV access": "enabled -> disabled",
+		"File versioning": "unchanged"
+	},
 	"risk": "medium",
 	"expires_at": "2026-07-07T10:00:00+00:00",
 	"next_tool": "missionbay_confirm_action"
 }
 ```
 
-The MCP client or assistant should then ask the user for confirmation. If accepted, it calls:
+The MCP client or assistant should ask the user for confirmation. If accepted, it calls:
 
 ```json
 {
@@ -164,6 +183,8 @@ The MCP client or assistant should then ask the user for confirmation. If accept
 	}
 }
 ```
+
+A successful commit returns `status=accepted`. If the final mutation validation rejects the commit, the response returns `status=blocked`, an `error_code`, and the guard reason. The mutation is not executed.
 
 To decline:
 
@@ -177,7 +198,13 @@ To decline:
 }
 ```
 
-This works with ordinary MCP tool calls and does not require SSE.
+### Legacy direct confirmation
+
+`MissionBay\Api\IConfirmableAgentTool` remains supported as a compatibility contract for direct callers. It provides an array-based confirmation request but does not provide a mutation snapshot or final commit validation.
+
+New mutating tools should use `IAgentMutationGuardedTool` and the three explicit mutation annotations above. `IConfirmableAgentTool` must not be used to bypass a commit guard required by a tool definition.
+
+This workflow uses ordinary MCP tool calls and does not require SSE.
 
 ## Resources
 
@@ -269,6 +296,8 @@ tool annotations for confirmable/write-capable tools
 confirmation control output schema
 no SSE endpoint
 confirmation workflow for write-capable tools
+approval-bound commit validation for guarded MCP mutations
+read-only functions remain direct in mixed read/write tools
 ```
 
 Intentionally outside v1:

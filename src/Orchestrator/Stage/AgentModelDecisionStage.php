@@ -23,6 +23,7 @@ use AssistantFoundation\Dto\AgentStageResult;
 use MissionBay\Api\IAgentModelDecisionStrategyResolver;
 use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use MissionBay\Orchestrator\Decision\AiGuardedAgentModelDecisionStrategy;
+use MissionBay\Orchestrator\Decision\NativeAgentModelDecisionStrategy;
 use MissionBay\Orchestrator\Decision\SimpleAgentModelDecisionStrategy;
 
 /**
@@ -91,8 +92,10 @@ final class AgentModelDecisionStage implements IAgentStage {
 			return $this->strategyResolver->resolve($config->getStrategy());
 		}
 
-		return $config->getStrategy() === AgentModelDecisionConfig::STRATEGY_AI_GUARDED
-			? new AiGuardedAgentModelDecisionStrategy()
-			: new SimpleAgentModelDecisionStrategy();
+		return match ($config->getStrategy()) {
+			AgentModelDecisionConfig::STRATEGY_AI_GUARDED => new AiGuardedAgentModelDecisionStrategy(),
+			AgentModelDecisionConfig::STRATEGY_NATIVE => new NativeAgentModelDecisionStrategy(),
+			default => new SimpleAgentModelDecisionStrategy()
+		};
 	}
 }

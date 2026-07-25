@@ -274,4 +274,49 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 		$this->assertSame([['role' => 'user', 'content' => '{"a":1}']], $normalized);
 	}
+
+	public function testHandleStreamPayloadEmitsContentToolCallsAndFinishMetadata(): void {
+		$resolver = $this->makeResolver([]);
+		$resource = new class($resolver, 'r11') extends OpenRouterChatModelAgentResource {
+			public function emitPayload(array $payload, callable $onData, callable $onMeta = null): void {
+				$this->handleStreamPayload($payload, $onData, $onMeta);
+			}
+		};
+		$deltas = [];
+		$metadata = [];
+		$payload = [
+			'choices' => [[
+				'delta' => [
+					'content' => 'Checking',
+					'tool_calls' => [[
+						'index' => 0,
+						'id' => 'call-1',
+						'function' => [
+							'name' => 'lookup',
+							'arguments' => '{"query":"BASE3"}'
+						]
+					]]
+				],
+				'finish_reason' => 'tool_calls'
+			]]
+		];
+
+		$resource->emitPayload(
+			$payload,
+			function(string $delta) use (&$deltas): void {
+				$deltas[] = $delta;
+			},
+			function(array $event) use (&$metadata): void {
+				$metadata[] = $event;
+			}
+		);
+
+		$this->assertSame(['Checking'], $deltas);
+		$this->assertCount(2, $metadata);
+		$this->assertSame('toolcall', $metadata[0]['event']);
+		$this->assertSame('call-1', $metadata[0]['tool_calls'][0]['id']);
+		$this->assertSame('meta', $metadata[1]['event']);
+		$this->assertSame('tool_calls', $metadata[1]['finish_reason']);
+		$this->assertSame($payload, $metadata[1]['full']);
+	}
 }

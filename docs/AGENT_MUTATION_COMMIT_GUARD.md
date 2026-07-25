@@ -167,6 +167,15 @@ For guarded mutations, the wrapper therefore also implements `IAgentMutationGuar
 This keeps the wrapper transparent for guarded tools without adding tool-specific behavior to the policy, approval, or execution services. A wrapped mutation that requires a commit guard still fails closed when the docked tool does not implement `IAgentMutationGuardedTool`.
 
 
+## MCP execution boundary
+
+The direct MCP endpoint uses the same `IAgentMutationGuardedTool` contract. For a function that explicitly declares `mutation=true`, `requiresApproval=true`, and `commitGuardRequired=true`, it captures the snapshot and creates the `AgentActionReview` before returning a pending confirmation. After acceptance, it restores the exact action fingerprint and snapshot, calls `validateMutationCommit()`, and invokes `callTool()` only when the decision allows the commit.
+
+Read-only functions from the same configured tool remain direct calls. Mutation handling begins only for the concrete function invocation, never because another function in the catalog can mutate.
+
+`IConfirmableAgentTool` remains a legacy direct-confirmation contract for definitions that do not explicitly require the commit guard. It does not replace or downgrade `IAgentMutationGuardedTool`.
+
+
 ## Tool developer guide
 
 A complete implementation guide with definition examples, review rules, wrapper

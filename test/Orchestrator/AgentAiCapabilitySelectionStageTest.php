@@ -112,12 +112,66 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 		$this->assertStringNotContainsString('Old routing instructions.', $routerContext);
 	}
 
+
+	public function testSourceSelectionPublishesCompleteSourcesAndSelectedMutationNames(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('list_ilias_plugins', 'List registered plugins.', ['plugins', 'list'], 60, 'plugins'),
+			$this->capability('set_ilias_plugin_activation_state', 'Change one plugin state.', ['plugins', 'mutation'], 60, 'plugins', true),
+			$this->capability('list_ilias_cron_jobs', 'List configured cron jobs.', ['cron', 'list'], 60, 'cron-jobs'),
+			$this->capability('run_ilias_cron_job', 'Run one configured cron job.', ['cron', 'mutation'], 60, 'cron-jobs', true)
+		]);
+		$model = $this->chatModel('{"selected_sources":["plugins","cron-jobs"]}');
+		$vars = [
+			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_MODEL,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::FAILURE_CODE => '',
+			AgentToolLoopContextKeys::CAPABILITY_CATALOG => $catalog,
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG => new AgentCapabilitySelectionConfig(
+				maxTools: 16,
+				selectAllThreshold: 0,
+				semanticCandidateTools: 16,
+				sticky: true,
+				selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE
+			),
+			AgentToolLoopContextKeys::CAPABILITY_SELECTIONS => [],
+			AgentToolLoopContextKeys::SELECTED_TOOL_NAMES => [],
+			AgentToolLoopContextKeys::REQUIRED_TOOL_NAMES => [],
+			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => [],
+			AgentToolLoopContextKeys::MESSAGES => [[
+				'role' => 'user',
+				'content' => 'Disable ReadSpeaker and run Igor2Base.'
+			]],
+			AgentToolLoopContextKeys::ITERATION => 1,
+			AgentToolLoopContextKeys::MODEL => $model,
+			AgentToolLoopContextKeys::MODEL_RESULTS => []
+		];
+		$context = $this->createMock(IAgentContext::class);
+		$context->method('getVar')->willReturnCallback(static fn(string $key): mixed => $vars[$key] ?? null);
+		$stage = new AgentAiCapabilitySelectionStage(
+			new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector())
+		);
+
+		$patch = $stage->process($context)->getPatch();
+
+		$this->assertSame([
+			'list_ilias_plugins',
+			'set_ilias_plugin_activation_state',
+			'list_ilias_cron_jobs',
+			'run_ilias_cron_job'
+		], $patch[AgentToolLoopContextKeys::SELECTED_TOOL_NAMES]);
+		$this->assertSame([
+			'set_ilias_plugin_activation_state',
+			'run_ilias_cron_job'
+		], $patch[AgentToolLoopContextKeys::MUTATION_TOOL_NAMES]);
+	}
+
 	private function capability(
 		string $name,
 		string $description,
 		array $tags,
 		int $priority,
-		string $sourceId
+		string $sourceId,
+		bool $mutation = false
 	): AgentCapability {
 		return new AgentCapability(
 			name: $name,
@@ -128,6 +182,9 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 			priority: $priority,
 			definition: [
 				'type' => 'function',
+				'readOnlyHint' => !$mutation,
+				'mutation' => $mutation,
+				'requiresApproval' => $mutation,
 				'function' => [
 					'name' => $name,
 					'description' => $description,

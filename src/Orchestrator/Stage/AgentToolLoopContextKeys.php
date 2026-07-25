@@ -84,6 +84,7 @@ final class AgentToolLoopContextKeys {
 	public const LOOP_PROGRESS_TERMINATED = self::PREFIX . 'loop_progress_terminated';
 	public const FINAL_ASSISTANT_MESSAGE = self::PREFIX . 'final_assistant_message';
 	public const FINAL_OUTPUT_CONTENT = self::PREFIX . 'final_output_content';
+	public const FINAL_OUTPUT_DELIVERY = self::PREFIX . 'final_output_delivery';
 	public const FINAL_RESPONSE_MODE = self::PREFIX . 'final_response_mode';
 	public const MODEL_RESULTS = self::PREFIX . 'model_results';
 	public const CONTEXT_ASSESSMENTS = self::PREFIX . 'context_assessments';
@@ -114,6 +115,10 @@ final class AgentToolLoopContextKeys {
 	public const FINAL_RESPONSE_NONE = 'none';
 	public const FINAL_RESPONSE_COMPLETE = 'complete';
 	public const FINAL_RESPONSE_PARTIAL = 'partial';
+
+	public const FINAL_OUTPUT_DELIVERY_NONE = 'none';
+	public const FINAL_OUTPUT_DELIVERY_BUFFERED = 'buffered';
+	public const FINAL_OUTPUT_DELIVERY_STREAMED = 'streamed';
 
 	/**
 	 * Returns the temporary runtime keys that should not remain in the

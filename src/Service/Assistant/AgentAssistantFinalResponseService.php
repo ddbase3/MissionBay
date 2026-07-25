@@ -36,9 +36,9 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 
 	public function createDirectResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult): string {
 		$ledger = AgentExecutionLedger::fromTurnResult($turnResult);
-		$providerAnswer = $this->findTerminalProviderAnswer($turnResult);
-		if ($providerAnswer !== '') {
-			return $this->guardResponse($model, $turnResult, $ledger, $providerAnswer);
+		$preparedResponse = $this->findPreparedFinalResponse($turnResult);
+		if ($preparedResponse !== '') {
+			return $this->guardResponse($model, $turnResult, $ledger, $preparedResponse);
 		}
 
 		if (!$turnResult->canGenerateFinalResponse()) {
@@ -54,9 +54,13 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 
 	public function createStreamingResponse(IAiChatModel $model, AgentAssistantTurnResult $turnResult, callable $onData, ?callable $onMeta = null): string {
 		$ledger = AgentExecutionLedger::fromTurnResult($turnResult);
-		$providerAnswer = $this->findTerminalProviderAnswer($turnResult);
-		if ($providerAnswer !== '') {
-			$content = $this->guardResponse($model, $turnResult, $ledger, $providerAnswer);
+		$preparedResponse = $this->findPreparedFinalResponse($turnResult);
+		if ($preparedResponse !== '') {
+			if ($turnResult->isFinalOutputStreamed()) {
+				return $preparedResponse;
+			}
+
+			$content = $this->guardResponse($model, $turnResult, $ledger, $preparedResponse);
 			$onData($content);
 
 			return $content;
@@ -104,6 +108,22 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 		$turnResult->addModelResult($result->getMetadata());
 
 		return $result->getContent();
+	}
+
+
+	/**
+	 * Returns final content already produced during orchestration.
+	 *
+	 * Native model-decision profiles store the provider response here so the
+	 * assistant layer can publish it without another final-response model call.
+	 */
+	private function findPreparedFinalResponse(AgentAssistantTurnResult $turnResult): string {
+		$content = $turnResult->getFinalOutputContent();
+		if (trim($content) !== '') {
+			return $this->messageFactory->normalizeContent($content);
+		}
+
+		return $this->findTerminalProviderAnswer($turnResult);
 	}
 
 
