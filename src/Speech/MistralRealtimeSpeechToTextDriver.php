@@ -50,6 +50,7 @@ final class MistralRealtimeSpeechToTextDriver implements IRealtimeSpeechToTextDr
 				'model' => $model
 			],
 			$secret,
+			$connectionConfig->getAuthHeaderName(),
 			$connectionConfig->getTimeoutSeconds()
 		);
 
@@ -79,6 +80,8 @@ final class MistralRealtimeSpeechToTextDriver implements IRealtimeSpeechToTextDr
 			'targetStreamingDelayMs' => $targetDelay,
 			'silenceDurationMs' => $silenceDuration,
 			'noSpeechTimeoutMs' => $noSpeechTimeout,
+			'chunkDurationMs' => $this->positiveInt($requestOptions['chunkDurationMs'] ?? $serviceOptions['chunkDurationMs'] ?? 480, 'chunk duration'),
+			'finalizationTimeoutMs' => $this->positiveInt($requestOptions['finalizationTimeoutMs'] ?? $serviceOptions['finalizationTimeoutMs'] ?? 10000, 'finalization timeout'),
 			'interimResults' => true
 		];
 		if($language !== '' && strtolower($language) !== 'auto') {
@@ -102,7 +105,24 @@ final class MistralRealtimeSpeechToTextDriver implements IRealtimeSpeechToTextDr
 	 * @param array<string,mixed> $payload
 	 * @return array<string,mixed>
 	 */
-	private function postJson(string $url, array $payload, string $secret, int $timeoutSeconds): array {
+	private function postJson(
+		string $url,
+		array $payload,
+		string $secret,
+		string $authHeaderName,
+		int $timeoutSeconds
+	): array {
+		if(!function_exists('curl_init')) {
+			throw new RuntimeException('PHP cURL extension is required for Mistral realtime speech-to-text.');
+		}
+		$authHeaderName = trim($authHeaderName);
+		if($authHeaderName === '') {
+			$authHeaderName = 'Authorization';
+		}
+		if(preg_match('/^[A-Za-z0-9-]+$/', $authHeaderName) !== 1) {
+			throw new RuntimeException('Invalid authentication header name for Mistral realtime speech-to-text.');
+		}
+
 		$curl = curl_init($url);
 		if($curl === false) {
 			throw new RuntimeException('Unable to initialize Mistral realtime session request.');
@@ -118,7 +138,7 @@ final class MistralRealtimeSpeechToTextDriver implements IRealtimeSpeechToTextDr
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_TIMEOUT => $timeoutSeconds,
 			CURLOPT_HTTPHEADER => [
-				'Authorization: Bearer ' . $secret,
+				$authHeaderName . ': Bearer ' . $secret,
 				'Content-Type: application/json',
 				'Accept: application/json'
 			],
@@ -149,7 +169,8 @@ final class MistralRealtimeSpeechToTextDriver implements IRealtimeSpeechToTextDr
 	private function buildWebSocketEndpoint(string $baseUrl, string $model): string {
 		$endpoint = preg_replace('/^https:/i', 'wss:', $baseUrl);
 		$endpoint = preg_replace('/^http:/i', 'ws:', (string)$endpoint);
-		return rtrim((string)$endpoint, '/') . '/v1/audio/transcriptions/realtime?model=' . rawurlencode($model);
+		return rtrim((string)$endpoint, '/')
+			. '/v1/audio/transcriptions/realtime?model=' . rawurlencode($model);
 	}
 
 	private function positiveInt(mixed $value, string $label): int {

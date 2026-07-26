@@ -19,22 +19,22 @@ namespace MissionBay\ServiceDriver;
 
 use MissionBay\Api\IServiceDriverDefinition;
 
-final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDriverDefinition {
+final class OpenAiTextToSpeechDriverDefinition implements IServiceDriverDefinition {
 
 	public static function getName(): string {
-		return 'mistralrealtimespeechtotextdriverdefinition';
+		return 'openaitexttospeechdriverdefinition';
 	}
 
 	public function getDriver(): string {
-		return 'mistral-realtime-stt';
+		return 'openai-tts';
 	}
 
 	public function getServiceType(): string {
-		return 'stt';
+		return 'tts';
 	}
 
 	public function getLabel(): string {
-		return 'Mistral Realtime Speech-to-Text';
+		return 'OpenAI Text-to-Speech';
 	}
 
 	public function requiresConnection(): bool {
@@ -52,38 +52,32 @@ final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDrive
 				'model' => [
 					'type' => 'string',
 					'label' => 'Model',
-					'default' => 'voxtral-mini-transcribe-realtime-2602',
+					'default' => 'gpt-4o-mini-tts',
 					'required' => true
 				],
-				'language' => [
+				'voice' => [
 					'type' => 'string',
-					'label' => 'Language',
-					'default' => 'de'
+					'label' => 'Voice',
+					'default' => 'alloy',
+					'required' => true
 				],
-				'sampleRate' => [
-					'type' => 'integer',
-					'label' => 'Sample rate',
-					'default' => 16000
+				'responseFormat' => [
+					'type' => 'string',
+					'label' => 'Audio format',
+					'enum' => ['mp3', 'opus', 'aac', 'flac', 'wav'],
+					'default' => 'mp3'
 				],
-				'targetStreamingDelayMs' => [
-					'type' => 'integer',
-					'label' => 'Target streaming delay (ms)',
-					'default' => 480
+				'speed' => [
+					'type' => 'number',
+					'label' => 'Speed',
+					'minimum' => 0.25,
+					'maximum' => 4.0,
+					'default' => 1.0
 				],
-				'silenceDurationMs' => [
-					'type' => 'integer',
-					'label' => 'Silence before stop (ms)',
-					'default' => 1200
-				],
-				'chunkDurationMs' => [
-					'type' => 'integer',
-					'label' => 'Audio chunk duration (ms)',
-					'default' => 480
-				],
-				'noSpeechTimeoutMs' => [
-					'type' => 'integer',
-					'label' => 'No-speech timeout (ms)',
-					'default' => 10000
+				'instructions' => [
+					'type' => 'string',
+					'label' => 'Instructions',
+					'default' => ''
 				]
 			]
 		];
@@ -91,20 +85,15 @@ final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDrive
 
 	public function getDefaultConfig(): array {
 		return [
-			'serviceType' => 'stt',
-			'driver' => 'mistral-realtime-stt',
-			'model' => 'voxtral-mini-transcribe-realtime-2602',
+			'serviceType' => 'tts',
+			'driver' => 'openai-tts',
+			'model' => 'gpt-4o-mini-tts',
 			'enabled' => true,
 			'options' => [
-				'mode' => 'realtime',
-				'language' => 'de',
-				'sampleRate' => 16000,
-				'targetStreamingDelayMs' => 480,
-				'silenceDurationMs' => 1200,
-				'chunkDurationMs' => 480,
-				'finalizationTimeoutMs' => 10000,
-				'noSpeechTimeoutMs' => 10000,
-				'interimResults' => true
+				'voice' => 'alloy',
+				'responseFormat' => 'mp3',
+				'speed' => 1.0,
+				'instructions' => ''
 			]
 		];
 	}
