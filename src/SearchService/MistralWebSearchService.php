@@ -136,32 +136,64 @@ class MistralWebSearchService extends AbstractSearchService {
 	 * @param array<string,mixed> $response
 	 */
 	private function extractAssistantText(array $response): string {
-		$parts = $this->collectStringsRecursively($response);
+		$outputs = $response['outputs'] ?? null;
 
-		usort($parts, static function(string $a, string $b): int {
-			return mb_strlen($b) <=> mb_strlen($a);
-		});
+		if(!is_array($outputs)) {
+			return '';
+		}
 
-		foreach($parts as $part) {
-			$part = trim($part);
+		for($index = count($outputs) - 1; $index >= 0; $index--) {
+			$output = $outputs[$index] ?? null;
 
-			if($part === '') {
+			if(!is_array($output)) {
 				continue;
 			}
 
-			if($this->looksLikeAssistantOutput($part)) {
-				return $part;
+			if(($output['type'] ?? null) !== 'message.output') {
+				continue;
+			}
+
+			if(($output['role'] ?? null) !== 'assistant') {
+				continue;
+			}
+
+			$text = $this->extractMessageContent($output['content'] ?? null);
+
+			if($text !== '') {
+				return $text;
 			}
 		}
 
 		return '';
 	}
 
-	private function looksLikeAssistantOutput(string $text): bool {
-		if(str_starts_with($text, '{') || str_starts_with($text, '[')) {
-			return true;
+	private function extractMessageContent(mixed $content): string {
+		if(is_string($content)) {
+			return trim($content);
 		}
 
-		return mb_strlen($text) >= 120;
+		if(!is_array($content)) {
+			return '';
+		}
+
+		$text = '';
+
+		foreach($content as $chunk) {
+			if(!is_array($chunk)) {
+				continue;
+			}
+
+			if(($chunk['type'] ?? null) !== 'text') {
+				continue;
+			}
+
+			if(!is_string($chunk['text'] ?? null)) {
+				continue;
+			}
+
+			$text .= $chunk['text'];
+		}
+
+		return trim($text);
 	}
 }
