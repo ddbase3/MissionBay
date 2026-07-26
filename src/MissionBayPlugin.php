@@ -35,6 +35,7 @@ use Base3\State\Api\IStateStore;
 use Base3\Usermanager\Api\IUsermanager;
 use AssistantFoundation\Api\IAgentActionPolicy;
 use AssistantFoundation\Api\IAiModelConfigurationProvider;
+use AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
 use AssistantFoundation\Api\IAgentCapabilitySelector;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
@@ -120,6 +121,7 @@ use MissionBay\Service\AgentComponentPresetToolTestService;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
+use MissionBay\Speech\ConfiguredRealtimeSpeechToTextSessionService;
 use MissionBay\Tool\Profile\MissionBayAgentToolProfileProvider;
 use MissionBay\Service\AgentExecutionService;
 use MissionBay\Service\AgentFlowCompiler;
@@ -237,6 +239,11 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentConfigValueResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAiModelConfigurationProvider::class, fn($c) => $c->get(ConfiguredAiModelConfigurationProvider::class), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IRealtimeSpeechToTextSessionService::class, fn($c) => new ConfiguredRealtimeSpeechToTextSessionService(
+				$c->get(ISettingsStore::class),
+				$c->get(IClassMap::class),
+				$c->get(IAgentConfigValueResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentConfigFormService::class, fn($c) => new AgentConfigFormService(
 				$c->get(IRequest::class),
 				$c->get(ISettingsStore::class),

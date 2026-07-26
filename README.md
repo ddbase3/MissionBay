@@ -490,3 +490,38 @@ credential and the exact chat-completions request URL. The same
 `ChatCompletionEndpointResolver` is used by MissionBay's own HTTP transport, so
 alternative runtimes receive the identical endpoint that MissionBay uses.
 
+
+## Realtime speech-to-text services
+
+MissionBay implements the AssistantFoundation realtime speech session slot with
+configured `service-stt` records. `SpeechToTextConfigDisplay` is discoverable as
+`speechtotextconfigdisplay` and manages these records through the existing
+service/connection configuration model.
+
+The first driver is `mistral-realtime-stt`. It uses an enabled bearer-authenticated
+Mistral HTTP connection, requests a short-lived realtime client session, and
+returns only the ephemeral browser transport data through the shared foundation
+contract.
+
+Example settings record:
+
+```json
+{
+  "id": "mistral-realtime",
+  "name": "Mistral Realtime",
+  "serviceType": "stt",
+  "connection": "mistral",
+  "driver": "mistral-realtime-stt",
+  "model": "voxtral-mini-transcribe-realtime-2602",
+  "enabled": true,
+  "options": {
+    "mode": "realtime",
+    "language": "de",
+    "sampleRate": 16000,
+    "targetStreamingDelayMs": 480,
+    "silenceDurationMs": 900,
+    "noSpeechTimeoutMs": 10000,
+    "interimResults": true
+  }
+}
+```

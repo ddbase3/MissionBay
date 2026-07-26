@@ -1142,3 +1142,55 @@ A future AssistantFoundation interface change requires all of the following in t
 6. explicit statement why the contract is plugin-to-plugin rather than MissionBay-internal.
 
 An interface without a concrete extension or replacement scenario belongs in `MissionBay/Api` or should remain a concrete/internal class.
+
+## Speech service contracts
+
+### `ISpeechToTextService`
+
+Use this service when a consumer submits a complete audio payload and expects one
+provider-neutral `SpeechToTextResult`. Implementations may use local engines,
+remote batch APIs, or another project-specific backend. Consumers depend only on
+the request/result DTOs and must not inspect provider-private response objects.
+
+### `IRealtimeSpeechToTextSessionService`
+
+Use this service when a browser client should stream microphone audio directly
+to a speech provider without receiving the project's long-lived provider
+credential. The implementation resolves the configured service and connection,
+creates a short-lived provider session, and returns a
+`RealtimeSpeechToTextSession` containing only:
+
+- provider and transport identifiers;
+- realtime endpoint;
+- ephemeral client token and expiration;
+- selected model and audio format;
+- provider-neutral client options.
+
+Example implementation registration:
+
+```php
+$container->set(
+    IRealtimeSpeechToTextSessionService::class,
+    fn($c) => new ConfiguredRealtimeSpeechToTextSessionService(
+        $c->get(ISettingsStore::class),
+        $c->get(IClassMap::class),
+        $c->get(IAgentConfigValueResolver::class)
+    ),
+    IContainer::SHARED | IContainer::NOOVERWRITE
+);
+```
+
+The browser-facing HTTP output does not belong in AssistantFoundation. It belongs
+to the consuming UI/plugin, while the provider implementation belongs to the
+implementation plugin.
+
+### `ITextToSpeechService`
+
+Use this service when a consumer provides text and expects an audio payload plus
+its MIME type. Voice selection, model configuration, streaming transport, and
+provider-specific response data remain implementation concerns expressed through
+the request options and result metadata.
+
+These contracts are plugin-to-plugin slots because Chatbot, administrative
+configuration plugins, and alternative assistant runtimes must be able to
+consume or replace speech implementations without depending on MissionBay.
