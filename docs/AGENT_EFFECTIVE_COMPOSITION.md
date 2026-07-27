@@ -33,7 +33,7 @@ The view reports:
 - maximum tool loops and capability-selection settings;
 - selected tool profiles and their component presets;
 - selected memory and context profiles with their concrete preset IDs;
-- component capability facets such as `tool` and `memory`;
+- component capability facets such as `tool`, `context`, and `memory`;
 - final callable tool names, source resources, categories, tags and mutation metadata;
 - attached conversation memories and context contributors, their concrete preset ids, implementations, priorities, docks, and legacy status;
 - configured and resolved capability providers, modules, prompt providers and resource providers;

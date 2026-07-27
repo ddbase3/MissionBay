@@ -38,9 +38,11 @@ Context profile entries are attached directly to the assistant node's `contextco
 
 ## Tool Profiles
 
-Tool profiles remain independent and contain callable tool presets only. A resource such as user preferences may be selected by both a tool profile and a context profile. The flow builder creates one configured base resource and connects the appropriate tool wrapper and context dock to that same instance.
+Tool profiles remain the selection boundary for callable tool presets. When a selected preset declares additional `context` or `memory` capabilities, tool-profile resolution attaches those capabilities automatically. The flow builder creates one configured base resource and connects every required wrapper and dock to that same instance.
 
-Conversation memory is never inferred from a tool profile.
+For example, selecting the `userprefs` preset in a Tool Profile attaches it as both `tool` and `context`. It does not need to be selected again in a Context Profile.
+
+Memory and Context Profiles remain available for presets that should be attached without also being selected as callable tools.
 
 ## Agent Configuration
 

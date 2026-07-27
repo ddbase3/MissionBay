@@ -119,44 +119,33 @@ Listeners may persist these events in a project-specific audit backend. The even
 
 Mutation calls are never served from or written to the tool-result cache, even if a cache rule accidentally matches them. This keeps approval and commit validation on the real execution path.
 
-## User preferences implementation
+## User preferences are not approval-bound
 
-`UserPrefsAgentResource` implements `IAgentMutationGuardedTool` directly. The existing MissionBay approval and resume flow remains unchanged.
+`UserPrefsAgentResource` intentionally does not implement `IAgentMutationGuardedTool`. Its preference writes are low-risk, user-scoped operations and execute without a confirmation suspension.
 
-Read-only functions are explicitly marked as non-mutating:
-
-```text
-list_allowed_prefs
-list_user_prefs
-```
-
-The write functions require approval and a commit guard:
+The write functions remain explicitly marked as side-effecting mutations so that execution ledgers and the tool-result cache continue to treat them correctly:
 
 ```text
 set_user_pref
 unset_user_pref
 ```
 
-Before approval, the resource captures:
+Their definitions declare:
 
-- the concrete component-preset resource ID;
-- the effective user and session targets affected by the operation;
-- the normalized preference value and resolved scope;
-- the current preference definition hash;
-- the current values of all affected rows.
+```text
+mutation=true
+requiresApproval=false
+commitGuardRequired=false
+```
 
-A user-scoped set also captures the current session-scoped row because the write removes that session override after saving the user value. An unset without an explicit scope captures both the current user and session rows.
+Read-only functions remain explicitly non-mutating:
 
-Immediately before execution, the resource rejects the mutation when:
+```text
+list_allowed_prefs
+list_user_prefs
+```
 
-- another component preset is used;
-- the user or session target changed;
-- the preference definition changed;
-- an affected preference row changed;
-- the stored snapshot does not match the approved operation.
-
-The tool still performs its normal input validation inside `callTool()`. The commit guard adds final identity and stale-state protection; it does not replace the existing approval policy or tool contract validation.
-
+This is a deliberate low-risk exception. Generic or destructive write tools should continue to use approval and `IAgentMutationGuardedTool`.
 
 ## Configured tool wrappers
 

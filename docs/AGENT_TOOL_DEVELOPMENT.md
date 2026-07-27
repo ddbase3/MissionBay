@@ -433,9 +433,6 @@ A guarded mutation tool should test at least:
 Current examples cover different review patterns:
 
 ```text
-MissionBay\Resource\UserPrefsAgentResource
-  preference label, scope, current value, new value
-
 Base3IliasLab\MissionBay\Tools\IliasCronJobAdministrationAgentTool
   technical job id resolved to title, component, and status
 

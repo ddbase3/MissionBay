@@ -9,10 +9,7 @@ use Base3\Logger\Api\ILogger;
 use Base3\Session\Api\ISession;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use MissionBay\Api\IAgentMutationGuardedTool;
-use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Resource\UserPrefsAgentResource;
 
 /**
@@ -251,7 +248,7 @@ class UserPrefsAgentResourceTest extends TestCase {
 	}
 
 
-	public function testToolDefinitionsSeparateReadOnlyAndGuardedMutationFunctions(): void {
+	public function testToolDefinitionsSeparateReadOnlyAndUnconfirmedPreferenceWrites(): void {
 		$r = new UserPrefsAgentResource(
 			database: $this->makeDatabaseStub(),
 			resolver: $this->makeResolverStub([]),
@@ -260,7 +257,7 @@ class UserPrefsAgentResourceTest extends TestCase {
 			id: 'prefs-main'
 		);
 
-		$this->assertInstanceOf(IAgentMutationGuardedTool::class, $r);
+		$this->assertNotInstanceOf(IAgentMutationGuardedTool::class, $r);
 
 		$definitions = [];
 		foreach ($r->getToolDefinitions() as $definition) {
@@ -274,11 +271,11 @@ class UserPrefsAgentResourceTest extends TestCase {
 		$this->assertFalse($definitions['list_user_prefs']['mutation']);
 		$this->assertFalse($definitions['list_user_prefs']['requiresApproval']);
 		$this->assertTrue($definitions['set_user_pref']['mutation']);
-		$this->assertTrue($definitions['set_user_pref']['requiresApproval']);
-		$this->assertTrue($definitions['set_user_pref']['commitGuardRequired']);
+		$this->assertFalse($definitions['set_user_pref']['requiresApproval']);
+		$this->assertFalse($definitions['set_user_pref']['commitGuardRequired']);
 		$this->assertTrue($definitions['unset_user_pref']['mutation']);
-		$this->assertTrue($definitions['unset_user_pref']['requiresApproval']);
-		$this->assertTrue($definitions['unset_user_pref']['commitGuardRequired']);
+		$this->assertFalse($definitions['unset_user_pref']['requiresApproval']);
+		$this->assertFalse($definitions['unset_user_pref']['commitGuardRequired']);
 	}
 
 	public function testToolDefinitionsExposeExactPreferenceKeysAndValues(): void {
@@ -402,231 +399,6 @@ class UserPrefsAgentResourceTest extends TestCase {
 		$this->assertSame('Du', $result['value']);
 	}
 
-	public function testMutationCommitAllowsUnchangedSetState(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [
-			$this->preferenceValue('user', 'u:42', 'Sie', 1),
-			$this->preferenceValue('session', 's:sess-1', 'Du', 2)
-		];
-		$r = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-1',
-			'set_user_pref',
-			['key' => 'address_form', 'value' => 'Du', 'scope' => 'user']
-		);
-		$snapshot = $r->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-
-		$this->assertSame('42', $snapshot->getAuthorization()['user_id']);
-		$this->assertSame('sess-1', $snapshot->getAuthorization()['session_id']);
-		$this->assertSame('Du', $snapshot->getMetadata()['review']['new_value']);
-
-		$decision = $r->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertTrue($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_ALLOWED, $decision->getCode());
-	}
-
-	public function testMutationSnapshotProducesUserFacingActionReview(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [
-			$this->preferenceValue('user', 'u:42', 'Du', 1),
-			$this->preferenceValue('session', 's:sess-1', 'Sie', 2)
-		];
-		$resource = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-review',
-			'set_user_pref',
-			['key' => 'address_form', 'value' => 'Sie', 'scope' => 'user']
-		);
-		$snapshot = $resource->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-
-		$review = $resource->getActionReview(
-			$action,
-			$snapshot,
-			$this->createStub(IAgentContext::class)
-		);
-
-		$this->assertSame('Change user preference', $review->getTitle());
-		$this->assertSame('Address form', $review->getSummary()['Preference']);
-		$this->assertSame('User', $review->getSummary()['Scope']);
-		$this->assertSame('Sie', $review->getSummary()['New value']);
-	}
-
-	public function testMutationCommitRejectsChangedUserIdentity(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [$this->preferenceValue('user', 'u:42', 'Sie', 1)];
-		$source = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$target = $this->makeGuardedResource($definition, $values, '84', 'sess-1', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-2',
-			'unset_user_pref',
-			['key' => 'address_form', 'scope' => 'user']
-		);
-		$snapshot = $source->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-
-		$decision = $target->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertFalse($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_UNAUTHORIZED, $decision->getCode());
-	}
-
-	public function testMutationCommitRejectsChangedSessionForUserSetCleanup(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [
-			$this->preferenceValue('user', 'u:42', 'Sie', 1),
-			$this->preferenceValue('session', 's:sess-1', 'Du', 2)
-		];
-		$source = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$target = $this->makeGuardedResource($definition, $values, '42', 'sess-2', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-3',
-			'set_user_pref',
-			['key' => 'address_form', 'value' => 'Du', 'scope' => 'user']
-		);
-		$snapshot = $source->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-
-		$decision = $target->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertFalse($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_UNAUTHORIZED, $decision->getCode());
-	}
-
-	public function testMutationCommitRejectsChangedPreferenceValue(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [$this->preferenceValue('user', 'u:42', 'Sie', 1)];
-		$r = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-4',
-			'unset_user_pref',
-			['key' => 'address_form', 'scope' => 'user']
-		);
-		$snapshot = $r->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-		$values[0]['pref_value'] = 'Du';
-		$values[0]['updated'] = '2026-07-12 11:00:00';
-
-		$decision = $r->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertFalse($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_STALE, $decision->getCode());
-	}
-
-	public function testMutationCommitRejectsChangedSessionOverrideBeforeUserSet(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [
-			$this->preferenceValue('user', 'u:42', 'Sie', 1),
-			$this->preferenceValue('session', 's:sess-1', 'Du', 2)
-		];
-		$r = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-5',
-			'set_user_pref',
-			['key' => 'address_form', 'value' => 'Du', 'scope' => 'user']
-		);
-		$snapshot = $r->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-		$values[1]['pref_value'] = 'Sie';
-		$values[1]['updated'] = '2026-07-12 11:00:00';
-
-		$decision = $r->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertFalse($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_STALE, $decision->getCode());
-	}
-
-	public function testMutationCommitRejectsChangedPreferenceDefinition(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [$this->preferenceValue('user', 'u:42', 'Sie', 1)];
-		$r = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-6',
-			'unset_user_pref',
-			['key' => 'address_form', 'scope' => 'user']
-		);
-		$snapshot = $r->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-		$definition['updated'] = '2026-07-12 11:00:00';
-		$definition['enabled'] = 0;
-
-		$decision = $r->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertFalse($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_STALE, $decision->getCode());
-	}
-
-	public function testMutationCommitRejectsDifferentComponentPreset(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [$this->preferenceValue('user', 'u:42', 'Sie', 1)];
-		$source = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$target = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-other');
-		$action = $this->preferenceAction(
-			'call-7',
-			'unset_user_pref',
-			['key' => 'address_form', 'scope' => 'user']
-		);
-		$snapshot = $source->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-
-		$decision = $target->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertFalse($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_INVALID_SNAPSHOT, $decision->getCode());
-	}
-
-	public function testMutationCommitRejectsChangedStateForUnsetBoth(): void {
-		$definition = $this->preferenceDefinition();
-		$values = [
-			$this->preferenceValue('user', 'u:42', 'Sie', 1),
-			$this->preferenceValue('session', 's:sess-1', 'Du', 2)
-		];
-		$r = $this->makeGuardedResource($definition, $values, '42', 'sess-1', 'prefs-main');
-		$action = $this->preferenceAction(
-			'call-8',
-			'unset_user_pref',
-			['key' => 'address_form']
-		);
-		$snapshot = $r->captureMutationCommitSnapshot(
-			$action,
-			(new AgentActionFingerprint())->create($action),
-			$this->createStub(IAgentContext::class)
-		);
-		$values[1]['pref_value'] = 'Sie';
-		$values[1]['updated'] = '2026-07-12 11:00:00';
-
-		$decision = $r->validateMutationCommit($action, $snapshot, $this->createStub(IAgentContext::class));
-
-		$this->assertFalse($decision->isAllowed());
-		$this->assertSame(AgentMutationCommitDecision::CODE_STALE, $decision->getCode());
-	}
-
 	public function testCallToolThrowsOnUnsupportedTool(): void {
 		$r = new UserPrefsAgentResource(
 			database: $this->makeDatabaseStub(),
@@ -668,49 +440,6 @@ class UserPrefsAgentResourceTest extends TestCase {
 			'pref_value' => $value,
 			'updated' => '2026-07-12 10:00:00'
 		];
-	}
-
-	/** @param array<string,mixed> $definition @param array<int,array<string,mixed>> $values */
-	private function makeGuardedResource(
-		array &$definition,
-		array &$values,
-		?string $userId,
-		string $sessionId,
-		string $resourceId
-	): UserPrefsAgentResource {
-		return new UserPrefsAgentResource(
-			database: $this->preferenceGuardDatabase($definition, $values),
-			resolver: $this->makeResolverStub([]),
-			accesscontrol: $this->makeAccesscontrolStub($userId),
-			session: $this->makeSessionStub($sessionId),
-			id: $resourceId
-		);
-	}
-
-	/** @param array<string,mixed> $input */
-	private function preferenceAction(string $id, string $name, array $input): AgentAction {
-		return new AgentAction($id, AgentAction::TYPE_TOOL_CALL, $name, $input);
-	}
-
-	/** @param array<string,mixed> $definition @param array<int,array<string,mixed>> $values */
-	private function preferenceGuardDatabase(array &$definition, array &$values): IDatabase {
-		$db = $this->createMock(IDatabase::class);
-		$db->method('connect');
-		$db->method('nonQuery');
-		$db->method('affectedRows')->willReturn(0);
-		$db->method('escape')->willReturnCallback(static fn(string $value): string => $value);
-		$db->method('multiQuery')->willReturnCallback(
-			static function (string $sql) use (&$values): array {
-				return str_contains($sql, 'base3_missionbay_userpref_value') ? $values : [];
-			}
-		);
-		$db->method('singleQuery')->willReturnCallback(
-			static function (string $sql) use (&$definition): ?array {
-				return str_contains($sql, 'base3_missionbay_userpref_def') ? $definition : null;
-			}
-		);
-
-		return $db;
 	}
 
 	public function testCallToolSetUserPrefReturnsErrorOnMissingKey(): void {

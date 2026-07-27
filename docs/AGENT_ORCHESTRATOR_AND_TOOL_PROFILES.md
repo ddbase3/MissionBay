@@ -194,19 +194,23 @@ IAgentContextContributor
 
 Session, volatile, and database histories implement `IAgentConversationMemory`. User preferences, focus, time, page context, and sub-agent descriptions implement `IAgentContextContributor`. Knowledge / Skills remains an explicit tool. Compatibility adapters may still implement `IAgentMemory`, but MissionBay resolves their explicit role and does not write user/assistant messages to context-only components.
 
-Tool-profile resolution contributes tool facets only. Memory and context are configured independently:
+Tool-profile resolution always requires the `tool` capability and automatically retains every additional capability declared by the selected preset. A preset with `tool` and `context` is therefore connected to both the tool wrapper and the `contextcontributors` dock. A preset with `tool` and `memory` is connected to both the tool wrapper and the conversation-memory dock.
 
 ```text
+Tool Profile
+  -> callable Component Presets
+  -> automatic context/memory attachment when declared by those presets
+
 Memory Profile
-  -> concrete conversation-memory Component Presets
+  -> conversation-memory presets not selected as tools
 
 Context Profile
-  -> concrete IAgentContextContributor Component Presets
+  -> context-contributor presets not selected as tools
 ```
 
-There is no automatic/both role switch and no contributor read/write setting. Component-specific storage, credentials, namespaces, priorities, and user scoping stay in the concrete Component Preset.
+There is no automatic/both role switch and no contributor read/write setting. Capabilities come from the concrete Component Preset contract. Component-specific storage, credentials, namespaces, priorities, and user scoping stay in that preset.
 
-A preset may intentionally expose both a tool and a context-contributor facet. In that case the selected Tool Profile and Context Profile reference the same preset id. The flow builder creates one configured base resource and connects the tool wrapper and `contextcontributors` dock to that instance, so a preference written through the tool facet is available to the contributor on the next new turn.
+`UserPrefsAgentResource` is the normal dual-capability example. Selecting its preset in a Tool Profile creates one configured base resource, connects its tool wrapper, and also connects the same base resource to `contextcontributors`. A preference written through the tool facet is therefore available to the contributor on the next new turn without duplicating the preset in a Context Profile.
 
 ## Runtime resolution
 

@@ -10,8 +10,8 @@ use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
 
 /**
- * Resolves operator-facing tool profiles into tool-only component entries.
- * Context contributors and conversation memories are configured separately.
+ * Resolves operator-facing tool profiles into AgentComponentFlowBuilder input.
+ * Selected tool presets automatically retain every declared runtime capability.
  */
 final class AgentToolProfileResolver {
 
@@ -90,7 +90,7 @@ final class AgentToolProfileResolver {
 					throw new \RuntimeException('Tool profile preset does not expose the tool capability: ' . $presetId);
 				}
 
-				$attachAs = ['tool'];
+				$attachAs = $capabilities;
 
 				if (!isset($resolved[$presetId])) {
 					$resolved[$presetId] = [
