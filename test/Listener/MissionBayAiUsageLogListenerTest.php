@@ -5,8 +5,10 @@ namespace MissionBay\Test\Listener;
 use AssistantFoundation\Dto\AiResultMetadata;
 use AssistantFoundation\Dto\AiUsage;
 use AssistantFoundation\Event\AiProviderRequestCompletedEvent;
+use Base3\Api\IRequest;
 use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
+use Base3\Usermanager\Api\IUsermanager;
 use MissionBay\Listener\MissionBayAiUsageLogListener;
 use PHPUnit\Framework\TestCase;
 
@@ -16,6 +18,8 @@ final class MissionBayAiUsageLogListenerTest extends TestCase {
 		$queries = [];
 		$database = $this->createMock(IDatabase::class);
 		$logger = $this->createMock(ILogger::class);
+		$usermanager = $this->createMock(IUsermanager::class);
+		$request = $this->createMock(IRequest::class);
 
 		$database->expects($this->once())->method('connect');
 		$database->expects($this->never())->method('beginTransaction');
@@ -32,8 +36,13 @@ final class MissionBayAiUsageLogListenerTest extends TestCase {
 			static fn(string $value): string => addslashes($value)
 		);
 		$logger->expects($this->never())->method('error');
+		$usermanager->expects($this->once())->method('getUser')->willReturn([
+			'id' => 42,
+			'login' => 'test.user'
+		]);
+		$request->expects($this->once())->method('getContext')->willReturn(IRequest::CONTEXT_WEB_API);
 
-		$listener = new MissionBayAiUsageLogListener($database, $logger);
+		$listener = new MissionBayAiUsageLogListener($database, $logger, $usermanager, $request);
 		$listener->onProviderRequestCompleted(new AiProviderRequestCompletedEvent(
 			new AiResultMetadata(
 				'chat',
@@ -52,10 +61,15 @@ final class MissionBayAiUsageLogListenerTest extends TestCase {
 
 		$this->assertCount(2, $queries);
 		$this->assertStringContainsString('CREATE TABLE IF NOT EXISTS `base3_missionbay_ai_usage`', $queries[0]);
+		$this->assertStringContainsString('`user_id` INT NOT NULL DEFAULT 0', $queries[0]);
+		$this->assertStringContainsString('`user_login` VARCHAR(191) NOT NULL DEFAULT \'unknown_user\'', $queries[0]);
+		$this->assertStringContainsString('`request_context` VARCHAR(32) NOT NULL DEFAULT \'unknown\'', $queries[0]);
+		$this->assertStringContainsString('KEY `idx_ai_usage_user_time` (`user_id`, `occurred_at`)', $queries[0]);
 		$this->assertStringContainsString('INSERT INTO `base3_missionbay_ai_usage`', $queries[1]);
 		$this->assertStringContainsString("'openai'", $queries[1]);
 		$this->assertStringContainsString("'gpt-test'", $queries[1]);
 		$this->assertStringContainsString("'request-1'", $queries[1]);
+		$this->assertStringContainsString("\n\t\t\t\t42,\n\t\t\t\t'test.user',\n\t\t\t\t'web_api',\n", $queries[1]);
 		$this->assertStringContainsString("\n\t\t\t\t10,\n\t\t\t\t4,\n\t\t\t\t14,\n", $queries[1]);
 	}
 }

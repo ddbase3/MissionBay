@@ -410,7 +410,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 
 			->set(MissionBayAiUsageLogListener::class, fn($c) => new MissionBayAiUsageLogListener(
 				$c->get(IDatabase::class),
-				$c->get(ILogger::class)
+				$c->get(ILogger::class),
+				$c->get(IUsermanager::class),
+				$c->get(IRequest::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(MissionBayToolEventDisplayListener::class, fn($c) => new MissionBayToolEventDisplayListener(
 				$c->get(IDatabase::class),

@@ -18,8 +18,10 @@
 namespace MissionBay\Listener;
 
 use AssistantFoundation\Event\AiProviderRequestCompletedEvent;
+use Base3\Api\IRequest;
 use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
+use Base3\Usermanager\Api\IUsermanager;
 use RuntimeException;
 use Throwable;
 
@@ -31,7 +33,9 @@ final class MissionBayAiUsageLogListener {
 
 	public function __construct(
 		private readonly IDatabase $database,
-		private readonly ILogger $logger
+		private readonly ILogger $logger,
+		private readonly IUsermanager $usermanager,
+		private readonly IRequest $request
 	) {}
 
 	public function onProviderRequestCompleted(AiProviderRequestCompletedEvent $event): void {
@@ -57,6 +61,9 @@ final class MissionBayAiUsageLogListener {
 				`provider` VARCHAR(191) NOT NULL DEFAULT \'\',
 				`model` VARCHAR(191) NOT NULL DEFAULT \'\',
 				`request_id` VARCHAR(191) NULL,
+				`user_id` INT NOT NULL DEFAULT 0,
+				`user_login` VARCHAR(191) NOT NULL DEFAULT \'unknown_user\',
+				`request_context` VARCHAR(32) NOT NULL DEFAULT \'unknown\',
 				`input_tokens` BIGINT NULL,
 				`output_tokens` BIGINT NULL,
 				`total_tokens` BIGINT NULL,
@@ -73,7 +80,8 @@ final class MissionBayAiUsageLogListener {
 				KEY `idx_ai_usage_occurred_at` (`occurred_at`),
 				KEY `idx_ai_usage_provider_model` (`provider`, `model`, `occurred_at`),
 				KEY `idx_ai_usage_operation` (`operation`, `occurred_at`),
-				KEY `idx_ai_usage_request_id` (`request_id`)
+				KEY `idx_ai_usage_request_id` (`request_id`),
+				KEY `idx_ai_usage_user_time` (`user_id`, `occurred_at`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
 		);
 
@@ -86,6 +94,12 @@ final class MissionBayAiUsageLogListener {
 		$usage = $event->getUsage();
 		$createdAt = $metadata->getCreatedAt();
 		$durationMs = $metadata->getDurationMs();
+		$user = $this->getCurrentUser();
+		$requestContext = trim($this->request->getContext());
+
+		if($requestContext === '') {
+			$requestContext = 'unknown';
+		}
 
 		$sql = '
 			INSERT INTO `' . self::TABLE . '` (
@@ -94,6 +108,9 @@ final class MissionBayAiUsageLogListener {
 				`provider`,
 				`model`,
 				`request_id`,
+				`user_id`,
+				`user_login`,
+				`request_context`,
 				`input_tokens`,
 				`output_tokens`,
 				`total_tokens`,
@@ -112,6 +129,9 @@ final class MissionBayAiUsageLogListener {
 				' . $this->quote($metadata->getProvider()) . ',
 				' . $this->quote($metadata->getModel()) . ',
 				' . $this->quoteNullable($this->emptyToNull($metadata->getRequestId())) . ',
+				' . $user['id'] . ',
+				' . $this->quote($user['login']) . ',
+				' . $this->quote($requestContext) . ',
 				' . $this->intNullable($usage->getInputTokens()) . ',
 				' . $this->intNullable($usage->getOutputTokens()) . ',
 				' . $this->intNullable($usage->getTotalTokens()) . ',
@@ -151,6 +171,109 @@ final class MissionBayAiUsageLogListener {
 			]);
 		} catch(Throwable $ignored) {
 		}
+	}
+
+	/**
+	 * @return array{id:int,login:string}
+	 */
+	private function getCurrentUser(): array {
+		try {
+			$user = $this->usermanager->getUser();
+		} catch(Throwable $e) {
+			$user = null;
+		}
+
+		$userId = $this->readUserId($user);
+		$userLogin = $this->readUserLogin($user, $userId);
+
+		return [
+			'id' => $userId,
+			'login' => $userLogin
+		];
+	}
+
+	private function readUserId(mixed $user): int {
+		if(is_int($user)) {
+			return $user;
+		}
+
+		if(is_string($user) && is_numeric($user)) {
+			return (int)$user;
+		}
+
+		if(is_float($user)) {
+			return (int)$user;
+		}
+
+		$value = $this->readUserValue($user, ['id', 'user_id', 'usr_id'], ['getId', 'getUserId', 'getUsrId']);
+		return $this->normalizeUserId($value);
+	}
+
+	private function readUserLogin(mixed $user, int $userId): string {
+		$value = $this->readUserValue(
+			$user,
+			['login', 'name', 'username', 'user_name', 'email'],
+			['getLogin', 'getName', 'getUsername', 'getUserName', 'getEmail']
+		);
+
+		if(is_scalar($value)) {
+			$value = trim((string)$value);
+			if($value !== '') {
+				return $value;
+			}
+		}
+
+		if($userId > 0) {
+			return 'user_' . $userId;
+		}
+
+		return 'unknown_user';
+	}
+
+	/**
+	 * @param array<int,string> $keys
+	 * @param array<int,string> $methods
+	 */
+	private function readUserValue(mixed $user, array $keys, array $methods): mixed {
+		if(is_array($user)) {
+			foreach($keys as $key) {
+				if(array_key_exists($key, $user)) {
+					return $user[$key];
+				}
+			}
+		}
+
+		if(is_object($user)) {
+			foreach($keys as $key) {
+				if(property_exists($user, $key)) {
+					return $user->$key;
+				}
+			}
+
+			foreach($methods as $method) {
+				if(method_exists($user, $method)) {
+					return $user->$method();
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private function normalizeUserId(mixed $value): int {
+		if(is_int($value)) {
+			return $value;
+		}
+
+		if(is_string($value) && is_numeric($value)) {
+			return (int)$value;
+		}
+
+		if(is_float($value)) {
+			return (int)$value;
+		}
+
+		return 0;
 	}
 
 	private function formatTimestamp(int $timestamp): string {
