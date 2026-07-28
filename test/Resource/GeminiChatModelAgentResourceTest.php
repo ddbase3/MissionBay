@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\GeminiChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -31,13 +33,17 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('geminichatmodelagentresource', GeminiChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GeminiChatModelAgentResource($resolver, 'g1');
+		$r = new GeminiChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g1');
 
 		$r->setConfig([]);
 
@@ -59,7 +65,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 		];
 
 		$resolver = $this->makeResolver($map);
-		$r = new GeminiChatModelAgentResource($resolver, 'g2');
+		$r = new GeminiChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -79,7 +85,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GeminiChatModelAgentResource($resolver, 'g3');
+		$r = new GeminiChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g3');
 
 		$r->setConfig([]);
 
@@ -97,7 +103,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testChatThrowsOnMalformedOpenAiCompatibleResponse(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new class($resolver, 'g4') extends GeminiChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'g4') extends GeminiChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return ['choices' => [['message' => []]]]; // missing content
 			}
@@ -113,7 +119,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new class($resolver, 'g5') extends GeminiChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'g5') extends GeminiChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -134,7 +140,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GeminiChatModelAgentResource($resolver, 'g6');
+		$r = new GeminiChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g6');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -145,7 +151,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesConvertsRolesAndSerializesNonString(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GeminiChatModelAgentResource($resolver, 'g7');
+		$r = new GeminiChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g7');
 
 		$ref = new \ReflectionClass(GeminiChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');
@@ -182,7 +188,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeToolsConvertsOpenAiToolSchemaToGeminiFunctionDeclarations(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GeminiChatModelAgentResource($resolver, 'g8');
+		$r = new GeminiChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g8');
 
 		$ref = new \ReflectionClass(GeminiChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeTools');
@@ -228,7 +234,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testStreamCallsOnDataAndOnMetaWhenFedJsonLines(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new class($resolver, 'g9') extends GeminiChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'g9') extends GeminiChatModelAgentResource {
 			public function testFeedChunk(string $chunk, callable $onData, ?callable $onMeta): void {
 				$lines = preg_split("/\r\n|\n|\r/", $chunk);
 

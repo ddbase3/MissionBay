@@ -21,6 +21,7 @@ use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Api\IAiProvider;
 use Base3\Api\IBase;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 
 abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 
@@ -34,8 +35,11 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 	protected ?IAiProvider $provider = null;
 
 	public function __construct(
-		protected readonly IClassMap $classMap
-	) {}
+		protected readonly IClassMap $classMap,
+		AiProviderRequestEventDispatcher $providerRequestEvents
+	) {
+		$this->initializeProviderRequestEvents($providerRequestEvents);
+	}
 
 	abstract public static function getName(): string;
 

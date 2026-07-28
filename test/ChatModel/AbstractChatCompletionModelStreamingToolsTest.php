@@ -4,6 +4,8 @@ namespace MissionBay\Test\ChatModel;
 
 use AssistantFoundation\Api\IAiProvider;
 use Base3\Api\IClassMap;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\ChatModel\MistralChatModel;
 use PHPUnit\Framework\TestCase;
 
@@ -11,7 +13,10 @@ final class AbstractChatCompletionModelStreamingToolsTest extends TestCase {
 
 	public function testStreamingPayloadKeepsToolDefinitionsForConfiguredModels(): void {
 		$provider = new CapturingStreamingProvider();
-		$model = new MistralChatModel(new SingleProviderClassMap($provider));
+		$model = new MistralChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
 		$model->setOptions([
 			'model' => 'mistral-small-2603',
 			'endpoint' => 'https://example.test',
@@ -49,7 +54,10 @@ final class AbstractChatCompletionModelStreamingToolsTest extends TestCase {
 
 	public function testStreamingPayloadWithoutToolsRemainsToolFree(): void {
 		$provider = new CapturingStreamingProvider(false);
-		$model = new MistralChatModel(new SingleProviderClassMap($provider));
+		$model = new MistralChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
 		$model->setOptions([
 			'model' => 'mistral-small-2603',
 			'endpoint' => 'https://example.test',

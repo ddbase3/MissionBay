@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\FireworksChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -29,13 +31,17 @@ class FireworksChatModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('fireworkschatmodelagentresource', FireworksChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new FireworksChatModelAgentResource($resolver, 'f1');
+		$r = new FireworksChatModelAgentResource($resolver, $this->providerRequestEvents(), 'f1');
 
 		$r->setConfig([]);
 
@@ -56,7 +62,7 @@ class FireworksChatModelAgentResourceTest extends TestCase {
 			'max_key' => '999',
 		]);
 
-		$r = new FireworksChatModelAgentResource($resolver, 'f2');
+		$r = new FireworksChatModelAgentResource($resolver, $this->providerRequestEvents(), 'f2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -76,7 +82,7 @@ class FireworksChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new FireworksChatModelAgentResource($resolver, 'f3');
+		$r = new FireworksChatModelAgentResource($resolver, $this->providerRequestEvents(), 'f3');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -95,7 +101,7 @@ class FireworksChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new FireworksChatModelAgentResource($resolver, 'f4');
+		$r = new FireworksChatModelAgentResource($resolver, $this->providerRequestEvents(), 'f4');
 		$r->setConfig([]); // apikey = null
 
 		$this->expectException(\RuntimeException::class);
@@ -109,7 +115,7 @@ class FireworksChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'f5') extends FireworksChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'f5') extends FireworksChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -130,7 +136,7 @@ class FireworksChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesConvertsNonStringContentAndInjectsFeedback(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new FireworksChatModelAgentResource($resolver, 'f6');
+		$r = new FireworksChatModelAgentResource($resolver, $this->providerRequestEvents(), 'f6');
 
 		$ref = new \ReflectionClass(FireworksChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');
@@ -160,7 +166,7 @@ class FireworksChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesSkipsInvalidEntries(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new FireworksChatModelAgentResource($resolver, 'f7');
+		$r = new FireworksChatModelAgentResource($resolver, $this->providerRequestEvents(), 'f7');
 
 		$ref = new \ReflectionClass(FireworksChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');

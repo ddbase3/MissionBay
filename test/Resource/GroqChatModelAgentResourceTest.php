@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\GroqChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -29,13 +31,17 @@ class GroqChatModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('groqchatmodelagentresource', GroqChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GroqChatModelAgentResource($resolver, 'gr1');
+		$r = new GroqChatModelAgentResource($resolver, $this->providerRequestEvents(), 'gr1');
 
 		$r->setConfig([]);
 
@@ -57,7 +63,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 		];
 
 		$resolver = $this->makeResolver($map);
-		$r = new GroqChatModelAgentResource($resolver, 'gr2');
+		$r = new GroqChatModelAgentResource($resolver, $this->providerRequestEvents(), 'gr2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -77,7 +83,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GroqChatModelAgentResource($resolver, 'gr3');
+		$r = new GroqChatModelAgentResource($resolver, $this->providerRequestEvents(), 'gr3');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -94,7 +100,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GroqChatModelAgentResource($resolver, 'gr4');
+		$r = new GroqChatModelAgentResource($resolver, $this->providerRequestEvents(), 'gr4');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -108,7 +114,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'gr5') extends GroqChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'gr5') extends GroqChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -129,7 +135,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesConvertsNonStringContentAndInjectsFeedback(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GroqChatModelAgentResource($resolver, 'gr6');
+		$r = new GroqChatModelAgentResource($resolver, $this->providerRequestEvents(), 'gr6');
 
 		$ref = new \ReflectionClass(GroqChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');
@@ -159,7 +165,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesSkipsInvalidEntries(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GroqChatModelAgentResource($resolver, 'gr7');
+		$r = new GroqChatModelAgentResource($resolver, $this->providerRequestEvents(), 'gr7');
 
 		$ref = new \ReflectionClass(GroqChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');

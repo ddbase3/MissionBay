@@ -18,16 +18,26 @@
 namespace MissionBay\ChatModel;
 
 use AssistantFoundation\Dto\AiChatResult;
+use AssistantFoundation\Dto\AiResultMetadata;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Ai\AiResultNormalizer;
 use RuntimeException;
 
 trait NormalizedChatModelTrait {
 
+	private AiProviderRequestEventDispatcher $providerRequestEvents;
+
+	protected function initializeProviderRequestEvents(AiProviderRequestEventDispatcher $providerRequestEvents): void {
+		$this->providerRequestEvents = $providerRequestEvents;
+	}
+
 	public function complete(array $messages, array $tools = []): AiChatResult {
 		$startedAt = microtime(true);
 		$raw = $this->raw($messages, $tools);
+		$result = AiResultNormalizer::chat($raw, $this->buildResultHints($startedAt));
 
-		return AiResultNormalizer::chat($raw, $this->buildResultHints($startedAt));
+		$this->dispatchProviderRequestCompleted($result->getMetadata());
+		return $result;
 	}
 
 	public function streamResult(
@@ -70,12 +80,19 @@ trait NormalizedChatModelTrait {
 			);
 		}
 
-		return new AiChatResult(
+		$result = new AiChatResult(
 			$content,
 			$toolCalls,
 			$metadata,
 			$metadataEvents
 		);
+
+		$this->dispatchProviderRequestCompleted($metadata);
+		return $result;
+	}
+
+	private function dispatchProviderRequestCompleted(AiResultMetadata $metadata): void {
+		$this->providerRequestEvents->dispatch($metadata, static::getName());
 	}
 
 	/**

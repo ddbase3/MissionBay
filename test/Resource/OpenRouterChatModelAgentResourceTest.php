@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\OpenRouterChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -29,13 +31,17 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('openrouterchatmodelagentresource', OpenRouterChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r1');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r1');
 
 		$r->setConfig([]);
 
@@ -58,7 +64,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 		];
 
 		$resolver = $this->makeResolver($map);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r2');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -78,7 +84,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r3');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r3');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -97,7 +103,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r4');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r4');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -108,7 +114,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testStreamThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r5');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r5');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -125,7 +131,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'r6') extends OpenRouterChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'r6') extends OpenRouterChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -143,7 +149,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesToolRoleRequiresToolCallId(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r7');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r7');
 
 		$method = (new \ReflectionClass(OpenRouterChatModelAgentResource::class))->getMethod('normalizeMessages');
 		$method->setAccessible(true);
@@ -187,7 +193,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesAssistantToolCallsAreMapped(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r8');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r8');
 
 		$method = (new \ReflectionClass(OpenRouterChatModelAgentResource::class))->getMethod('normalizeMessages');
 		$method->setAccessible(true);
@@ -237,7 +243,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesFeedbackInjectionTrimsAndSkipsEmpty(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r9');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r9');
 
 		$method = (new \ReflectionClass(OpenRouterChatModelAgentResource::class))->getMethod('normalizeMessages');
 		$method->setAccessible(true);
@@ -261,7 +267,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesSkipsInvalidEntriesAndJsonEncodesNonStringContent(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenRouterChatModelAgentResource($resolver, 'r10');
+		$r = new OpenRouterChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r10');
 
 		$method = (new \ReflectionClass(OpenRouterChatModelAgentResource::class))->getMethod('normalizeMessages');
 		$method->setAccessible(true);
@@ -277,7 +283,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testHandleStreamPayloadEmitsContentToolCallsAndFinishMetadata(): void {
 		$resolver = $this->makeResolver([]);
-		$resource = new class($resolver, 'r11') extends OpenRouterChatModelAgentResource {
+		$resource = new class($resolver, $this->providerRequestEvents(), 'r11') extends OpenRouterChatModelAgentResource {
 			public function emitPayload(array $payload, callable $onData, callable $onMeta = null): void {
 				$this->handleStreamPayload($payload, $onData, $onMeta);
 			}

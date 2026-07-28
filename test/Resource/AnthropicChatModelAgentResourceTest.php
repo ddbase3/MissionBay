@@ -7,6 +7,8 @@
 namespace MissionBay\Resource\Test;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\AnthropicChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAiChatModel;
@@ -25,13 +27,17 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testImplementsAiChatModelInterface(): void {
-		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), $this->providerRequestEvents(), 'id');
 		$this->assertInstanceOf(IAiChatModel::class, $res);
 	}
 
 	public function testGetNameAndDescription(): void {
-		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), $this->providerRequestEvents(), 'id');
 
 		$this->assertSame(
 			'anthropicchatmodelagentresource',
@@ -45,7 +51,7 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testSetConfigAppliesDefaults(): void {
-		$res = new AnthropicChatModelAgentResource($this->makeResolver(true), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(true), $this->providerRequestEvents(), 'id');
 		$res->setConfig([]);
 
 		$opts = $res->getOptions();
@@ -58,7 +64,7 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testSetOptionsMerges(): void {
-		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), $this->providerRequestEvents(), 'id');
 
 		$res->setConfig(['apikey' => 'key']);
 		$res->setOptions(['temperature' => 0.9]);
@@ -70,7 +76,7 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testRawThrowsIfApiKeyMissing(): void {
-		$res = new AnthropicChatModelAgentResource($this->makeResolver(), 'id');
+		$res = new AnthropicChatModelAgentResource($this->makeResolver(), $this->providerRequestEvents(), 'id');
 		$res->setConfig([]);
 
 		$this->expectException(\RuntimeException::class);
@@ -80,7 +86,7 @@ class AnthropicChatModelAgentResourceTest extends TestCase {
 	}
 
 	public function testStreamEmitsDataAndMeta(): void {
-		$res = new class($this->makeResolver(), 'id') extends AnthropicChatModelAgentResource {
+		$res = new class($this->makeResolver(), $this->providerRequestEvents(), 'id') extends AnthropicChatModelAgentResource {
 
 			/**
 			 * Runs the SAME parsing logic as the CURLOPT_WRITEFUNCTION in stream(),

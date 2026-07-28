@@ -4,6 +4,8 @@ namespace MissionBay\Test\SearchService;
 
 use AssistantFoundation\Api\IAiProvider;
 use Base3\Api\IClassMap;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\SearchService\MistralWebSearchService;
 use PHPUnit\Framework\TestCase;
 
@@ -89,7 +91,10 @@ final class MistralWebSearchServiceTest extends TestCase {
 	}
 
 	private function createService(IAiProvider $provider): MistralWebSearchService {
-		$service = new MistralWebSearchService(new MistralWebSearchTestClassMap($provider));
+		$service = new MistralWebSearchService(
+			new MistralWebSearchTestClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
 		$service->setOptions([
 			'model' => 'mistral-small-2603',
 			'endpoint' => 'https://api.mistral.ai',

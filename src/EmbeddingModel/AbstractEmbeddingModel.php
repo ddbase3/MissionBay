@@ -22,6 +22,7 @@ use AssistantFoundation\Api\IAiProvider;
 use AssistantFoundation\Dto\AiEmbeddingResult;
 use Base3\Api\IBase;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Ai\AiResultNormalizer;
 use RuntimeException;
 
@@ -35,7 +36,8 @@ abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {
 	protected ?IAiProvider $provider = null;
 
 	public function __construct(
-		protected readonly IClassMap $classMap
+		protected readonly IClassMap $classMap,
+		private readonly AiProviderRequestEventDispatcher $providerRequestEvents
 	) {}
 
 	abstract public static function getName(): string;
@@ -91,15 +93,32 @@ abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {
 		$out = [];
 		$rawResponses = [];
 
-		foreach($batches as $batch) {
+		foreach($batches as $batchIndex => $batch) {
+			$batchStartedAt = microtime(true);
 			$result = $this->getProvider()->request(
 				$this->getEmbeddingPath(),
 				$this->buildPayload($batch),
 				$this->buildRequestOptions()
 			);
+			$batchEmbeddings = $this->extractEmbeddings($result);
+			$metadata = AiResultNormalizer::metadata('embedding', $result, [
+				'provider' => $this->getProviderName(),
+				'model' => $this->getModel(),
+				'adapter' => static::getName(),
+				'started_at' => $batchStartedAt,
+				'usage_metrics' => [
+					'input_items' => count($batch),
+					'output_vectors' => count($batchEmbeddings)
+				],
+				'extra' => [
+					'batch_index' => $batchIndex,
+					'batch_count' => count($batches)
+				]
+			], $batchStartedAt);
 
 			$rawResponses[] = $result;
-			$out = array_merge($out, $this->extractEmbeddings($result));
+			$out = array_merge($out, $batchEmbeddings);
+			$this->providerRequestEvents->dispatch($metadata, static::getName());
 		}
 
 		if($this->shouldNormalizeVectors()) {

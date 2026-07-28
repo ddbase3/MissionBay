@@ -68,22 +68,25 @@ class OpenAiWebSearchService extends AbstractSearchService {
 		);
 
 		$normalized = $this->normalizeResponse($query, $result);
+		$metadata = AiResultNormalizer::metadata('search', $result, [
+			'provider' => $this->getProviderName(),
+			'model' => $this->getModel($runtimeOptions),
+			'adapter' => static::getName(),
+			'started_at' => $startedAt,
+			'usage_metrics' => [
+				'search_queries' => 1,
+				'search_results' => count(is_array($normalized['results'] ?? null) ? $normalized['results'] : [])
+			]
+		], $startedAt);
+
+		$this->dispatchProviderRequestCompleted($metadata);
 
 		return new AiSearchResult(
 			$query,
 			(string)($normalized['answer'] ?? ''),
 			is_array($normalized['results'] ?? null) ? $normalized['results'] : [],
 			is_array($normalized['citations'] ?? null) ? $normalized['citations'] : [],
-			AiResultNormalizer::metadata('search', $result, [
-				'provider' => $this->getProviderName(),
-				'model' => $this->getModel($runtimeOptions),
-				'adapter' => static::getName(),
-				'started_at' => $startedAt,
-				'usage_metrics' => [
-					'search_queries' => 1,
-					'search_results' => count(is_array($normalized['results'] ?? null) ? $normalized['results'] : [])
-				]
-			], $startedAt),
+			$metadata,
 			$result
 		);
 	}

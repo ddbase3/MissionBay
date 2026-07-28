@@ -18,7 +18,9 @@
 namespace MissionBay\SearchService;
 
 use AssistantFoundation\Api\IAiProvider;
+use AssistantFoundation\Dto\AiResultMetadata;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Api\ISearchService;
 use RuntimeException;
 
@@ -32,7 +34,8 @@ abstract class AbstractSearchService implements ISearchService {
 	protected ?IAiProvider $provider = null;
 
 	public function __construct(
-		protected readonly IClassMap $classMap
+		protected readonly IClassMap $classMap,
+		private readonly AiProviderRequestEventDispatcher $providerRequestEvents
 	) {}
 
 	abstract public static function getName(): string;
@@ -85,6 +88,10 @@ abstract class AbstractSearchService implements ISearchService {
 			'timeout' => $this->getIntOption($this->options, 'timeout_seconds', 120),
 			'connect_timeout' => $this->getIntOption($this->options, 'connect_timeout_seconds', 15)
 		]);
+	}
+
+	protected function dispatchProviderRequestCompleted(AiResultMetadata $metadata): void {
+		$this->providerRequestEvents->dispatch($metadata, static::getName());
 	}
 
 	/**

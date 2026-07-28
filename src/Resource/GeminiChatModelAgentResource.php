@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -52,13 +53,22 @@ class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiC
 
 	protected array $resolvedOptions = [];
 
-	public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
+	public function __construct(
+		IAgentConfigValueResolver $resolver,
+		AiProviderRequestEventDispatcher $providerRequestEvents,
+		?string $id = null
+	) {
 		parent::__construct($id);
 		$this->resolver = $resolver;
+		$this->initializeProviderRequestEvents($providerRequestEvents);
 	}
 
 	public static function getName(): string {
 		return 'geminichatmodelagentresource';
+	}
+
+	protected function getProviderName(): string {
+		return 'gemini';
 	}
 
 	public function getDescription(): string {

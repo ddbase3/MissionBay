@@ -7,6 +7,9 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Api\IClassMap;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\OpenAiChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -44,13 +47,21 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		return $out;
 	}
 
+	private function classMap(): IClassMap {
+		return $this->createMock(IClassMap::class);
+	}
+
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('openaichatmodelagentresource', OpenAiChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r1');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r1');
 
 		$r->setConfig([]);
 
@@ -69,7 +80,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 			'temp_key' => '0.12',
 		]);
 
-		$r = new OpenAiChatModelAgentResource($resolver, 'r2');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -87,7 +98,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r3');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r3');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -105,7 +116,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 	public function testChatThrowsOnMalformedResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'r4') extends OpenAiChatModelAgentResource {
+		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'r4') extends OpenAiChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return ['choices' => [['message' => []]]];
 			}
@@ -122,7 +133,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'r5') extends OpenAiChatModelAgentResource {
+		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'r5') extends OpenAiChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -139,7 +150,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r6');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r6');
 		$r->setConfig([]);
 
 		$this->expectException(\RuntimeException::class);
@@ -150,7 +161,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesSkipsInvalidEntries(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r7');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r7');
 
 		$normalized = $this->callNormalize($r, [
 			'not-an-array',
@@ -163,7 +174,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesInjectsFeedbackAsExtraUserMessage(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r8');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r8');
 
 		$normalized = $this->callNormalize($r, [[
 			'role' => 'user',
@@ -179,7 +190,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesDoesNotInjectEmptyFeedback(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r9');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r9');
 
 		$normalized = $this->callNormalize($r, [[
 			'role' => 'user',
@@ -194,7 +205,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesEncodesNonStringContent(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r10');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r10');
 
 		$normalized = $this->callNormalize($r, [[
 			'role' => 'user',
@@ -208,7 +219,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesToolRoleRequiresToolCallId(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r11');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r11');
 
 		// IMPORTANT:
 		// Prod code deliberately drops orphaned tool messages unless a matching assistant tool_calls
@@ -258,7 +269,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesAssistantToolCallsAreMappedToOpenAiShape(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiChatModelAgentResource($resolver, 'r12');
+		$r = new OpenAiChatModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'r12');
 
 		$normalized = $this->callNormalize($r, [[
 			'role' => 'assistant',

@@ -20,6 +20,7 @@ namespace MissionBay\ImageModel;
 use AssistantFoundation\Api\IAiProvider;
 use AssistantFoundation\Dto\AiImageResult;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Ai\AiResultNormalizer;
 use MissionBay\Api\IImageGenerationModel;
 use RuntimeException;
@@ -34,7 +35,8 @@ abstract class AbstractImageGenerationModel implements IImageGenerationModel {
 	protected ?IAiProvider $provider = null;
 
 	public function __construct(
-		protected readonly IClassMap $classMap
+		protected readonly IClassMap $classMap,
+		private readonly AiProviderRequestEventDispatcher $providerRequestEvents
 	) {}
 
 	abstract public static function getName(): string;
@@ -84,19 +86,22 @@ abstract class AbstractImageGenerationModel implements IImageGenerationModel {
 			$this->buildRequestOptions($runtimeOptions)
 		);
 		$images = $this->extractImages($result, $runtimeOptions);
+		$metadata = AiResultNormalizer::metadata('image', $result, [
+			'provider' => $this->getProviderName(),
+			'model' => $this->getModel($runtimeOptions),
+			'adapter' => static::getName(),
+			'started_at' => $startedAt,
+			'usage_metrics' => [
+				'input_prompts' => 1,
+				'output_images' => count($images)
+			]
+		], $startedAt);
+
+		$this->providerRequestEvents->dispatch($metadata, static::getName());
 
 		return new AiImageResult(
 			$images,
-			AiResultNormalizer::metadata('image', $result, [
-				'provider' => $this->getProviderName(),
-				'model' => $this->getModel($runtimeOptions),
-				'adapter' => static::getName(),
-				'started_at' => $startedAt,
-				'usage_metrics' => [
-					'input_prompts' => 1,
-					'output_images' => count($images)
-				]
-			], $startedAt),
+			$metadata,
 			$result
 		);
 	}

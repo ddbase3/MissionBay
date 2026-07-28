@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\GenericChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -38,13 +40,17 @@ class GenericChatModelAgentResourceTest extends TestCase {
 		return $out;
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('genericchatmodelagentresource', GenericChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g1');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g1');
 
 		$r->setConfig([]);
 
@@ -66,7 +72,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 		];
 
 		$resolver = $this->makeResolver($map);
-		$r = new GenericChatModelAgentResource($resolver, 'g2');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -86,7 +92,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g3');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g3');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -106,7 +112,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 	public function testChatThrowsOnMalformedResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'g4') extends GenericChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'g4') extends GenericChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return ['choices' => [['message' => []]]];
 			}
@@ -123,7 +129,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'g5') extends GenericChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'g5') extends GenericChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return ['choices' => [['message' => ['content' => 'Hello']]]];
 			}
@@ -136,7 +142,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g6');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g6');
 		$r->setConfig([]); // apikey null
 
 		$this->expectException(\RuntimeException::class);
@@ -147,7 +153,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMergesSystemMessagesAndTrimsAndPrepends(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g7');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g7');
 
 		$out = $this->callNormalize($r, [
 			['role' => 'system', 'content' => '  A  '],
@@ -165,7 +171,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeSkipsInvalidEntries(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g8');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g8');
 
 		$out = $this->callNormalize($r, [
 			'nope',
@@ -178,7 +184,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeEncodesNonStringContent(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g9');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g9');
 
 		$out = $this->callNormalize($r, [
 			['role' => 'user', 'content' => ['a' => 1, 'b' => true]],
@@ -190,7 +196,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeInjectsFeedbackAsAdditionalUserMessage(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g10');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g10');
 
 		$out = $this->callNormalize($r, [
 			['role' => 'user', 'content' => 'Hi', 'feedback' => '  be concise  '],
@@ -205,7 +211,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeDoesNotInjectEmptyFeedback(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g11');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g11');
 
 		$out = $this->callNormalize($r, [
 			['role' => 'user', 'content' => 'Hi', 'feedback' => '   '],
@@ -216,7 +222,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeToolMessageRequiresToolCallId(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g12');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g12');
 
 		// IMPORTANT:
 		// Tool messages are only allowed if there was a preceding assistant tool_calls message
@@ -252,7 +258,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeAssistantToolCallsAreNormalizedAndArgumentsJsonEncoded(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g13');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g13');
 
 		$out = $this->callNormalize($r, [[
 			'role' => 'assistant',
@@ -286,9 +292,9 @@ class GenericChatModelAgentResourceTest extends TestCase {
 
 	public function testStreamParsesSseDataCallsOnDataOnMetaAndToolcalls(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new GenericChatModelAgentResource($resolver, 'g14');
+		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g14');
 
-		$r2 = new class($resolver, 'g14x') extends GenericChatModelAgentResource {
+		$r2 = new class($resolver, $this->providerRequestEvents(), 'g14x') extends GenericChatModelAgentResource {
 			public function runWriteFunction(string $chunk, callable $onData, callable $onMeta = null): int {
 				$fn = function ($ch, $chunk) use ($onData, $onMeta) {
 					$lines = preg_split("/\r\n|\n|\r/", $chunk);

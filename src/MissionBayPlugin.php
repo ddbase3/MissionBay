@@ -41,6 +41,7 @@ use AssistantFoundation\Api\IAgentCapabilitySelector;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Api\IAgentToolResultCache;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
 use MissionBay\Agent\AgentFlowFactory;
@@ -78,6 +79,7 @@ use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IMcpClientFactory;
 use MissionBay\Api\IMcpTransport;
+use MissionBay\Listener\MissionBayAiUsageLogListener;
 use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Mcp\Client\McpClientFactory;
 use MissionBay\Mcp\Client\McpRemoteToolDefinitionMapper;
@@ -177,6 +179,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(self::getName(), $this, IContainer::SHARED)
 
 			->set(IEventManager::class, fn() => new EventManager(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AiProviderRequestEventDispatcher::class, fn($c) => new AiProviderRequestEventDispatcher(
+				$c->get(IEventManager::class)
+			), IContainer::SHARED)
 
 			->set(IConfigValueResolver::class, fn($c) => new ConfigValueResolver($c->get(IClassMap::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 
@@ -403,6 +408,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentStateSynchronizer::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 
+			->set(MissionBayAiUsageLogListener::class, fn($c) => new MissionBayAiUsageLogListener(
+				$c->get(IDatabase::class),
+				$c->get(ILogger::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(MissionBayToolEventDisplayListener::class, fn($c) => new MissionBayToolEventDisplayListener(
 				$c->get(IDatabase::class),
 				$c->get(IUsermanager::class)

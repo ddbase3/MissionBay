@@ -3,6 +3,9 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Api\IClassMap;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\OpenAiEmbeddingModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -29,13 +32,21 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function classMap(): IClassMap {
+		return $this->createMock(IClassMap::class);
+	}
+
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('openaiembeddingmodelagentresource', OpenAiEmbeddingModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaults(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiEmbeddingModelAgentResource($resolver, 'e1');
+		$r = new OpenAiEmbeddingModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'e1');
 
 		$r->setConfig([]);
 
@@ -52,7 +63,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 			'endpoint_key' => 'https://example.com/v1/embeddings',
 		]);
 
-		$r = new OpenAiEmbeddingModelAgentResource($resolver, 'e2');
+		$r = new OpenAiEmbeddingModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'e2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -68,7 +79,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMerges(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiEmbeddingModelAgentResource($resolver, 'e3');
+		$r = new OpenAiEmbeddingModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'e3');
 		$r->setConfig([
 			'model' => 'text-embedding-3-small',
 			'apikey' => 'sk-test',
@@ -87,7 +98,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 
 	public function testEmbedReturnsEmptyArrayForEmptyInput(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiEmbeddingModelAgentResource($resolver, 'e4');
+		$r = new OpenAiEmbeddingModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'e4');
 		$r->setConfig(['apikey' => 'sk-test']);
 
 		$this->assertSame([], $r->embed([]));
@@ -95,7 +106,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 
 	public function testEmbedThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new OpenAiEmbeddingModelAgentResource($resolver, 'e5');
+		$r = new OpenAiEmbeddingModelAgentResource($resolver, $this->classMap(), $this->providerRequestEvents(), 'e5');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -107,7 +118,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 	public function testEmbedMapsEmbeddingsFromResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'e6') extends OpenAiEmbeddingModelAgentResource {
+		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'e6') extends OpenAiEmbeddingModelAgentResource {
 			public function embed(array $texts): array {
 				if (empty($texts)) return [];
 
@@ -134,7 +145,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 		// then assert the same exception message as the production code would throw.
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'e7') extends OpenAiEmbeddingModelAgentResource {
+		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'e7') extends OpenAiEmbeddingModelAgentResource {
 			public function embed(array $texts): array {
 				if (empty($texts)) return [];
 

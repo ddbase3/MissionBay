@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -50,13 +51,22 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 
 	protected array $resolvedOptions = [];
 
-	public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
+	public function __construct(
+		IAgentConfigValueResolver $resolver,
+		AiProviderRequestEventDispatcher $providerRequestEvents,
+		?string $id = null
+	) {
 		parent::__construct($id);
 		$this->resolver = $resolver;
+		$this->initializeProviderRequestEvents($providerRequestEvents);
 	}
 
 	public static function getName(): string {
 		return 'openrouterchatmodelagentresource';
+	}
+
+	protected function getProviderName(): string {
+		return 'openrouter';
 	}
 
 	public function getDescription(): string {

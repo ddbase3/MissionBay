@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\MistralChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -29,13 +31,17 @@ class MistralChatModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('mistralchatmodelagentresource', MistralChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new MistralChatModelAgentResource($resolver, 'm1');
+		$r = new MistralChatModelAgentResource($resolver, $this->providerRequestEvents(), 'm1');
 
 		$r->setConfig([]);
 
@@ -56,7 +62,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 			'max_key' => '999',
 		]);
 
-		$r = new MistralChatModelAgentResource($resolver, 'm2');
+		$r = new MistralChatModelAgentResource($resolver, $this->providerRequestEvents(), 'm2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -80,7 +86,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 			'endpoint_key' => '', // should trigger default
 		]);
 
-		$r = new MistralChatModelAgentResource($resolver, 'm3');
+		$r = new MistralChatModelAgentResource($resolver, $this->providerRequestEvents(), 'm3');
 
 		$r->setConfig([
 			'apikey' => 'apikey_key',
@@ -93,7 +99,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new MistralChatModelAgentResource($resolver, 'm4');
+		$r = new MistralChatModelAgentResource($resolver, $this->providerRequestEvents(), 'm4');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -110,7 +116,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new MistralChatModelAgentResource($resolver, 'm5');
+		$r = new MistralChatModelAgentResource($resolver, $this->providerRequestEvents(), 'm5');
 		$r->setConfig([]); // apikey null
 
 		$this->expectException(\RuntimeException::class);
@@ -124,7 +130,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'm6') extends MistralChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'm6') extends MistralChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -145,7 +151,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesPassesRoleAndContentThrough(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new MistralChatModelAgentResource($resolver, 'm7');
+		$r = new MistralChatModelAgentResource($resolver, $this->providerRequestEvents(), 'm7');
 
 		$ref = new \ReflectionClass(MistralChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');

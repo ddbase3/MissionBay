@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\PerplexityChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -36,13 +38,17 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		return $m->invokeArgs($obj, $args);
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('perplexitychatmodelagentresource', PerplexityChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p1');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p1');
 
 		$r->setConfig([]);
 
@@ -62,7 +68,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		];
 
 		$resolver = $this->makeResolver($map);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p2');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -80,7 +86,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p3');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p3');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -96,7 +102,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testChatThrowsOnMalformedResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'p4') extends PerplexityChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'p4') extends PerplexityChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return ['choices' => [['message' => []]]];
 			}
@@ -113,7 +119,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'p5') extends PerplexityChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'p5') extends PerplexityChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -130,7 +136,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p6');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p6');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -141,7 +147,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testStreamThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p7');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p7');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -157,7 +163,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesJsonEncodesNonStringContentAndInjectsFeedback(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p8');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p8');
 
 		$messages = [[
 			'role' => 'user',
@@ -177,7 +183,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesAssistantToolCallsAreMapped(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p9');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p9');
 
 		$messages = [[
 			'role' => 'assistant',
@@ -210,7 +216,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesToolRoleAlwaysIncludesToolCallIdKey(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p10');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p10');
 
 		// Tool messages are only kept if a preceding assistant message declared matching tool_calls
 		$messages = [
@@ -253,7 +259,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testExtractToolCallFromTextCase1JsonObject(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p11');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p11');
 
 		$text = 'Please execute {"name":"sum","arguments":{"a":1,"b":2}} now.';
 		$call = $this->invokePrivate($r, 'extractToolCallFromText', [$text]);
@@ -267,7 +273,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testExtractToolCallFromTextCase2FunctionCallSyntax(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p12');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p12');
 
 		$text = 'Do this: sum({"a":1,"b":2}) please.';
 		$call = $this->invokePrivate($r, 'extractToolCallFromText', [$text]);
@@ -279,7 +285,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testExtractToolCallFromTextCase3ToolCallLabel(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p13');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p13');
 
 		$text = 'Tool call: notify("hello world")';
 		$call = $this->invokePrivate($r, 'extractToolCallFromText', [$text]);
@@ -294,7 +300,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testExtractToolCallFromTextCase4ToolTagsJson(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p14');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p14');
 
 		$text = '<tool>{"name":"sum","arguments":{"a":5,"b":7}}</tool>';
 		$call = $this->invokePrivate($r, 'extractToolCallFromText', [$text]);
@@ -306,7 +312,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	public function testExtractToolCallFromTextReturnsNullWhenNoPatternMatches(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new PerplexityChatModelAgentResource($resolver, 'p15');
+		$r = new PerplexityChatModelAgentResource($resolver, $this->providerRequestEvents(), 'p15');
 
 		$call = $this->invokePrivate($r, 'extractToolCallFromText', ['Just a normal answer.']);
 		$this->assertNull($call);
@@ -315,7 +321,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testRawInjectsToolCallsWhenDetectedInText(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'p16') extends PerplexityChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'p16') extends PerplexityChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				$data = [
 					'choices' => [
@@ -349,7 +355,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testStreamingParserEmitsToolcallMetaWhenDeltaContainsPattern(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'p17') extends PerplexityChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'p17') extends PerplexityChatModelAgentResource {
 			public function simulateWrite(string $chunk, callable $onData, ?callable $onMeta): void {
 				$lines = preg_split("/\r\n|\n|\r/", $chunk);
 

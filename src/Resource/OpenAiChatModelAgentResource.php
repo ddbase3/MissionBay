@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
 use AssistantFoundation\Api\IAiProvider;
 use Base3\Api\IClassMap;
@@ -57,14 +58,24 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 
 	protected ?OpenAiTransport $transport = null;
 
-	public function __construct(IAgentConfigValueResolver $resolver, IClassMap $classMap, ?string $id = null) {
+	public function __construct(
+		IAgentConfigValueResolver $resolver,
+		IClassMap $classMap,
+		AiProviderRequestEventDispatcher $providerRequestEvents,
+		?string $id = null
+	) {
 		parent::__construct($id);
 		$this->resolver = $resolver;
 		$this->classMap = $classMap;
+		$this->initializeProviderRequestEvents($providerRequestEvents);
 	}
 
 	public static function getName(): string {
 		return 'openaichatmodelagentresource';
+	}
+
+	protected function getProviderName(): string {
+		return 'openai';
 	}
 
 	public function getDescription(): string {

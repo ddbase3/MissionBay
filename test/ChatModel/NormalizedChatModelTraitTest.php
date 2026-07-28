@@ -3,14 +3,26 @@
 namespace MissionBay\Test\ChatModel;
 
 use AssistantFoundation\Dto\AiChatResult;
+use AssistantFoundation\Event\AiProviderRequestCompletedEvent;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
 use PHPUnit\Framework\TestCase;
 
 final class NormalizedChatModelTraitTest extends TestCase {
 
 	public function testStreamResultReturnsContentMetadataAndReconstructedToolCalls(): void {
-		$model = new class {
+		$events = [];
+		$model = new class($this->createDispatcher($events)) {
 			use NormalizedChatModelTrait;
+
+			public function __construct(AiProviderRequestEventDispatcher $providerRequestEvents) {
+				$this->initializeProviderRequestEvents($providerRequestEvents);
+			}
+
+			public static function getName(): string {
+				return 'normalizedchatmodeltraittest';
+			}
 
 			public function raw(array $messages, array $tools = []): mixed {
 				return [];
@@ -44,7 +56,16 @@ final class NormalizedChatModelTraitTest extends TestCase {
 				]);
 				$onMeta([
 					'event' => 'meta',
-					'finish_reason' => 'tool_calls'
+					'finish_reason' => 'tool_calls',
+					'full' => [
+						'id' => 'stream-request',
+						'model' => 'stream-test',
+						'usage' => [
+							'prompt_tokens' => 8,
+							'completion_tokens' => 3,
+							'total_tokens' => 11
+						]
+					]
 				]);
 			}
 
@@ -79,12 +100,23 @@ final class NormalizedChatModelTraitTest extends TestCase {
 		$this->assertSame('lookup', $result->getToolCalls()[0]->getName());
 		$this->assertSame(['query' => 'BASE3'], $result->getToolCalls()[0]->getArguments());
 		$this->assertSame($metadataEvents, $result->getRaw());
+		$this->assertCount(1, $events);
+		$this->assertSame(11, $events[0]->getUsage()->getTotalTokens());
 	}
 
 
 	public function testStreamResultPreservesTextOnlyCompletion(): void {
-		$model = new class {
+		$events = [];
+		$model = new class($this->createDispatcher($events)) {
 			use NormalizedChatModelTrait;
+
+			public function __construct(AiProviderRequestEventDispatcher $providerRequestEvents) {
+				$this->initializeProviderRequestEvents($providerRequestEvents);
+			}
+
+			public static function getName(): string {
+				return 'normalizedchatmodeltraittest';
+			}
 
 			public function raw(array $messages, array $tools = []): mixed {
 				return [];
@@ -122,11 +154,21 @@ final class NormalizedChatModelTraitTest extends TestCase {
 		$this->assertSame('Hello world', $result->getContent());
 		$this->assertFalse($result->hasToolCalls());
 		$this->assertSame('stop', $result->getMetadata()->getFinishReason());
+		$this->assertCount(1, $events);
 	}
 
 	public function testStreamResultRejectsToolFinishWithoutToolMetadata(): void {
-		$model = new class {
+		$events = [];
+		$model = new class($this->createDispatcher($events)) {
 			use NormalizedChatModelTrait;
+
+			public function __construct(AiProviderRequestEventDispatcher $providerRequestEvents) {
+				$this->initializeProviderRequestEvents($providerRequestEvents);
+			}
+
+			public static function getName(): string {
+				return 'normalizedchatmodeltraittest';
+			}
 
 			public function raw(array $messages, array $tools = []): mixed {
 				return [];
@@ -158,5 +200,20 @@ final class NormalizedChatModelTraitTest extends TestCase {
 			static function(string $delta): void {},
 			static function(array $metadata): void {}
 		);
+	}
+
+	/**
+	 * @param array<int,AiProviderRequestCompletedEvent> $events
+	 */
+	private function createDispatcher(array &$events): AiProviderRequestEventDispatcher {
+		$eventManager = new EventManager();
+		$eventManager->on(
+			AiProviderRequestCompletedEvent::class,
+			static function(AiProviderRequestCompletedEvent $event) use (&$events): void {
+				$events[] = $event;
+			}
+		);
+
+		return new AiProviderRequestEventDispatcher($eventManager);
 	}
 }

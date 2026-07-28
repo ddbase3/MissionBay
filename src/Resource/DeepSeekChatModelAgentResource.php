@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -48,13 +49,22 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 	protected array|string|null $temperatureConfig = null;
 	protected array|string|null $maxtokensConfig = null;
 
-	public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
+	public function __construct(
+		IAgentConfigValueResolver $resolver,
+		AiProviderRequestEventDispatcher $providerRequestEvents,
+		?string $id = null
+	) {
 		parent::__construct($id);
 		$this->resolver = $resolver;
+		$this->initializeProviderRequestEvents($providerRequestEvents);
 	}
 
 	public static function getName(): string {
 		return 'deepseekchatmodelagentresource';
+	}
+
+	protected function getProviderName(): string {
+		return 'deepseek';
 	}
 
 	public function getDescription(): string {

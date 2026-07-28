@@ -21,6 +21,7 @@ use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Api\IAiProvider;
 use AssistantFoundation\Dto\AiEmbeddingResult;
 use Base3\Api\IClassMap;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Ai\AiResultNormalizer;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Transport\OpenAiTransport;
@@ -45,7 +46,12 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 
 	protected ?OpenAiTransport $provider = null;
 
-	public function __construct(IAgentConfigValueResolver $resolver, IClassMap $classMap, ?string $id = null) {
+	public function __construct(
+		IAgentConfigValueResolver $resolver,
+		IClassMap $classMap,
+		private readonly AiProviderRequestEventDispatcher $providerRequestEvents,
+		?string $id = null
+	) {
 		parent::__construct($id);
 		$this->resolver = $resolver;
 		$this->classMap = $classMap;
@@ -122,18 +128,21 @@ class OpenAiEmbeddingModelAgentResource extends AbstractAgentResource implements
 
 			return is_array($item['embedding'] ?? null) ? $item['embedding'] : [];
 		}, $result['data']);
+		$metadata = AiResultNormalizer::metadata('embedding', $result, [
+			'provider' => OpenAiTransport::getName(),
+			'model' => (string)$model,
+			'adapter' => static::getName(),
+			'usage_metrics' => [
+				'input_items' => count($texts),
+				'output_vectors' => count($embeddings)
+			]
+		], $startedAt);
+
+		$this->providerRequestEvents->dispatch($metadata, static::getName());
 
 		return new AiEmbeddingResult(
 			$embeddings,
-			AiResultNormalizer::metadata('embedding', $result, [
-				'provider' => OpenAiTransport::getName(),
-				'model' => (string)$model,
-				'adapter' => static::getName(),
-				'usage_metrics' => [
-					'input_items' => count($texts),
-					'output_vectors' => count($embeddings)
-				]
-			], $startedAt),
+			$metadata,
 			$result
 		);
 	}

@@ -3,6 +3,8 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
+use Base3\Event\EventManager;
+use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\DeepSeekChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
@@ -31,13 +33,17 @@ class DeepSeekChatModelAgentResourceTest extends TestCase {
 		};
 	}
 
+	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
+		return new AiProviderRequestEventDispatcher(new EventManager());
+	}
+
 	public function testGetName(): void {
 		$this->assertSame('deepseekchatmodelagentresource', DeepSeekChatModelAgentResource::getName());
 	}
 
 	public function testSetConfigResolvesDefaultsWhenMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new DeepSeekChatModelAgentResource($resolver, 'r1');
+		$r = new DeepSeekChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r1');
 
 		$r->setConfig([]);
 
@@ -59,7 +65,7 @@ class DeepSeekChatModelAgentResourceTest extends TestCase {
 		];
 
 		$resolver = $this->makeResolver($map);
-		$r = new DeepSeekChatModelAgentResource($resolver, 'r2');
+		$r = new DeepSeekChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r2');
 
 		$r->setConfig([
 			'model' => 'model_key',
@@ -79,7 +85,7 @@ class DeepSeekChatModelAgentResourceTest extends TestCase {
 
 	public function testSetOptionsMergesIntoResolvedOptions(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new DeepSeekChatModelAgentResource($resolver, 'r3');
+		$r = new DeepSeekChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r3');
 		$r->setConfig([]);
 
 		$r->setOptions([
@@ -96,7 +102,7 @@ class DeepSeekChatModelAgentResourceTest extends TestCase {
 
 	public function testRawThrowsIfApiKeyMissing(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new DeepSeekChatModelAgentResource($resolver, 'r4');
+		$r = new DeepSeekChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r4');
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
@@ -110,7 +116,7 @@ class DeepSeekChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, 'r5') extends DeepSeekChatModelAgentResource {
+		$r = new class($resolver, $this->providerRequestEvents(), 'r5') extends DeepSeekChatModelAgentResource {
 			public function raw(array $messages, array $tools = []): mixed {
 				return [
 					'choices' => [
@@ -131,7 +137,7 @@ class DeepSeekChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesConvertsNonStringContentAndInjectsFeedback(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new DeepSeekChatModelAgentResource($resolver, 'r6');
+		$r = new DeepSeekChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r6');
 
 		$ref = new \ReflectionClass(DeepSeekChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');
@@ -161,7 +167,7 @@ class DeepSeekChatModelAgentResourceTest extends TestCase {
 
 	public function testNormalizeMessagesSkipsInvalidEntries(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new DeepSeekChatModelAgentResource($resolver, 'r7');
+		$r = new DeepSeekChatModelAgentResource($resolver, $this->providerRequestEvents(), 'r7');
 
 		$ref = new \ReflectionClass(DeepSeekChatModelAgentResource::class);
 		$method = $ref->getMethod('normalizeMessages');
