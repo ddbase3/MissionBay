@@ -23,6 +23,7 @@ use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Mcp\McpToolProfileRepository;
 use Throwable;
 
 /**
@@ -42,7 +43,8 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		private readonly IMvcView $view,
 		private readonly IAssetResolver $assetResolver,
 		private readonly ISettingsStore $settingsStore,
-		private readonly ILinkTargetService $linkTargetService
+		private readonly ILinkTargetService $linkTargetService,
+		private readonly McpToolProfileRepository $profileRepository
 	) {}
 
 	public static function getName(): string {
@@ -212,6 +214,10 @@ final class ToolProfileAdminDisplay implements IDisplay {
 				'enabled' => $row['enabled'],
 				'enabled_label' => $row['enabled_label'],
 				'tools' => $row['tools'],
+				'fixed_bearer_enabled' => $row['fixed_bearer_enabled'],
+				'credential_enabled' => $row['credential_enabled'],
+				'authentication_text' => $row['authentication_text'],
+				'credential_service_id' => $row['credential_service_id'],
 				'token_configured' => $row['token_configured'],
 				'token_configured_label' => $row['token_configured_label'],
 				'tool_count' => $row['tool_count'],
@@ -279,6 +285,8 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		$enabled = $this->toBool($payload['enabled'] ?? true);
 		$internalEnabled = $this->toBool($payload['internal_enabled'] ?? true);
 		$mcpEnabled = $this->toBool($payload['mcp_enabled'] ?? false);
+		$fixedBearerEnabled = $this->toBool($payload['mcp_fixed_bearer_enabled'] ?? false);
+		$credentialEnabled = $this->toBool($payload['mcp_credential_enabled'] ?? false);
 		$type = $this->deriveProfileType($internalEnabled, $mcpEnabled);
 		$token = trim((string)($payload['token'] ?? ''));
 		$tools = $this->normalizeToolList($payload['tools'] ?? []);
@@ -303,10 +311,22 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			}
 		}
 
-		$isRename = $oldId !== '' && $oldId !== $id;
+		$isExisting = $oldId !== '';
 
-		if($isRename && $this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
-			return $this->buildErrorResponse('Target profile already exists: ' . $id, 'save');
+		if($isExisting && $oldId !== $id) {
+			return $this->buildErrorResponse('Profile ids are immutable. Duplicate or delete the profile instead.', 'save');
+		}
+
+		if(!$isExisting && $this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
+			return $this->buildErrorResponse('Profile already exists: ' . $id, 'save');
+		}
+
+		if($mcpEnabled && !$fixedBearerEnabled && !$credentialEnabled) {
+			return $this->buildErrorResponse('Enable fixed bearer or personal credentials for MCP exposure.', 'save');
+		}
+
+		if($mcpEnabled && $fixedBearerEnabled && $token === '') {
+			return $this->buildErrorResponse('A bearer token is required when fixed bearer access is enabled.', 'save');
 		}
 
 		$profile = [
@@ -316,6 +336,8 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			'type' => $type,
 			'internal_enabled' => $internalEnabled,
 			'mcp_enabled' => $mcpEnabled,
+			'mcp_fixed_bearer_enabled' => $fixedBearerEnabled,
+			'mcp_credential_enabled' => $credentialEnabled,
 			'enabled' => $enabled,
 			'token' => $token,
 			'tools' => $tools
@@ -324,9 +346,6 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		try {
 			$this->settingsStore->set(self::SETTINGS_GROUP, $id, $profile);
 
-			if($isRename) {
-				$this->settingsStore->remove(self::SETTINGS_GROUP, $oldId);
-			}
 
 			$this->settingsStore->save();
 		}
@@ -337,7 +356,7 @@ final class ToolProfileAdminDisplay implements IDisplay {
 		return [
 			'ok' => true,
 			'mode' => 'save',
-			'action' => $isRename ? 'renamed and saved' : 'saved',
+			'action' => 'saved',
 			'record' => $this->normalizeRow($id, $profile)
 		];
 	}
@@ -441,6 +460,11 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			: in_array($type, ['mcp', 'hybrid'], true);
 		$type = $this->deriveProfileType($internalEnabled, $mcpEnabled);
 		$token = trim((string)($settings['token'] ?? ''));
+		$fixedBearerEnabled = array_key_exists('mcp_fixed_bearer_enabled', $settings)
+			? $this->toBool($settings['mcp_fixed_bearer_enabled'])
+			: $token !== '';
+		$credentialEnabled = array_key_exists('mcp_credential_enabled', $settings)
+			&& $this->toBool($settings['mcp_credential_enabled']);
 		$tools = $this->normalizeToolList($settings['tools'] ?? []);
 		$toolText = $this->buildToolText($tools);
 
@@ -456,13 +480,18 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			'enabled' => $enabled,
 			'internal_enabled' => $internalEnabled,
 			'mcp_enabled' => $mcpEnabled,
+			'mcp_fixed_bearer_enabled' => $fixedBearerEnabled,
+			'mcp_credential_enabled' => $credentialEnabled,
 			'token' => $token,
 			'tools' => $tools
 		];
 
 		$usage = [];
+		$authentication = [];
 		if($internalEnabled) $usage[] = 'internal';
 		if($mcpEnabled) $usage[] = 'MCP';
+		if($fixedBearerEnabled) $authentication[] = 'fixed bearer';
+		if($credentialEnabled) $authentication[] = 'personal credentials';
 
 		return [
 			'id' => $id,
@@ -473,6 +502,12 @@ final class ToolProfileAdminDisplay implements IDisplay {
 			'type' => $type,
 			'internal_enabled' => $internalEnabled,
 			'mcp_enabled' => $mcpEnabled,
+			'fixed_bearer_enabled' => $fixedBearerEnabled,
+			'credential_enabled' => $credentialEnabled,
+			'authentication_text' => implode(' + ', $authentication),
+			'credential_service_id' => $credentialEnabled
+				? $this->profileRepository->getCredentialServiceId($id)
+				: '',
 			'usage_text' => implode(' + ', $usage),
 			'enabled' => $enabled,
 			'enabled_label' => $enabled ? 'enabled' : 'disabled',

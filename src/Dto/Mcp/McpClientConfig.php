@@ -25,11 +25,15 @@ final class McpClientConfig {
 	private const PROTOCOL_CONTROLLED_HEADER_NAMES = [
 		'accept',
 		'accept-encoding',
+		'authorization',
 		'content-length',
 		'content-type',
 		'host',
 		'mcp-protocol-version',
-		'mcp-session-id'
+		'mcp-session-id',
+		'x-base3-nonce',
+		'x-base3-signature',
+		'x-base3-timestamp'
 	];
 
 	/**
@@ -39,6 +43,7 @@ final class McpClientConfig {
 		private readonly string $endpoint,
 		private readonly string $authType,
 		private readonly string $token,
+		private readonly string $hmacSecret,
 		private readonly string $username,
 		private readonly string $authHeaderName,
 		private readonly array $headers,
@@ -79,13 +84,14 @@ final class McpClientConfig {
 		}
 
 		$authType = strtolower(trim((string)($config['auth_type'] ?? 'bearer')));
-		$allowedAuthTypes = ['none', 'bearer', 'api_key', 'basic'];
+		$allowedAuthTypes = ['none', 'bearer', 'hmac', 'api_key', 'basic'];
 
 		if(!in_array($authType, $allowedAuthTypes, true)) {
 			throw new \InvalidArgumentException('Unsupported MCP authentication type: ' . $authType);
 		}
 
 		$token = (string)($config['token'] ?? '');
+		$hmacSecret = (string)($config['hmac_secret'] ?? '');
 		$username = trim((string)($config['username'] ?? ''));
 		$authHeaderName = trim((string)($config['auth_header_name'] ?? 'X-API-Key'));
 
@@ -93,8 +99,22 @@ final class McpClientConfig {
 			throw new \InvalidArgumentException('MCP token must not be empty for authentication type ' . $authType . '.');
 		}
 
-		if(in_array($authType, ['bearer', 'api_key'], true)) {
+		if(in_array($authType, ['bearer', 'hmac', 'api_key'], true)) {
 			self::assertHeaderValue($token, 'MCP authentication token');
+		}
+
+		if($authType === 'hmac') {
+			if($hmacSecret === '' && preg_match('/^b3k_[a-f0-9]{20}_([A-Za-z0-9_-]{43})$/D', $token, $matches)) {
+				$hmacSecret = $matches[1];
+			}
+
+			if($hmacSecret === '') {
+				throw new \InvalidArgumentException(
+					'MCP HMAC secret must be configured or derivable from a KeyHarbor token.'
+				);
+			}
+
+			self::assertHeaderValue($hmacSecret, 'MCP HMAC secret');
 		}
 
 		if($authType === 'basic' && $username === '') {
@@ -133,6 +153,7 @@ final class McpClientConfig {
 			$endpoint,
 			$authType,
 			$token,
+			$hmacSecret,
 			$username,
 			$authHeaderName,
 			$headers,
@@ -197,7 +218,7 @@ final class McpClientConfig {
 	public function getConnectionHeaders(): array {
 		$headers = $this->headers;
 
-		if($this->authType === 'bearer') {
+		if(in_array($this->authType, ['bearer', 'hmac'], true)) {
 			$headers['Authorization'] = 'Bearer ' . $this->token;
 		}
 		elseif($this->authType === 'api_key') {
@@ -210,11 +231,24 @@ final class McpClientConfig {
 		return $headers;
 	}
 
+
+	public function usesHmacAuthentication(): bool {
+		return $this->authType === 'hmac';
+	}
+
+	public function getHmacSecret(): string {
+		return $this->hmacSecret;
+	}
+
 	public function redactSensitiveText(string $text): string {
 		$values = [];
 
 		if($this->token !== '') {
 			$values[] = $this->token;
+		}
+
+		if($this->hmacSecret !== '') {
+			$values[] = $this->hmacSecret;
 		}
 
 		if($this->endpoint !== '') {
@@ -266,7 +300,12 @@ final class McpClientConfig {
 			throw new \InvalidArgumentException('MCP headers must be configured as an object.');
 		}
 
-		$reserved = array_merge(self::PROTOCOL_CONTROLLED_HEADER_NAMES, ['authorization']);
+		$reserved = array_merge(self::PROTOCOL_CONTROLLED_HEADER_NAMES, [
+			'authorization',
+			'x-base3-timestamp',
+			'x-base3-nonce',
+			'x-base3-signature'
+		]);
 		$result = [];
 		$names = [];
 

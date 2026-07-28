@@ -165,6 +165,7 @@ The following fields accept resolved config values:
 endpoint
 auth_type
 token
+hmac_secret
 username
 auth_header_name
 headers and each header value
@@ -193,29 +194,48 @@ Supported authentication types:
 | `none` | No authentication header. |
 | `bearer` | `Authorization: Bearer <token>` |
 | `api_key` | `<auth_header_name>: <token>` |
+| `hmac` | `Authorization: Bearer <token>` plus KeyHarbor-compatible `X-BASE3-*` signature headers |
 | `basic` | `Authorization: Basic <base64(username:token)>` |
 
 Rules:
 
-- `token` is required for `bearer`, `api_key`, and `basic`.
+- `token` is required for `bearer`, `hmac`, `api_key`, and `basic`.
+- `hmac_secret` is used by `hmac`. For a KeyHarbor token it is derived automatically from the token when omitted.
 - `username` is required for `basic`.
 - `auth_header_name` defaults to `X-API-Key`.
 - An endpoint must be an absolute HTTP or HTTPS URL.
 - Embedded URL credentials are rejected.
 - URL fragments are rejected because they are not part of the HTTP request target.
-- Custom headers cannot override protocol-controlled headers, `Authorization`, or the configured MCP session headers.
+- Custom headers cannot override protocol-controlled headers, `Authorization`, MCP session headers, or `X-BASE3-Timestamp`, `X-BASE3-Nonce`, and `X-BASE3-Signature`.
 - With `api_key`, the configured API-key header must not also appear in `headers` under any casing.
 - Header names, custom header values, and bearer/API-key tokens are validated for HTTP control characters before the first request.
 
 OAuth browser authorization is not represented as another `auth_type`. A correct OAuth implementation requires authorization-server discovery, PKCE, callback handling, and persistent token lifecycle management and is outside this resource version.
+
+
+### KeyHarbor HMAC example
+
+```json
+{
+	"endpoint": "https://example.org/mcp.php?profile=ilias-admin",
+	"auth_type": "hmac",
+	"token": {
+		"mode": "env",
+		"name": "KEYHARBOR_MCP_TOKEN"
+	}
+}
+```
+
+For a KeyHarbor token, MissionBay derives the signing secret from the token and signs every MCP POST body with a fresh timestamp and nonce. Non-KeyHarbor HMAC credentials can supply `hmac_secret` explicitly.
 
 ## Complete configuration reference
 
 | Field | Default | Description |
 |---|---:|---|
 | `endpoint` | required | Absolute remote Streamable HTTP MCP endpoint. |
-| `auth_type` | `bearer` | `none`, `bearer`, `api_key`, or `basic`. |
-| `token` | empty | Bearer token, API key, or basic-auth password. Required unless authentication is `none`. |
+| `auth_type` | `bearer` | `none`, `bearer`, `hmac`, `api_key`, or `basic`. |
+| `token` | empty | Bearer token, HMAC credential token, API key, or basic-auth password. Required unless authentication is `none`. |
+| `hmac_secret` | empty | HMAC signing secret. Optional for a valid KeyHarbor token because its secret segment is derived automatically. |
 | `username` | empty | Username for basic authentication. |
 | `auth_header_name` | `X-API-Key` | Header used by `api_key`. |
 | `headers` | `{}` | Additional validated HTTP headers. |

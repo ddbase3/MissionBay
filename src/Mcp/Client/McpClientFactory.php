@@ -16,13 +16,16 @@ use MissionBay\Dto\Mcp\McpClientConfig;
  */
 final class McpClientFactory implements IMcpClientFactory {
 
-	public function __construct(private readonly IMcpTransport $transport) {}
+	public function __construct(
+		private readonly IMcpTransport $transport,
+		private readonly McpHmacRequestSigner $hmacRequestSigner
+	) {}
 
 	public static function getName(): string {
 		return 'mcpclientfactory';
 	}
 
 	public function create(McpClientConfig $config): IMcpClient {
-		return new McpClient($config, $this->transport);
+		return new McpClient($config, $this->transport, $this->hmacRequestSigner);
 	}
 }

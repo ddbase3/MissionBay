@@ -133,12 +133,20 @@ final class McpClientAgentResource extends AbstractAgentResource implements
 				'auth_type' => [
 					'type' => 'string',
 					'description' => 'Authentication header strategy.',
-					'enum' => ['none', 'bearer', 'api_key', 'basic'],
+					'enum' => ['none', 'bearer', 'hmac', 'api_key', 'basic'],
 					'default' => 'bearer'
 				],
 				'token' => [
 					'type' => 'string',
 					'description' => 'Bearer token, API key, or basic-auth password. ConfigValue definitions are supported.',
+					'x-ui' => [
+						'control' => 'password',
+						'sensitive' => true
+					]
+				],
+				'hmac_secret' => [
+					'type' => 'string',
+					'description' => 'HMAC-SHA256 signing secret used only with hmac authentication. ConfigValue definitions are supported.',
 					'x-ui' => [
 						'control' => 'password',
 						'sensitive' => true
@@ -269,6 +277,7 @@ final class McpClientAgentResource extends AbstractAgentResource implements
 			'endpoint' => $this->resolveString($config['endpoint'] ?? null),
 			'auth_type' => strtolower($this->resolveString($config['auth_type'] ?? 'bearer')),
 			'token' => $this->resolveSecret($config['token'] ?? null),
+			'hmac_secret' => $this->resolveSecret($config['hmac_secret'] ?? null),
 			'username' => $this->resolveString($config['username'] ?? null),
 			'auth_header_name' => $this->resolveString($config['auth_header_name'] ?? 'X-API-Key'),
 			'headers' => $headers,

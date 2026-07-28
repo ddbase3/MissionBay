@@ -510,14 +510,21 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
 			</div>
 
+			<div class="tool-profile-admin-field-full" data-mcp-auth-section>
+				<label class="tool-profile-admin-label">MCP authentication</label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_fixed_bearer_enabled" value="1" /> fixed bearer token</label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_credential_enabled" value="1" /> personal credentials through CredentialFoundation</label>
+				<div class="tool-profile-admin-form-hint">Personal credentials publish the stable service missionbay:mcp:&lt;profile-id&gt; to KeyHarbor or another CredentialFoundation implementation.</div>
+			</div>
+
 			<div class="tool-profile-admin-field-full" data-mcp-token-section>
-				<label class="tool-profile-admin-label">Bearer token</label>
+				<label class="tool-profile-admin-label">Fixed bearer token</label>
 				<div class="tool-profile-admin-token-row">
 					<input type="text" name="token" class="tool-profile-admin-input" autocomplete="off" spellcheck="false" />
 					<button type="button" class="tool-profile-admin-button" data-action="generate-token">Generate</button>
 					<button type="button" class="tool-profile-admin-button" data-action="copy-token">Copy</button>
 				</div>
-				<div class="tool-profile-admin-form-hint">Used as Authorization: Bearer token when MCP exposure is enabled.</div>
+				<div class="tool-profile-admin-form-hint">Shared technical token used only when fixed bearer access is enabled.</div>
 			</div>
 
 			<div class="tool-profile-admin-field-full">
@@ -913,7 +920,9 @@ function renderProfileDetail(context) {
 	left.appendChild(createDetailRow('ID', record.profile_id || record.id));
 	left.appendChild(createDetailRow('Use', record.usage_text));
 	left.appendChild(createDetailRow('Enabled', record.enabled ? 'yes' : 'no'));
-	left.appendChild(createDetailRow('MCP token', record.mcp_enabled ? (record.token_configured ? 'configured' : 'missing') : 'not used'));
+	left.appendChild(createDetailRow('MCP authentication', record.mcp_enabled ? getText(record.authentication_text, 'missing') : 'not used'));
+	left.appendChild(createDetailRow('Credential service', record.credential_service_id || 'not published'));
+	left.appendChild(createDetailRow('Fixed token', record.fixed_bearer_enabled ? (record.token_configured ? 'configured' : 'missing') : 'disabled'));
 	left.appendChild(createDetailRow('Tools', record.tool_text));
 
 	right.appendChild(createElement('tool-profile-admin-detail-title', 'Record JSON'));
@@ -1019,10 +1028,15 @@ function setCheckboxValue(form, name, value) {
 	if (field) field.checked = value === true;
 }
 
-function updateMcpTokenVisibility(form) {
-	const section = form.querySelector('[data-mcp-token-section]');
-	const enabled = form.elements.namedItem('mcp_enabled');
-	if (section) section.hidden = !(enabled && enabled.checked);
+function updateMcpAuthenticationVisibility(form) {
+	const authSection = form.querySelector('[data-mcp-auth-section]');
+	const tokenSection = form.querySelector('[data-mcp-token-section]');
+	const mcpEnabled = form.elements.namedItem('mcp_enabled');
+	const fixedBearerEnabled = form.elements.namedItem('mcp_fixed_bearer_enabled');
+	const showAuthentication = !!(mcpEnabled && mcpEnabled.checked);
+
+	if (authSection) authSection.hidden = !showAuthentication;
+	if (tokenSection) tokenSection.hidden = !(showAuthentication && fixedBearerEnabled && fixedBearerEnabled.checked);
 }
 
 function setToolCheckboxValues(form, values) {
@@ -1124,11 +1138,15 @@ function openProfileEditor(record) {
 	currentEditorProfileId = String(oldIdValue || '').trim();
 	setFormValue(form, 'old_id', oldIdValue);
 	setFormValue(form, 'id', record.profile_id || record.id || '');
+	const idField = form.elements.namedItem('id');
+	if (idField) idField.readOnly = currentEditorProfileId !== '';
 	setFormValue(form, 'label', record.label || '');
 	setFormValue(form, 'description', record.description || '');
 	setCheckboxValue(form, 'internal_enabled', record.internal_enabled !== false);
 	setCheckboxValue(form, 'mcp_enabled', record.mcp_enabled === true);
-	updateMcpTokenVisibility(form);
+	setCheckboxValue(form, 'mcp_fixed_bearer_enabled', record.fixed_bearer_enabled === true);
+	setCheckboxValue(form, 'mcp_credential_enabled', record.credential_enabled === true);
+	updateMcpAuthenticationVisibility(form);
 	setFormValue(form, 'token', record.token || '');
 	setToolCheckboxValues(form, Array.isArray(record.tools) ? record.tools : []);
 
@@ -1167,6 +1185,8 @@ function openNewProfileEditor() {
 		description: '',
 		internal_enabled: true,
 		mcp_enabled: false,
+		fixed_bearer_enabled: false,
+		credential_enabled: false,
 		enabled: true,
 		token: '',
 		tools: []
@@ -1247,6 +1267,8 @@ function validateEditorRequiredFields(form) {
 	const label = getFormFieldValue(form, 'label');
 	const internalEnabled = !!form.elements.namedItem('internal_enabled').checked;
 	const mcpEnabled = !!form.elements.namedItem('mcp_enabled').checked;
+	const fixedBearerEnabled = !!form.elements.namedItem('mcp_fixed_bearer_enabled').checked;
+	const credentialEnabled = !!form.elements.namedItem('mcp_credential_enabled').checked;
 
 	if (!id) {
 		throw new Error('Profile ID is required.');
@@ -1258,6 +1280,14 @@ function validateEditorRequiredFields(form) {
 
 	if (!internalEnabled && !mcpEnabled) {
 		throw new Error('Enable internal agent use, MCP exposure, or both.');
+	}
+
+	if (mcpEnabled && !fixedBearerEnabled && !credentialEnabled) {
+		throw new Error('Enable fixed bearer or personal credentials for MCP exposure.');
+	}
+
+	if (mcpEnabled && fixedBearerEnabled && !getFormFieldValue(form, 'token')) {
+		throw new Error('A fixed bearer token is required.');
 	}
 }
 
@@ -1282,6 +1312,8 @@ function buildEditorPayload(options = {}) {
 		description: getFormFieldValue(form, 'description'),
 		internal_enabled: form.elements.namedItem('internal_enabled').checked,
 		mcp_enabled: form.elements.namedItem('mcp_enabled').checked,
+		mcp_fixed_bearer_enabled: form.elements.namedItem('mcp_fixed_bearer_enabled').checked,
+		mcp_credential_enabled: form.elements.namedItem('mcp_credential_enabled').checked,
 		enabled: form.elements.namedItem('enabled').checked,
 		token: getFormFieldValue(form, 'token'),
 		tools: getSelectedTools(form)
@@ -1416,7 +1448,7 @@ function bindEditorEvents() {
 	}
 
 	form.addEventListener('change', (event) => {
-		if (event.target && event.target.name === 'mcp_enabled') updateMcpTokenVisibility(form);
+		if (event.target && ['mcp_enabled', 'mcp_fixed_bearer_enabled'].includes(event.target.name)) updateMcpAuthenticationVisibility(form);
 	});
 
 	form.addEventListener('keydown', (event) => {

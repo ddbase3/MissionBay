@@ -41,6 +41,7 @@ use AssistantFoundation\Api\IAgentCapabilitySelector;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Api\IAgentToolResultCache;
+use CredentialFoundation\Api\ICredentialAccess;
 use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
@@ -84,7 +85,10 @@ use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Mcp\Client\McpClientFactory;
 use MissionBay\Mcp\Client\McpRemoteToolDefinitionMapper;
 use MissionBay\Mcp\Client\McpRemoteToolResultMapper;
+use MissionBay\Mcp\Client\McpHmacRequestSigner;
 use MissionBay\Mcp\Client\McpStreamableHttpTransport;
+use MissionBay\Mcp\McpProfileAuthorizer;
+use MissionBay\Mcp\McpToolProfileRepository;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentStateSynchronizer;
@@ -191,7 +195,20 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfigValueResolver::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IMcpTransport::class, fn() => new McpStreamableHttpTransport(), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IMcpClientFactory::class, fn($c) => new McpClientFactory($c->get(IMcpTransport::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(McpHmacRequestSigner::class, fn() => new McpHmacRequestSigner(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IMcpClientFactory::class, fn($c) => new McpClientFactory(
+				$c->get(IMcpTransport::class),
+				$c->get(McpHmacRequestSigner::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(McpToolProfileRepository::class, fn($c) => new McpToolProfileRepository(
+				$c->get(ISettingsStore::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(McpProfileAuthorizer::class, fn($c) => new McpProfileAuthorizer(
+				$c->get(IRequest::class),
+				$c->get(McpToolProfileRepository::class),
+				$c->get(ILogger::class),
+				$c->has(ICredentialAccess::class) ? $c->get(ICredentialAccess::class) : null
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(McpRemoteToolDefinitionMapper::class, fn() => new McpRemoteToolDefinitionMapper(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(McpRemoteToolResultMapper::class, fn() => new McpRemoteToolResultMapper(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)

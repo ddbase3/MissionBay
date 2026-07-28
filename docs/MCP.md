@@ -27,6 +27,8 @@ MCP profiles are stored in the `tool-profile` settings group.
 	"description": "MCP access for selected MissionBay tools.",
 	"type": "mcp",
 	"enabled": true,
+	"mcp_fixed_bearer_enabled": true,
+	"mcp_credential_enabled": true,
 	"token": "mb-mcp-...",
 	"tools": [
 		"generalinfo",
@@ -35,7 +37,14 @@ MCP profiles are stored in the `tool-profile` settings group.
 }
 ```
 
-The token is stored in the profile and is used as a Bearer token. This is the v1 profile-token authenticator. OAuth can replace this later behind the MCP authentication layer.
+Each profile can enable either or both authentication paths:
+
+```text
+fixed bearer token
+personal credentials through CredentialFoundation
+```
+
+The fixed token is a shared technical secret stored in the profile. CredentialFoundation access publishes the stable service id `missionbay:mcp:<profile-id>`. KeyHarbor or another implementation can grant that service to personal Bearer or HMAC credentials. Profile ids are immutable after creation because they are part of this service id; a profile can be duplicated or deleted instead.
 
 ## HTTP transport
 
@@ -53,14 +62,15 @@ GET text/event-stream
 
 `GET`, `DELETE` and other non-POST methods are rejected with `405 Method Not Allowed`. This server does not provide SSE streaming in v1.
 
-Clients should send:
+Clients send the normal MCP headers plus one enabled authentication form. Fixed and personal Bearer access both use `Authorization: Bearer ...`. KeyHarbor HMAC access additionally sends:
 
 ```text
-Authorization: Bearer <profile-token>
-Content-Type: application/json
-Accept: application/json, text/event-stream
-MCP-Protocol-Version: 2025-11-25
+X-BASE3-Timestamp: <Unix timestamp>
+X-BASE3-Nonce: <unique nonce>
+X-BASE3-Signature: <lowercase HMAC-SHA256 hex>
 ```
+
+The HMAC canonical request is method, request path, raw query string, timestamp, nonce, and SHA-256 of the exact request body, separated by newlines. The endpoint never falls back to the fixed profile token when any HMAC header is present.
 
 Missing `MCP-Protocol-Version` is tolerated for compatibility. Supported protocol versions are `2025-11-25`, `2025-06-18` and `2025-03-26`. Unsupported protocol versions are rejected.
 
@@ -147,15 +157,15 @@ MCP client or host
   -> sends tools/call
 
 MissionBay MCP server
-  -> authenticates the Bearer token
   -> loads the selected MCP profile
+  -> accepts an enabled fixed token or authorizes the profile service through CredentialFoundation
   -> verifies that the requested tool belongs to that profile
   -> executes the authorized tools/call directly
 ```
 
 The server does not create a second pending confirmation and does not expose `missionbay_confirm_action`. This avoids duplicate human-in-the-loop dialogs and keeps the endpoint interoperable with standard MCP clients.
 
-Server-side security remains mandatory. A Bearer token only receives the tools listed in its enabled MCP profile. Separate read-only and administrative profiles or tokens should be used when different trust levels are required.
+Server-side security remains mandatory. A credential only receives profiles explicitly granted through CredentialFoundation, and every profile only exposes its configured tools. Fixed profile tokens remain available for technical compatibility. Personal credentials establish the BASE3 user identity through access control before the profile grant is checked.
 
 `IConfirmableAgentTool` remains available for direct in-process callers. It is not part of the inbound MCP execution path. The policy-controlled MissionBay agent harness continues to use action policies and mutation commit guards for its own local tool execution.
 
@@ -237,7 +247,10 @@ The ILIAS endpoint registers `Base3IliasLab\Resource\IliasContextResourceProvide
 Implemented in v1:
 
 ```text
-profile Bearer token
+optional fixed profile Bearer token
+optional CredentialFoundation Bearer or HMAC access
+per-profile credential service grants
+immutable profile ids
 same-host Origin check
 Accept validation
 protocol-version validation
@@ -245,11 +258,10 @@ max request body size
 audit logging for MCP calls
 ping support
 cancellation notification acceptance
-tool annotations for confirmable/write-capable tools
-confirmation control output schema
+tool annotations for read-only and write-capable tools
+client-owned approval before tools/call
+no server-side pending confirmation tool
 no SSE endpoint
-confirmation workflow for write-capable tools
-approval-bound commit validation for guarded MCP mutations
 read-only functions remain direct in mixed read/write tools
 ```
 

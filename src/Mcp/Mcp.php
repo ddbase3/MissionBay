@@ -10,24 +10,21 @@ use Base3\Api\IClassMap;
 use Base3\Api\IOutput;
 use Base3\Api\IRequest;
 use Base3\Logger\Api\ILogger;
-use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentComponentPresetRepository;
+use MissionBay\Dto\Mcp\McpProfileAuthorizationResult;
 
 /**
- * Mcp
- *
  * Host-independent MCP HTTP endpoint for MissionBay tool profiles.
  */
-class Mcp implements IOutput {
+final class Mcp implements IOutput {
 
 	private const LOG_SCOPE = 'missionbay_mcp';
 
 	public function __construct(
 		private readonly IRequest $request,
 		private readonly IClassMap $classMap,
-		private readonly ISettingsStore $settingsStore,
-		private readonly IAgentComponentPresetRepository $presetRepository,
+		private readonly McpToolProfileRepository $profileRepository,
+		private readonly McpProfileAuthorizer $profileAuthorizer,
 		private readonly IAgentComponentPresetMaterializer $presetMaterializer,
 		private readonly ILogger $logger
 	) {}
@@ -66,7 +63,7 @@ class Mcp implements IOutput {
 		}
 
 		try {
-			$profile = $this->createProfileRepository()->getEnabledMcpProfile($profileId);
+			$profile = $this->profileRepository->getEnabledMcpProfile($profileId);
 		}
 		catch(\Throwable $e) {
 			if($final) {
@@ -83,8 +80,9 @@ class Mcp implements IOutput {
 			]);
 		}
 
-		if(!$this->createAuthenticator()->isAuthorized($profile)) {
-			return $this->unauthorizedResponse($final);
+		$authorization = $this->profileAuthorizer->authorize($profile);
+		if(!$authorization->isAuthorized()) {
+			return $this->authorizationErrorResponse($authorization, $final);
 		}
 
 		try {
@@ -170,7 +168,6 @@ class Mcp implements IOutput {
 		return $this->encode($response);
 	}
 
-
 	/**
 	 * @param array<string,mixed> $error
 	 */
@@ -199,40 +196,37 @@ class Mcp implements IOutput {
 		return $response;
 	}
 
-
-	private function unauthorizedResponse(bool $final): string {
+	private function authorizationErrorResponse(
+		McpProfileAuthorizationResult $authorization,
+		bool $final
+	): string {
+		$statusCode = $authorization->getStatusCode() === 403 ? 403 : 401;
+		$message = $statusCode === 403 ? 'Forbidden' : 'Unauthorized';
 		$response = $this->encode([
 			'jsonrpc' => '2.0',
 			'id' => null,
 			'error' => [
-				'code' => -32001,
-				'message' => 'Unauthorized'
+				'code' => $statusCode === 403 ? -32003 : -32001,
+				'message' => $message
 			]
 		]);
 
 		if($final) {
-			http_response_code(401);
-			header('WWW-Authenticate: Bearer');
+			http_response_code($statusCode);
+			if($statusCode === 401) {
+				header('WWW-Authenticate: Bearer');
+			}
 			header('Content-Length: ' . strlen($response));
 		}
 
 		return $response;
 	}
 
-	private function createAuthenticator(): McpBearerAuthenticator {
-		return new McpBearerAuthenticator($this->logger);
-	}
-
 	private function createHttpGuard(): McpHttpGuard {
 		return new McpHttpGuard($this->request, $this->logger);
 	}
 
-	private function createProfileRepository(): McpToolProfileRepository {
-		return new McpToolProfileRepository($this->settingsStore);
-	}
-
 	private function createHandler(): McpJsonRpcHandler {
-		$profileRepository = $this->createProfileRepository();
 		$definitionMapper = new McpToolDefinitionMapper();
 		$resultMapper = new McpToolResultMapper();
 		$materializer = new McpToolPresetMaterializer(
@@ -241,7 +235,7 @@ class Mcp implements IOutput {
 		);
 
 		return new McpJsonRpcHandler(
-			$profileRepository,
+			$this->profileRepository,
 			$materializer,
 			$definitionMapper,
 			$resultMapper,
@@ -250,10 +244,6 @@ class Mcp implements IOutput {
 		);
 	}
 
-
-	/**
-	 * @return mixed
-	 */
 	private function readJsonPayload(): mixed {
 		$payload = $this->request->getJsonBody();
 
@@ -270,9 +260,6 @@ class Mcp implements IOutput {
 		return $this->decodeJsonPayload($raw);
 	}
 
-	/**
-	 * @return mixed
-	 */
 	private function decodeJsonPayload(string $raw): mixed {
 		$decoded = json_decode($raw, true);
 
@@ -283,9 +270,6 @@ class Mcp implements IOutput {
 		return $decoded;
 	}
 
-	/**
-	 * @param mixed $value
-	 */
 	private function isList(mixed $value): bool {
 		if(!is_array($value)) {
 			return false;

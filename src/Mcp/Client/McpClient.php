@@ -27,7 +27,8 @@ final class McpClient implements IMcpClient {
 
 	public function __construct(
 		private readonly McpClientConfig $config,
-		private readonly IMcpTransport $transport
+		private readonly IMcpTransport $transport,
+		private readonly McpHmacRequestSigner $hmacRequestSigner = new McpHmacRequestSigner()
 	) {}
 
 	public function initialize(): array {
@@ -292,6 +293,11 @@ final class McpClient implements IMcpClient {
 		}
 
 		$headers = $this->buildHeaders($includeSession);
+
+		foreach($this->hmacRequestSigner->createHeaders($this->config, 'POST', $body) as $name => $value) {
+			$headers[$name] = $value;
+		}
+
 		$request = new McpHttpRequest(
 			$this->config->getEndpoint(),
 			$body,
