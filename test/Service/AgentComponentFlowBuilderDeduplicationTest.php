@@ -31,10 +31,30 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 		$this->assertCount(1, $baseResources);
 		$this->assertCount(1, $toolWrappers);
 		$this->assertCount(0, $memoryWrappers);
+		$this->assertSame('user_prefs', $toolWrappers[0]['config']['namespace'] ?? null);
 		$this->assertSame($baseResources[0]['id'], $toolWrappers[0]['docks']['tool'][0]);
 		$this->assertSame([$toolWrappers[0]['id']], $flow['nodes'][0]['docks']['tools']);
 		$this->assertSame([$baseResources[0]['id']], $flow['nodes'][0]['docks']['contextcontributors']);
 		$this->assertArrayNotHasKey('memory', $flow['nodes'][0]['docks']);
+	}
+
+	public function testExplicitToolNamespaceStillOverridesPresetId(): void {
+		$builder = new AgentComponentFlowBuilder($this->repository());
+		$flow = $builder->build($this->baseFlow(), [[
+			'preset' => 'user-prefs',
+			'attach_as' => ['tool'],
+			'tool_config' => [
+				'namespace' => 'prefs'
+			]
+		]]);
+
+		$toolWrappers = array_values(array_filter(
+			$flow['resources'],
+			static fn(array $resource): bool => (string)($resource['type'] ?? '') === 'configuredagenttoolresource'
+		));
+
+		$this->assertCount(1, $toolWrappers);
+		$this->assertSame('prefs', $toolWrappers[0]['config']['namespace'] ?? null);
 	}
 
 	public function testConversationMemoryUsesDedicatedMemoryWrapperOnly(): void {

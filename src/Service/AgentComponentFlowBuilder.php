@@ -230,8 +230,10 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 		$wrapperId = $this->buildUniqueResourceId($flow, 'configured_tool_' . $this->sanitizeId($presetId) . '_' . $index);
 		$config = $this->normalizeConfig($component['tool_config'] ?? []);
 
-		if (isset($component['tool_namespace']) && !isset($config['namespace'])) {
-			$config['namespace'] = $component['tool_namespace'];
+		if (!isset($config['namespace'])) {
+			$config['namespace'] = isset($component['tool_namespace'])
+				? $component['tool_namespace']
+				: $this->sanitizeId($presetId);
 		}
 
 		if (isset($component['enabled']) && !isset($config['enabled'])) {

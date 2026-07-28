@@ -210,6 +210,8 @@ class McpResourceCatalog {
 			$result['description'] = $description;
 		}
 
+		$this->copyOptionalResourceFields($resource, $result);
+
 		return $result;
 	}
 
@@ -243,7 +245,25 @@ class McpResourceCatalog {
 			$result['description'] = $description;
 		}
 
+		$this->copyOptionalResourceFields($resource, $result);
+
 		return $result;
+	}
+
+	/**
+	 * @param array<string,mixed> $source
+	 * @param array<string,mixed> $target
+	 */
+	private function copyOptionalResourceFields(array $source, array &$target): void {
+		if(isset($source['size']) && is_numeric($source['size'])) {
+			$target['size'] = (int)$source['size'];
+		}
+
+		foreach(['annotations', 'icons', '_meta'] as $key) {
+			if(is_array($source[$key] ?? null)) {
+				$target[$key] = $source[$key];
+			}
+		}
 	}
 
 	/**
@@ -265,23 +285,45 @@ class McpResourceCatalog {
 			}
 
 			$contentUri = trim((string)($content['uri'] ?? $uri));
-			$mimeType = trim((string)($content['mimeType'] ?? 'application/json'));
-			$text = (string)($content['text'] ?? '');
-
-			$out[] = [
-				'uri' => $contentUri !== '' ? $contentUri : $uri,
-				'mimeType' => $mimeType !== '' ? $mimeType : 'application/json',
-				'text' => $text
+			$item = [
+				'uri' => $contentUri !== '' ? $contentUri : $uri
 			];
+			$mimeType = trim((string)($content['mimeType'] ?? ''));
+
+			if($mimeType !== '') {
+				$item['mimeType'] = $mimeType;
+			}
+
+			if(array_key_exists('text', $content)) {
+				$item['text'] = (string)$content['text'];
+			}
+			elseif(array_key_exists('blob', $content) && is_scalar($content['blob'])) {
+				$item['blob'] = (string)$content['blob'];
+			}
+			else {
+				continue;
+			}
+
+			if(is_array($content['_meta'] ?? null)) {
+				$item['_meta'] = $content['_meta'];
+			}
+
+			$out[] = $item;
 		}
 
 		if($out === []) {
 			throw new \InvalidArgumentException('MCP resource provider returned no contents for: ' . $uri);
 		}
 
-		return [
+		$response = [
 			'contents' => $out
 		];
+
+		if(is_array($result['_meta'] ?? null)) {
+			$response['_meta'] = $result['_meta'];
+		}
+
+		return $response;
 	}
 
 	private function decodeCursor(?string $cursor): int {

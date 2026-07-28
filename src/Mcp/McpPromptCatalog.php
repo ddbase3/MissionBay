@@ -151,6 +151,12 @@ class McpPromptCatalog {
 			}
 		}
 
+		foreach(['icons', '_meta'] as $key) {
+			if(is_array($prompt[$key] ?? null)) {
+				$result[$key] = $prompt[$key];
+			}
+		}
+
 		return $result;
 	}
 
@@ -211,28 +217,33 @@ class McpPromptCatalog {
 			}
 
 			$role = trim((string)($message['role'] ?? 'user'));
-			$content = $message['content'] ?? [];
+			$content = $message['content'] ?? null;
 
-			if(!is_array($content)) {
+			if(is_string($content)) {
 				$content = [
 					'type' => 'text',
-					'text' => (string)$content
+					'text' => $content
 				];
 			}
 
-			$type = trim((string)($content['type'] ?? 'text'));
-			$text = (string)($content['text'] ?? '');
+			if(!is_array($content)) {
+				continue;
+			}
 
-			if($text === '') {
+			$type = trim((string)($content['type'] ?? ''));
+
+			if($type === '' && array_key_exists('text', $content)) {
+				$content['type'] = 'text';
+				$type = 'text';
+			}
+
+			if($type === '') {
 				continue;
 			}
 
 			$out[] = [
 				'role' => $role !== '' ? $role : 'user',
-				'content' => [
-					'type' => $type !== '' ? $type : 'text',
-					'text' => $text
-				]
+				'content' => $content
 			];
 		}
 
@@ -248,6 +259,10 @@ class McpPromptCatalog {
 
 		if($description !== '') {
 			$response['description'] = $description;
+		}
+
+		if(is_array($result['_meta'] ?? null)) {
+			$response['_meta'] = $result['_meta'];
 		}
 
 		return $response;

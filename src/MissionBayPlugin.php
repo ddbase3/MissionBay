@@ -76,7 +76,13 @@ use MissionBay\Api\IAgentNodeFactory;
 use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Api\IAgentRouterFactory;
+use MissionBay\Api\IMcpClientFactory;
+use MissionBay\Api\IMcpTransport;
 use MissionBay\Listener\MissionBayToolEventDisplayListener;
+use MissionBay\Mcp\Client\McpClientFactory;
+use MissionBay\Mcp\Client\McpRemoteToolDefinitionMapper;
+use MissionBay\Mcp\Client\McpRemoteToolResultMapper;
+use MissionBay\Mcp\Client\McpStreamableHttpTransport;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentStateSynchronizer;
@@ -179,6 +185,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentNodeFactory::class, fn($c) => new AgentNodeFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfigValueResolver::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IMcpTransport::class, fn() => new McpStreamableHttpTransport(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IMcpClientFactory::class, fn($c) => new McpClientFactory($c->get(IMcpTransport::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(McpRemoteToolDefinitionMapper::class, fn() => new McpRemoteToolDefinitionMapper(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(McpRemoteToolResultMapper::class, fn() => new McpRemoteToolResultMapper(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)
 			->set(IAgentComponentPresetRepository::class, fn($c) => new AgentComponentPresetRepository($c->get(ISettingsStore::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentComponentPresetMaterializer::class, fn($c) => new AgentComponentPresetMaterializer(

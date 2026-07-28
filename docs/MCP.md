@@ -1,6 +1,8 @@
 # MissionBay MCP Server v1
 
-MissionBay provides a profile-based MCP server for exposing selected agent tools, resources and prompts to MCP clients.
+MissionBay provides a profile-based inbound MCP server for exposing selected agent tools, resources and prompts to MCP clients.
+
+This document covers the inbound server endpoint. The outbound remote MCP client resource is documented in [MCP_CLIENT_AGENT_RESOURCE.md](MCP_CLIENT_AGENT_RESOURCE.md).
 
 This document describes the v1 boundary. OAuth, additional domain-specific resources/tools and native SSE-based elicitation are intentionally outside this MCP server completion step.
 
@@ -326,24 +328,8 @@ List methods use simple numeric cursors. A first request may omit `cursor`; a re
 }
 ```
 
-## Smoke test
+## Runtime test
 
-Each MCP patch includes:
+Use the MCP profile and Agent Component Preset administration test actions for runtime verification. These paths use the same catalogs, configured wrappers, security policy, and audit boundary as production requests.
 
-```text
-scripts/mcp-smoke.sh
-```
-
-Run it with:
-
-```bash
-bash scripts/mcp-smoke.sh \
-	'https://example.org/path/mcp.php?profile=my-mcp-profile' \
-	'<profile-token>'
-```
-
-For ILIAS smoke tests, require the host context resource explicitly:
-
-```bash
-MCP_REQUIRE_ILIAS_CONTEXT=1 ./scripts/mcp-smoke.sh '<mcp-url>' '<token>'
-```
+The legacy `scripts/mcp-smoke.sh` path is intentionally disabled and contains no request logic.

@@ -9,6 +9,8 @@ namespace MissionBay\Mcp;
 use AssistantFoundation\Api\IAgentContext;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentComponentPresetMaterializer;
+use MissionBay\Api\IAgentPromptProvider;
+use MissionBay\Api\IAgentResourceProvider;
 use MissionBay\Api\IAgentTool;
 
 /**
@@ -44,8 +46,28 @@ final class McpToolPresetMaterializer {
 	 * @return IAgentTool[]
 	 */
 	public function materialize(array $profile, IAgentContext $context): array {
+		return $this->materializeCapabilities($profile, $context)['tools'];
+	}
+
+	/**
+	 * Materializes every MCP primitive exposed by the configured presets.
+	 *
+	 * Tool execution continues through the configured tool wrapper returned by
+	 * the canonical preset materializer. Resource and prompt providers are read
+	 * from the underlying preset resource because they are not executable tools.
+	 *
+	 * @param array<string,mixed> $profile
+	 * @return array{
+	 *     tools:array<int,IAgentTool>,
+	 *     resourceProviders:array<int,IAgentResourceProvider>,
+	 *     promptProviders:array<int,IAgentPromptProvider>
+	 * }
+	 */
+	public function materializeCapabilities(array $profile, IAgentContext $context): array {
 		$this->warnings = [];
 		$tools = [];
+		$resourceProviders = [];
+		$promptProviders = [];
 
 		foreach($this->normalizeStringList($profile['tools'] ?? []) as $presetId) {
 			$materialization = $this->presetMaterializer->materialize($presetId, $context);
@@ -55,17 +77,29 @@ final class McpToolPresetMaterializer {
 			}
 
 			$tool = $materialization->getTool();
-			if(!$tool instanceof IAgentTool) {
+			if($tool instanceof IAgentTool) {
+				$this->addObject($tools, $tool);
+			}
+			else {
 				$this->warn('MCP profile references a preset without an effective tool capability.', [
 					'preset' => $presetId
 				]);
-				continue;
 			}
 
-			$tools[] = $tool;
+			$resource = $materialization->getResource();
+			if($resource instanceof IAgentResourceProvider) {
+				$this->addObject($resourceProviders, $resource);
+			}
+			if($resource instanceof IAgentPromptProvider) {
+				$this->addObject($promptProviders, $resource);
+			}
 		}
 
-		return $tools;
+		return [
+			'tools' => array_values($tools),
+			'resourceProviders' => array_values($resourceProviders),
+			'promptProviders' => array_values($promptProviders)
+		];
 	}
 
 	/** @return array<int,string> */
@@ -96,6 +130,10 @@ final class McpToolPresetMaterializer {
 		}
 
 		return array_values(array_unique($result));
+	}
+
+	private function addObject(array &$target, object $object): void {
+		$target['object:' . spl_object_id($object)] = $object;
 	}
 
 	/** @param array<string,mixed> $context */

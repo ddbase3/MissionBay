@@ -42,6 +42,7 @@ use Throwable;
 final class AgentComponentPresetAdminDisplay implements IDisplay {
 
 	private const SETTINGS_GROUP = 'agent-component-preset';
+	private const SECRET_VALUE_MARKER = '__missionbay_secret_configured__';
 	private const BATCH_SIZE = 50;
 
 	/**
@@ -97,6 +98,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$resourceOptions = $this->listResourceOptions();
 
 		$this->view->assign('settings_group', self::SETTINGS_GROUP);
+		$this->view->assign('secret_value_marker', self::SECRET_VALUE_MARKER);
 		$this->view->assign('open_preset_id', $this->normalizeTechnicalKey((string)$this->request->get('preset', '')));
 		$this->view->assign('resource_options', $resourceOptions);
 		$this->view->assign('preset_options', $this->listPresetOptions($resourceOptions));
@@ -313,6 +315,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 
 		try {
 			$config = $this->decodeJsonObject((string)($payload['config_json'] ?? ''), 'Config JSON');
+			$config = $this->restoreSecretConfig($type, $config, $oldId, $id);
 			$docks = $this->decodeJsonObject((string)($payload['docks_json'] ?? ''), 'Docks JSON');
 			$meta = $this->decodeJsonObject((string)($payload['meta_json'] ?? ''), 'Meta JSON');
 		}
@@ -452,6 +455,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		$capabilities = $derivedCapabilities !== [] ? $derivedCapabilities : $storedCapabilities;
 		$displayInterfaces = $this->deriveDisplayInterfacesForType($type);
 		$config = is_array($settings['config'] ?? null) ? $settings['config'] : [];
+		$publicConfig = $this->redactSecretConfig($type, $config);
 		$docks = is_array($settings['docks'] ?? null) ? $settings['docks'] : [];
 		$meta = is_array($settings['meta'] ?? null) ? $settings['meta'] : [];
 
@@ -472,7 +476,7 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			'enabled' => $enabled,
 			'capabilities' => $capabilities,
 			'display_interfaces' => $displayInterfaces,
-			'config' => $config,
+			'config' => $publicConfig,
 			'docks' => $docks,
 			'meta' => $meta
 		];
@@ -494,13 +498,13 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			'risk' => $risk,
 			'version' => $version,
 			'description' => $description,
-			'config' => $config,
+			'config' => $publicConfig,
 			'docks' => $docks,
 			'meta' => $meta,
 			'config_count' => count($config),
 			'dock_count' => count($docks),
 			'capabilities_edit' => implode(', ', $capabilities),
-			'config_json' => $this->encodePrettyJsonObject($config),
+			'config_json' => $this->encodePrettyJsonObject($publicConfig),
 			'docks_json' => $this->encodePrettyJsonObject($docks),
 			'meta_json' => $this->encodePrettyJsonObject($meta),
 			'preset_json' => $this->encodePrettyJson($preset),
@@ -1044,6 +1048,121 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		}
 
 		return $this->normalizeStringArray($payload['capabilities'] ?? []);
+	}
+
+	/**
+	 * @param array<string,mixed> $config
+	 * @return array<string,mixed>
+	 */
+	private function redactSecretConfig(string $type, array $config): array {
+		foreach($this->getSecretConfigKeys($type) as $key) {
+			if(!array_key_exists($key, $config) || !$this->isConfiguredSecretValue($config[$key])) {
+				continue;
+			}
+
+			$config[$key] = self::SECRET_VALUE_MARKER;
+		}
+
+		return $config;
+	}
+
+	/**
+	 * @param array<string,mixed> $config
+	 * @return array<string,mixed>
+	 */
+	private function restoreSecretConfig(string $type, array $config, string $oldId, string $id): array {
+		$secretKeys = $this->getSecretConfigKeys($type);
+		$markerKeys = [];
+
+		foreach($config as $key => $value) {
+			if($value !== self::SECRET_VALUE_MARKER) {
+				continue;
+			}
+
+			$key = (string)$key;
+
+			if(!in_array($key, $secretKeys, true)) {
+				throw new \InvalidArgumentException('Invalid secret config marker for field: ' . $key);
+			}
+
+			$markerKeys[] = $key;
+		}
+
+		if($markerKeys === []) {
+			return $config;
+		}
+
+		$storedConfig = $this->loadStoredConfig($type, $oldId, $id);
+
+		foreach($markerKeys as $key) {
+
+			if(!array_key_exists($key, $storedConfig) || !$this->isConfiguredSecretValue($storedConfig[$key])) {
+				throw new \InvalidArgumentException('Secret config field must be entered: ' . $key);
+			}
+
+			$config[$key] = $storedConfig[$key];
+		}
+
+		return $config;
+	}
+
+	/** @return array<string,mixed> */
+	private function loadStoredConfig(string $type, string $oldId, string $id): array {
+		foreach([$oldId, $id] as $candidateId) {
+			$candidateId = $this->normalizeTechnicalKey($candidateId);
+
+			if($candidateId === '' || !$this->settingsStore->has(self::SETTINGS_GROUP, $candidateId)) {
+				continue;
+			}
+
+			$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $candidateId, []);
+
+			if(!is_array($settings) || $this->normalizeTechnicalKey((string)($settings['type'] ?? '')) !== $type) {
+				continue;
+			}
+
+			if(is_array($settings['config'] ?? null)) {
+				return $settings['config'];
+			}
+		}
+
+		return [];
+	}
+
+	/** @return array<int,string> */
+	private function getSecretConfigKeys(string $type): array {
+		$options = $this->listResourceOptionsById();
+		$schema = is_array($options[$type]['schema'] ?? null) ? $options[$type]['schema'] : [];
+		$properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+		$result = [];
+
+		foreach($properties as $key => $property) {
+			if(!is_array($property)) {
+				continue;
+			}
+
+			$ui = is_array($property['x-ui'] ?? null) ? $property['x-ui'] : [];
+			$control = strtolower(trim((string)($ui['control'] ?? '')));
+			$sensitive = $this->toBool($ui['sensitive'] ?? false);
+
+			if($control === 'password' || $sensitive) {
+				$result[] = (string)$key;
+			}
+		}
+
+		return $result;
+	}
+
+	private function isConfiguredSecretValue(mixed $value): bool {
+		if(is_string($value)) {
+			return $value !== '';
+		}
+
+		if(is_array($value)) {
+			return $value !== [];
+		}
+
+		return $value !== null;
 	}
 
 	/**

@@ -817,7 +817,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			return '-';
 		}
 
-		const date = new Date(String(value).replace(' ', 'T'));
+		const raw = String(value).trim();
+		const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)
+			? raw.replace(' ', 'T')
+			: raw.replace(' ', 'T') + 'Z';
+		const date = new Date(normalized);
 
 		if (Number.isNaN(date.getTime())) {
 			return String(value);
@@ -893,11 +897,57 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		return '';
 	}
 
+	function normalizeLocalFilterDateTime(value, isUpperBound) {
+		const raw = String(value || '').trim();
+		if (!raw) {
+			return '';
+		}
+
+		let match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+		let date = null;
+
+		if (match) {
+			date = new Date(
+				Number(match[1]),
+				Number(match[2]) - 1,
+				Number(match[3]),
+				isUpperBound ? 23 : 0,
+				isUpperBound ? 59 : 0,
+				isUpperBound ? 59 : 0
+			);
+		} else {
+			match = raw.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+			if (match) {
+				date = new Date(
+					Number(match[1]),
+					Number(match[2]) - 1,
+					Number(match[3]),
+					Number(match[4]),
+					Number(match[5]),
+					Number(match[6] || 0)
+				);
+			} else {
+				date = new Date(raw);
+			}
+		}
+
+		if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+			return raw;
+		}
+
+		return date.toISOString().slice(0, 19).replace('T', ' ');
+	}
+
 	function buildFilterPayload(filters) {
 		const result = {};
 
 		Object.entries(filters || {}).forEach(([key, value]) => {
 			if (value === '' || value === null || value === undefined) {
+				return;
+			}
+
+			if (key === 'created_from' || key === 'created_to') {
+				result[key] = normalizeLocalFilterDateTime(value, key === 'created_to');
 				return;
 			}
 

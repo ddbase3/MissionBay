@@ -280,7 +280,8 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 			'Approval is enforced by the host action policy after a real tool call. Approval is not missing input and must not be requested in this phase.',
 			'Use decision=tool_required only when a tool action is necessary but no executable tool call can be emitted.',
 			'Always provide the semantic intent, confidence, candidate tool names, and a short reason in the control call.',
-			'Never claim that an action was executed unless a real tool call is emitted and later succeeds.'
+			'Never claim that an action was executed unless a real tool call is emitted and later succeeds.',
+			'When a tool result reports unavailable data, missing indexing, unsupported scope, uncertainty, or another limitation, preserve and explain that limitation in the final user-facing answer instead of silently omitting it.'
 		]);
 		if ($continuationHint !== '') {
 			$instruction .= "\n\n" . $continuationHint;
@@ -296,7 +297,8 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 			'If a required tool argument is missing, use decision=clarification_required and list the missing required argument names.',
 			'Approval is handled by the host action policy after a real tool call and is not a clarification reason.',
 			'Otherwise call ' . self::CONTROL_TOOL_NAME . ' with decision=complete.',
-			'Do not produce a user-facing answer and do not claim that any state change already happened.'
+			'Do not produce a user-facing answer and do not claim that any state change already happened.',
+			'Preserve tool-reported limitations such as unavailable data, missing indexing, unsupported scope, or uncertainty for the final user-facing answer.'
 		]);
 	}
 

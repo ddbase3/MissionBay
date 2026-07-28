@@ -241,7 +241,9 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 		}
 
 		$wrapper->setId($this->buildWrapperId('configured_tool_', $presetId));
-		$wrapper->setConfig([]);
+		$wrapper->setConfig([
+			'namespace' => $this->sanitizeId($presetId)
+		]);
 		$wrapper->init(['tool' => [$resource]], $context);
 
 		return $wrapper;

@@ -672,10 +672,14 @@ class MissionBayToolEventDisplayListener {
 	}
 
 	private function normalizeTimestamp(string $timestamp): string {
+		$utc = new \DateTimeZone('UTC');
+
 		try {
-			return (new \DateTimeImmutable($timestamp))->format('Y-m-d H:i:s');
+			return (new \DateTimeImmutable($timestamp))
+				->setTimezone($utc)
+				->format('Y-m-d H:i:s');
 		} catch (\Throwable $e) {
-			return (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+			return (new \DateTimeImmutable('now', $utc))->format('Y-m-d H:i:s');
 		}
 	}
 

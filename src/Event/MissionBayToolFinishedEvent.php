@@ -43,7 +43,7 @@ class MissionBayToolFinishedEvent extends BaseEvent {
 		private array $trace = []
 	) {
 		if ($this->timestamp === '') {
-			$this->timestamp = (new \DateTimeImmutable())->format('c');
+			$this->timestamp = gmdate('c');
 		}
 	}
 

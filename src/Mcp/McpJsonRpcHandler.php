@@ -235,7 +235,7 @@ class McpJsonRpcHandler {
 	private function createResourceCatalog(string $profileId): McpResourceCatalog {
 		$profile = $this->profileRepository->getEnabledMcpProfile($profileId);
 		$context = $this->materializer->createContext($profile);
-		$tools = $this->materializer->materialize($profile, $context);
+		$capabilities = $this->materializer->materializeCapabilities($profile, $context);
 		$providers = [new McpProfileResourceProvider($profile)];
 
 		foreach(McpHostProviderRegistry::getResourceProviders() as $provider) {
@@ -246,10 +246,8 @@ class McpJsonRpcHandler {
 			$providers[] = $provider;
 		}
 
-		foreach($tools as $tool) {
-			if($tool instanceof IAgentResourceProvider) {
-				$providers[] = $tool;
-			}
+		foreach($capabilities['resourceProviders'] as $provider) {
+			$providers[] = $provider;
 		}
 
 		return new McpResourceCatalog($providers, $context, $this->logger);
@@ -304,7 +302,7 @@ class McpJsonRpcHandler {
 	private function createPromptCatalog(string $profileId): McpPromptCatalog {
 		$profile = $this->profileRepository->getEnabledMcpProfile($profileId);
 		$context = $this->materializer->createContext($profile);
-		$tools = $this->materializer->materialize($profile, $context);
+		$capabilities = $this->materializer->materializeCapabilities($profile, $context);
 		$providers = [];
 
 		foreach(McpHostProviderRegistry::getPromptProviders() as $provider) {
@@ -315,10 +313,8 @@ class McpJsonRpcHandler {
 			$providers[] = $provider;
 		}
 
-		foreach($tools as $tool) {
-			if($tool instanceof IAgentPromptProvider) {
-				$providers[] = $tool;
-			}
+		foreach($capabilities['promptProviders'] as $provider) {
+			$providers[] = $provider;
 		}
 
 		return new McpPromptCatalog($providers, $context, $this->logger);

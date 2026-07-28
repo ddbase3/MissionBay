@@ -448,6 +448,7 @@ See also:
 - [AGENT_ACTION_APPROVAL_AND_RESUME.md](AGENT_ACTION_APPROVAL_AND_RESUME.md)
 - [AGENT_MUTATION_COMMIT_GUARD.md](AGENT_MUTATION_COMMIT_GUARD.md)
 - [AGENT_TOOL_CONTRACT_VALIDATION.md](AGENT_TOOL_CONTRACT_VALIDATION.md)
+- [MCP_CLIENT_AGENT_RESOURCE.md](MCP_CLIENT_AGENT_RESOURCE.md) for remote MCP tools, preset-owned naming, and conservative mapping of untrusted remote safety annotations.
 
 
 ## Shared runtime export
@@ -459,3 +460,8 @@ additionally require the concrete `IAgentMutationGuardedTool` implementation.
 Missing safety metadata is intentionally treated as unsafe. The normal
 MissionBay execution path remains unchanged; these rules control only the shared
 runtime tool-profile adapter.
+
+
+## Timestamp storage
+
+Tool-use database timestamps are stored as UTC in timezone-less `DATETIME` columns. Event timestamps may carry an offset, but the persistence listener converts them to UTC before writing. Browser displays must parse these values as UTC and localize them with the client timezone. Mixing local server time and UTC in the same table is not supported.

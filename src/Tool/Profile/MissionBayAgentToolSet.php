@@ -386,6 +386,11 @@ final class MissionBayAgentToolSet implements IAgentConfirmableToolSet {
 	/** @param array<string,mixed> $definition */
 	private function readRisk(array $definition): string {
 		$annotations = $this->definitionSemantics->getAnnotations($definition);
+		$riskHint = strtolower(trim((string)($annotations['riskHint'] ?? '')));
+		if (in_array($riskHint, ['high', 'medium'], true)) {
+			return $riskHint;
+		}
+
 		return (($annotations['destructiveHint'] ?? $annotations['destructive'] ?? false) === true)
 			? 'high'
 			: 'medium';

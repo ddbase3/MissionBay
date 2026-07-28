@@ -206,6 +206,7 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 			'Do not claim that a mutation was completed before the tool returns a successful result.',
 			'When current runtime information is required and a matching registered read tool exists, call that tool instead of announcing future tool use.',
 			'If no registered tool can perform the requested action, say so clearly instead of fabricating a tool call.',
+			'When a tool result reports unavailable data, missing indexing, unsupported scope, uncertainty, or another limitation, preserve and explain that limitation in the final answer instead of silently omitting it.',
 			'When a tool is required, emit only the tool call or tool calls. Do not include user-facing narration, confirmation questions, approval requests or completion claims in the same assistant turn.',
 			'A normal assistant response without tool calls ends the orchestration and is shown directly to the user. Normal conversation that does not require a tool remains valid without a tool call.'
 		];

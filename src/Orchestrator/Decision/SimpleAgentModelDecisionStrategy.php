@@ -36,7 +36,7 @@ final class SimpleAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 
 		$this->log($runtime['logger'], 'Legacy simple model decision uses the textual TOOL_PHASE_COMPLETE sentinel for compatibility.');
 		$this->log($runtime['logger'], 'Tool phase iteration ' . $runtime['iteration'] . ' started with simple model decision.');
-		$instruction = 'You are in the tool-decision phase. Request additional tools only when they are expected to add materially new evidence. When no further tool call is required, do not write the user-facing answer. Return exactly ' . self::TERMINAL_SIGNAL . ' and nothing else. The final answer is generated in a separate response phase.';
+		$instruction = 'You are in the tool-decision phase. Request additional tools only when they are expected to add materially new evidence. When no further tool call is required, do not write the user-facing answer. Return exactly ' . self::TERMINAL_SIGNAL . ' and nothing else. The final answer is generated in a separate response phase. Preserve tool-reported limitations such as unavailable data, missing indexing, unsupported scope, or uncertainty for the final user-facing answer.';
 		if ($runtime['continuation_hint'] !== '') {
 			$instruction .= "\n\n" . $runtime['continuation_hint'];
 		}

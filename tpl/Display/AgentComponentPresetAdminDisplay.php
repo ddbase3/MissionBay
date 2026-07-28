@@ -5,6 +5,7 @@ $serviceUrl = (string) ($this->_['service'] ?? '');
 $resourceOptions = is_array($this->_['resource_options'] ?? null) ? $this->_['resource_options'] : [];
 $presetOptions = is_array($this->_['preset_options'] ?? null) ? $this->_['preset_options'] : [];
 $openPresetId = (string)($this->_['open_preset_id'] ?? '');
+$secretValueMarker = (string)($this->_['secret_value_marker'] ?? '__missionbay_secret_configured__');
 $categoryOptions = ['context', 'web', 'ai', 'memory', 'tool', 'storage', 'integration', 'system', 'experimental'];
 $statusOptions = ['draft', 'ready', 'disabled', 'deprecated'];
 $riskOptions = ['none', 'read_external_url', 'reads_context', 'writes_memory', 'writes_settings', 'external_api', 'destructive', 'experimental'];
@@ -634,6 +635,7 @@ const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE 
 const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const MODULARDIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const RESOURCE_OPTIONS = <?php echo json_encode($resourceOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+const SECRET_VALUE_MARKER = <?php echo json_encode($secretValueMarker, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const PRESET_OPTIONS = <?php echo json_encode($presetOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const OPEN_PRESET_ID = <?php echo json_encode($openPresetId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const RESOURCE_TYPE_FILTER_OPTIONS = [
@@ -1009,16 +1011,26 @@ function getRawConfigValue(config, key, schema) {
 }
 
 function unwrapConfigValue(value) {
+	if (value === SECRET_VALUE_MARKER) {
+		return {
+			value: '',
+			mode: '',
+			secretConfigured: true
+		};
+	}
+
 	if (value && typeof value === 'object' && !Array.isArray(value) && Object.prototype.hasOwnProperty.call(value, 'mode') && Object.prototype.hasOwnProperty.call(value, 'value')) {
 		return {
 			value: value.value,
-			mode: String(value.mode || '')
+			mode: String(value.mode || ''),
+			secretConfigured: false
 		};
 	}
 
 	return {
 		value,
-		mode: ''
+		mode: '',
+		secretConfigured: false
 	};
 }
 
@@ -1036,12 +1048,13 @@ function createDefinitionRow(labelText, required = false) {
 	};
 }
 
-function createConfigControl(key, schema, value, mode, required = false) {
+function createConfigControl(key, schema, value, mode, required = false, secretConfigured = false) {
 	const type = getSchemaType(schema);
 	const ui = schema && schema['x-ui'] && typeof schema['x-ui'] === 'object' && !Array.isArray(schema['x-ui'])
 		? schema['x-ui']
 		: {};
 	const uiControl = String(ui.control || '').toLowerCase();
+	const isSensitive = uiControl === 'password' || ui.sensitive === true;
 	let control;
 
 	if (Array.isArray(schema && schema.enum) && schema.enum.length > 0) {
@@ -1064,6 +1077,15 @@ function createConfigControl(key, schema, value, mode, required = false) {
 		control.step = type === 'integer' ? '1' : 'any';
 		control.className = 'agent-component-preset-step5-input';
 		control.value = value === null || value === undefined ? '' : String(value);
+	} else if (type === 'string' && isSensitive) {
+		control = document.createElement('input');
+		control.type = 'password';
+		control.className = 'agent-component-preset-step5-input';
+		control.autocomplete = String(ui.autocomplete || 'new-password');
+		control.value = '';
+		control.placeholder = secretConfigured ? 'Stored value unchanged' : '';
+		control.dataset.configSecret = '1';
+		control.dataset.configSecretConfigured = secretConfigured ? '1' : '0';
 	} else if (type === 'object' || type === 'array' || (type === 'string' && uiControl === 'textarea')) {
 		control = document.createElement('textarea');
 		control.className = 'agent-component-preset-step5-textarea';
@@ -1082,7 +1104,7 @@ function createConfigControl(key, schema, value, mode, required = false) {
 	control.dataset.configType = type;
 	control.dataset.configMode = mode || '';
 	control.setAttribute('aria-required', required ? 'true' : 'false');
-	if (required && type !== 'boolean') {
+	if (required && type !== 'boolean' && !secretConfigured) {
 		control.required = true;
 	}
 	control.addEventListener('input', () => syncDefinitionFields(control.form || getEditorElements().form));
@@ -1115,7 +1137,7 @@ function renderConfigControls(form, config) {
 		const raw = getRawConfigValue(config, key, propertySchema);
 		const unwrapped = unwrapConfigValue(raw);
 		const parts = createDefinitionRow(key, required.has(key));
-		const control = createConfigControl(key, propertySchema, unwrapped.value, unwrapped.mode, required.has(key));
+		const control = createConfigControl(key, propertySchema, unwrapped.value, unwrapped.mode, required.has(key), unwrapped.secretConfigured);
 
 		parts.control.appendChild(control);
 
@@ -1127,6 +1149,9 @@ function renderConfigControls(form, config) {
 		if (unwrapped.mode) {
 			hints.push('Stored as ConfigValue mode "' + unwrapped.mode + '"; the mode will be preserved.');
 		}
+		if (unwrapped.secretConfigured) {
+			hints.push('A secret value is configured. Leave the field empty to keep it unchanged.');
+		}
 
 		parts.control.appendChild(createElement('agent-component-preset-step5-definition-hint', hints.join(' ')));
 		root.appendChild(parts.row);
@@ -1135,6 +1160,11 @@ function renderConfigControls(form, config) {
 
 function readConfigControlValue(control) {
 	const type = control.dataset.configType || 'string';
+
+	if (control.dataset.configSecret === '1' && control.value === '' && control.dataset.configSecretConfigured === '1') {
+		return SECRET_VALUE_MARKER;
+	}
+
 	let value;
 
 	if (type === 'boolean') {
