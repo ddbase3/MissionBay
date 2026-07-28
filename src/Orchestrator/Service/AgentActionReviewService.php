@@ -33,22 +33,19 @@ use Base3\Event\Api\IEventManager;
 use MissionBay\Event\MissionBayAgentActionAuditEvent;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 
 /** Converts policy review decisions into a durable, transport-neutral suspension. */
 final class AgentActionReviewService {
 
-	private IAgentSuspensionRepository $suspensionRepository;
 	private AgentMutationCommitGuardService $mutationCommitGuardService;
 
 	public function __construct(
 		private readonly AgentActionFingerprint $fingerprint,
-		?IAgentSuspensionRepository $suspensionRepository = null,
+		private readonly IAgentSuspensionRepository $suspensionRepository,
 		private readonly int $suspensionTtlSeconds = 900,
 		?AgentMutationCommitGuardService $mutationCommitGuardService = null,
 		private readonly ?IEventManager $eventManager = null
 	) {
-		$this->suspensionRepository = $suspensionRepository ?? new UnavailableAgentSuspensionRepository();
 		$this->mutationCommitGuardService = $mutationCommitGuardService
 			?? new AgentMutationCommitGuardService($this->fingerprint, $this->eventManager);
 		if ($suspensionTtlSeconds < 1) {

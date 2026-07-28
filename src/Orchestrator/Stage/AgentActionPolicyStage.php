@@ -41,28 +41,17 @@ final class AgentActionPolicyStage implements IAgentStage {
 	/** @var array<int,IAgentActionPolicy>|null */
 	private ?array $resolvedPolicies = null;
 
-	private AgentActionReviewService $actionReviewService;
-	private AgentToolContractValidationService $toolContractValidationService;
-	private AgentCapabilitySelectionGuardService $capabilitySelectionGuardService;
-
 	/** @param array<int,string> $policyIds */
 	public function __construct(
 		private readonly IAgentActionPolicyResolver $policyResolver,
 		private readonly AgentActionFingerprint $fingerprint,
+		private readonly AgentActionReviewService $actionReviewService,
+		private readonly AgentToolContractValidationService $toolContractValidationService,
+		private readonly AgentCapabilitySelectionGuardService $capabilitySelectionGuardService,
 		private readonly string $id = 'action-policy',
 		private readonly string $stageName = 'action-policy',
-		private readonly array $policyIds = ['allow-all-actions'],
-		?AgentActionReviewService $actionReviewService = null,
-		?AgentToolContractValidationService $toolContractValidationService = null,
-		?AgentCapabilitySelectionGuardService $capabilitySelectionGuardService = null
-	) {
-		$this->actionReviewService = $actionReviewService
-			?? new AgentActionReviewService($this->fingerprint);
-		$this->toolContractValidationService = $toolContractValidationService
-			?? new AgentToolContractValidationService();
-		$this->capabilitySelectionGuardService = $capabilitySelectionGuardService
-			?? new AgentCapabilitySelectionGuardService();
-	}
+		private readonly array $policyIds = ['allow-all-actions']
+	) {}
 
 	public static function getName(): string { return 'agentactionpolicystage'; }
 	public function id(): string { return $this->id; }

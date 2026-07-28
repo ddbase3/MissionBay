@@ -482,10 +482,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			arguments: [
 				'id' => 'action-policy',
 				'stageName' => 'action-policy',
-				'policyIds' => ['mutation-approval-actions', 'allow-all-actions'],
-				'actionReviewService' => $this->container->get(AgentActionReviewService::class),
-				'toolContractValidationService' => $this->container->get(AgentToolContractValidationService::class),
-				'capabilitySelectionGuardService' => $this->container->get(AgentCapabilitySelectionGuardService::class)
+				'policyIds' => ['mutation-approval-actions', 'allow-all-actions']
 			]
 		));
 

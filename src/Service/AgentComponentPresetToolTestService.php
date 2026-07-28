@@ -67,12 +67,12 @@ final class AgentComponentPresetToolTestService {
 		$this->actionPolicyStage = new AgentActionPolicyStage(
 			$policyResolver,
 			$fingerprint,
-			'component-preset-test-action-policy',
-			'component-preset-test-action-policy',
-			['mutation-approval-actions', 'allow-all-actions'],
 			$actionReviewService,
 			$toolContractValidationService,
-			$capabilitySelectionGuardService
+			$capabilitySelectionGuardService,
+			'component-preset-test-action-policy',
+			'component-preset-test-action-policy',
+			['mutation-approval-actions', 'allow-all-actions']
 		);
 
 		$cacheService = new AgentToolResultCacheService(

@@ -36,21 +36,18 @@ use MissionBay\Dto\Assistant\AgentInteractionResolution;
 use MissionBay\Dto\Assistant\PreparedAgentResume;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 
 /** Claims, validates, and consumes a durable one-time agent resume handle. */
 final class AgentActionResumeService {
 
-	private IAgentSuspensionRepository $suspensionRepository;
 	private AgentInteractionResponseResolver $responseResolver;
 
 	public function __construct(
 		private readonly AgentActionFingerprint $fingerprint,
-		?IAgentSuspensionRepository $suspensionRepository = null,
+		private readonly IAgentSuspensionRepository $suspensionRepository,
 		private readonly ?IEventManager $eventManager = null,
 		?AgentInteractionResponseResolver $responseResolver = null
 	) {
-		$this->suspensionRepository = $suspensionRepository ?? new UnavailableAgentSuspensionRepository();
 		$this->responseResolver = $responseResolver ?? new AgentInteractionResponseResolver();
 	}
 

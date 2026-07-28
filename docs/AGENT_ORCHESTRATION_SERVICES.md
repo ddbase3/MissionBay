@@ -54,6 +54,8 @@ JsonSchemaValidator
 
 The shared default repository is `AssistantRuntime\Service\StateStoreAgentSuspensionRepository`. It uses `IStateStore` for TTL state and atomic claim creation. MissionBay depends only on `IAgentSuspensionRepository`, so hosts may replace the storage implementation without changing MissionBay.
 
+`AgentActionReviewService` and `AgentActionResumeService` require that repository explicitly. The default action-policy component definition stores only instance configuration; runtime services are injected when the stage is materialized after plugin composition. MissionBay does not create a placeholder repository when the contract is missing.
+
 ### Execution boundary
 
 `AgentToolExecutionStage` wraps:

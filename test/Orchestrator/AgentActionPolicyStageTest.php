@@ -48,6 +48,23 @@ final class AgentActionPolicyStageTest extends TestCase {
 		$this->assertTrue($effectiveCall->getMetadata()['generated_call_id']);
 	}
 
+	public function testApprovalFailsClearlyWithoutReviewService(): void {
+		$call = new AiToolCall('call-1', 'delete_record', ['id' => 42]);
+		$context = $this->createContext($call);
+		$stage = $this->createStage([new ApprovalAgentActionPolicy()]);
+
+		$patch = $stage->process($context)->getPatch();
+
+		$this->assertSame(
+			'action_review_service_unavailable',
+			$patch[AgentToolLoopContextKeys::FAILURE_CODE]
+		);
+		$this->assertSame(
+			'Agent action review requires an AgentActionReviewService implementation.',
+			$patch[AgentToolLoopContextKeys::FAILURE_MESSAGE]
+		);
+	}
+
 	public function testDenyPolicyBlocksToolCallAndCreatesObservationResult(): void {
 		$call = new AiToolCall('call-1', 'delete_record', ['id' => 42]);
 		$context = $this->createContext($call);
@@ -126,6 +143,33 @@ final class AgentActionPolicyStageTest extends TestCase {
 			AgentToolLoopContextKeys::COMPLETED => false,
 			AgentToolLoopContextKeys::FAILURE_CODE => ''
 		]);
+	}
+}
+
+final class ApprovalAgentActionPolicy implements IAgentActionPolicy {
+
+	public static function getName(): string {
+		return 'approvalagentactionpolicy';
+	}
+
+	public function id(): string {
+		return 'approval-actions';
+	}
+
+	public function name(): string {
+		return 'approval-actions';
+	}
+
+	public function getDescription(): string {
+		return 'Requires approval for every action in tests.';
+	}
+
+	public function getAiUsage(): string {
+		return IAgentActionPolicy::AI_USAGE_NONE;
+	}
+
+	public function evaluate(AgentAction $action, IAgentContext $context): AgentActionDecision {
+		return AgentActionDecision::requireApproval($action->getId(), 'Approval required by test policy.');
 	}
 }
 

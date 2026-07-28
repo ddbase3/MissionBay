@@ -44,7 +44,6 @@ use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
 use MissionBay\Orchestrator\Service\AgentLoopProgressService;
 use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 
 /**
  * AgentToolOrchestrator
@@ -67,7 +66,7 @@ class AgentToolOrchestrator {
 	 */
 	private array $stages = [];
 
-	private AgentActionResumeService $actionResumeService;
+	private ?AgentActionResumeService $actionResumeService;
 	private AgentBudgetGuardService $budgetGuardService;
 	private AgentLoopProgressService $loopProgressService;
 	private AgentStateSynchronizer $stateSynchronizer;
@@ -90,11 +89,7 @@ class AgentToolOrchestrator {
 		$this->stages = $stages === null
 			? []
 			: $this->normalizeStages($stages);
-		$this->actionResumeService = $actionResumeService
-			?? new AgentActionResumeService(
-				new AgentActionFingerprint(),
-				new UnavailableAgentSuspensionRepository()
-			);
+		$this->actionResumeService = $actionResumeService;
 		$this->budgetGuardService = $budgetGuardService ?? new AgentBudgetGuardService();
 		$this->loopProgressService = $loopProgressService ?? new AgentLoopProgressService();
 		$this->stateSynchronizer = $stateSynchronizer ?? new AgentStateSynchronizer();
@@ -169,6 +164,12 @@ class AgentToolOrchestrator {
 
 		try {
 			if ($resumePending) {
+				if ($this->actionResumeService === null) {
+					throw new \RuntimeException(
+						'Agent resume requires an AgentActionResumeService implementation.'
+					);
+				}
+
 				$context->setVar(AgentToolLoopContextKeys::PHASE, AgentToolLoopContextKeys::PHASE_RESUME);
 				$this->applyStageResult($context, $this->actionResumeService->resume($context));
 			}
