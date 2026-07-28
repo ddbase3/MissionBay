@@ -13,6 +13,14 @@ namespace MissionBay\Mcp;
  */
 class McpToolDefinitionMapper {
 
+	/** @var array<int,string> */
+	private const MCP_ANNOTATION_KEYS = [
+		'readOnlyHint',
+		'destructiveHint',
+		'idempotentHint',
+		'openWorldHint'
+	];
+
 	public static function getName(): string {
 		return 'mcptooldefinitionmapper';
 	}
@@ -51,11 +59,7 @@ class McpToolDefinitionMapper {
 			$tool['outputSchema'] = $outputSchema;
 		}
 
-		$annotations = $this->getAnnotations($definition, $function);
-
-		if($annotations !== []) {
-			$tool['annotations'] = $annotations;
-		}
+		$tool['annotations'] = $this->getAnnotations($definition, $function);
 
 		return $tool;
 	}
@@ -83,14 +87,45 @@ class McpToolDefinitionMapper {
 	 * @return array<string,mixed>
 	 */
 	private function getAnnotations(array $definition, array $function): array {
-		if(is_array($definition['annotations'] ?? null)) {
-			return $definition['annotations'];
-		}
+		$annotations = is_array($definition['annotations'] ?? null) ? $definition['annotations'] : [];
 
 		if(is_array($function['annotations'] ?? null)) {
-			return $function['annotations'];
+			$annotations = array_merge($annotations, $function['annotations']);
 		}
 
-		return [];
+		foreach(self::MCP_ANNOTATION_KEYS as $key) {
+			if(array_key_exists($key, $definition) && is_bool($definition[$key])) {
+				$annotations[$key] = $definition[$key];
+			}
+
+			if(array_key_exists($key, $function) && is_bool($function[$key])) {
+				$annotations[$key] = $function[$key];
+			}
+		}
+
+		$readOnly = ($annotations['readOnlyHint'] ?? false) === true;
+		$annotations['readOnlyHint'] = $readOnly;
+		$annotations['destructiveHint'] = $this->boolAnnotation(
+			$annotations,
+			'destructiveHint',
+			!$readOnly
+		);
+		$annotations['idempotentHint'] = $this->boolAnnotation(
+			$annotations,
+			'idempotentHint',
+			$readOnly
+		);
+		$annotations['openWorldHint'] = $this->boolAnnotation(
+			$annotations,
+			'openWorldHint',
+			true
+		);
+
+		return $annotations;
+	}
+
+	/** @param array<string,mixed> $annotations */
+	private function boolAnnotation(array $annotations, string $key, bool $default): bool {
+		return is_bool($annotations[$key] ?? null) ? $annotations[$key] : $default;
 	}
 }

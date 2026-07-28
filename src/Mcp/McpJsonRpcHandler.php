@@ -37,7 +37,6 @@ class McpJsonRpcHandler {
 		private readonly McpToolPresetMaterializer $materializer,
 		private readonly McpToolDefinitionMapper $definitionMapper,
 		private readonly McpToolResultMapper $resultMapper,
-		private readonly McpConfirmationService $confirmationService,
 		private readonly IClassMap $classMap,
 		private readonly ILogger $logger
 	) {}
@@ -191,10 +190,7 @@ class McpJsonRpcHandler {
 		$tools = $this->materializer->materialize($profile, $context);
 		$catalog = new McpToolCatalog($tools, $this->definitionMapper, $this->logger);
 
-		$tools = $catalog->listTools();
-		array_unshift($tools, $this->definitionMapper->toMcpTool($this->confirmationService->getToolDefinition()));
-
-		return $this->paginate('tools', $tools, $cursor, 'Invalid tools/list cursor.');
+		return $this->paginate('tools', $catalog->listTools(), $cursor, 'Invalid tools/list cursor.');
 	}
 
 
@@ -370,18 +366,9 @@ class McpJsonRpcHandler {
 		$catalog = new McpToolCatalog($tools, $this->definitionMapper, $this->logger);
 
 		try {
-			if($name === McpConfirmationService::TOOL_NAME) {
-				$result = $this->resultMapper->success(
-					$this->confirmationService->handleConfirmationTool($profileId, $arguments, $catalog, $context)
-				);
-			}
-			else {
-				$pendingConfirmation = $this->confirmationService->createPendingIfNeeded($profileId, $name, $arguments, $catalog, $context);
-
-				$result = $this->resultMapper->success(
-					$pendingConfirmation ?? $catalog->call($name, $arguments, $context)
-				);
-			}
+			$result = $this->resultMapper->success(
+				$catalog->call($name, $arguments, $context)
+			);
 
 			$this->logger->logLevel(ILogger::INFO, 'MCP tool call finished.', [
 				'scope' => self::LOG_SCOPE,

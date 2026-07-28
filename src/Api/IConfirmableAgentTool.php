@@ -22,9 +22,9 @@ use AssistantFoundation\Api\IAgentContext;
 /**
  * IConfirmableAgentTool
  *
- * Optional compatibility contract for callers, especially the direct MCP tool
- * endpoint, where the tool itself decides whether one concrete invocation must
- * be confirmed before it is executed.
+ * Optional compatibility contract for direct in-process callers where the tool
+ * itself decides whether one concrete invocation must be confirmed before it is
+ * executed.
  *
  * This contract combines the confirmation decision with legacy array-based
  * presentation data. It is intentionally separate from
@@ -41,7 +41,7 @@ use AssistantFoundation\Api\IAgentContext;
 interface IConfirmableAgentTool {
 
 	/**
-	 * Builds the direct/MCP confirmation request for a tool invocation.
+	 * Builds a confirmation request for a direct in-process tool invocation.
 	 *
 	 * Return null when this direct caller may execute the call immediately. In a
 	 * policy-controlled agent run, null must never be interpreted as permission

@@ -158,7 +158,7 @@ This keeps the wrapper transparent for guarded tools without adding tool-specifi
 
 ## MCP execution boundary
 
-The direct MCP endpoint uses the same `IAgentMutationGuardedTool` contract. For a function that explicitly declares `mutation=true`, `requiresApproval=true`, and `commitGuardRequired=true`, it captures the snapshot and creates the `AgentActionReview` before returning a pending confirmation. After acceptance, it restores the exact action fingerprint and snapshot, calls `validateMutationCommit()`, and invokes `callTool()` only when the decision allows the commit.
+The inbound MCP endpoint does not run the local pending-confirmation lifecycle. It publishes the tool safety annotations and executes an authorized `tools/call` directly after Bearer-token and profile checks. The MCP client or host owns user approval. `IAgentMutationGuardedTool` remains authoritative for policy-controlled in-process MissionBay agent execution.
 
 Read-only functions from the same configured tool remain direct calls. Mutation handling begins only for the concrete function invocation, never because another function in the catalog can mutate.
 

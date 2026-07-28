@@ -9,13 +9,10 @@ namespace MissionBay\Mcp;
 use Base3\Api\IClassMap;
 use Base3\Api\IOutput;
 use Base3\Api\IRequest;
-use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetMaterializer;
 use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 
 /**
  * Mcp
@@ -32,10 +29,7 @@ class Mcp implements IOutput {
 		private readonly ISettingsStore $settingsStore,
 		private readonly IAgentComponentPresetRepository $presetRepository,
 		private readonly IAgentComponentPresetMaterializer $presetMaterializer,
-		private readonly AgentMutationCommitGuardService $mutationCommitGuard,
-		private readonly AgentToolDefinitionSemantics $toolDefinitionSemantics,
-		private readonly ILogger $logger,
-		private readonly ?IEventManager $eventManager = null
+		private readonly ILogger $logger
 	) {}
 
 	public static function getName(): string {
@@ -246,20 +240,11 @@ class Mcp implements IOutput {
 			$this->logger
 		);
 
-		$confirmationService = new McpConfirmationService(
-			new McpConfirmationStore($this->settingsStore),
-			$this->logger,
-			$this->mutationCommitGuard,
-			$this->toolDefinitionSemantics,
-			$this->eventManager
-		);
-
 		return new McpJsonRpcHandler(
 			$profileRepository,
 			$materializer,
 			$definitionMapper,
 			$resultMapper,
-			$confirmationService,
 			$this->classMap,
 			$this->logger
 		);

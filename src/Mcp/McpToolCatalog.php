@@ -10,8 +10,6 @@ use Base3\Api\IOutputSchemaProvider;
 use Base3\Logger\Api\ILogger;
 use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IConfirmableAgentTool;
-use MissionBay\Resource\ConfiguredAgentToolResource;
 
 /**
  * McpToolCatalog
@@ -115,7 +113,6 @@ class McpToolCatalog {
 				}
 
 				$definition = $this->withOutputSchema($definition, $outputSchemas[$name] ?? []);
-				$definition = $this->withDefaultAnnotations($definition, $tool);
 
 				$this->definitions[] = $definition;
 				$this->definitionsByName[$name] = $definition;
@@ -171,38 +168,6 @@ class McpToolCatalog {
 		}
 
 		$definition['outputSchema'] = $outputSchema;
-
-		return $definition;
-	}
-
-	/**
-	 * @param array<string,mixed> $definition
-	 * @return array<string,mixed>
-	 */
-	private function withDefaultAnnotations(array $definition, IAgentTool $tool): array {
-		if(!$tool instanceof IConfirmableAgentTool) {
-			return $definition;
-		}
-
-		if($tool instanceof ConfiguredAgentToolResource && !$tool->supportsConfirmation()) {
-			return $definition;
-		}
-
-		$annotations = [
-			'readOnlyHint' => false,
-			'destructiveHint' => true,
-			'idempotentHint' => false,
-			'openWorldHint' => true
-		];
-
-		if(isset($definition['function']) && is_array($definition['function'])) {
-			$existing = is_array($definition['function']['annotations'] ?? null) ? $definition['function']['annotations'] : [];
-			$definition['function']['annotations'] = array_merge($annotations, $existing);
-			return $definition;
-		}
-
-		$existing = is_array($definition['annotations'] ?? null) ? $definition['annotations'] : [];
-		$definition['annotations'] = array_merge($annotations, $existing);
 
 		return $definition;
 	}

@@ -88,24 +88,33 @@ Tools are resolved from the presets configured in the MCP profile. MissionBay ma
 
 `tools/list` supports `cursor` and may return `nextCursor`.
 
-MissionBay also maps tool `annotations` to MCP. Confirmable tools receive conservative default annotations unless their own tool definition provides annotations:
-
-```json
-{
-	"readOnlyHint": false,
-	"destructiveHint": true,
-	"idempotentHint": false,
-	"openWorldHint": true
-}
-```
-
-MissionBay also adds one internal control tool:
+MissionBay exposes the four standard MCP safety annotations for every tool:
 
 ```text
-missionbay_confirm_action
+readOnlyHint
+destructiveHint
+idempotentHint
+openWorldHint
 ```
 
-This tool accepts or declines pending actions created by confirmable tools. It declares MCP annotations and an output schema so clients can treat it as a write-capable confirmation control.
+Explicit boolean values from the MissionBay tool definition are preserved. Top-level MissionBay annotations are mapped to the MCP `annotations` object. Missing values are completed conservatively:
+
+```text
+explicit readOnlyHint=true
+  destructiveHint=false when unspecified
+  idempotentHint=true when unspecified
+  openWorldHint=true when unspecified
+
+readOnlyHint missing or false
+  readOnlyHint=false
+  destructiveHint=true when unspecified
+  idempotentHint=false when unspecified
+  openWorldHint=true when unspecified
+```
+
+A contradictory explicit combination is preserved so the client can apply its own stricter policy.
+
+MissionBay does not expose an additional confirmation tool. The MCP client or host decides whether user approval is required before `tools/call`, based on these annotations and its own security policy.
 
 ## Structured tool output
 
@@ -127,86 +136,28 @@ Tool results include MCP text content. Object-like PHP results are also returned
 
 Output schemas can be provided through `Base3\Api\IOutputSchemaProvider`.
 
-## Pending confirmations
+## Tool authorization and approval ownership
 
-MissionBay v1 uses a synchronous multi-call confirmation workflow instead of SSE-based elicitation.
-
-### Guarded mutations
-
-Tool functions that declare:
+The inbound MCP endpoint uses a client-authorized execution model.
 
 ```text
-mutation=true
-requiresApproval=true
-commitGuardRequired=true
+MCP client or host
+  -> evaluates tool annotations
+  -> obtains user approval when required
+  -> sends tools/call
+
+MissionBay MCP server
+  -> authenticates the Bearer token
+  -> loads the selected MCP profile
+  -> verifies that the requested tool belongs to that profile
+  -> executes the authorized tools/call directly
 ```
 
-must be provided by an `IAgentMutationGuardedTool`. The MCP endpoint uses the same guarded mutation lifecycle as the policy-controlled agent harness:
+The server does not create a second pending confirmation and does not expose `missionbay_confirm_action`. This avoids duplicate human-in-the-loop dialogs and keeps the endpoint interoperable with standard MCP clients.
 
-```text
-captureMutationCommitSnapshot()
--> getActionReview()
--> user decision
--> validateMutationCommit()
--> callTool()
-```
+Server-side security remains mandatory. A Bearer token only receives the tools listed in its enabled MCP profile. Separate read-only and administrative profiles or tokens should be used when different trust levels are required.
 
-The review shown to the MCP client is created from the server-owned mutation snapshot. On acceptance, MissionBay validates the stored snapshot and the exact approved action again immediately before execution. A stale resource version, changed authorization, changed arguments or an unavailable guard blocks the call without executing the tool.
-
-Read-only functions in the same `IAgentTool` remain ordinary MCP calls. The presence of mutating functions in that tool or profile does not route read calls through confirmation.
-
-When a guarded mutation needs confirmation, the MCP server stores the snapshot and returns:
-
-```json
-{
-	"requires_confirmation": true,
-	"confirmation_id": "mcp-cnf-...",
-	"tool": "update_ilias_webdav_settings",
-	"title": "Update global ILIAS WebDAV settings",
-	"message": "The global WebDAV settings of the ILIAS installation will be changed.",
-	"summary": {
-		"WebDAV access": "enabled -> disabled",
-		"File versioning": "unchanged"
-	},
-	"risk": "medium",
-	"expires_at": "2026-07-07T10:00:00+00:00",
-	"next_tool": "missionbay_confirm_action"
-}
-```
-
-The MCP client or assistant should ask the user for confirmation. If accepted, it calls:
-
-```json
-{
-	"name": "missionbay_confirm_action",
-	"arguments": {
-		"confirmation_id": "mcp-cnf-...",
-		"decision": "accept"
-	}
-}
-```
-
-A successful commit returns `status=accepted`. If the final mutation validation rejects the commit, the response returns `status=blocked`, an `error_code`, and the guard reason. The mutation is not executed.
-
-To decline:
-
-```json
-{
-	"name": "missionbay_confirm_action",
-	"arguments": {
-		"confirmation_id": "mcp-cnf-...",
-		"decision": "decline"
-	}
-}
-```
-
-### Legacy direct confirmation
-
-`MissionBay\Api\IConfirmableAgentTool` remains supported as a compatibility contract for direct callers. It provides an array-based confirmation request but does not provide a mutation snapshot or final commit validation.
-
-New mutating tools should use `IAgentMutationGuardedTool` and the three explicit mutation annotations above. `IConfirmableAgentTool` must not be used to bypass a commit guard required by a tool definition.
-
-This workflow uses ordinary MCP tool calls and does not require SSE.
+`IConfirmableAgentTool` remains available for direct in-process callers. It is not part of the inbound MCP execution path. The policy-controlled MissionBay agent harness continues to use action policies and mutation commit guards for its own local tool execution.
 
 ## Resources
 

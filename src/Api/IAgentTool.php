@@ -40,9 +40,9 @@ use Base3\Api\IBase;
  * state shown to the user, creates the user-facing AgentActionReview, and
  * revalidates the state immediately before callTool() may perform the write.
  *
- * IConfirmableAgentTool is a separate compatibility capability used by the
- * direct/MCP confirmation flow. It must not be confused with the
- * policy-controlled guarded mutation lifecycle.
+ * IConfirmableAgentTool is a separate compatibility capability for direct
+ * in-process callers. It must not be confused with the policy-controlled
+ * guarded mutation lifecycle or with MCP client-side approval.
  *
  * Tool implementations should remain transport-neutral. They describe and
  * execute operations; Chatbot, MCP and administration UIs decide how the
