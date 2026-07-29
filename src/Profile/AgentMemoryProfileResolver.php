@@ -17,9 +17,7 @@
 
 namespace MissionBay\Profile;
 
-use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Api\IAgentMemory;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentResource;
@@ -62,8 +60,8 @@ final class AgentMemoryProfileResolver {
 				'id' => $profile['id'],
 				'label' => $profile['label'],
 				'description' => $profile['description'],
-				'preset_count' => count($profile['presets']),
-				'memory_count' => count($profile['presets'])
+				'preset_count' => count($profile[self::PRESET_FIELD]),
+				'memory_count' => count($profile[self::PRESET_FIELD])
 			];
 		}
 
@@ -102,10 +100,14 @@ final class AgentMemoryProfileResolver {
 			throw new \RuntimeException('Memory profile is disabled: ' . $profileId);
 		}
 
+		if (count($profile[self::PRESET_FIELD]) !== 1) {
+			throw new \RuntimeException('Memory profile must contain exactly one conversation memory: ' . $profileId);
+		}
+
 		$components = [];
 		$order = 10;
 
-		foreach ($profile['presets'] as $presetId) {
+		foreach ($profile[self::PRESET_FIELD] as $presetId) {
 			$preset = $this->requirePreset($presetId);
 			if (!$this->isConversationMemoryPreset($preset)) {
 				throw new \RuntimeException('Memory profile preset is not a conversation memory: ' . $presetId);
@@ -133,18 +135,13 @@ final class AgentMemoryProfileResolver {
 	public function normalizeProfile(string $id, array $settings): array {
 		$id = $this->normalizeId((string)($settings['id'] ?? $id));
 		$label = trim((string)($settings['label'] ?? ''));
-		$presets = $settings[self::PRESET_FIELD] ?? ($settings['presets'] ?? null);
-
-		if (!is_array($presets)) {
-			$presets = $this->extractLegacyPresets($settings['entries'] ?? []);
-		}
+		$presets = $settings[self::PRESET_FIELD] ?? [];
 
 		return [
 			'id' => $id,
 			'label' => $label !== '' ? $label : $id,
 			'description' => trim((string)($settings['description'] ?? '')),
 			'enabled' => $this->toBool($settings['enabled'] ?? true),
-			'presets' => $this->normalizeIds($presets),
 			self::PRESET_FIELD => $this->normalizeIds($presets)
 		];
 	}
@@ -195,12 +192,7 @@ final class AgentMemoryProfileResolver {
 			return false;
 		}
 
-		if ($resource instanceof IAgentConversationMemory) {
-			return true;
-		}
-
-		return $resource instanceof IAgentMemory
-			&& !($resource instanceof IAgentContextContributor);
+		return $resource instanceof IAgentConversationMemory;
 	}
 
 	/** @return array<string,mixed> */
@@ -213,37 +205,6 @@ final class AgentMemoryProfileResolver {
 			throw new \RuntimeException('Memory profile references a disabled component preset: ' . $presetId);
 		}
 		return $preset;
-	}
-
-	/** @return array<int,string> */
-	private function extractLegacyPresets(mixed $entries): array {
-		if (!is_array($entries)) {
-			return [];
-		}
-
-		$result = [];
-		foreach ($entries as $entry) {
-			if (!is_array($entry) || !$this->toBool($entry['enabled'] ?? true)) {
-				continue;
-			}
-
-			$presetId = $this->normalizeId((string)($entry['preset'] ?? ''));
-			if ($presetId === '') {
-				continue;
-			}
-
-			$role = strtolower(trim(str_replace('_', '-', (string)($entry['role'] ?? 'auto'))));
-			if (in_array($role, ['context', 'contributor', 'context-contributor'], true)) {
-				continue;
-			}
-
-			$preset = $this->presetRepository->getPreset($presetId, []);
-			if ($preset !== [] && $this->isConversationMemoryPreset($preset)) {
-				$result[] = $presetId;
-			}
-		}
-
-		return $result;
 	}
 
 	/** @param array<string,mixed> $config */

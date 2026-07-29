@@ -7,19 +7,19 @@
 namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Dto\AgentConversation;
+use AssistantFoundation\Dto\AgentConversationScope;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentMemoryRoleProvider;
 
 /**
  * Applies profile-level read/write settings to one conversation memory.
  */
-class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAgentConversationMemory, IAgentMemoryRoleProvider {
+class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAgentConversationMemory {
 
-	private ?IAgentMemory $memory = null;
+	private ?IAgentConversationMemory $memory = null;
 	private bool $enabled = true;
 	private bool $readEnabled = true;
 	private bool $writeEnabled = true;
@@ -46,7 +46,7 @@ class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAg
 			new AgentNodeDock(
 				name: 'memory',
 				description: 'Configured conversation-memory resource.',
-				interface: IAgentMemory::class,
+				interface: IAgentConversationMemory::class,
 				maxConnections: 1,
 				required: true
 			)
@@ -63,61 +63,89 @@ class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAg
 
 	public function init(array $resources, IAgentContext $context): void {
 		$candidate = $resources['memory'][0] ?? null;
-		$this->memory = $candidate instanceof IAgentMemory ? $candidate : null;
+		$this->memory = $candidate instanceof IAgentConversationMemory ? $candidate : null;
+		if ($this->enabled && !$this->memory instanceof IAgentConversationMemory) {
+			throw new \RuntimeException('Configured conversation memory requires one IAgentConversationMemory resource.');
+		}
+	}
+
+	public function bindConversationScope(AgentConversationScope $scope): void {
+		$this->requireMemory()->bindConversationScope($scope);
+	}
+
+	public function listConversations(): array {
+		return $this->canRead() ? $this->requireMemory()->listConversations() : [];
+	}
+
+	public function getConversation(string $conversationId): ?AgentConversation {
+		return $this->canRead() ? $this->requireMemory()->getConversation($conversationId) : null;
+	}
+
+	public function getActiveConversation(): ?AgentConversation {
+		return $this->canRead() ? $this->requireMemory()->getActiveConversation() : null;
+	}
+
+	public function createConversation(
+		?string $conversationId = null,
+		string $title = '',
+		string $titleSource = AgentConversation::TITLE_SOURCE_TEMPORARY,
+		string $openingMessage = ''
+	): AgentConversation {
+		$this->requireWrite();
+		return $this->requireMemory()->createConversation($conversationId, $title, $titleSource, $openingMessage);
+	}
+
+	public function activateConversation(string $conversationId): AgentConversation {
+		$this->requireWrite();
+		return $this->requireMemory()->activateConversation($conversationId);
+	}
+
+	public function renameConversation(
+		string $conversationId,
+		string $title,
+		string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL
+	): AgentConversation {
+		$this->requireWrite();
+		return $this->requireMemory()->renameConversation($conversationId, $title, $titleSource);
+	}
+
+	public function deleteConversation(string $conversationId): void {
+		$this->requireWrite();
+		$this->requireMemory()->deleteConversation($conversationId);
+	}
+
+	public function touchConversation(string $conversationId): AgentConversation {
+		$this->requireWrite();
+		return $this->requireMemory()->touchConversation($conversationId);
 	}
 
 	public function loadNodeHistory(string $nodeId): array {
-		if (!$this->enabled || !$this->readEnabled || !$this->memory instanceof IAgentMemory) {
-			return [];
-		}
-		return $this->memory->loadNodeHistory($nodeId);
+		return $this->canRead() ? $this->requireMemory()->loadNodeHistory($nodeId) : [];
 	}
 
 	public function appendNodeHistory(string $nodeId, array $message): void {
-		if (!$this->enabled || !$this->writeEnabled || !$this->memory instanceof IAgentMemory) {
-			return;
+		if ($this->canWrite()) {
+			$this->requireMemory()->appendNodeHistory($nodeId, $message);
 		}
-		$this->memory->appendNodeHistory($nodeId, $message);
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		if (!$this->enabled || !$this->writeEnabled || !$this->memory instanceof IAgentMemory) {
-			return false;
-		}
-		return $this->memory->setFeedback($nodeId, $messageId, $feedback);
+		return $this->canWrite()
+			? $this->requireMemory()->setFeedback($nodeId, $messageId, $feedback)
+			: false;
 	}
 
 	public function resetNodeHistory(string $nodeId): void {
-		if (!$this->enabled || !$this->writeEnabled || !$this->memory instanceof IAgentMemory) {
-			return;
+		if ($this->canWrite()) {
+			$this->requireMemory()->resetNodeHistory($nodeId);
 		}
-		$this->memory->resetNodeHistory($nodeId);
 	}
 
 	public function getPriority(): int {
 		if ($this->priority !== null) {
 			return $this->priority;
 		}
-		return $this->memory instanceof IAgentMemory ? $this->memory->getPriority() : 100;
-	}
-
-	public function providesConversationMemory(): bool {
-		return $this->enabled && $this->memory instanceof IAgentMemory;
-	}
-
-	public function providesContextContributions(): bool {
-		return false;
-	}
-
-	public function usesLegacyMemorySemantics(): bool {
-		if (!$this->enabled || !$this->memory instanceof IAgentMemory) {
-			return false;
-		}
-		if ($this->memory instanceof IAgentMemoryRoleProvider) {
-			return $this->memory->usesLegacyMemorySemantics();
-		}
-		return !($this->memory instanceof IAgentConversationMemory)
-			&& !($this->memory instanceof IAgentContextContributor);
+		return $this->memory?->getPriority() ?? 100;
 	}
 
 	public function getWrappedMemory(): ?IAgentMemory {
@@ -125,15 +153,33 @@ class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAg
 	}
 
 	public function isReadEnabled(): bool {
-		return $this->enabled && $this->readEnabled;
+		return $this->canRead();
 	}
 
 	public function isWriteEnabled(): bool {
-		return $this->enabled && $this->writeEnabled;
+		return $this->canWrite();
 	}
 
-	public function getConfiguredRole(): string {
-		return 'conversation-memory';
+	private function requireMemory(): IAgentConversationMemory {
+		if (!$this->enabled || !$this->memory instanceof IAgentConversationMemory) {
+			throw new \RuntimeException('Configured conversation memory is not available.');
+		}
+
+		return $this->memory;
+	}
+
+	private function canRead(): bool {
+		return $this->enabled && $this->readEnabled && $this->memory instanceof IAgentConversationMemory;
+	}
+
+	private function canWrite(): bool {
+		return $this->enabled && $this->writeEnabled && $this->memory instanceof IAgentConversationMemory;
+	}
+
+	private function requireWrite(): void {
+		if (!$this->canWrite()) {
+			throw new \RuntimeException('Configured conversation memory is not writable.');
+		}
 	}
 
 	private function resolveNullableInt(mixed $config): ?int {

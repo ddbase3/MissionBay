@@ -551,6 +551,7 @@ final class AgentAdminDisplay implements IDisplay {
          */
         private function buildAgentContextVars(string $agentId, array $settings, string $userPrompt): array {
                 return [
+                        'conversation_channel_id' => 'agent-admin:' . $agentId,
                         'agent_id' => $agentId,
                         'agent_label' => trim((string)($settings['label'] ?? '')),
                         'agent_config' => $settings,

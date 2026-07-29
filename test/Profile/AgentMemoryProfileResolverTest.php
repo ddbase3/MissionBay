@@ -5,6 +5,8 @@ namespace MissionBay\Test\Profile;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentConversationMemory;
+use AssistantFoundation\Dto\AgentConversation;
+use AssistantFoundation\Dto\AgentConversationScope;
 use AssistantFoundation\Dto\AgentInstructionBlock;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentComponentPresetRepository;
@@ -63,26 +65,44 @@ final class AgentMemoryProfileResolverTest extends TestCase {
 		$this->assertSame([['context'], ['context'], ['context']], array_column($resolver->resolveComponents('page-context'), 'attach_as'));
 	}
 
-	public function testLegacyCombinedProfileIsSplitByActualRuntimeContract(): void {
+	public function testMemoryProfileDoesNotReadLegacyEntries(): void {
 		$store = $this->settingsStore([
 			AgentMemoryProfileResolver::SETTINGS_GROUP => [
 				'legacy-combined' => [
 					'label' => 'Legacy combined',
 					'enabled' => true,
 					'entries' => [
-						['preset' => 'session-main', 'role' => 'conversation-memory'],
-						['preset' => 'current-time', 'role' => 'auto'],
-						['preset' => 'user-prefs', 'role' => 'auto']
+						['preset' => 'session-main', 'role' => 'conversation-memory']
 					]
 				]
 			]
 		]);
-		$memory = new AgentMemoryProfileResolver($store, $this->presetRepository(), $this->resourceFactory());
-		$context = new AgentContextProfileResolver($store, $this->presetRepository(), $this->resourceFactory());
+		$resolver = new AgentMemoryProfileResolver($store, $this->presetRepository(), $this->resourceFactory());
 
-		$this->assertSame(['session-main'], $memory->getProfile('legacy-combined')['presets']);
-		$this->assertSame(['current-time', 'user-prefs'], $context->getProfile('legacy-combined')['presets']);
-		$this->assertTrue($context->getProfile('legacy-combined')['legacy_derived']);
+		$this->assertSame([], $resolver->getProfile('legacy-combined')[AgentMemoryProfileResolver::PRESET_FIELD]);
+		$this->expectException(\RuntimeException::class);
+		$resolver->resolveComponents('legacy-combined');
+	}
+
+	public function testMemoryProfileRequiresExactlyOneConversationMemory(): void {
+		$store = $this->settingsStore([
+			AgentMemoryProfileResolver::SETTINGS_GROUP => [
+				'invalid' => [
+					'enabled' => true,
+					'memories' => ['session-main', 'session-copy']
+				]
+			]
+		]);
+		$repository = $this->presetRepository();
+		$repository->savePreset('session-copy', [
+			'id' => 'session-copy',
+			'type' => 'testconversationmemory',
+			'enabled' => true
+		]);
+		$resolver = new AgentMemoryProfileResolver($store, $repository, $this->resourceFactory());
+
+		$this->expectException(\RuntimeException::class);
+		$resolver->resolveComponents('invalid');
 	}
 
 	/** @param array<string,array<string,array<string,mixed>>> $groups */
@@ -123,6 +143,15 @@ final class AgentMemoryProfileResolverTest extends TestCase {
 					'testconversationmemory' => new class('conversation') extends AbstractAgentResource implements IAgentConversationMemory {
 						public static function getName(): string { return 'testconversationmemory'; }
 						public function getDescription(): string { return 'Test conversation memory.'; }
+						public function bindConversationScope(AgentConversationScope $scope): void {}
+						public function listConversations(): array { return []; }
+						public function getConversation(string $conversationId): ?AgentConversation { return null; }
+						public function getActiveConversation(): ?AgentConversation { return null; }
+						public function createConversation(?string $conversationId = null, string $title = '', string $titleSource = AgentConversation::TITLE_SOURCE_TEMPORARY, string $openingMessage = ''): AgentConversation { throw new \RuntimeException(); }
+						public function activateConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
+						public function renameConversation(string $conversationId, string $title, string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL): AgentConversation { throw new \RuntimeException(); }
+						public function deleteConversation(string $conversationId): void {}
+						public function touchConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
 						public function loadNodeHistory(string $nodeId): array { return []; }
 						public function appendNodeHistory(string $nodeId, array $message): void {}
 						public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool { return false; }

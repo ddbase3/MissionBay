@@ -110,7 +110,7 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 				<select id="<?php echo $e($formId); ?>_context_profile" name="context_profile">
 					<option value=""<?php echo $selected($values['context_profile']??'',''); ?>>No context profile</option>
 <?php foreach($contextProfiles as $profile): $id=(string)($profile['id']??''); if($id==='') continue; ?>
-					<option value="<?php echo $e($id); ?>"<?php echo $selected($values['context_profile']??'',$id); ?>><?php echo $e(($profile['label']??$id) . ' (' . (int)($profile['preset_count']??$profile['context_count']??0) . ')' . (!empty($profile['legacy_derived']) ? ' [legacy derived]' : '')); ?></option>
+					<option value="<?php echo $e($id); ?>"<?php echo $selected($values['context_profile']??'',$id); ?>><?php echo $e(($profile['label']??$id) . ' (' . (int)($profile['preset_count']??$profile['context_count']??0) . ')'); ?></option>
 <?php endforeach; ?>
 				</select>
 				<p class="base3-agent-config-help">Selects configured context-contributor presets. These add system context but do not store conversation history.</p>

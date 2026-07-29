@@ -6,7 +6,7 @@ MissionBay separates three concerns:
 
 ```text
 Conversation memory
-  visible user/assistant history loaded into later turns
+  visible user/assistant history and conversation metadata
 
 Context contributor
   run-local system-context blocks such as time, preferences, or page data
@@ -15,44 +15,95 @@ Knowledge / Skills tool
   explicit agent-owned storage accessed through tool calls
 ```
 
-Conversation history must work independently of tools. A failed or unused Knowledge tool does not affect whether visible messages remain available in later turns.
+Conversation history is independent from tools. A failed or unused Knowledge tool does not affect whether visible messages remain available in later turns.
 
-Assistant-turn routing does not use wording-specific regular expressions. Recent visible history is supplied regardless of the language or phrasing of the current request.
+## Conversation contract
 
-## Foundation contracts
-
-### `IAgentConversationMemory`
-
-`IAgentConversationMemory` extends the stable `IAgentMemory` API and marks a real conversation-history store.
-
-Implementations provide:
+A visible chat-history backend implements:
 
 ```text
-loadNodeHistory()
-appendNodeHistory()
-setFeedback()
-resetNodeHistory()
-getPriority()
+AssistantFoundation\Api\IAgentConversationMemory
 ```
 
-Typical implementations are session, database, volatile, and no-memory stores.
+The interface extends `IAgentMemory` and adds explicit conversation operations:
 
-### `IAgentContextContributor`
-
-A Context Contributor returns typed `AgentInstructionBlock` values for a new turn:
-
-```php
-new AgentInstructionBlock(
-    id: 'current-page',
-    content: 'The current ILIAS object is ...',
-    priority: 30,
-    source: 'ilias-page-context'
-);
+```text
+bindConversationScope()
+listConversations()
+getConversation()
+getActiveConversation()
+createConversation()
+activateConversation()
+renameConversation()
+deleteConversation()
+touchConversation()
 ```
 
-It receives no user/assistant history writes.
+The existing node-history methods continue to store and load the messages of the currently bound conversation.
 
-The complete plugin extension contract and implementation example are documented in `ASSISTANTFOUNDATION_EXTENSION_POINTS.md`.
+A conversation scope contains:
+
+```text
+owner_key
+channel_id
+conversation_id
+```
+
+The memory backend determines the owner from the authenticated user or active session. The agent context provides only the stable `conversation_channel_id` and the optional `conversation_id`.
+
+`channel_id` identifies one concrete chatbot or agent instance. Different chatbot instances therefore remain isolated even when they use the same agent and memory profiles.
+
+## Canonical implementations
+
+MissionBay provides exactly two conversation-memory implementations:
+
+```text
+MissionBay\Resource\SessionMemoryAgentResource
+MissionBay\Resource\DatabaseMemoryAgentResource
+```
+
+`SessionMemoryAgentResource` stores the complete canonical conversation structure through `ISession`.
+
+`DatabaseMemoryAgentResource` stores conversation metadata and messages in:
+
+```text
+base3_missionbay_conversation
+base3_missionbay_conversation_message
+```
+
+Its `ensureTables()` method creates missing tables with `CREATE TABLE IF NOT EXISTS`. It never alters existing tables. It does not use transactions, `insertId()`, `affectedRows()`, or database error-state methods.
+
+`ConfiguredAgentMemoryResource` is the configuration wrapper for one concrete conversation memory. It delegates the complete conversation contract and does not create another storage layer.
+
+`NoMemory` is only a generic no-op `IAgentMemory`; it is not a conversation-history backend.
+
+## Memory profiles
+
+A Memory Profile stores its selected preset in the canonical field:
+
+```text
+memories
+```
+
+A valid Memory Profile contains exactly one enabled preset whose resource implements `IAgentConversationMemory`.
+
+There is no priority-based choice between several writable histories and no implicit conversion of generic `IAgentMemory` implementations into conversation memory.
+
+## Context profiles
+
+A Context Profile stores its selected presets in the canonical field:
+
+```text
+contexts
+```
+
+Each selected resource must implement:
+
+```text
+AssistantFoundation\Api\IAgentContextContributor
+```
+
+Context contributors return typed `AgentInstructionBlock` values. They do not receive user/assistant history writes.
 
 ## Turn preparation
 
@@ -65,13 +116,11 @@ base system instruction
   -> current user message
 ```
 
-Conversation stores are ordered by memory priority. Context blocks are ordered by contributor priority, block priority, block id, and original sequence.
-
-The current user message is written to active writable conversation memory before later capability discovery, action policy, tool execution, or model processing can fail.
+The current user message is written to the active conversation memory before later capability discovery, action policy, tool execution, or model processing can fail.
 
 ## Suspension and resume
 
-Context Contributors are resolved once when a new turn starts. A suspended mutation resumes with the frozen reviewed message set rather than re-reading current preferences, page state, or other contributors.
+Context contributors are resolved once when a new turn starts. A suspended mutation resumes with the frozen reviewed message set rather than re-reading current preferences, page state, or other contributors.
 
 ```text
 new turn
@@ -83,36 +132,11 @@ resume
   -> restore frozen messages and reviewed action
 ```
 
-## Backward compatibility
-
-`IAgentMemory` remains supported. MissionBay resolves roles as follows:
-
-```text
-IAgentConversationMemory
-  -> explicit conversation memory
-
-IAgentContextContributor
-  -> explicit context contributor
-
-legacy IAgentMemory only
-  -> conversation-compatible legacy memory with diagnostic warning
-```
-
-New context-only components must not implement `IAgentMemory` merely to inject system text. New conversation stores should implement `IAgentConversationMemory`.
-
-## Configured presets and wrappers
-
-A Memory Profile contains concrete configured Component Preset IDs. `ConfiguredAgentMemoryResource` wraps only conversation-memory presets and delegates read/write behavior to the configured resource.
-
-A Context Profile contains concrete configured `IAgentContextContributor` presets. Contributors connect directly to the `contextcontributors` dock; there is no combined memory/context wrapper.
-
-When one configured preset exposes both a tool and a context facet, the flow builder creates one base resource and attaches the corresponding tool wrapper and context dock to that same instance.
-
 ## Docks
 
 ```text
 memory
-  IAgentMemory / IAgentConversationMemory
+  IAgentConversationMemory
 
 contextcontributors
   IAgentContextContributor
@@ -123,35 +147,30 @@ tools
 
 Knowledge / Skills is attached through `tools`, not through either memory dock.
 
-## Profiles
-
-The normal agent configuration separates:
-
-```text
-Tool Profiles
-Memory Profile
-Context Profile
-```
-
-Profiles reference configured Component Presets, not implementation classes. Preset configuration such as namespace, retention limit, priority, credentials, or user scope is reused unchanged.
-
-Older mixed profile records remain readable through the compatibility splitter. This is intentional supported compatibility and is not an open cleanup item. New and resaved configurations use the separated profile fields.
-
-See `AGENT_MEMORY_CONTEXT_PROFILES.md`.
-
 ## Diagnostics
 
-Effective Composition reports separately:
+Effective Composition reports the explicit roles:
 
 ```text
 conversation-memory
 context-contributor
-legacy-memory
 tool
 ```
 
 It also shows the contributing profile, concrete preset id, implementation, effective dock, priority, and redacted configuration.
 
-## Stable boundary
+## Suggestion turns
 
-`IAgentContext::getMemory()` and `setMemory()` remain for the shared compatibility contract. MissionBay-specific typed state access is provided by `MissionBay\Api\IAgentStateContext` and does not belong in AssistantFoundation.
+Suggestions are not a second conversation and are not stored as messages. The
+request enters the existing assistant node with `mode=suggestions`. The node
+loads the active conversation as read-only context, disables tools, and disables
+both user and assistant memory writes. This keeps suggestions relevant to the
+current conversation without introducing another history or scope.
+
+## Runtime-neutral conversation access
+
+Other plugins manage conversations through
+`AssistantFoundation\Api\IAgentConversationService`. AssistantRuntime selects
+the configured runtime and MissionBay resolves exactly one conversation memory
+from the selected Memory Profile. The service never selects a different profile
+or memory when the configuration is invalid.

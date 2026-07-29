@@ -109,22 +109,6 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 	}
 
 	private function memoryIdentity(IAgentMemory $memory): string {
-		if (method_exists($memory, 'id')) {
-			try {
-				return (string)$memory->id();
-			}
-			catch (\Throwable) {
-			}
-		}
-
-		if (method_exists($memory, 'getId')) {
-			try {
-				return (string)$memory->getId();
-			}
-			catch (\Throwable) {
-			}
-		}
-
 		return (string)spl_object_id($memory);
 	}
 

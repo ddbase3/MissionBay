@@ -70,10 +70,14 @@ Model, provider, result, memory, and vector contracts are normally implemented b
 | `IAgentContext` | shared run context used by external stages, modules, memories, and tools | direct contract/factory | `MissionBay\Agent\AgentContext` |
 | `IAgentContextContributor` | plugins may add system-context sources | configured component | `MissionBay\Resource\AgentMemory\Time\TimeMemoryAgentResource` |
 | `IAgentConversationMemory` | plugins may add conversation-history backends | resource/direct contract | `MissionBay\Resource\SessionMemoryAgentResource` |
+| `IAgentConversationService` | plugins manage conversations without depending on runtime internals | container service | `AssistantRuntime\Service\RoutingAgentConversationService` |
+| `IAgentConversationRuntimeService` | runtimes expose their conversation-memory implementation | class-map runtime capability | `MissionBay\Service\AgentConversationService` |
 | `IAgentConfigFormService` | host UIs can embed runtime-specific agent configuration without importing the runtime plugin | container service | `MissionBay\Service\AgentConfigFormService` |
 | `IAgentEventSink` | runtimes emit incremental output without knowing HTTP, SSE, jobs, or UI implementations | run-scoped adapter | `Chatbot\Service\EventStreamAgentEventSink` |
 | `IAgentExecutionService` | other plugins execute configured agents without depending on MissionBay internals | container service | `MissionBay\Service\AgentExecutionService` |
-| `IAgentMemory` | stable legacy/base memory contract shared by existing plugins | direct contract | `MissionBay\Memory\VolatileMemory` |
+| `IAgentTextTaskService` | plugins execute isolated model-only tasks | container service | `AssistantRuntime\Service\RoutingAgentTextTaskService` |
+| `IAgentTextTaskRuntimeService` | runtimes provide isolated model-only task execution | class-map runtime capability | `MissionBay\Service\AgentTextTaskService` |
+| `IAgentMemory` | provider-neutral node-history base contract | direct contract | `MissionBay\Memory\NoMemory` |
 | `IAgentModule` | plugins may activate run-local instruction/capability bundles | configured component | test example in `AgentCapabilityDiscoveryServiceTest` |
 | `IAgentStage` | plugins may add semantic pipeline stages | configured component | `MissionBay\Orchestrator\Stage\AgentCapabilityDiscoveryStage` |
 | `IAgentSuspensionRepository` | projects may replace durable suspension storage | container service | `AssistantRuntime\Service\StateStoreAgentSuspensionRepository` |
@@ -83,7 +87,6 @@ Model, provider, result, memory, and vector contracts are normally implemented b
 | `IAiProvider` | plugins may provide transport/provider implementations | direct adapter | `MissionBay\Transport\OpenAiCompatibleTransport` |
 | `IAiResult` | plugins may add provider-neutral result DTOs | result contract | `AssistantFoundation\Dto\AiChatResult` |
 | `IAiServiceTester` | plugins may add service health tests | class-map discovery | `AssistantRuntime\Display\AiServiceDashboardDisplay` consumer |
-| `IAiTaskService` | other plugins may invoke or replace simple AI-task execution | container service | `MissionBay\Service\MissionBayAiTaskService` |
 | `IVectorSearch` | plugins may provide vector-search backends | direct adapter/resource | `MissionBay\Resource\QdrantVectorSearch` |
 
 No MissionBay-only interface remains in AssistantFoundation after this audit. `MissionBay\Api\IAgentStateContext` is the explicit example of a contract that was moved because its lifecycle is owned only by MissionBay.
@@ -409,16 +412,19 @@ See `AGENT_MEMORY_AND_CONTEXT.md` and `AGENT_MEMORY_CONTEXT_PROFILES.md`.
 
 ### Use case
 
-Implement this marker interface for a store that loads and writes visible conversation history. New conversation-memory implementations should use this explicit contract instead of implementing only `IAgentMemory`.
+Implement this interface for a store that owns visible conversation metadata and
+user/assistant history. It is not a marker interface: the implementation must
+support explicit conversation binding, listing, creation, activation, rename,
+deletion, and touch operations in addition to the inherited node-history API.
 
 ### Requirements
 
-- preserve message order;
-- store complete message arrays without rewriting roles/content;
-- apply a bounded retention window;
-- isolate conversations by the runtime identity supplied to the implementation;
-- support reset and feedback consistently;
-- do not inject system prompt content.
+- bind every operation to one `AgentConversationScope`;
+- isolate data by server-owned owner key and stable channel ID;
+- preserve message order and complete message arrays;
+- keep manual titles from automatic replacement;
+- delete metadata and messages as one logical operation;
+- never infer another channel, owner, or conversation as a fallback.
 
 ### Example
 
@@ -428,48 +434,76 @@ Implement this marker interface for a store that loads and writes visible conver
 namespace ProjectAgent\Memory;
 
 use AssistantFoundation\Api\IAgentConversationMemory;
+use AssistantFoundation\Dto\AgentConversation;
+use AssistantFoundation\Dto\AgentConversationScope;
 
-final class ArrayConversationMemory implements IAgentConversationMemory {
+final class ProjectConversationMemory implements IAgentConversationMemory {
 
-    private array $messages = [];
+    private ?AgentConversationScope $scope = null;
 
     public static function getName(): string {
-        return 'arrayconversationmemory';
+        return 'projectconversationmemory';
     }
 
-    public function loadNodeHistory(string $nodeId): array {
-        return $this->messages[$nodeId] ?? [];
+    public function bindConversationScope(AgentConversationScope $scope): void {
+        $this->scope = $scope;
     }
 
-    public function appendNodeHistory(string $nodeId, array $message): void {
-        $this->messages[$nodeId][] = $message;
-        $this->messages[$nodeId] = array_slice($this->messages[$nodeId], -20);
+    public function listConversations(): array {
+        // Query only records matching the bound owner and channel.
+        return [];
     }
 
-    public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-        if (!isset($this->messages[$nodeId])) {
-            return false;
-        }
-        foreach ($this->messages[$nodeId] as &$message) {
-            if (($message['id'] ?? null) === $messageId) {
-                $message['feedback'] = $feedback;
-                return true;
-            }
-        }
-        return false;
+    public function getConversation(string $conversationId): ?AgentConversation {
+        return null;
     }
 
-    public function resetNodeHistory(string $nodeId): void {
-        unset($this->messages[$nodeId]);
+    public function getActiveConversation(): ?AgentConversation {
+        return $this->listConversations()[0] ?? null;
     }
 
-    public function getPriority(): int {
-        return 80;
+    public function createConversation(?string $conversationId = null, string $title = '', string $titleSource = AgentConversation::TITLE_SOURCE_TEMPORARY, string $openingMessage = ''): AgentConversation {
+        throw new \LogicException('Example implementation.');
     }
+
+    public function activateConversation(string $conversationId): AgentConversation {
+        return $this->touchConversation($conversationId);
+    }
+
+    public function renameConversation(string $conversationId, string $title, string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL): AgentConversation {
+        throw new \LogicException('Example implementation.');
+    }
+
+    public function deleteConversation(string $conversationId): void {}
+    public function touchConversation(string $conversationId): AgentConversation { throw new \LogicException('Example implementation.'); }
+    public function loadNodeHistory(string $nodeId): array { return []; }
+    public function appendNodeHistory(string $nodeId, array $message): void {}
+    public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool { return false; }
+    public function resetNodeHistory(string $nodeId): void {}
+    public function getPriority(): int { return 80; }
 }
 ```
 
-Expose configured implementations as Component Presets and select them through a Memory Profile. Context Contributors belong in a separate Context Profile.
+Expose configured implementations as Component Presets and select exactly one
+through a Memory Profile. Context Contributors belong in a separate Context
+Profile.
+
+## `IAgentConversationService` and `IAgentConversationRuntimeService`
+
+Consumers inject `IAgentConversationService` for runtime-neutral state, create,
+activate, rename, delete, and touch operations. AssistantRuntime supplies the
+router. A runtime implements `IAgentConversationRuntimeService` under the same
+stable runtime ID as its execution and configuration-form services.
+
+```php
+public function __construct(
+    private readonly IAgentConversationService $conversations
+) {}
+```
+
+The runtime implementation must resolve the configured Memory Profile and fail
+when it does not contain exactly one `IAgentConversationMemory`. It must not
+select another profile or backend.
 
 ## `IAgentExecutionService`
 
@@ -515,6 +549,26 @@ A transport creates an `IAgentEventSink` implementation and passes it as the sec
 
 A runtime implements `IAgentRuntimeService` and its paired `IAgentRuntimeConfigFormService` under one stable runtime ID. AssistantRuntime registers the single generic `IAgentExecutionService` router and selects the runtime from `agent_runtime`. Runtime-specific compilation and inspection APIs do not belong to the generic interface.
 
+## `IAgentTextTaskService` and `IAgentTextTaskRuntimeService`
+
+Use `IAgentTextTaskService` for isolated model-only tasks such as a concise chat
+title or contextual opening message. AssistantRuntime routes the request to the
+selected runtime. The runtime implementation must not materialize conversation
+memory, execute tools, or create agent suspensions.
+
+```php
+$result = $textTasks->executeTextTask(new AgentTextTaskRequest(
+    agentConfiguration: $settings,
+    taskName: 'chat-title',
+    systemPrompt: 'Return one concise title.',
+    prompt: $firstTurn
+));
+```
+
+A request may explicitly include a Context Profile and a non-executable Tool
+Profile capability catalog. The model call still receives an empty executable
+tool list.
+
 ## `IAgentConfigFormService`
 
 Host configuration displays consume this facade. AssistantRuntime provides the composite implementation that lists all paired runtime forms. MissionBay and Neuron AI each provide an `IAgentRuntimeConfigFormService`; Chatbot and Agent Admin remain independent of either runtime plugin.
@@ -527,18 +581,18 @@ Agent runtimes and tools emit named `AgentExecutionEvent` objects through this r
 
 ### Use case
 
-This is the stable base and compatibility contract for conversation history. Existing plugins may still implement it directly. New conversation stores should implement `IAgentConversationMemory`.
+This is the provider-neutral base contract for node history. A component is a selectable visible conversation-history backend only when it implements `IAgentConversationMemory`.
 
 ### Rules
 
-- direct `IAgentMemory` implementations are treated as legacy conversation memory;
+- Memory Profiles accept exactly one `IAgentConversationMemory` preset;
+- a direct `IAgentMemory` implementation is not promoted to conversation memory;
 - Context Contributors must not implement this interface merely to inject system prompt text;
-- `getPriority()` orders several conversation stores when a project intentionally configures more than one;
 - message arrays must remain provider-neutral.
 
 ### Example
 
-`MissionBay\Memory\VolatileMemory` is the minimal reference implementation. The complete implementation is equivalent to the `IAgentConversationMemory` example above but may omit the marker for backward compatibility.
+`MissionBay\Memory\NoMemory` is the no-op base implementation. The canonical conversation implementations are `MissionBay\Resource\SessionMemoryAgentResource` and `MissionBay\Resource\DatabaseMemoryAgentResource`.
 
 ## `IAgentModule`
 
@@ -1058,37 +1112,6 @@ final class ProjectAiServiceTester implements IAiServiceTester {
 ```
 
 Register the implementation through the class map under `IAiServiceTester::class`; the AssistantFoundation dashboard discovers testers by interface and type.
-
-## `IAiTaskService`
-
-### Use case
-
-Consume this service from plugins that need one simple system-prompt/user-prompt task without importing MissionBay runtime internals. Replace it when the project uses another execution backend for the same public contract.
-
-### Example implementation
-
-```php
-<?php declare(strict_types=1);
-
-namespace ProjectAi\Service;
-
-use AssistantFoundation\Api\IAiTaskService;
-use AssistantFoundation\Api\IAiChatModel;
-
-final class DirectAiTaskService implements IAiTaskService {
-
-    public function __construct(private readonly IAiChatModel $model) {}
-
-    public function run(string $systemPrompt, string $userPrompt, array $agentFlow): string {
-        return $this->model->chat([
-            ['role' => 'system', 'content' => $systemPrompt],
-            ['role' => 'user', 'content' => $userPrompt]
-        ]);
-    }
-}
-```
-
-Register the project implementation under `IAiTaskService::class`. The `agentFlow` argument must remain accepted even if a replacement intentionally ignores it.
 
 ## `IVectorSearch`
 

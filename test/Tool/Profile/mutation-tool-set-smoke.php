@@ -102,10 +102,9 @@ PHP);
 		'runtime_id' => 'neuronai',
 		'turn_id' => 'smoke-turn',
 		'conversation_id' => 'smoke-conversation',
-		'conversation_owner_key' => str_repeat('a', 64),
+		'conversation_channel_id' => 'smoke-chatbot',
 		'config_group' => 'smoke-group',
 		'config_name' => 'smoke-config',
-		'chatbot_key' => 'smoke-group:smoke-config',
 		'prompt_text' => 'Update the smoke value.'
 	]);
 	$context->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_DEFINITIONS, [$definition]);

@@ -20,53 +20,25 @@ namespace MissionBay\Service\Memory;
 use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
-use MissionBay\Api\IAgentMemoryRoleProvider;
 use MissionBay\Api\IAgentMemoryRoleResolver;
 
 final class AgentMemoryRoleResolver implements IAgentMemoryRoleResolver {
 
 	public function isConversationMemory(IAgentMemory $memory): bool {
-		if ($memory instanceof IAgentMemoryRoleProvider) {
-			return $memory->providesConversationMemory();
-		}
-
-		if ($memory instanceof IAgentConversationMemory) {
-			return true;
-		}
-
-		return !($memory instanceof IAgentContextContributor);
+		return $memory instanceof IAgentConversationMemory;
 	}
 
 	public function isContextContributor(IAgentMemory $memory): bool {
-		if ($memory instanceof IAgentMemoryRoleProvider) {
-			return $memory->providesContextContributions();
-		}
-
 		return $memory instanceof IAgentContextContributor;
-	}
-
-	public function isLegacyMemory(IAgentMemory $memory): bool {
-		if ($memory instanceof IAgentMemoryRoleProvider) {
-			return $memory->usesLegacyMemorySemantics();
-		}
-
-		return !($memory instanceof IAgentConversationMemory)
-			&& !($memory instanceof IAgentContextContributor);
 	}
 
 	public function getRoles(IAgentMemory $memory): array {
 		$roles = [];
-
 		if ($this->isConversationMemory($memory)) {
 			$roles[] = 'conversation-memory';
 		}
-
 		if ($this->isContextContributor($memory)) {
 			$roles[] = 'context-contributor';
-		}
-
-		if ($this->isLegacyMemory($memory)) {
-			$roles[] = 'legacy-memory';
 		}
 
 		return $roles;

@@ -311,6 +311,7 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 	 */
 	private function buildAgentContextVars(array $settings, array $arguments, string $prompt): array {
 		return [
+			'conversation_channel_id' => 'sub-agent:' . $this->getId() . ':' . $this->agentId,
 			'sub_agent_id' => $this->agentId,
 			'sub_agent_label' => trim((string)($settings['label'] ?? '')),
 			'sub_agent_config' => $settings,

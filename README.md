@@ -471,11 +471,27 @@ Have a node idea? Feel free to propose a PR!
 
 ## Runtime registration
 
-MissionBay registers `AgentExecutionService` and `AgentConfigFormService` as a
+MissionBay registers `AgentExecutionService`, `AgentConversationService`, `AgentTextTaskService`, and `AgentConfigFormService` as a
 paired runtime with ID `missionbay`. AssistantRuntime owns the generic
 execution router and composite form. Agent Admin and scheduled jobs honor the
 stored `agent_runtime` value. Chatbot resolves its combined `chatbot_backend`
-selection to the same runtime router.
+selection to the same runtime router. Conversation management and isolated text tasks use the corresponding AssistantRuntime routers.
+
+## Read-only suggestion turns
+
+The Chatbot suggestions request uses the normal agent flow with `mode=suggestions`.
+`AgentExecutionService` connects this runtime input to the configured assistant
+node. The node may read the active conversation to derive relevant suggestions,
+but it disables tools and both user/assistant memory writes for that request.
+Suggestion prompts and results therefore never become conversation messages.
+
+## Isolated text tasks
+
+`AgentTextTaskService` uses the chat model configured on the effective assistant
+node for tasks such as automatic titles and contextual opening messages. It does
+not materialize the Memory Profile and calls the model with an empty executable
+tool list. When requested, Context Profiles contribute system context and Tool
+Profiles contribute a read-only name/description capability catalog.
 
 ## AgentFlow form validation
 

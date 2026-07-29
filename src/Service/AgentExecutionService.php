@@ -36,6 +36,7 @@ final class AgentExecutionService implements IAgentRuntimeService {
 	private const CANONICAL_USER_INPUT = 'prompt';
 	private const LEGACY_USER_INPUT = 'user';
 	private const CANONICAL_RESUME_INPUT = 'resume';
+	private const CANONICAL_MODE_INPUT = 'mode';
 
 	public function __construct(
 		private readonly IAgentContextFactory $contextFactory,
@@ -135,30 +136,49 @@ final class AgentExecutionService implements IAgentRuntimeService {
 	 * @return array{0:array<string,mixed>,1:array<int,string>}
 	 */
 	private function prepareFlowForInputs(array $flow, array $agentConfiguration, array $inputs): array {
-		if (!array_key_exists(self::CANONICAL_RESUME_INPUT, $inputs)) {
-			return [$flow, []];
-		}
-
 		$assistantNodeId = $this->normalizeAssistantNodeId(
 			$agentConfiguration['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID
 		);
+		$warnings = [];
 
-		return $this->ensureResumeInputConnection($flow, $assistantNodeId);
+		if (array_key_exists(self::CANONICAL_MODE_INPUT, $inputs)) {
+			[$flow, $modeWarnings] = $this->ensureAssistantInputConnection(
+				$flow,
+				$assistantNodeId,
+				self::CANONICAL_MODE_INPUT
+			);
+			$warnings = array_merge($warnings, $modeWarnings);
+		}
+
+		if (array_key_exists(self::CANONICAL_RESUME_INPUT, $inputs)) {
+			[$flow, $resumeWarnings] = $this->ensureAssistantInputConnection(
+				$flow,
+				$assistantNodeId,
+				self::CANONICAL_RESUME_INPUT
+			);
+			$warnings = array_merge($warnings, $resumeWarnings);
+		}
+
+		return [$flow, array_values(array_unique($warnings))];
 	}
 
 	/**
 	 * @param array<string,mixed> $flow
 	 * @return array{0:array<string,mixed>,1:array<int,string>}
 	 */
-	private function ensureResumeInputConnection(array $flow, string $assistantNodeId): array {
+	private function ensureAssistantInputConnection(
+		array $flow,
+		string $assistantNodeId,
+		string $inputName
+	): array {
 		$nodeIndex = $this->findAssistantNodeIndex($flow, $assistantNodeId);
 		if ($nodeIndex === null || !isset($flow['nodes'][$nodeIndex]) || !is_array($flow['nodes'][$nodeIndex])) {
-			return [$flow, ['Assistant node not found for resume input connection: ' . $assistantNodeId]];
+			return [$flow, ['Assistant node not found for input connection: ' . $inputName]];
 		}
 
 		$targetNodeId = trim((string)($flow['nodes'][$nodeIndex]['id'] ?? ''));
 		if ($targetNodeId === '') {
-			return [$flow, ['Assistant node has no id for resume input connection.']];
+			return [$flow, ['Assistant node has no id for input connection: ' . $inputName]];
 		}
 
 		if (!isset($flow['connections']) || !is_array($flow['connections'])) {
@@ -171,9 +191,9 @@ final class AgentExecutionService implements IAgentRuntimeService {
 			}
 			if (
 				(string)($connection['from'] ?? '') === '__input__'
-				&& (string)($connection['output'] ?? '') === self::CANONICAL_RESUME_INPUT
+				&& (string)($connection['output'] ?? '') === $inputName
 				&& (string)($connection['to'] ?? '') === $targetNodeId
-				&& (string)($connection['input'] ?? '') === self::CANONICAL_RESUME_INPUT
+				&& (string)($connection['input'] ?? '') === $inputName
 			) {
 				return [$flow, []];
 			}
@@ -181,9 +201,9 @@ final class AgentExecutionService implements IAgentRuntimeService {
 
 		$flow['connections'][] = [
 			'from' => '__input__',
-			'output' => self::CANONICAL_RESUME_INPUT,
+			'output' => $inputName,
 			'to' => $targetNodeId,
-			'input' => self::CANONICAL_RESUME_INPUT
+			'input' => $inputName
 		];
 
 		return [$flow, []];

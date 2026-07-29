@@ -19,6 +19,8 @@ namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentConversationMemory;
+use AssistantFoundation\Dto\AgentConversation;
+use AssistantFoundation\Dto\AgentConversationScope;
 use Base3\Api\ISchemaProvider;
 use Base3\Logger\Api\ILogger;
 use Base3\Session\Api\ISession;
@@ -26,31 +28,25 @@ use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
- * Session-backed visible conversation history.
+ * Session-backed conversation metadata and visible message history.
  *
- * The store is encoded into small scalar chunks. This works with ISession
- * implementations that do not reliably persist nested arrays and replaces the
- * former ILIAS-only duplicate implementation. Existing array and ILIAS chunk
- * formats are read once and migrated on the next write.
+ * The complete store is encoded into scalar chunks because host session
+ * adapters are not required to preserve nested arrays reliably.
  */
 class SessionMemoryAgentResource extends AbstractAgentResource implements IAgentConversationMemory, ISchemaProvider {
 
-	private const FORMAT_KEY = 'mb_memory_format';
-	private const CHUNK_COUNT_KEY = 'mb_memory_chunk_count';
-	private const CHUNK_KEY_PREFIX = 'mb_memory_chunk_';
-	private const FORMAT = 'php-serialize-base64-v1';
+	private const FORMAT_KEY = 'base3_missionbay_conversation_memory_format';
+	private const CHUNK_COUNT_KEY = 'base3_missionbay_conversation_memory_chunk_count';
+	private const CHUNK_KEY_PREFIX = 'base3_missionbay_conversation_memory_chunk_';
+	private const FORMAT = 'php-serialize-base64-v2';
 	private const CHUNK_SIZE = 700;
 
-	private const LEGACY_ARRAY_KEY = 'mb_memory';
-	private const LEGACY_ILIAS_FORMAT_KEY = 'mb_memory_ilias_chunk_format';
-	private const LEGACY_ILIAS_COUNT_KEY = 'mb_memory_ilias_chunk_count';
-	private const LEGACY_ILIAS_CHUNK_PREFIX = 'mb_memory_ilias_chunk_';
-
 	private ?ILogger $logger = null;
+	private ?AgentConversationScope $scope = null;
 	private string $namespace = 'default';
 	private int $max = 20;
+	private int $maxConversations = 50;
 	private int $priority = 80;
-	private string $conversationScope = 'default';
 
 	public function __construct(
 		private readonly ISession $session,
@@ -66,7 +62,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	public function getDescription(): string {
-		return 'Provides robust session-backed visible conversation history through ISession.';
+		return 'Provides session-backed multi-conversation history through ISession.';
 	}
 
 	public function getSchema(): array {
@@ -76,14 +72,20 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 			'properties' => [
 				'namespace' => [
 					'type' => 'string',
-					'description' => 'Session memory namespace used to isolate memory buckets.',
+					'description' => 'Session memory namespace used to isolate memory stores.',
 					'default' => 'default'
 				],
 				'max' => [
 					'type' => 'integer',
-					'description' => 'Maximum number of visible chat messages stored per node. At least 2 are required for one complete user/assistant turn; 10 or more are recommended for normal chat.',
+					'description' => 'Maximum number of visible messages stored per conversation and node.',
 					'default' => 20,
 					'minimum' => 2
+				],
+				'max_conversations' => [
+					'type' => 'integer',
+					'description' => 'Maximum number of conversations stored per owner and channel.',
+					'default' => 50,
+					'minimum' => 1
 				],
 				'priority' => [
 					'type' => 'integer',
@@ -113,8 +115,8 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$namespace = trim((string)($this->resolver->resolveValue($config['namespace'] ?? null) ?? 'default'));
 		$this->namespace = $namespace !== '' ? $namespace : 'default';
 		$this->max = max(2, (int)($this->resolver->resolveValue($config['max'] ?? null) ?? 20));
+		$this->maxConversations = max(1, (int)($this->resolver->resolveValue($config['max_conversations'] ?? null) ?? 50));
 		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 80);
-		$this->ensureInitialized();
 	}
 
 	public function init(array $resources, IAgentContext $context): void {
@@ -123,66 +125,199 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 			$this->logger = $logger;
 		}
 
-		$this->conversationScope = $this->resolveConversationScope($context);
-		$this->ensureInitialized();
+		$this->bindConversationScope($this->scopeFromContext($context));
 		$this->log('initialized');
 	}
 
-	public function loadNodeHistory(string $nodeId): array {
-		$this->ensureInitialized();
-		$storageNodeId = $this->storageNodeId($nodeId);
-		$nodes = $this->nodes();
-		$history = $nodes[$storageNodeId] ?? null;
+	public function bindConversationScope(AgentConversationScope $scope): void {
+		$this->scope = $scope;
+		$this->ensureChannel();
 
-		if (!is_array($history)) {
-			$history = $this->loadLegacyNodeHistory($nodeId);
-			if ($history !== []) {
-				$nodes[$storageNodeId] = $history;
-				$this->setNodes($nodes);
+		if ($scope->hasConversationId()) {
+			$conversation = $this->getConversation($scope->getConversationId());
+			if ($conversation === null) {
+				$this->createConversation($scope->getConversationId());
+			}
+			else {
+				$this->activateConversation($scope->getConversationId());
 			}
 		}
+	}
 
+	public function listConversations(): array {
+		$channel = $this->channel();
+		$rows = is_array($channel['conversations'] ?? null) ? $channel['conversations'] : [];
+		$conversations = [];
+
+		foreach ($rows as $row) {
+			if (!is_array($row)) {
+				continue;
+			}
+			$conversations[] = AgentConversation::fromArray($row);
+		}
+
+		usort($conversations, static function(AgentConversation $left, AgentConversation $right): int {
+			$result = strcmp($right->getLastActiveAt(), $left->getLastActiveAt());
+			return $result !== 0 ? $result : strcmp($right->getCreatedAt(), $left->getCreatedAt());
+		});
+
+		return $conversations;
+	}
+
+	public function getConversation(string $conversationId): ?AgentConversation {
+		$conversationId = $this->requireConversationId($conversationId);
+		$row = $this->channel()['conversations'][$conversationId] ?? null;
+
+		return is_array($row) ? AgentConversation::fromArray($row) : null;
+	}
+
+	public function getActiveConversation(): ?AgentConversation {
+		return $this->listConversations()[0] ?? null;
+	}
+
+	public function createConversation(
+		?string $conversationId = null,
+		string $title = '',
+		string $titleSource = AgentConversation::TITLE_SOURCE_TEMPORARY,
+		string $openingMessage = ''
+	): AgentConversation {
+		$conversationId = $conversationId === null || trim($conversationId) === ''
+			? $this->createTechnicalId('conversation')
+			: $this->requireConversationId($conversationId);
+
+		if ($this->getConversation($conversationId) !== null) {
+			throw new \RuntimeException('Conversation already exists: ' . $conversationId);
+		}
+		if (count($this->listConversations()) >= $this->maxConversations) {
+			throw new \RuntimeException('Conversation limit reached for this session channel.');
+		}
+
+		$now = $this->now();
+		$row = [
+			'id' => $conversationId,
+			'title' => $this->normalizeTitle($title, $now),
+			'title_source' => $titleSource,
+			'opening_message' => $openingMessage,
+			'created_at' => $now,
+			'updated_at' => $now,
+			'last_active_at' => $now,
+			'nodes' => []
+		];
+		$conversation = AgentConversation::fromArray($row);
+		$channel = $this->channel();
+		$channel['conversations'][$conversationId] = $row;
+		$this->setChannel($channel);
+		$this->scope = $this->requireScope()->withConversationId($conversationId);
+		$this->log('created conversation ' . $conversationId);
+
+		return $conversation;
+	}
+
+	public function activateConversation(string $conversationId): AgentConversation {
+		return $this->touchConversation($conversationId);
+	}
+
+	public function renameConversation(
+		string $conversationId,
+		string $title,
+		string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL
+	): AgentConversation {
+		$conversationId = $this->requireConversationId($conversationId);
+		$conversation = $this->getConversation($conversationId);
+		if ($conversation === null) {
+			throw new \RuntimeException('Conversation not found: ' . $conversationId);
+		}
+		if (
+			$titleSource === AgentConversation::TITLE_SOURCE_AUTOMATIC
+			&& $conversation->getTitleSource() === AgentConversation::TITLE_SOURCE_MANUAL
+		) {
+			return $conversation;
+		}
+
+		$channel = $this->channel();
+		$channel['conversations'][$conversationId]['title'] = $this->normalizeTitle($title);
+		$channel['conversations'][$conversationId]['title_source'] = $titleSource;
+		$channel['conversations'][$conversationId]['updated_at'] = $this->now();
+		$this->setChannel($channel);
+
+		return $this->requireConversation($conversationId);
+	}
+
+	public function deleteConversation(string $conversationId): void {
+		$conversationId = $this->requireConversationId($conversationId);
+		$channel = $this->channel();
+		if (!isset($channel['conversations'][$conversationId])) {
+			return;
+		}
+
+		unset($channel['conversations'][$conversationId]);
+		$this->setChannel($channel);
+		if ($this->requireScope()->getConversationId() === $conversationId) {
+			$this->scope = new AgentConversationScope(
+				$this->requireScope()->getOwnerKey(),
+				$this->requireScope()->getChannelId()
+			);
+		}
+		$this->log('deleted conversation ' . $conversationId);
+	}
+
+	public function touchConversation(string $conversationId): AgentConversation {
+		$conversationId = $this->requireConversationId($conversationId);
+		$this->requireConversation($conversationId);
+		$channel = $this->channel();
+		$channel['conversations'][$conversationId]['last_active_at'] = $this->now();
+		$this->setChannel($channel);
+		$this->scope = $this->requireScope()->withConversationId($conversationId);
+
+		return $this->requireConversation($conversationId);
+	}
+
+	public function loadNodeHistory(string $nodeId): array {
+		$conversation = $this->requireCurrentConversation();
+		$nodeId = $this->requireNodeId($nodeId);
+		$channel = $this->channel();
+		$history = $channel['conversations'][$conversation->getId()]['nodes'][$nodeId] ?? [];
 		$history = is_array($history) ? array_values($history) : [];
-		$this->log('load history for ' . $storageNodeId . ': ' . count($history) . ' [' . $this->session->getId() . ']');
+		$this->log('loaded ' . count($history) . ' messages for ' . $nodeId);
 
 		return $history;
 	}
 
 	public function appendNodeHistory(string $nodeId, array $message): void {
-		$this->ensureInitialized();
-		$storageNodeId = $this->storageNodeId($nodeId);
-		$nodes = $this->nodes();
-		$history = is_array($nodes[$storageNodeId] ?? null)
-			? array_values($nodes[$storageNodeId])
-			: $this->loadLegacyNodeHistory($nodeId);
+		$conversation = $this->requireCurrentConversation();
+		$nodeId = $this->requireNodeId($nodeId);
+		$channel = $this->channel();
+		$history = $channel['conversations'][$conversation->getId()]['nodes'][$nodeId] ?? [];
+		$history = is_array($history) ? array_values($history) : [];
 		$history[] = $message;
 		$this->trimNodeHistory($history);
-		$nodes[$storageNodeId] = $history;
-		$this->setNodes($nodes);
-		$this->log('append message for ' . $storageNodeId . ' (len=' . count($history) . ')');
+		$now = $this->now();
+		$channel['conversations'][$conversation->getId()]['nodes'][$nodeId] = $history;
+		$channel['conversations'][$conversation->getId()]['updated_at'] = $now;
+		$channel['conversations'][$conversation->getId()]['last_active_at'] = $now;
+		$this->setChannel($channel);
+		$this->log('appended message for ' . $nodeId);
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		$this->ensureInitialized();
-		$storageNodeId = $this->storageNodeId($nodeId);
-		$nodes = $this->nodes();
-		$history = $nodes[$storageNodeId] ?? null;
-
-		if (!is_array($history)) {
-			$history = $this->loadLegacyNodeHistory($nodeId);
-		}
+		$conversation = $this->requireCurrentConversation();
+		$nodeId = $this->requireNodeId($nodeId);
+		$channel = $this->channel();
+		$history = $channel['conversations'][$conversation->getId()]['nodes'][$nodeId] ?? null;
 		if (!is_array($history)) {
 			return false;
 		}
 
 		foreach ($history as &$entry) {
-			if (is_array($entry) && ($entry['id'] ?? null) === $messageId) {
-				$entry['feedback'] = $feedback;
-				unset($entry);
-				$nodes[$storageNodeId] = $history;
-				$this->setNodes($nodes);
-				return true;
+			if (!is_array($entry) || (string)($entry['id'] ?? '') !== $messageId) {
+				continue;
 			}
+			$entry['feedback'] = $feedback;
+			unset($entry);
+			$channel['conversations'][$conversation->getId()]['nodes'][$nodeId] = $history;
+			$channel['conversations'][$conversation->getId()]['updated_at'] = $this->now();
+			$this->setChannel($channel);
+			return true;
 		}
 		unset($entry);
 
@@ -190,209 +325,212 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	public function resetNodeHistory(string $nodeId): void {
-		$this->ensureInitialized();
-		$storageNodeId = $this->storageNodeId($nodeId);
-		$nodes = $this->nodes();
-		unset($nodes[$storageNodeId], $nodes[$nodeId]);
-		$this->setNodes($nodes);
-
-		$store = $this->readMemoryStore();
-		$legacyBucket = $store[$this->namespace]['nodes'] ?? null;
-		if (is_array($legacyBucket) && array_key_exists($nodeId, $legacyBucket)) {
-			unset($store[$this->namespace]['nodes'][$nodeId]);
-			$this->writeMemoryStore($store);
-		}
-
-		$this->log('reset history for ' . $storageNodeId);
+		$conversation = $this->requireCurrentConversation();
+		$nodeId = $this->requireNodeId($nodeId);
+		$channel = $this->channel();
+		unset($channel['conversations'][$conversation->getId()]['nodes'][$nodeId]);
+		$channel['conversations'][$conversation->getId()]['updated_at'] = $this->now();
+		$this->setChannel($channel);
+		$this->log('reset history for ' . $nodeId);
 	}
 
 	public function getPriority(): int {
 		return $this->priority;
 	}
 
+	private function scopeFromContext(IAgentContext $context): AgentConversationScope {
+		$channelId = $this->contextString($context, 'conversation_channel_id');
+		if ($channelId === '') {
+			throw new \RuntimeException('Conversation memory requires context variable conversation_channel_id.');
+		}
+
+		return new AgentConversationScope(
+			hash('sha256', 'session:' . $this->session->getId()),
+			$channelId,
+			$this->contextString($context, 'conversation_id')
+		);
+	}
+
+	private function contextString(IAgentContext $context, string $key): string {
+		$value = $context->getVar($key);
+
+		return is_scalar($value) ? trim((string)$value) : '';
+	}
+
+	private function requireCurrentConversation(): AgentConversation {
+		$scope = $this->requireScope();
+		if ($scope->hasConversationId()) {
+			$conversation = $this->getConversation($scope->getConversationId());
+			return $conversation ?? $this->createConversation($scope->getConversationId());
+		}
+
+		return $this->getActiveConversation() ?? $this->createConversation();
+	}
+
+	private function requireConversation(string $conversationId): AgentConversation {
+		$conversation = $this->getConversation($conversationId);
+		if ($conversation === null) {
+			throw new \RuntimeException('Conversation not found: ' . $conversationId);
+		}
+
+		return $conversation;
+	}
+
+	private function requireScope(): AgentConversationScope {
+		if (!$this->scope instanceof AgentConversationScope) {
+			throw new \RuntimeException('Conversation scope has not been bound.');
+		}
+
+		return $this->scope;
+	}
+
 	private function ensureStarted(): void {
-		if (!$this->session->started()) {
-			$this->session->start();
+		if (!$this->session->started() && !$this->session->start()) {
+			throw new \RuntimeException('Session conversation memory could not start the session.');
 		}
 	}
 
-	private function ensureInitialized(): void {
-		if (!$this->session->started()) {
+	private function ensureChannel(): void {
+		$store = $this->readStore();
+		$key = $this->channelKey();
+		if (is_array($store['channels'][$key] ?? null)) {
 			return;
 		}
 
-		$store = $this->readMemoryStore();
-		$changed = $this->session->get(self::FORMAT_KEY) !== self::FORMAT;
-
-		$bucketKey = $this->bucketKey();
-		if (!isset($store[$bucketKey]) || !is_array($store[$bucketKey])) {
-			$store[$bucketKey] = ['nodes' => []];
-			$changed = true;
-		}
-		if (!isset($store[$bucketKey]['nodes']) || !is_array($store[$bucketKey]['nodes'])) {
-			$store[$bucketKey]['nodes'] = [];
-			$changed = true;
-		}
-
-		if ($changed) {
-			$this->writeMemoryStore($store);
-		}
+		$scope = $this->requireScope();
+		$store['channels'][$key] = [
+			'namespace' => $this->namespace,
+			'resource_id' => $this->id(),
+			'owner_key' => $scope->getOwnerKey(),
+			'channel_id' => $scope->getChannelId(),
+			'conversations' => []
+		];
+		$this->writeStore($store);
 	}
 
-	private function readMemoryStore(): array {
-		$current = $this->readChunkStore(self::FORMAT_KEY, self::CHUNK_COUNT_KEY, self::CHUNK_KEY_PREFIX);
-		if ($current !== null) {
-			return $current;
-		}
+	/** @return array<string,mixed> */
+	private function channel(): array {
+		$this->ensureChannel();
+		$channel = $this->readStore()['channels'][$this->channelKey()] ?? [];
 
-		$legacyArray = $this->session->get(self::LEGACY_ARRAY_KEY, []);
-		if (is_array($legacyArray) && $legacyArray !== []) {
-			return $legacyArray;
-		}
-
-		$legacyIlias = $this->readChunkStore(
-			self::LEGACY_ILIAS_FORMAT_KEY,
-			self::LEGACY_ILIAS_COUNT_KEY,
-			self::LEGACY_ILIAS_CHUNK_PREFIX
-		);
-
-		return $legacyIlias ?? [];
+		return is_array($channel) ? $channel : [];
 	}
 
-	private function readChunkStore(string $formatKey, string $countKey, string $prefix): ?array {
-		if ($this->session->get($formatKey) !== self::FORMAT) {
-			return null;
+	/** @param array<string,mixed> $channel */
+	private function setChannel(array $channel): void {
+		$store = $this->readStore();
+		$store['channels'][$this->channelKey()] = $channel;
+		$this->writeStore($store);
+	}
+
+	private function channelKey(): string {
+		$scope = $this->requireScope();
+
+		return hash('sha256', implode('|', [
+			$this->namespace,
+			$this->id(),
+			$scope->getOwnerKey(),
+			$scope->getChannelId()
+		]));
+	}
+
+	/** @return array<string,mixed> */
+	private function readStore(): array {
+		if ($this->session->get(self::FORMAT_KEY) !== self::FORMAT) {
+			return ['channels' => []];
 		}
 
-		$count = (int)$this->session->get($countKey, 0);
+		$count = (int)$this->session->get(self::CHUNK_COUNT_KEY, 0);
 		if ($count < 1 || $count > 10000) {
-			return null;
+			return ['channels' => []];
 		}
 
 		$encoded = '';
 		for ($index = 0; $index < $count; $index++) {
-			$chunk = $this->session->get($this->chunkKey($prefix, $index));
+			$chunk = $this->session->get($this->chunkKey($index));
 			if (!is_string($chunk)) {
-				return null;
+				return ['channels' => []];
 			}
 			$encoded .= $chunk;
 		}
 
 		$serialized = base64_decode($encoded, true);
 		if (!is_string($serialized)) {
-			return null;
+			return ['channels' => []];
 		}
 
 		$store = @unserialize($serialized, ['allowed_classes' => false]);
-
-		return is_array($store) ? $store : null;
-	}
-
-	private function writeMemoryStore(array $store): void {
-		if (!$this->session->started()) {
-			return;
+		if (!is_array($store) || !is_array($store['channels'] ?? null)) {
+			return ['channels' => []];
 		}
 
-		$this->clearChunkStore(self::FORMAT_KEY, self::CHUNK_COUNT_KEY, self::CHUNK_KEY_PREFIX);
-		$this->clearChunkStore(self::LEGACY_ILIAS_FORMAT_KEY, self::LEGACY_ILIAS_COUNT_KEY, self::LEGACY_ILIAS_CHUNK_PREFIX);
-		$this->session->remove(self::LEGACY_ARRAY_KEY);
+		return $store;
+	}
+
+	/** @param array<string,mixed> $store */
+	private function writeStore(array $store): void {
+		$oldCount = max(0, (int)$this->session->get(self::CHUNK_COUNT_KEY, 0));
+		for ($index = 0; $index < $oldCount; $index++) {
+			$this->session->remove($this->chunkKey($index));
+		}
 
 		$chunks = str_split(base64_encode(serialize($store)), self::CHUNK_SIZE);
 		$this->session->set(self::FORMAT_KEY, self::FORMAT);
 		$this->session->set(self::CHUNK_COUNT_KEY, count($chunks));
-
 		foreach ($chunks as $index => $chunk) {
-			$this->session->set($this->chunkKey(self::CHUNK_KEY_PREFIX, (int)$index), $chunk);
+			$this->session->set($this->chunkKey((int)$index), $chunk);
 		}
 	}
 
-	private function clearChunkStore(string $formatKey, string $countKey, string $prefix): void {
-		$count = max(0, (int)$this->session->get($countKey, 0));
-		$this->session->remove($formatKey);
-		$this->session->remove($countKey);
-
-		for ($index = 0; $index < $count; $index++) {
-			$this->session->remove($this->chunkKey($prefix, $index));
-		}
+	private function chunkKey(int $index): string {
+		return self::CHUNK_KEY_PREFIX . str_pad((string)$index, 5, '0', STR_PAD_LEFT);
 	}
 
-	private function chunkKey(string $prefix, int $index): string {
-		return $prefix . str_pad((string)$index, 5, '0', STR_PAD_LEFT);
-	}
-
-	private function nodes(): array {
-		$bucket = $this->readMemoryStore()[$this->bucketKey()] ?? [];
-		$nodes = is_array($bucket) ? ($bucket['nodes'] ?? []) : [];
-
-		return is_array($nodes) ? $nodes : [];
-	}
-
-	private function setNodes(array $nodes): void {
-		$store = $this->readMemoryStore();
-		$bucketKey = $this->bucketKey();
-		$store[$bucketKey] = is_array($store[$bucketKey] ?? null)
-			? $store[$bucketKey]
-			: [];
-		$store[$bucketKey]['nodes'] = $nodes;
-		$this->writeMemoryStore($store);
-	}
-
-	private function bucketKey(): string {
-		return $this->namespace . '::' . $this->id();
-	}
-
-	private function storageNodeId(string $nodeId): string {
-		return $this->conversationScope . '::' . $nodeId;
-	}
-
-	private function loadLegacyNodeHistory(string $nodeId): array {
-		$store = $this->readMemoryStore();
-		$candidates = [
-			$store[$this->bucketKey()]['nodes'][$nodeId] ?? null,
-			$store[$this->namespace]['nodes'][$nodeId] ?? null
-		];
-
-		foreach ($candidates as $candidate) {
-			if (is_array($candidate) && $candidate !== []) {
-				return array_values($candidate);
-			}
+	private function requireConversationId(string $conversationId): string {
+		$conversationId = trim($conversationId);
+		if ($conversationId === '' || strlen($conversationId) > 100 || preg_match('/^[A-Za-z0-9._:-]+$/', $conversationId) !== 1) {
+			throw new \InvalidArgumentException('Invalid conversation id.');
 		}
 
-		return [];
+		return $conversationId;
 	}
 
-	private function resolveConversationScope(IAgentContext $context): string {
-		foreach (['conversation_id', 'thread_id', 'chat_thread_id'] as $key) {
-			$value = $this->readContextScalar($context, $key);
-			if ($value !== '') {
-				return $key . ':' . $value;
-			}
+	private function requireNodeId(string $nodeId): string {
+		$nodeId = trim($nodeId);
+		if ($nodeId === '' || strlen($nodeId) > 100) {
+			throw new \InvalidArgumentException('Invalid conversation node id.');
 		}
 
-		$group = $this->readContextScalar($context, 'chatbot_config_group');
-		$name = $this->readContextScalar($context, 'chatbot_config_name');
-		if ($group !== '' || $name !== '') {
-			return 'chatbot:' . $group . ':' . $name;
-		}
-
-		$agentId = $this->readContextScalar($context, 'agent_id');
-		if ($agentId !== '') {
-			return 'agent:' . $agentId;
-		}
-
-		return 'default';
+		return $nodeId;
 	}
 
-	private function readContextScalar(IAgentContext $context, string $key): string {
-		try {
-			$value = $context->getVar($key);
-		} catch (\Throwable) {
-			return '';
+	private function normalizeTitle(string $title, string $now = ''): string {
+		$title = trim($title);
+		if ($title === '') {
+			$timestamp = $now !== '' ? strtotime($now) : time();
+			$title = 'Chat ' . date('d.m.Y H:i', $timestamp ?: time());
 		}
 
-		return is_scalar($value) ? trim((string)$value) : '';
+		return $this->truncateText($title, 255);
 	}
 
+	private function truncateText(string $value, int $maxLength): string {
+		if (function_exists('mb_substr')) {
+			return mb_substr($value, 0, $maxLength);
+		}
+
+		return substr($value, 0, $maxLength);
+	}
+
+	private function createTechnicalId(string $prefix): string {
+		return $prefix . '-' . bin2hex(random_bytes(20));
+	}
+
+	private function now(): string {
+		return (new \DateTimeImmutable())->format('Y-m-d H:i:s.u');
+	}
+
+	/** @param array<int,mixed> $history */
 	private function trimNodeHistory(array &$history): void {
 		if (count($history) > $this->max) {
 			$history = array_values(array_slice($history, -$this->max));
@@ -400,6 +538,12 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	private function log(string $message): void {
-		$this->logger?->log('sessionmemory', '[bucket=' . $this->bucketKey() . '][scope=' . $this->conversationScope . '] ' . $message);
+		$scope = $this->scope;
+		$channel = $scope?->getChannelId() ?? '';
+		$conversation = $scope?->getConversationId() ?? '';
+		$this->logger?->log(
+			'sessionmemory',
+			'[namespace=' . $this->namespace . '][channel=' . $channel . '][conversation=' . $conversation . '] ' . $message
+		);
 	}
 }

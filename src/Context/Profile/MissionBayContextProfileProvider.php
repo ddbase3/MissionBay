@@ -71,7 +71,7 @@ final class MissionBayContextProfileProvider implements IAgentContextProfileProv
 		$warnings = [];
 		$sequence = 0;
 
-		foreach ($profile['presets'] ?? [] as $presetId) {
+		foreach ($profile[AgentContextProfileResolver::PRESET_FIELD] ?? [] as $presetId) {
 			$presetId = trim((string)$presetId);
 			if ($presetId === '') {
 				continue;

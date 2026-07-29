@@ -69,12 +69,11 @@ Configuration data shown in the diagnostic JSON is recursively redacted for keys
 
 ## Conversation-memory and context roles
 
-The runtime now distinguishes explicit conversation history from run-local context contribution. The display reports these roles separately:
+The runtime distinguishes explicit conversation history from run-local context contribution. The display reports these roles separately:
 
 ```text
 conversation-memory
 context-contributor
-legacy-memory
 tool
 ```
 
@@ -83,9 +82,9 @@ A component preset can expose both tool and context-contributor facets. The disp
 - the callable tool names produced by its tool wrapper;
 - the concrete Memory Profile or Context Profile that selected it;
 - the effective `memory`, `contextcontributors`, or `tools` dock;
-- the resolved conversation/context/legacy role and priority.
+- the resolved conversation/context role and priority.
 
-Resources such as user preferences therefore appear as `tool + context-contributor`, while session or database history appears as `conversation-memory`. Legacy-only `IAgentMemory` implementations remain conversation-compatible and produce a warning until they adopt `IAgentConversationMemory`.
+Resources such as user preferences therefore appear as `tool + context-contributor`, while session or database history appears as `conversation-memory`. Generic `IAgentMemory` implementations are not accepted as conversation-history presets.
 
 ## Administration integration
 

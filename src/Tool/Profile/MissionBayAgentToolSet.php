@@ -400,11 +400,10 @@ final class MissionBayAgentToolSet implements IAgentConfirmableToolSet {
 	private function buildBinding(): array {
 		$result = [
 			'runtime_id' => $this->readContextString(['runtime_id', 'agent_runtime']),
+			'conversation_channel_id' => $this->readContextString(['conversation_channel_id']),
 			'conversation_id' => $this->readContextString(['conversation_id']),
-			'conversation_owner_key' => $this->readContextString(['conversation_owner_key']),
 			'config_group' => $this->readContextString(['config_group', 'chatbot_config_group']),
-			'config_name' => $this->readContextString(['config_name', 'chatbot_config_name']),
-			'chatbot_key' => $this->readContextString(['chatbot_key'])
+			'config_name' => $this->readContextString(['config_name', 'chatbot_config_name'])
 		];
 		return array_filter($result, static fn(string $value): bool => $value !== '');
 	}
@@ -463,7 +462,7 @@ final class MissionBayAgentToolSet implements IAgentConfirmableToolSet {
 		$trace = [
 			'runtime_id' => $this->readContextString(['runtime_id', 'agent_runtime']),
 			'turn_id' => $this->readContextString(['turn_id', 'chat_turn_id', 'message_id']),
-			'chatbot_key' => $this->readContextString(['chatbot_key', 'chatbot_id', 'chatbot_name']),
+			'chatbot_key' => $this->readContextString(['conversation_channel_id']),
 			'config_group' => $this->readContextString(['config_group', 'chatbot_config_group']),
 			'config_name' => $this->readContextString(['config_name', 'chatbot_config_name']),
 			'conversation_id' => $this->readContextString(['conversation_id']),

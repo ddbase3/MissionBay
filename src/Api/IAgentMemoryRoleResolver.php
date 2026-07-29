@@ -25,8 +25,6 @@ interface IAgentMemoryRoleResolver {
 
 	public function isContextContributor(IAgentMemory $memory): bool;
 
-	public function isLegacyMemory(IAgentMemory $memory): bool;
-
 	/**
 	 * @return array<int,string>
 	 */

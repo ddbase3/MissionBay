@@ -100,11 +100,23 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 		));
 	}
 
+	public function testSuggestionsModeIsConnectedToAssistantNode(): void {
+		$service = $this->createExecutionService(false, true);
+
+		$service->execute(new AgentExecutionRequest(
+			$this->minimalAgentSettings(),
+			[
+				'prompt' => 'Generate suggestions.',
+				'mode' => 'suggestions'
+			]
+		));
+	}
+
 	private function createCompiler(): AgentFlowCompiler {
 		return new AgentFlowCompiler($this->createMock(IAgentComponentFlowBuilder::class));
 	}
 
-	private function createExecutionService(bool $expectResumeConnection): AgentExecutionService {
+	private function createExecutionService(bool $expectResumeConnection, bool $expectModeConnection = false): AgentExecutionService {
 		$context = $this->createMock(IAgentContext::class);
 		$contextFactory = $this->createMock(IAgentContextFactory::class);
 		$contextFactory->method('createContext')->willReturn($context);
@@ -117,8 +129,9 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 			->method('createFromArray')
 			->with(
 				'strictflow',
-				$this->callback(function(array $effectiveFlow) use ($expectResumeConnection): bool {
-					return $this->countResumeConnections($effectiveFlow, 'assistant') === ($expectResumeConnection ? 1 : 0);
+				$this->callback(function(array $effectiveFlow) use ($expectResumeConnection, $expectModeConnection): bool {
+					return $this->countInputConnections($effectiveFlow, 'assistant', 'resume') === ($expectResumeConnection ? 1 : 0)
+						&& $this->countInputConnections($effectiveFlow, 'assistant', 'mode') === ($expectModeConnection ? 1 : 0);
 				}),
 				$context
 			)
@@ -151,7 +164,7 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 	}
 
 	/** @param array<string,mixed> $flow */
-	private function countResumeConnections(array $flow, string $nodeId): int {
+	private function countInputConnections(array $flow, string $nodeId, string $inputName): int {
 		$count = 0;
 
 		foreach (($flow['connections'] ?? []) as $connection) {
@@ -160,9 +173,9 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 			}
 			if (
 				(string)($connection['from'] ?? '') === '__input__'
-				&& (string)($connection['output'] ?? '') === 'resume'
+				&& (string)($connection['output'] ?? '') === $inputName
 				&& (string)($connection['to'] ?? '') === $nodeId
-				&& (string)($connection['input'] ?? '') === 'resume'
+				&& (string)($connection['input'] ?? '') === $inputName
 			) {
 				$count++;
 			}

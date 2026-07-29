@@ -24,6 +24,7 @@ use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use MissionBay\Profile\AgentContextProfileResolver;
 use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
+use MissionBay\Resource\ConfiguredAgentMemoryResource;
 
 /**
  * Builds a read-only diagnostic view of the effective configured composition
@@ -73,10 +74,6 @@ final class AgentCompositionInspector {
 		$toolProfiles = $this->describeToolProfiles($toolProfileIds, $warnings, $errors);
 		$memoryProfileId = $this->normalizeId((string)($settings['memory_profile'] ?? ''));
 		$contextProfileId = $this->normalizeId((string)($settings['context_profile'] ?? ''));
-		if ($contextProfileId === '' && $memoryProfileId !== '' && $this->contextProfileResolver->hasProfile($memoryProfileId)) {
-			$contextProfileId = $memoryProfileId;
-			$warnings[] = 'Context profile is derived from the legacy combined profile "' . $memoryProfileId . '".';
-		}
 		$memoryProfile = $this->describeMemoryProfile($memoryProfileId, $warnings, $errors);
 		$contextProfile = $this->describeContextProfile($contextProfileId, $warnings, $errors);
 		$componentSources = $this->buildComponentSources($toolProfiles, $memoryProfile, $contextProfile);
@@ -300,13 +297,11 @@ final class AgentCompositionInspector {
 
 			$resourceId = $memory instanceof IAgentResource ? $memory->getId() : '';
 			$roles = [];
-			$legacy = false;
 			$conversationMemory = false;
 			$contextContributor = $memory instanceof IAgentContextContributor;
 
 			if ($memory instanceof IAgentMemory) {
 				$roles = $this->memoryRoleResolver->getRoles($memory);
-				$legacy = $this->memoryRoleResolver->isLegacyMemory($memory);
 				$conversationMemory = $this->memoryRoleResolver->isConversationMemory($memory);
 				$contextContributor = $this->memoryRoleResolver->isContextContributor($memory);
 			}
@@ -317,22 +312,13 @@ final class AgentCompositionInspector {
 				continue;
 			}
 
-			if ($legacy) {
-				$warnings[] = 'Legacy memory semantics are active for ' . ($resourceId !== '' ? $resourceId : $memory::class) . '. Declare IAgentConversationMemory or IAgentContextContributor to make read/write behavior explicit.';
-			}
+			$priority = $memory instanceof IAgentMemory || $memory instanceof IAgentContextContributor
+				? $memory->getPriority()
+				: 100;
+			$name = $memory instanceof IAgentMemory ? (string)$memory::getName() : $memory::class;
+			$readEnabled = !$memory instanceof ConfiguredAgentMemoryResource || $memory->isReadEnabled();
+			$writeEnabled = !$memory instanceof ConfiguredAgentMemoryResource || $memory->isWriteEnabled();
 
-			$priority = method_exists($memory, 'getPriority') ? (int)$memory->getPriority() : 100;
-			$configuredRole = method_exists($memory, 'getConfiguredRole') ? (string)$memory->getConfiguredRole() : 'auto';
-			$readEnabled = method_exists($memory, 'isReadEnabled') ? (bool)$memory->isReadEnabled() : true;
-			$writeEnabled = method_exists($memory, 'isWriteEnabled') ? (bool)$memory->isWriteEnabled() : true;
-			$diagnosticId = $resourceId !== '' ? $resourceId : $memory::class;
-			if (in_array($configuredRole, ['conversation-memory', 'both'], true) && !$conversationMemory) {
-				$warnings[] = 'Configured conversation-memory role is not supported by ' . $diagnosticId . '.';
-			}
-			if (in_array($configuredRole, ['context-contributor', 'both'], true) && !$contextContributor) {
-				$warnings[] = 'Configured context-contributor role is not supported by ' . $diagnosticId . '.';
-			}
-			$name = method_exists($memory, 'getName') ? (string)$memory::getName() : $memory::class;
 			$rows[] = [
 				'resource_id' => $resourceId,
 				'name' => $name,
@@ -343,8 +329,6 @@ final class AgentCompositionInspector {
 				'role' => implode(' + ', $roles),
 				'conversation_memory' => $conversationMemory,
 				'context_contributor' => $contextContributor,
-				'legacy' => $legacy,
-				'configured_role' => $configuredRole,
 				'read_enabled' => $readEnabled,
 				'write_enabled' => $writeEnabled
 			];
@@ -565,10 +549,10 @@ final class AgentCompositionInspector {
 				$result[(string)$presetId][] = 'tool:' . (string)($profile['id'] ?? '');
 			}
 		}
-		foreach ((array)($memoryProfile['presets'] ?? []) as $presetId) {
+		foreach ((array)($memoryProfile[AgentMemoryProfileResolver::PRESET_FIELD] ?? []) as $presetId) {
 			$result[(string)$presetId][] = 'memory:' . (string)($memoryProfile['id'] ?? '');
 		}
-		foreach ((array)($contextProfile['presets'] ?? []) as $presetId) {
+		foreach ((array)($contextProfile[AgentContextProfileResolver::PRESET_FIELD] ?? []) as $presetId) {
 			$result[(string)$presetId][] = 'context:' . (string)($contextProfile['id'] ?? '');
 		}
 		foreach ($result as &$profileIds) {

@@ -13,7 +13,7 @@ use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentResourceFactory;
 
 /**
- * Resolves context profiles into concrete configured context-contributor presets.
+ * Resolves context profiles into concrete configured context contributors.
  */
 final class AgentContextProfileResolver {
 
@@ -28,10 +28,17 @@ final class AgentContextProfileResolver {
 
 	/** @return array<int,array<string,mixed>> */
 	public function getOptions(): array {
-		$profiles = $this->loadProfilesIncludingLegacy();
 		$rows = [];
+		$group = $this->settingsStore->getGroup(self::SETTINGS_GROUP);
+		if (!is_array($group)) {
+			return [];
+		}
 
-		foreach ($profiles as $profile) {
+		foreach ($group as $id => $settings) {
+			if ((!is_string($id) && !is_int($id)) || !is_array($settings)) {
+				continue;
+			}
+			$profile = $this->normalizeProfile((string)$id, $settings);
 			if (!$profile['enabled']) {
 				continue;
 			}
@@ -39,9 +46,8 @@ final class AgentContextProfileResolver {
 				'id' => $profile['id'],
 				'label' => $profile['label'],
 				'description' => $profile['description'],
-				'preset_count' => count($profile['presets']),
-				'context_count' => count($profile['presets']),
-				'legacy_derived' => (bool)($profile['legacy_derived'] ?? false)
+				'preset_count' => count($profile[self::PRESET_FIELD]),
+				'context_count' => count($profile[self::PRESET_FIELD])
 			];
 		}
 
@@ -55,7 +61,7 @@ final class AgentContextProfileResolver {
 
 	public function hasProfile(string $id): bool {
 		try {
-			return $this->getProfile($id)['presets'] !== [];
+			return $this->getProfile($id)[self::PRESET_FIELD] !== [];
 		}
 		catch (\Throwable) {
 			return false;
@@ -70,19 +76,11 @@ final class AgentContextProfileResolver {
 		}
 
 		$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $id, []);
-		if (is_array($settings) && $settings !== []) {
-			return $this->normalizeProfile($id, $settings);
+		if (!is_array($settings) || $settings === []) {
+			throw new \RuntimeException('Context profile not found: ' . $id);
 		}
 
-		$legacy = $this->settingsStore->get(AgentMemoryProfileResolver::SETTINGS_GROUP, $id, []);
-		if (is_array($legacy) && $legacy !== []) {
-			$profile = $this->normalizeLegacyProfile($id, $legacy);
-			if ($profile['presets'] !== []) {
-				return $profile;
-			}
-		}
-
-		throw new \RuntimeException('Context profile not found: ' . $id);
+		return $this->normalizeProfile($id, $settings);
 	}
 
 	/** @return array<int,array<string,mixed>> */
@@ -99,7 +97,7 @@ final class AgentContextProfileResolver {
 
 		$components = [];
 		$order = 10;
-		foreach ($profile['presets'] as $presetId) {
+		foreach ($profile[self::PRESET_FIELD] as $presetId) {
 			$preset = $this->requirePreset($presetId);
 			if (!$this->isContextPreset($preset)) {
 				throw new \RuntimeException('Context profile preset is not a context contributor: ' . $presetId);
@@ -122,16 +120,14 @@ final class AgentContextProfileResolver {
 	public function normalizeProfile(string $id, array $settings): array {
 		$id = $this->normalizeId((string)($settings['id'] ?? $id));
 		$label = trim((string)($settings['label'] ?? ''));
-		$presets = $settings[self::PRESET_FIELD] ?? ($settings['presets'] ?? []);
+		$contexts = $settings[self::PRESET_FIELD] ?? [];
 
 		return [
 			'id' => $id,
 			'label' => $label !== '' ? $label : $id,
 			'description' => trim((string)($settings['description'] ?? '')),
 			'enabled' => $this->toBool($settings['enabled'] ?? true),
-			'presets' => $this->normalizeIds($presets),
-			self::PRESET_FIELD => $this->normalizeIds($presets),
-			'legacy_derived' => false
+			self::PRESET_FIELD => $this->normalizeIds($contexts)
 		];
 	}
 
@@ -163,91 +159,51 @@ final class AgentContextProfileResolver {
 			$result = strcasecmp((string)$left['label'], (string)$right['label']);
 			return $result !== 0 ? $result : strcasecmp((string)$left['id'], (string)$right['id']);
 		});
+
 		return $rows;
-	}
-
-	/** @return array<int,array<string,mixed>> */
-	private function loadProfilesIncludingLegacy(): array {
-		$result = [];
-		$group = $this->settingsStore->getGroup(self::SETTINGS_GROUP);
-		if (is_array($group)) {
-			foreach ($group as $id => $settings) {
-				if ((!is_string($id) && !is_int($id)) || !is_array($settings)) continue;
-				$profile = $this->normalizeProfile((string)$id, $settings);
-				$result[$profile['id']] = $profile;
-			}
-		}
-
-		$legacyGroup = $this->settingsStore->getGroup(AgentMemoryProfileResolver::SETTINGS_GROUP);
-		if (is_array($legacyGroup)) {
-			foreach ($legacyGroup as $id => $settings) {
-				if ((!is_string($id) && !is_int($id)) || !is_array($settings)) continue;
-				$id = $this->normalizeId((string)$id);
-				if ($id === '' || isset($result[$id])) continue;
-				$profile = $this->normalizeLegacyProfile($id, $settings);
-				if ($profile['presets'] !== []) {
-					$result[$id] = $profile;
-				}
-			}
-		}
-
-		return array_values($result);
-	}
-
-	/** @param array<string,mixed> $settings @return array<string,mixed> */
-	private function normalizeLegacyProfile(string $id, array $settings): array {
-		$label = trim((string)($settings['label'] ?? ''));
-		$presets = [];
-		$entries = is_array($settings['entries'] ?? null) ? $settings['entries'] : [];
-
-		foreach ($entries as $entry) {
-			if (!is_array($entry) || !$this->toBool($entry['enabled'] ?? true)) continue;
-			$presetId = $this->normalizeId((string)($entry['preset'] ?? ''));
-			if ($presetId === '') continue;
-			$role = strtolower(trim(str_replace('_', '-', (string)($entry['role'] ?? 'auto'))));
-			if (in_array($role, ['memory', 'conversation', 'conversation-memory'], true)) continue;
-			$preset = $this->presetRepository->getPreset($presetId, []);
-			if ($preset !== [] && $this->isContextPreset($preset)) {
-				$presets[] = $presetId;
-			}
-		}
-
-		return [
-			'id' => $id,
-			'label' => ($label !== '' ? $label : $id) . ' [legacy derived]',
-			'description' => trim((string)($settings['description'] ?? '')),
-			'enabled' => $this->toBool($settings['enabled'] ?? true),
-			'presets' => $this->normalizeIds($presets),
-			self::PRESET_FIELD => $this->normalizeIds($presets),
-			'legacy_derived' => true
-		];
 	}
 
 	/** @param array<string,mixed> $preset */
 	private function isContextPreset(array $preset): bool {
 		$type = trim((string)($preset['type'] ?? ''));
-		if ($type === '') return false;
+		if ($type === '') {
+			return false;
+		}
 		$resource = $this->resourceFactory->createResource($type);
+
 		return $resource instanceof IAgentResource && $resource instanceof IAgentContextContributor;
 	}
 
 	/** @return array<string,mixed> */
 	private function requirePreset(string $presetId): array {
 		$preset = $this->presetRepository->getPreset($presetId, []);
-		if ($preset === []) throw new \RuntimeException('Context profile references an unknown component preset: ' . $presetId);
-		if (!$this->toBool($preset['enabled'] ?? true)) throw new \RuntimeException('Context profile references a disabled component preset: ' . $presetId);
+		if ($preset === []) {
+			throw new \RuntimeException('Context profile references an unknown component preset: ' . $presetId);
+		}
+		if (!$this->toBool($preset['enabled'] ?? true)) {
+			throw new \RuntimeException('Context profile references a disabled component preset: ' . $presetId);
+		}
+
 		return $preset;
 	}
 
 	/** @return array<int,string> */
 	private function normalizeIds(mixed $value): array {
-		if (is_string($value)) $value = explode(',', $value);
-		if (!is_array($value)) return [];
+		if (is_string($value)) {
+			$value = explode(',', $value);
+		}
+		if (!is_array($value)) {
+			return [];
+		}
+
 		$result = [];
 		foreach ($value as $id) {
 			$id = $this->normalizeId((string)$id);
-			if ($id !== '') $result[$id] = $id;
+			if ($id !== '') {
+				$result[$id] = $id;
+			}
 		}
+
 		return array_values($result);
 	}
 

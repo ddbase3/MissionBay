@@ -17,10 +17,13 @@
 
 namespace MissionBay\Memory;
 
-use AssistantFoundation\Api\IAgentConversationMemory;
+use AssistantFoundation\Api\IAgentMemory;
 
-class NoMemory implements IAgentConversationMemory
-{
+/**
+ * Explicit stateless memory used by agent contexts without configured memory.
+ */
+class NoMemory implements IAgentMemory {
+
 	public static function getName(): string {
 		return 'nomemory';
 	}
@@ -30,7 +33,6 @@ class NoMemory implements IAgentConversationMemory
 	}
 
 	public function appendNodeHistory(string $nodeId, array $message): void {
-		// intentionally stateless
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
@@ -38,11 +40,9 @@ class NoMemory implements IAgentConversationMemory
 	}
 
 	public function resetNodeHistory(string $nodeId): void {
-		// nothing to clear
 	}
 
 	public function getPriority(): int {
 		return 0;
 	}
 }
-

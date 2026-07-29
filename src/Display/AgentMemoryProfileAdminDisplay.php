@@ -178,8 +178,7 @@ class AgentMemoryProfileAdminDisplay implements IDisplay {
 			'enabled_label' => $row['enabled_label'],
 			'presets' => $row['presets'],
 			'preset_count' => $row['preset_count'],
-			'preset_text' => $row['preset_text'],
-			'legacy_derived' => $row['legacy_derived']
+			'preset_text' => $row['preset_text']
 		], array_slice($rows, $offset, $pageSize));
 
 		return [
@@ -229,6 +228,9 @@ class AgentMemoryProfileAdminDisplay implements IDisplay {
 		$presets = $this->normalizePresetSelection($payload['presets'] ?? []);
 
 		if ($id === '') return $this->error('Profile id must not be empty.', 'save');
+		if ($this->profileKind() === 'memory' && count($presets) !== 1) {
+			return $this->error('A memory profile must select exactly one conversation-memory preset.', 'save');
+		}
 		if ($label === '') $label = $id;
 
 		$available = [];
@@ -253,9 +255,6 @@ class AgentMemoryProfileAdminDisplay implements IDisplay {
 		];
 
 		try {
-			if ($this->profileKind() === 'memory') {
-				$this->migrateLegacyContextProfile($oldId !== '' ? $oldId : $id, $id);
-			}
 			$this->settingsStore->set($this->settingsGroup(), $id, $profile);
 			if ($isRename) $this->settingsStore->remove($this->settingsGroup(), $oldId);
 			$this->settingsStore->save();
@@ -276,7 +275,7 @@ class AgentMemoryProfileAdminDisplay implements IDisplay {
 	private function buildDeleteResponse(string $id): array {
 		$id = $this->normalizeId($id);
 		if ($id === '' || !$this->settingsStore->has($this->settingsGroup(), $id)) {
-			return $this->error('Profile not found or is only a legacy-derived preview: ' . $id, 'delete');
+			return $this->error('Profile not found: ' . $id, 'delete');
 		}
 
 		try {
@@ -316,52 +315,26 @@ class AgentMemoryProfileAdminDisplay implements IDisplay {
 
 	/** @param array<string,mixed> $profile @return array<string,mixed> */
 	private function normalizeRow(array $profile): array {
+		$presetField = $this->presetField();
+		$presets = array_values((array)($profile[$presetField] ?? []));
 		$presetLabels = [];
 		$options = [];
 		foreach ($this->presetOptions() as $option) $options[(string)$option['id']] = $option;
-		foreach ((array)($profile['presets'] ?? []) as $presetId) {
+		foreach ($presets as $presetId) {
 			$label = (string)($options[$presetId]['label'] ?? $presetId);
 			$presetLabels[] = $label === $presetId ? $presetId : $label . ' (' . $presetId . ')';
 		}
-		$profile['presets'] = array_values((array)($profile['presets'] ?? []));
+		$profile[$presetField] = $presets;
 		$profileJson = (string)json_encode($profile, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
 
 		return array_merge($profile, [
 			'old_id' => $profile['id'],
 			'profile_id' => $profile['id'],
 			'enabled_label' => $profile['enabled'] ? 'enabled' : 'disabled',
-			'preset_count' => count($profile['presets']),
+			'presets' => $presets,
+			'preset_count' => count($presets),
 			'preset_text' => implode(', ', $presetLabels),
-			'legacy_derived' => (bool)($profile['legacy_derived'] ?? false),
 			'profile_json' => $profileJson
-		]);
-	}
-
-	private function migrateLegacyContextProfile(string $sourceId, string $targetId): void {
-		$sourceId = $this->normalizeId($sourceId);
-		$targetId = $this->normalizeId($targetId);
-		if ($sourceId === '' || $targetId === '' || $this->settingsStore->has(AgentContextProfileResolver::SETTINGS_GROUP, $targetId)) {
-			return;
-		}
-
-		try {
-			$derived = $this->contextProfiles->getProfile($sourceId);
-		}
-		catch (Throwable) {
-			return;
-		}
-		if (empty($derived['legacy_derived']) || empty($derived['presets'])) {
-			return;
-		}
-
-		$legacy = $this->settingsStore->get(AgentMemoryProfileResolver::SETTINGS_GROUP, $sourceId, []);
-		$label = is_array($legacy) ? trim((string)($legacy['label'] ?? '')) : '';
-		$this->settingsStore->set(AgentContextProfileResolver::SETTINGS_GROUP, $targetId, [
-			'id' => $targetId,
-			'label' => $label !== '' ? $label . ' Context' : $targetId,
-			'description' => is_array($legacy) ? trim((string)($legacy['description'] ?? '')) : '',
-			'enabled' => is_array($legacy) ? $this->toBool($legacy['enabled'] ?? true) : true,
-			AgentContextProfileResolver::PRESET_FIELD => array_values((array)$derived['presets'])
 		]);
 	}
 

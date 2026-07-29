@@ -6,6 +6,8 @@ use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Dto\AgentConversation;
+use AssistantFoundation\Dto\AgentConversationScope;
 use AssistantFoundation\Dto\AgentInstructionBlock;
 use MissionBay\Context\AgentContext;
 use MissionBay\Resource\KnowledgeAgentResource;
@@ -26,6 +28,16 @@ final class AgentMemorySeparationTest extends TestCase {
 			public static function getName(): string {
 				return 'testconversationmemory';
 			}
+
+			public function bindConversationScope(AgentConversationScope $scope): void {}
+			public function listConversations(): array { return []; }
+			public function getConversation(string $conversationId): ?AgentConversation { return null; }
+			public function getActiveConversation(): ?AgentConversation { return null; }
+			public function createConversation(?string $conversationId = null, string $title = '', string $titleSource = AgentConversation::TITLE_SOURCE_TEMPORARY, string $openingMessage = ''): AgentConversation { throw new \RuntimeException(); }
+			public function activateConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
+			public function renameConversation(string $conversationId, string $title, string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL): AgentConversation { throw new \RuntimeException(); }
+			public function deleteConversation(string $conversationId): void {}
+			public function touchConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
 
 			public function loadNodeHistory(string $nodeId): array {
 				$this->loads++;
@@ -51,19 +63,19 @@ final class AgentMemorySeparationTest extends TestCase {
 			}
 		};
 
-		$legacy = new class implements IAgentMemory {
+		$genericMemory = new class implements IAgentMemory {
 			public int $loads = 0;
 			public int $writes = 0;
 
 			public static function getName(): string {
-				return 'testlegacymemory';
+				return 'testgenericmemory';
 			}
 
 			public function loadNodeHistory(string $nodeId): array {
 				$this->loads++;
 				return [[
 					'role' => 'assistant',
-					'content' => 'Legacy conversation'
+					'content' => 'Generic memory must not be used as conversation history.'
 				]];
 			}
 
@@ -84,8 +96,8 @@ final class AgentMemorySeparationTest extends TestCase {
 		};
 
 		$contributor = new class implements IAgentMemory, IAgentContextContributor {
-			public int $legacyLoads = 0;
-			public int $legacyWrites = 0;
+			public int $historyLoads = 0;
+			public int $historyWrites = 0;
 			public int $contributions = 0;
 
 			public static function getName(): string {
@@ -107,15 +119,15 @@ final class AgentMemorySeparationTest extends TestCase {
 			}
 
 			public function loadNodeHistory(string $nodeId): array {
-				$this->legacyLoads++;
+				$this->historyLoads++;
 				return [[
 					'role' => 'system',
-					'content' => 'Legacy contributor path must not be used.'
+					'content' => 'Context contributor history must not be used.'
 				]];
 			}
 
 			public function appendNodeHistory(string $nodeId, array $message): void {
-				$this->legacyWrites++;
+				$this->historyWrites++;
 			}
 
 			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
@@ -136,18 +148,17 @@ final class AgentMemorySeparationTest extends TestCase {
 			$roleResolver
 		);
 		$contextService = new AgentAssistantContextContributionService($roleResolver);
-		$memories = $memoryService->sortMemories([$legacy, $contributor, $conversation, $conversation]);
+		$memories = $memoryService->sortMemories([$genericMemory, $contributor, $conversation, $conversation]);
 
 		$messages = $memoryService->buildInitialMessages('Base system', $memories, 'assistant');
 
 		$this->assertSame([
 			['role' => 'system', 'content' => 'Base system'],
 			['role' => 'user', 'content' => 'Stored conversation'],
-			['role' => 'assistant', 'content' => 'Legacy conversation']
 		], $messages);
 		$this->assertSame(1, $conversation->loads);
-		$this->assertSame(1, $legacy->loads);
-		$this->assertSame(0, $contributor->legacyLoads);
+		$this->assertSame(0, $genericMemory->loads);
+		$this->assertSame(0, $contributor->historyLoads);
 
 		$memoryService->appendVisibleMessage($memories, 'assistant', [
 			'role' => 'user',
@@ -155,8 +166,8 @@ final class AgentMemorySeparationTest extends TestCase {
 		]);
 
 		$this->assertSame(1, $conversation->writes);
-		$this->assertSame(1, $legacy->writes);
-		$this->assertSame(0, $contributor->legacyWrites);
+		$this->assertSame(0, $genericMemory->writes);
+		$this->assertSame(0, $contributor->historyWrites);
 
 		$context = new AgentContext();
 		$contextMessages = $contextService->buildMessages([$contributor, $contributor], $context);
@@ -167,8 +178,6 @@ final class AgentMemorySeparationTest extends TestCase {
 		]], $contextMessages);
 		$this->assertSame(1, $contributor->contributions);
 		$this->assertCount(1, $context->getVar('agent_context_contributions'));
-		$this->assertTrue($roleResolver->isLegacyMemory($legacy));
-		$this->assertFalse($roleResolver->isLegacyMemory($conversation));
 		$this->assertFalse($roleResolver->isConversationMemory($contributor));
 		$this->assertTrue($roleResolver->isContextContributor($contributor));
 	}
@@ -213,7 +222,7 @@ final class AgentMemorySeparationTest extends TestCase {
 		}
 	}
 
-	public function testPureContributorDoesNotNeedLegacyMemoryMethods(): void {
+	public function testPureContributorDoesNotNeedMemoryMethods(): void {
 		$contributor = new class implements IAgentContextContributor {
 			public static function getName(): string {
 				return 'testpurecontributor';

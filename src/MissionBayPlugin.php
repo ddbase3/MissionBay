@@ -137,7 +137,9 @@ use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
 use MissionBay\Speech\ConfiguredRealtimeSpeechToTextSessionService;
 use MissionBay\Speech\ConfiguredTextToSpeechService;
 use MissionBay\Tool\Profile\MissionBayAgentToolProfileProvider;
+use MissionBay\Service\AgentConversationService;
 use MissionBay\Service\AgentExecutionService;
+use MissionBay\Service\AgentTextTaskService;
 use MissionBay\Service\AgentFlowCompiler;
 use MissionBay\Service\Assistant\AgentAssistantContextContributionService;
 use MissionBay\Service\Assistant\AgentAssistantFallbackBuilder;
@@ -252,6 +254,18 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IAgentContextFactory::class),
 				$c->get(IAgentFlowFactory::class),
 				$c->get(IAgentFlowCompiler::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentConversationService::class, fn($c) => new AgentConversationService(
+				$c->get(AgentMemoryProfileResolver::class),
+				$c->get(IAgentComponentPresetMaterializer::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentTextTaskService::class, fn($c) => new AgentTextTaskService(
+				$c->get(IAgentFlowCompiler::class),
+				$c->get(IAgentFlowFactory::class),
+				$c->get(IAgentComponentPresetMaterializer::class),
+				$c->get(AgentContextProfileResolver::class),
+				$c->get(AgentToolProfileResolver::class),
+				$c->get(IAgentAssistantContextContributionService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentCompositionInspector::class, fn($c) => new AgentCompositionInspector(
 				$c->get(ISettingsStore::class),

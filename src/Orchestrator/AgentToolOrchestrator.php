@@ -842,32 +842,12 @@ class AgentToolOrchestrator {
 	 * @return array<string,mixed>
 	 */
 	private function buildTrace(IAgentContext $context): array {
-		$configGroup = $this->readContextString($context, ['config_group', 'chatbot_config_group'], 'unknown_group');
-		$configName = $this->readContextString($context, ['config_name', 'chatbot_config_name'], 'unknown_config');
-		$chatbotKey = $this->readContextString($context, ['chatbot_key', 'chatbot_id', 'chatbot_name'], '');
-
-		if ($chatbotKey === '') {
-			$chatbotKey = $this->buildChatbotKey($configGroup, $configName);
-		}
-
 		return [
 			'turn_id' => $this->readContextString($context, ['turn_id', 'chat_turn_id', 'message_id'], 'unknown_turn'),
-			'chatbot_key' => $chatbotKey,
-			'config_group' => $configGroup,
-			'config_name' => $configName
+			'chatbot_key' => $this->readContextString($context, ['conversation_channel_id'], 'unknown_chatbot'),
+			'config_group' => $this->readContextString($context, ['config_group', 'chatbot_config_group'], 'unknown_group'),
+			'config_name' => $this->readContextString($context, ['config_name', 'chatbot_config_name'], 'unknown_config')
 		];
-	}
-
-	private function buildChatbotKey(string $configGroup, string $configName): string {
-		if ($configGroup !== 'unknown_group' && $configName !== 'unknown_config') {
-			return $configGroup . ':' . $configName;
-		}
-
-		if ($configName !== 'unknown_config') {
-			return $configName;
-		}
-
-		return 'unknown_chatbot';
 	}
 
 	/**

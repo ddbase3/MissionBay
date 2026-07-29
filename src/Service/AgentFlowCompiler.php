@@ -104,15 +104,6 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 			$memoryProfileComponents = $this->memoryProfileResolver->resolveComponents($memoryProfileId);
 		}
 
-		if (
-			$contextProfileId === ''
-			&& $memoryProfileId !== ''
-			&& $this->contextProfileResolver instanceof AgentContextProfileResolver
-			&& $this->contextProfileResolver->hasProfile($memoryProfileId)
-		) {
-			$contextProfileId = $memoryProfileId;
-			$warnings[] = 'Context profile was derived from the legacy combined profile "' . $memoryProfileId . '". Save the agent with an explicit context profile.';
-		}
 
 		$contextProfileComponents = [];
 		if ($contextProfileId !== '') {
