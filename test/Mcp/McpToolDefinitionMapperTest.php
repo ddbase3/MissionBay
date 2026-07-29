@@ -86,4 +86,23 @@ final class McpToolDefinitionMapperTest extends TestCase {
 		$this->assertFalse($tool['annotations']['destructiveHint']);
 		$this->assertTrue($tool['annotations']['idempotentHint']);
 	}
+	public function testBatchAnnotationsAreExportedForMcpClients(): void {
+		$tool = (new McpToolDefinitionMapper())->toMcpTool([
+			'type' => 'function',
+			'readOnlyHint' => false,
+			'batchable' => true,
+			'batchIndependent' => true,
+			'maxBatchSize' => 25,
+			'function' => [
+				'name' => 'set_plugin_state',
+				'description' => 'Sets one plugin state.',
+				'parameters' => ['type' => 'object', 'properties' => []]
+			]
+		]);
+
+		$this->assertTrue($tool['annotations']['batchable']);
+		$this->assertTrue($tool['annotations']['batchIndependent']);
+		$this->assertSame(25, $tool['annotations']['maxBatchSize']);
+	}
+
 }

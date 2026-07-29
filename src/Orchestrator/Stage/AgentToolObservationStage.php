@@ -21,6 +21,7 @@ use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolResult;
+use MissionBay\Orchestrator\Service\AgentBatchResultService;
 
 /**
  * AgentToolObservationStage
@@ -35,10 +36,15 @@ use AssistantFoundation\Dto\AgentToolResult;
  */
 final class AgentToolObservationStage implements IAgentStage {
 
+	private AgentBatchResultService $batchResultService;
+
 	public function __construct(
 		private readonly string $id = 'tool-observation',
-		private readonly string $stageName = 'tool-observation'
-	) {}
+		private readonly string $stageName = 'tool-observation',
+		?AgentBatchResultService $batchResultService = null
+	) {
+		$this->batchResultService = $batchResultService ?? new AgentBatchResultService();
+	}
 
 	public static function getName(): string {
 		return 'agenttoolobservationstage';
@@ -78,6 +84,8 @@ final class AgentToolObservationStage implements IAgentStage {
 		if (!is_array($toolResults)) {
 			$toolResults = [];
 		}
+
+		$toolResults = $this->batchResultService->aggregate($toolResults);
 
 		if (!is_array($messages)) {
 			$messages = [];

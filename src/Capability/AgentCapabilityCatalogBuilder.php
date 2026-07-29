@@ -49,6 +49,7 @@ final class AgentCapabilityCatalogBuilder {
 			if (!is_array($definition)) {
 				continue;
 			}
+			$definition = $this->withBatchDescription($definition);
 
 			$name = trim((string)($definition['function']['name'] ?? ''));
 			if ($name === '') {
@@ -133,6 +134,29 @@ final class AgentCapabilityCatalogBuilder {
 		return $result;
 	}
 
+	/** @param array<string,mixed> $definition @return array<string,mixed> */
+	private function withBatchDescription(array $definition): array {
+		if (
+			($definition['batchable'] ?? false) !== true
+			|| ($definition['batchIndependent'] ?? false) !== true
+			|| !is_array($definition['function'] ?? null)
+		) {
+			return $definition;
+		}
+
+		$maxBatchSize = is_numeric($definition['maxBatchSize'] ?? null)
+			? max(1, (int)$definition['maxBatchSize'])
+			: 25;
+		$description = trim((string)($definition['function']['description'] ?? ''));
+		$hint = 'Batch-enabled: execute_agent_tool_batch may repeat this unchanged single-item operation for up to '
+			. $maxBatchSize . ' independent argument sets with one approval.';
+		$definition['function']['description'] = $description !== ''
+			? $description . ' ' . $hint
+			: $hint;
+
+		return $definition;
+	}
+
 	/** @return array<int,string> */
 	private function normalizeStrings(mixed $values): array {
 		if (!is_array($values)) {
@@ -163,7 +187,10 @@ final class AgentCapabilityCatalogBuilder {
 			'sideEffectHint',
 			'side_effect_hint',
 			'readOnlyHint',
-			'read_only_hint'
+			'read_only_hint',
+			'batchable',
+			'batchIndependent',
+			'maxBatchSize'
 		] as $key) {
 			if (array_key_exists($key, $definition)) {
 				$metadata[$key] = $definition[$key];

@@ -16,6 +16,8 @@ use MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use Base3\Event\Api\IEventManager;
 use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Orchestrator\AgentActionFingerprint;
+use MissionBay\Orchestrator\Service\AgentBatchExecutionService;
+use MissionBay\Orchestrator\Service\AgentBatchResultService;
 use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
@@ -29,6 +31,9 @@ use MissionBay\Profile\AgentToolProfileResolver;
  */
 final class MissionBayAgentToolProfileProvider implements IAgentToolProfileProvider {
 
+	private AgentBatchExecutionService $batchExecutionService;
+	private AgentBatchResultService $batchResultService;
+
 	public function __construct(
 		private readonly AgentToolProfileResolver $profileResolver,
 		private readonly IAgentComponentPresetMaterializer $presetMaterializer,
@@ -37,8 +42,14 @@ final class MissionBayAgentToolProfileProvider implements IAgentToolProfileProvi
 		private readonly AgentToolContractValidationService $contractValidationService,
 		private readonly AgentActionFingerprint $fingerprint,
 		private readonly AgentMutationCommitGuardService $mutationCommitGuardService,
-		private readonly ?IEventManager $eventManager = null
-	) {}
+		private readonly ?IEventManager $eventManager = null,
+		?AgentBatchExecutionService $batchExecutionService = null,
+		?AgentBatchResultService $batchResultService = null
+	) {
+		$this->batchExecutionService = $batchExecutionService
+			?? new AgentBatchExecutionService($this->mutationCommitGuardService);
+		$this->batchResultService = $batchResultService ?? new AgentBatchResultService();
+	}
 
 	public static function getName(): string {
 		return 'missionbayagenttoolprofileprovider';
@@ -89,7 +100,10 @@ final class MissionBayAgentToolProfileProvider implements IAgentToolProfileProvi
 				$this->definitionSemantics,
 				$this->fingerprint,
 				$this->mutationCommitGuardService,
-				$this->eventManager
+				$this->eventManager,
+				[],
+				$this->batchExecutionService,
+				$this->batchResultService
 			);
 		}
 
@@ -172,7 +186,9 @@ final class MissionBayAgentToolProfileProvider implements IAgentToolProfileProvi
 			$this->fingerprint,
 			$this->mutationCommitGuardService,
 			$this->eventManager,
-			array_values(array_unique(array_filter(array_map('trim', $warnings))))
+			array_values(array_unique(array_filter(array_map('trim', $warnings)))),
+			$this->batchExecutionService,
+			$this->batchResultService
 		);
 	}
 

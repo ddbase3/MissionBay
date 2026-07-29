@@ -46,7 +46,8 @@ final class AgentActionResumeService {
 		private readonly AgentActionFingerprint $fingerprint,
 		private readonly IAgentSuspensionRepository $suspensionRepository,
 		private readonly ?IEventManager $eventManager = null,
-		?AgentInteractionResponseResolver $responseResolver = null
+		?AgentInteractionResponseResolver $responseResolver = null,
+		private readonly ?AgentBatchExecutionService $batchExecutionService = null
 	) {
 		$this->responseResolver = $responseResolver ?? new AgentInteractionResponseResolver();
 	}
@@ -98,9 +99,13 @@ final class AgentActionResumeService {
 		$pendingCalls = $context->getVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS);
 		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
 		$preapproved = $context->getVar(AgentToolLoopContextKeys::PREAPPROVED_ACTIONS);
+		$selectedToolNames = $context->getVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES);
+		$actions = $context->getVar(AgentToolLoopContextKeys::ACTIONS);
 		$pendingCalls = is_array($pendingCalls) ? $pendingCalls : [];
 		$toolResults = is_array($toolResults) ? $toolResults : [];
 		$preapproved = is_array($preapproved) ? $preapproved : [];
+		$selectedToolNames = is_array($selectedToolNames) ? $selectedToolNames : [];
+		$actions = is_array($actions) ? $actions : [];
 		$approvedCount = 0;
 		$deniedCount = 0;
 		$submittedCount = 0;
@@ -148,13 +153,44 @@ final class AgentActionResumeService {
 				if (is_array($commitSnapshot)) {
 					$callMetadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT] = $commitSnapshot;
 				}
-				$pendingCalls[] = new AiToolCall(
+				$approvedCall = new AiToolCall(
 					$approvedCall->getId(),
 					$approvedCall->getName(),
 					$approvedCall->getArguments(),
 					$callMetadata
 				);
-				$preapproved[$request->getAction()->getId()] = $request->getActionFingerprint();
+				if (
+					$this->batchExecutionService instanceof AgentBatchExecutionService
+					&& $this->batchExecutionService->isBatchCall($approvedCall, $context)
+				) {
+					try {
+						$childCalls = $this->batchExecutionService->expandApprovedCall($approvedCall, $context);
+					}
+					catch (\Throwable $e) {
+						return $this->releaseFailure(
+							$prepared,
+							'batch_expansion_failed',
+							$e->getMessage()
+						);
+					}
+					$actions = $this->withoutAction($actions, $request->getAction()->getId());
+					foreach ($childCalls as $childCall) {
+						$pendingCalls[] = $childCall;
+						$childAction = new AgentAction(
+							$childCall->getId(),
+							AgentAction::TYPE_TOOL_CALL,
+							$childCall->getName(),
+							$childCall->getArguments(),
+							['tool_call' => $childCall->getMetadata()]
+						);
+						$preapproved[$childAction->getId()] = $this->fingerprint->create($childAction);
+						$selectedToolNames[$childCall->getName()] = $childCall->getName();
+					}
+				}
+				else {
+					$pendingCalls[] = $approvedCall;
+					$preapproved[$request->getAction()->getId()] = $request->getActionFingerprint();
+				}
 				$auditEvents[] = [
 					'type' => MissionBayAgentActionAuditEvent::TYPE_APPROVAL_GRANTED,
 					'action' => $request->getAction(),
@@ -231,6 +267,8 @@ final class AgentActionResumeService {
 			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => $pendingCalls,
 			AgentToolLoopContextKeys::TOOL_RESULTS => $toolResults,
 			AgentToolLoopContextKeys::PREAPPROVED_ACTIONS => $preapproved,
+			AgentToolLoopContextKeys::ACTIONS => $actions,
+			AgentToolLoopContextKeys::SELECTED_TOOL_NAMES => array_values($selectedToolNames),
 			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
 			AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES => [],
 			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
@@ -248,6 +286,14 @@ final class AgentActionResumeService {
 			'resume_handle_consumed' => true,
 			'response_source' => $resolution instanceof AgentInteractionResolution ? 'natural_language_ai' : 'explicit'
 		]);
+	}
+
+	/** @param array<int,mixed> $actions @return array<int,mixed> */
+	private function withoutAction(array $actions, string $actionId): array {
+		return array_values(array_filter(
+			$actions,
+			static fn(mixed $action): bool => !($action instanceof AgentAction) || $action->getId() !== $actionId
+		));
 	}
 
 	private function validateRequestIntegrity(AgentInteractionRequest $request): ?string {

@@ -32,6 +32,9 @@ use Base3\Api\IBase;
  * operation. Besides the OpenAI-style function schema, MissionBay reads
  * top-level semantic annotations such as readOnlyHint, mutation,
  * requiresApproval, commitGuardRequired, sideEffectHint and destructiveHint.
+ * A guarded single-item operation may additionally declare batchable=true,
+ * batchIndependent=true and maxBatchSize when the generic batch coordinator
+ * may repeat it without changing the tool's normal input schema or callTool().
  * These annotations are evaluated per function; implementing IAgentTool does
  * not make the complete class read-only or mutating.
  *
@@ -62,7 +65,11 @@ interface IAgentTool extends IBase {
 	 * read-only annotations are readOnlyHint=true, mutation=false and
 	 * requiresApproval=false. A guarded mutation normally declares
 	 * readOnlyHint=false, mutation=true, requiresApproval=true,
-	 * commitGuardRequired=true and sideEffectHint=true.
+	 * commitGuardRequired=true and sideEffectHint=true. A mutation that may be
+	 * repeated through the generic batch coordinator also declares batchable=true,
+	 * batchIndependent=true and a positive maxBatchSize. These annotations do not
+	 * turn the operation into an array-input tool; each child remains one normal
+	 * call using the unchanged function.parameters contract.
 	 *
 	 * Example:
 	 * [

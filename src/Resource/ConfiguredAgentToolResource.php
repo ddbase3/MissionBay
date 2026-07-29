@@ -22,9 +22,11 @@ use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionReview;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use AssistantFoundation\Dto\AiToolCall;
 use Base3\Api\IOutputSchemaProvider;
 use Base3\Event\Api\IEventManager;
 use MissionBay\Agent\AgentNodeDock;
+use MissionBay\Api\IAgentBatchTool;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Api\IAgentTool;
@@ -44,7 +46,7 @@ use MissionBay\Event\MissionBayToolStartedEvent;
  * The wrapper is also the canonical execution audit boundary for configured
  * tools, independent from the orchestrator or transport that invokes it.
  */
-class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentTool, IAgentMutationGuardedTool, IConfirmableAgentTool, IOutputSchemaProvider {
+class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentBatchTool, IConfirmableAgentTool, IOutputSchemaProvider {
 
 	private ?IAgentTool $tool = null;
 	private bool $enabled = true;
@@ -224,6 +226,52 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 
 			throw $e;
 		}
+	}
+
+	public function isBatchFunction(string $name): bool {
+		if (!$this->tool instanceof IAgentBatchTool) {
+			return false;
+		}
+
+		return $this->tool->isBatchFunction($this->resolveOriginalToolName($name));
+	}
+
+	public function expandApprovedBatch(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context,
+		string $interactionRequestId = ''
+	): array {
+		$tool = $this->requireTool($action->getName());
+		if (!$tool instanceof IAgentBatchTool) {
+			throw new \RuntimeException('Configured tool does not provide batch expansion: ' . $action->getName());
+		}
+
+		$calls = $tool->expandApprovedBatch(
+			$this->translateAction($action),
+			$snapshot,
+			$context,
+			$interactionRequestId
+		);
+
+		return array_map(
+			function(AiToolCall $call) use ($action): AiToolCall {
+				$metadata = $call->getMetadata();
+				$batch = is_array($metadata['agent_batch'] ?? null) ? $metadata['agent_batch'] : [];
+				$parent = is_array($batch['parent_call'] ?? null) ? $batch['parent_call'] : [];
+				$parent['name'] = $action->getName();
+				$batch['parent_call'] = $parent;
+				$metadata['agent_batch'] = $batch;
+
+				return new AiToolCall(
+					$call->getId(),
+					$call->getName(),
+					$call->getArguments(),
+					$metadata
+				);
+			},
+			$calls
+		);
 	}
 
 	public function supportsConfirmation(): bool {

@@ -60,6 +60,14 @@ class McpToolDefinitionMapper {
 		}
 
 		$tool['annotations'] = $this->getAnnotations($definition, $function);
+		foreach (['batchable', 'batchIndependent', 'maxBatchSize'] as $key) {
+			if (array_key_exists($key, $definition)) {
+				$tool['annotations'][$key] = $definition[$key];
+			}
+			elseif (array_key_exists($key, $function)) {
+				$tool['annotations'][$key] = $function[$key];
+			}
+		}
 
 		return $tool;
 	}

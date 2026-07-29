@@ -22,6 +22,8 @@ use MissionBay\Api\IAgentTool;
 use MissionBay\Audit\AgentToolAuditContext;
 use MissionBay\Event\MissionBayAgentActionAuditEvent;
 use MissionBay\Orchestrator\AgentActionFingerprint;
+use MissionBay\Orchestrator\Service\AgentBatchExecutionService;
+use MissionBay\Orchestrator\Service\AgentBatchResultService;
 use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
@@ -51,7 +53,9 @@ final class MissionBayAgentToolSet implements IAgentConfirmableToolSet {
 		private readonly AgentActionFingerprint $fingerprint,
 		private readonly AgentMutationCommitGuardService $mutationCommitGuardService,
 		private readonly ?IEventManager $eventManager = null,
-		private readonly array $warnings = []
+		private readonly array $warnings = [],
+		private readonly ?AgentBatchExecutionService $batchExecutionService = null,
+		private readonly ?AgentBatchResultService $batchResultService = null
 	) {}
 
 	public function getCatalog(): AgentCapabilityCatalog {
@@ -238,6 +242,20 @@ final class MissionBayAgentToolSet implements IAgentConfirmableToolSet {
 			trim($response->getNote()) !== '' ? $response->getNote() : 'The user approved the exact pending action.',
 			['interaction_request_id' => $request->getId()]
 		);
+
+		if (
+			$this->batchExecutionService instanceof AgentBatchExecutionService
+			&& $this->batchExecutionService->isBatchCall($approvedCall, $this->context)
+		) {
+			if (!$this->batchResultService instanceof AgentBatchResultService) {
+				throw new \RuntimeException('Batch result aggregation service is unavailable.');
+			}
+			$childResults = [];
+			foreach ($this->batchExecutionService->expandApprovedCall($approvedCall, $this->context) as $childCall) {
+				$childResults[] = $this->executeCall($childCall, $metadata, true);
+			}
+			return $this->batchResultService->aggregateForParent($approvedCall, $childResults);
+		}
 
 		return $this->executeCall($approvedCall, $metadata, true);
 	}
@@ -440,7 +458,8 @@ final class MissionBayAgentToolSet implements IAgentConfirmableToolSet {
 		$metadata = $call->getMetadata();
 		return [
 			'iteration' => max(0, (int)($metadata['iteration'] ?? 0)),
-			'call_index' => max(0, (int)($metadata['call_index'] ?? 0))
+			'call_index' => max(0, (int)($metadata['call_index'] ?? 0)),
+			'tool_call' => $metadata
 		];
 	}
 

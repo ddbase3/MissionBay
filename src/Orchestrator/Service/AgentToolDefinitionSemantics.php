@@ -71,6 +71,26 @@ final class AgentToolDefinitionSemantics {
 	}
 
 	/** @param array<string,mixed> $definition */
+	public function isBatchableDefinition(array $definition): bool {
+		$annotations = $this->getAnnotations($definition);
+		return ($annotations['batchable'] ?? $annotations['batch_allowed'] ?? false) === true;
+	}
+
+	/** @param array<string,mixed> $definition */
+	public function isBatchIndependentDefinition(array $definition): bool {
+		$annotations = $this->getAnnotations($definition);
+		return ($annotations['batchIndependent'] ?? $annotations['batch_independent'] ?? false) === true;
+	}
+
+	/** @param array<string,mixed> $definition */
+	public function getMaxBatchSize(array $definition, int $default = 25): int {
+		$annotations = $this->getAnnotations($definition);
+		$value = $annotations['maxBatchSize'] ?? $annotations['max_batch_size'] ?? $default;
+		$value = is_numeric($value) ? (int)$value : $default;
+		return max(1, $value);
+	}
+
+	/** @param array<string,mixed> $definition */
 	public function isCommitGuardRequired(array $definition): bool {
 		$annotations = $this->getAnnotations($definition);
 		if (array_key_exists('commitGuardRequired', $annotations)) {
@@ -123,7 +143,9 @@ final class AgentToolDefinitionSemantics {
 		foreach ([
 			'readOnlyHint', 'read_only', 'readonly', 'destructiveHint', 'destructive',
 			'requiresApproval', 'requires_confirmation', 'requiresConfirmation', 'mutation',
-			'sideEffectHint', 'side_effect', 'commitGuardRequired', 'commit_guard_required'
+			'sideEffectHint', 'side_effect', 'commitGuardRequired', 'commit_guard_required',
+			'batchable', 'batch_allowed', 'batchIndependent', 'batch_independent',
+			'maxBatchSize', 'max_batch_size'
 		] as $key) {
 			if (array_key_exists($key, $definition)) {
 				$annotations[$key] = $definition[$key];

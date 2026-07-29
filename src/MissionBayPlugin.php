@@ -98,6 +98,8 @@ use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use MissionBay\Orchestrator\Policy\ComponentAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Service\AgentActionResumeService;
+use MissionBay\Orchestrator\Service\AgentBatchExecutionService;
+use MissionBay\Orchestrator\Service\AgentBatchResultService;
 use MissionBay\Orchestrator\Service\AgentInteractionResponseResolver;
 use MissionBay\Orchestrator\Service\AgentActionReviewService;
 use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
@@ -347,6 +349,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IEventManager::class),
 				$c->get(AgentToolDefinitionSemantics::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentBatchExecutionService::class, fn($c) => new AgentBatchExecutionService(
+				$c->get(AgentMutationCommitGuardService::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentBatchResultService::class, fn() => new AgentBatchResultService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentActionPolicyResolver::class, fn($c) => new ComponentAgentActionPolicyResolver(
 				$c->get(IComponentResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -359,7 +365,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentActionFingerprint::class),
 				$c->get(IAgentSuspensionRepository::class),
 				$c->get(IEventManager::class),
-				$c->get(AgentInteractionResponseResolver::class)
+				$c->get(AgentInteractionResponseResolver::class),
+				$c->get(AgentBatchExecutionService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionReviewService::class, fn($c) => new AgentActionReviewService(
 				$c->get(AgentActionFingerprint::class),
@@ -386,7 +393,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentToolContractValidationService::class),
 				$c->get(AgentActionFingerprint::class),
 				$c->get(AgentMutationCommitGuardService::class),
-				$c->get(IEventManager::class)
+				$c->get(IEventManager::class),
+				$c->get(AgentBatchExecutionService::class),
+				$c->get(AgentBatchResultService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentToolResultCacheService::class, fn($c) => new AgentToolResultCacheService(
 				$c->get(IAgentToolResultCache::class),
@@ -564,7 +573,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentToolObservationStage::getName(),
 			arguments: [
 				'id' => 'tool-observation',
-				'stageName' => 'tool-observation'
+				'stageName' => 'tool-observation',
+				'batchResultService' => $this->container->get(AgentBatchResultService::class)
 			]
 		));
 

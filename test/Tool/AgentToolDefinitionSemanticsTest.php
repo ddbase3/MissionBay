@@ -24,4 +24,18 @@ final class AgentToolDefinitionSemanticsTest extends TestCase {
 			'function' => ['name' => 'mutating_tool']
 		]));
 	}
+	public function testReadsBatchAnnotationsPerFunction(): void {
+		$semantics = new AgentToolDefinitionSemantics();
+		$definition = [
+			'batchable' => true,
+			'batchIndependent' => true,
+			'maxBatchSize' => 12,
+			'function' => ['name' => 'batch_target']
+		];
+
+		self::assertTrue($semantics->isBatchableDefinition($definition));
+		self::assertTrue($semantics->isBatchIndependentDefinition($definition));
+		self::assertSame(12, $semantics->getMaxBatchSize($definition));
+	}
+
 }
