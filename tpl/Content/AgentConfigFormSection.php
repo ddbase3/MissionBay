@@ -20,6 +20,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 $checked = static fn($value): string => !empty($value) ? ' checked="checked"' : '';
 $selected = static fn($current, $value): string => (string)$current === (string)$value ? ' selected="selected"' : '';
 $selectedIn = static fn($current, $value): string => in_array((string)$value, is_array($current) ? array_map('strval', $current) : [], true) ? ' selected="selected"' : '';
+$checkedIn = static fn($current, $value): string => in_array((string)$value, is_array($current) ? array_map('strval', $current) : [], true) ? ' checked="checked"' : '';
 $listText = static fn($value): string => is_array($value) ? implode("\n", array_map('strval', $value)) : '';
 ?>
 <style>
@@ -36,6 +37,18 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 .base3-agent-config-agent-flow { min-height:360px; }
 .base3-agent-config-help { max-width:800px; margin:5px 0 0; color:#666; font-size:12px; line-height:1.4; }
 .base3-agent-config-profile-card { max-width:900px; padding:12px; border:1px solid #e0e0e0; border-radius:6px; background:#fafafa; }
+.base3-agent-config-fieldset { min-width:0; margin:0 0 14px; padding:0; border:0; }
+.base3-agent-config-fieldset > legend { float:left; width:100%; margin:0; padding:7px 0 0; font-size:inherit; font-weight:600; line-height:inherit; }
+.base3-agent-config-profile-options { display:grid; gap:8px; max-width:900px; }
+.base3-agent-config-profile-option { display:flex; align-items:flex-start; gap:9px; margin:0; padding:10px 12px; border:1px solid #ddd; border-radius:5px; background:#fafafa; cursor:pointer; font-weight:normal; }
+.base3-agent-config-profile-option:hover { border-color:#bbb; background:#fff; }
+.base3-agent-config-profile-option input { flex:0 0 auto; margin:3px 0 0; }
+.base3-agent-config-profile-option-body { display:block; min-width:0; }
+.base3-agent-config-profile-option-title { display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 8px; }
+.base3-agent-config-profile-option-title code { color:#666; font-size:11px; }
+.base3-agent-config-profile-option-meta { color:#666; font-size:11px; }
+.base3-agent-config-profile-option-description { display:block; margin-top:3px; color:#555; font-size:12px; line-height:1.4; }
+.base3-agent-config-empty { margin:0; color:#666; }
 .base3-agent-config-stage-preview { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
 .base3-agent-config-stage-pill { padding:2px 7px; border:1px solid #d7d7d7; border-radius:999px; background:#fff; font-size:11px; }
 .base3-agent-config-expert { margin:0 0 18px; border:1px solid #d7d7d7; border-radius:6px; background:#fafafa; }
@@ -48,7 +61,7 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 .base3-agent-config-export-status { color:#555; font-size:12px; }
 .base3-agent-config-export-status[data-state="error"] { color:#a94442; }
 .base3-agent-config-export-status[data-state="warning"] { color:#8a6d3b; }
-@media(max-width:700px){ .base3-agent-config-row,.base3-agent-config-grid,.base3-agent-config-component-row{display:block}.base3-agent-config-label{display:block;padding:0;margin:0 0 5px}.base3-agent-config-component-row>*{margin-bottom:7px} }
+@media(max-width:700px){ .base3-agent-config-row,.base3-agent-config-grid,.base3-agent-config-component-row{display:block}.base3-agent-config-label,.base3-agent-config-fieldset > legend{display:block;float:none;width:auto;padding:0;margin:0 0 5px}.base3-agent-config-component-row>*{margin-bottom:7px} }
 </style>
 
 <div id="<?php echo $e($rootId); ?>" class="base3-agent-config-root" data-base3-agent-runtime-config-root="missionbay">
@@ -81,17 +94,38 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 				<p class="base3-agent-config-help">Stage order is fixed and validated. Profiles only enable optional stages and set limits.</p>
 			</div>
 		</div>
-		<div class="base3-agent-config-row">
-			<label class="base3-agent-config-label" for="<?php echo $e($formId); ?>_tool_profiles">Tool profiles</label>
+		<fieldset class="base3-agent-config-row base3-agent-config-fieldset">
+			<legend>Tool profiles</legend>
 			<div>
-				<select id="<?php echo $e($formId); ?>_tool_profiles" name="tool_profiles[]" multiple>
-<?php foreach($toolProfiles as $profile): $id=(string)($profile['id']??''); if($id==='') continue; ?>
-					<option value="<?php echo $e($id); ?>"<?php echo $selectedIn($values['tool_profiles']??[],$id); ?>><?php echo $e(($profile['label']??$id) . ' (' . (int)($profile['tool_count']??0) . ')' . (!empty($profile['mcp_enabled']) ? ' [MCP]' : '')); ?></option>
+				<div class="base3-agent-config-profile-options">
+<?php if ($toolProfiles === []) { ?>
+					<p class="base3-agent-config-empty">No tool profiles are available for internal agents.</p>
+<?php } ?>
+<?php foreach($toolProfiles as $profile):
+	$id=(string)($profile['id']??'');
+	if($id==='') continue;
+	$label=trim((string)($profile['label']??'')) ?: $id;
+	$description=trim((string)($profile['description']??''));
+	$toolCount=(int)($profile['tool_count']??0);
+?>
+					<label class="base3-agent-config-profile-option">
+						<input type="checkbox" name="tool_profiles[]" value="<?php echo $e($id); ?>"<?php echo $checkedIn($values['tool_profiles']??[],$id); ?> />
+						<span class="base3-agent-config-profile-option-body">
+							<span class="base3-agent-config-profile-option-title">
+								<strong><?php echo $e($label); ?></strong>
+								<code><?php echo $e($id); ?></code>
+								<span class="base3-agent-config-profile-option-meta"><?php echo $e((string)$toolCount); ?> tool <?php echo $toolCount === 1 ? 'preset' : 'presets'; ?><?php echo !empty($profile['mcp_enabled']) ? ' · MCP' : ''; ?></span>
+							</span>
+<?php if ($description !== '') { ?>
+							<span class="base3-agent-config-profile-option-description"><?php echo $e($description); ?></span>
+<?php } ?>
+						</span>
+					</label>
 <?php endforeach; ?>
-				</select>
-				<p class="base3-agent-config-help">Tool profiles define callable tool presets only. Conversation memory and context contributors are selected separately below.</p>
+				</div>
+				<p class="base3-agent-config-help">Select any number of profiles. Tool profiles define callable tool presets only. Conversation memory and context contributors are selected separately below.</p>
 			</div>
-		</div>
+		</fieldset>
 		<div class="base3-agent-config-row">
 			<label class="base3-agent-config-label" for="<?php echo $e($formId); ?>_memory_profile">Memory profile</label>
 			<div>
@@ -223,7 +257,7 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 	async function copyText(text){if(navigator.clipboard&&typeof navigator.clipboard.writeText==='function'){await navigator.clipboard.writeText(text);return}var area=document.createElement('textarea');area.value=text;area.setAttribute('readonly','readonly');area.style.position='fixed';area.style.left='-9999px';document.body.appendChild(area);area.select();var ok=document.execCommand('copy');document.body.removeChild(area);if(!ok)throw new Error('Clipboard copy was rejected by the browser.');}
 	var exportButton=root.querySelector('[data-agent-config-export]');var exportStatus=root.querySelector('[data-agent-config-export-status]');if(exportButton)exportButton.addEventListener('click',async function(){try{var payload=buildExport();await copyText(JSON.stringify(payload,null,2));var warningCount=payload.diagnostics&&Array.isArray(payload.diagnostics.warnings)?payload.diagnostics.warnings.length:0;if(exportStatus){exportStatus.dataset.state=warningCount>0?'warning':'ok';exportStatus.textContent='Complete configuration copied to clipboard'+(warningCount>0?' with '+String(warningCount)+' diagnostic warning(s).':'.')}}catch(error){if(exportStatus){exportStatus.dataset.state='error';exportStatus.textContent='Export failed: '+String(error&&error.message?error.message:error)}}});
 	function setValue(name,value){var fields=root.querySelectorAll('[name="'+name.replace(/"/g,'\\"')+'"]');fields.forEach(function(f){if(f.type==='checkbox'){f.checked=!!value}else{f.value=value==null?'':String(value)}})}
-	function setMulti(name,values){var f=root.querySelector('select[multiple][name="'+name.replace(/"/g,'\\"')+'"]');if(!f)return;values=Array.isArray(values)?values.map(String):[];Array.prototype.forEach.call(f.options,function(o){o.selected=values.indexOf(String(o.value))!==-1})}
+	function setMulti(name,values){values=Array.isArray(values)?values.map(String):[];var escaped=name.replace(/"/g,'\\"');var select=root.querySelector('select[multiple][name="'+escaped+'"]');if(select){Array.prototype.forEach.call(select.options,function(o){o.selected=values.indexOf(String(o.value))!==-1})}root.querySelectorAll('input[type="checkbox"][name="'+escaped+'"]').forEach(function(field){field.checked=values.indexOf(String(field.value))!==-1})}
 	root.__base3AgentRuntimeConfigUpdateValues=function(v){if(!v||typeof v!=='object')return;setValue('llm',v.llm||'');setValue('system_prompt',v.system_prompt||'');setValue('orchestrator_profile',v.orchestrator_profile||'standard');setMulti('tool_profiles[]',v.tool_profiles||[]);setValue('memory_profile',v.memory_profile||'');setValue('context_profile',v.context_profile||'');setValue('expert_overrides_enabled',!!v.expert_overrides_enabled);var flow=root.querySelector('[name="agent_flow"]');if(flow)flow.value=v.agent_flow_json||'{}';renderComponents(v.agent_components||[]);var src=v.capability_sources||{};['tools','providers','modules','resourceProviders','promptProviders'].forEach(function(k){setMulti('capability_sources['+k+'][]',src[k]||[])});var sel=v.capability_selection||{};setValue('capability_selection[strategy]',sel.strategy||'hybrid');setValue('capability_selection[max_tools]',sel.max_tools==null?16:sel.max_tools);setValue('capability_selection[select_all_threshold]',sel.select_all_threshold==null?16:sel.select_all_threshold);['include_tools','exclude_tools','include_tags','exclude_tags','include_categories','exclude_categories','always_available'].forEach(function(k){setValue('capability_selection['+k+']',Array.isArray(sel[k])?sel[k].join('\n'):'')});updateSummary();sync()};
 	root.__base3AgentRuntimeConfigPrepareSubmit=function(){sync();return true};
 })();
