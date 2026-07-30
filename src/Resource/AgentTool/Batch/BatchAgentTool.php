@@ -18,8 +18,10 @@
 namespace MissionBay\Resource\AgentTool\Batch;
 
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionReview;
+use AssistantFoundation\Dto\AgentInstructionBlock;
 use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use AssistantFoundation\Dto\AiToolCall;
@@ -38,12 +40,13 @@ use MissionBay\Resource\AbstractAgentResource;
  * function. Target mutations remain implemented and executed by their normal
  * single-item tools.
  */
-final class BatchAgentTool extends AbstractAgentResource implements IAgentBatchTool {
+final class BatchAgentTool extends AbstractAgentResource implements IAgentBatchTool, IAgentContextContributor {
 
 	public const FN_EXECUTE = 'execute_agent_tool_batch';
 
 	private const DEFAULT_MAX_BATCH_SIZE = 25;
 	private const ABSOLUTE_MAX_BATCH_SIZE = 100;
+	private const CONTEXT_PRIORITY = 30;
 	private const SNAPSHOT_CHILDREN = 'children';
 
 	public function __construct(
@@ -61,7 +64,27 @@ final class BatchAgentTool extends AbstractAgentResource implements IAgentBatchT
 	}
 
 	public function getDescription(): string {
-		return 'Plans one approval-bound batch from at least two independent calls to the same explicitly batch-enabled guarded mutation tool.';
+		return 'Use this generic tool whenever the user requests the same write or action operation for two or more independent targets and the target function declares batchable=true and batchIndependent=true. It replaces repeated individual calls with one combined approval while preserving every child action\'s normal commit guard and single-tool execution path. For exactly one action, call the target function directly.';
+	}
+
+	public function contribute(IAgentContext $context): iterable {
+		return [new AgentInstructionBlock(
+			id: 'batch-tool-usage',
+			content: implode("\n", [
+				'Batch tool usage:',
+				'- When the user requests the same write or action operation for two or more independent targets, prefer execute_agent_tool_batch if the target function declares batchable=true and batchIndependent=true.',
+				'- Use the target function directly for exactly one action.',
+				'- Do not batch different target functions or actions that depend on results from previous items.',
+				'- The batch tool asks for one combined approval; every child action still uses its normal individual commit guard and single-tool execution path.'
+			]),
+			priority: self::CONTEXT_PRIORITY,
+			source: $this->id(),
+			metadata: ['implementation' => static::getName()]
+		)];
+	}
+
+	public function getPriority(): int {
+		return self::CONTEXT_PRIORITY;
 	}
 
 	public function getToolDefinitions(): array {
@@ -69,7 +92,7 @@ final class BatchAgentTool extends AbstractAgentResource implements IAgentBatchT
 			'type' => 'function',
 			'label' => 'Execute Agent Tool Batch',
 			'category' => 'agent_control',
-			'tags' => ['agent', 'tool', 'batch', 'bulk', 'multiple', 'mutation'],
+			'tags' => ['agent', 'tool', 'batch', 'bulk', 'multiple', 'mass-action', 'multi-item', 'mutation', 'repeat'],
 			'priority' => 95,
 			'alwaysAvailable' => true,
 			'readOnlyHint' => false,
@@ -81,7 +104,7 @@ final class BatchAgentTool extends AbstractAgentResource implements IAgentBatchT
 			'batchIndependent' => false,
 			'function' => [
 				'name' => self::FN_EXECUTE,
-				'description' => 'Execute the same explicitly batch-enabled guarded mutation for at least two independent argument sets. For one action, call the target tool directly. Use target_function exactly as exposed by another tool. common_arguments are merged into every item and each item.arguments may override them. The complete frozen item list is shown in one approval request; every child mutation then uses its normal individual commit guard and execution path.',
+				'description' => 'Use this tool instead of repeated individual calls whenever the user requests the same write or action operation for at least two independent targets and the target function declares batchable=true and batchIndependent=true. For exactly one action, call the target function directly. Do not use this tool for mixed target functions, dependent steps, or read-only calls. Use target_function exactly as exposed by another tool. common_arguments are merged into every item and each item.arguments may override them. The complete frozen item list is shown in one combined approval request; every child mutation is then validated and executed separately through its normal commit guard and single-tool execution path.',
 				'parameters' => [
 					'type' => 'object',
 					'additionalProperties' => false,
