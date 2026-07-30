@@ -21,6 +21,7 @@ use Base3\Api\IClassMap;
 use Base3\Api\IComponent;
 use Base3\Api\IComponentResolver;
 use Base3\Api\IRequest;
+use Base3\Language\Api\ILanguage;
 use Base3\Settings\Api\ISettingsStore;
 use JsonException;
 use AssistantFoundation\Api\IAgentRuntimeConfigFormService;
@@ -53,8 +54,12 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 	 */
 	protected ?array $resourceCapabilitiesByType = null;
 
+	/** @var array<string,string>|null */
+	protected ?array $translations = null;
+
 	public function __construct(
 		private readonly IRequest $request,
+		private readonly ILanguage $language,
 		private readonly ISettingsStore $settingsStore,
 		private readonly IClassMap $classMap,
 		private readonly IComponentResolver $componentResolver,
@@ -94,15 +99,15 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 	public function getPostedSettings(array &$errors): array {
 		$agentFlow = $this->decodeConfigJsonInput(
-			$this->getPostedJsonText('agent_flow_b64', 'agent_flow', 'AgentFlow configuration', $errors),
-			'AgentFlow configuration',
+			$this->getPostedJsonText('agent_flow_b64', 'agent_flow', $this->translate('agentflow_label', 'AgentFlow configuration'), $errors),
+			$this->translate('agentflow_label', 'AgentFlow configuration'),
 			$errors
 		);
 
 		$agentComponentsInput = $this->decodePostedJsonValue(
 			'agent_components_json_b64',
 			'agent_components_json',
-			'Agent components',
+			$this->translate('agent_components_label', 'Agent components'),
 			$errors
 		);
 
@@ -118,7 +123,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		$llm = $this->normalizeTechnicalKey((string)$this->request->request('llm'));
 
 		if ($llm !== '' && !$this->llmExists($llm)) {
-			$errors[] = 'Selected LLM does not exist in settings group "' . self::LLM_SETTINGS_GROUP . '": ' . $llm;
+			$errors[] = sprintf($this->translate('selected_llm_missing', 'Selected LLM does not exist in settings group "%s": %s'), self::LLM_SETTINGS_GROUP, $llm);
 		}
 
 		$orchestratorProfile = $this->normalizeTechnicalKey((string)$this->request->request(
@@ -129,7 +134,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$this->orchestratorProfileRepository->getProfile($orchestratorProfile);
 		}
 		catch (\Throwable $e) {
-			$errors[] = 'Selected orchestrator profile is not available: ' . $orchestratorProfile . ' (' . $e->getMessage() . ')';
+			$errors[] = sprintf($this->translate('orchestrator_missing', 'Selected orchestrator profile is not available: %s (%s)'), $orchestratorProfile, $e->getMessage());
 		}
 
 		$toolProfiles = $this->normalizeTechnicalKeyList($this->request->request('tool_profiles', []));
@@ -139,7 +144,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		}
 		foreach ($toolProfiles as $toolProfile) {
 			if (!isset($availableToolProfiles[$toolProfile])) {
-				$errors[] = 'Selected tool profile is not available for internal agents: ' . $toolProfile;
+				$errors[] = sprintf($this->translate('tool_profile_missing', 'Selected tool profile is not available for internal agents: %s'), $toolProfile);
 			}
 		}
 
@@ -148,11 +153,11 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			try {
 				$profile = $this->memoryProfileResolver->getProfile($memoryProfile);
 				if (empty($profile['enabled'])) {
-					$errors[] = 'Selected memory profile is disabled: ' . $memoryProfile;
+					$errors[] = sprintf($this->translate('memory_profile_disabled', 'Selected memory profile is disabled: %s'), $memoryProfile);
 				}
 			}
 			catch (\Throwable $e) {
-				$errors[] = 'Selected memory profile is not available: ' . $memoryProfile . ' (' . $e->getMessage() . ')';
+				$errors[] = sprintf($this->translate('memory_profile_missing', 'Selected memory profile is not available: %s (%s)'), $memoryProfile, $e->getMessage());
 			}
 		}
 
@@ -161,18 +166,18 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			try {
 				$profile = $this->contextProfileResolver->getProfile($contextProfile);
 				if (empty($profile['enabled'])) {
-					$errors[] = 'Selected context profile is disabled: ' . $contextProfile;
+					$errors[] = sprintf($this->translate('context_profile_disabled', 'Selected context profile is disabled: %s'), $contextProfile);
 				}
 			}
 			catch (\Throwable $e) {
-				$errors[] = 'Selected context profile is not available: ' . $contextProfile . ' (' . $e->getMessage() . ')';
+				$errors[] = sprintf($this->translate('context_profile_missing', 'Selected context profile is not available: %s (%s)'), $contextProfile, $e->getMessage());
 			}
 		}
 
 		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
 
 		if (!$this->hasUsableAgentFlow($agentFlow)) {
-			$errors[] = 'MissionBay AgentFlow configuration must contain at least one node.';
+			$errors[] = $this->translate('agentflow_node_required', 'MissionBay AgentFlow configuration must contain at least one node.');
 		}
 
 		if ($errors === [] && $llm !== '') {
@@ -199,7 +204,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		$agentComponentsInput = $this->decodePostedJsonValue(
 			'agent_components_json_b64',
 			'agent_components_json',
-			'Agent components',
+			$this->translate('agent_components_label', 'Agent components'),
 			$errors
 		);
 
@@ -215,7 +220,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'context_profile' => $this->normalizeTechnicalKey((string)$this->request->request('context_profile', '')),
 			'expert_overrides_enabled' => $this->toBool($this->request->request('expert_overrides_enabled', false)),
 			'system_prompt' => $this->normalizeTextBlock((string)$this->request->request('system_prompt')),
-			'agent_flow_json' => $this->getPostedJsonText('agent_flow_b64', 'agent_flow', 'AgentFlow configuration', $errors),
+			'agent_flow_json' => $this->getPostedJsonText('agent_flow_b64', 'agent_flow', $this->translate('agentflow_label', 'AgentFlow configuration'), $errors),
 			'agent_components' => $this->normalizeAgentComponentsViewInput($agentComponentsInput),
 			'capability_sources' => $this->normalizeCapabilitySources($this->request->request('capability_sources', [])),
 			'capability_selection' => $this->normalizeCapabilitySelection($this->request->request('capability_selection', []), $errors)
@@ -305,8 +310,44 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'context_profile_options' => $this->contextProfileResolver->getOptions(),
 			'agent_component_presets' => $this->listAgentComponentPresetOptions(),
 			'capability_component_options' => $this->listCapabilityComponentOptions(),
-			'export_catalog' => $this->buildExportCatalog()
+			'export_catalog' => $this->buildExportCatalog(),
+			'translations' => $this->getTranslations()
 		];
+	}
+
+	/** @return array<string,string> */
+	protected function getTranslations(): array {
+		if ($this->translations !== null) {
+			return $this->translations;
+		}
+
+		$language = strtolower(str_replace('_', '-', trim($this->language->getLanguage())));
+		$language = explode('-', $language)[0] ?? 'en';
+		if (!in_array($language, ['de', 'en', 'fr', 'es', 'ru'], true)) {
+			$language = 'en';
+		}
+
+		$fallback = $this->readTranslationFile(DIR_PLUGIN . 'MissionBay/lang/AgentConfigForm/en.ini');
+		$current = $language === 'en'
+			? []
+			: $this->readTranslationFile(DIR_PLUGIN . 'MissionBay/lang/AgentConfigForm/' . $language . '.ini');
+		$this->translations = array_merge($fallback, $current);
+		return $this->translations;
+	}
+
+	protected function translate(string $key, string $fallback): string {
+		$value = $this->getTranslations()[$key] ?? null;
+		return is_scalar($value) && trim((string)$value) !== '' ? trim((string)$value) : $fallback;
+	}
+
+	/** @return array<string,string> */
+	protected function readTranslationFile(string $filename): array {
+		if (!is_file($filename) || !is_readable($filename)) {
+			return [];
+		}
+		$data = parse_ini_file($filename, true);
+		$section = is_array($data['missionbay_agent_config'] ?? null) ? $data['missionbay_agent_config'] : [];
+		return array_filter($section, static fn($value): bool => is_scalar($value));
 	}
 
 	/**
@@ -480,7 +521,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		try {
 			return AgentCapabilitySelectionConfig::fromArray($value)->toArray();
 		} catch (\Throwable $e) {
-			$errors[] = 'Invalid capability selection configuration: ' . $e->getMessage();
+			$errors[] = sprintf($this->translate('invalid_capability_selection', 'Invalid capability selection configuration: %s'), $e->getMessage());
 			return (new AgentCapabilitySelectionConfig())->toArray();
 		}
 	}
@@ -685,7 +726,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$attachAs = $this->normalizeAgentComponentAttachAs($row, $presetSettings);
 
 			if ($attachAs === []) {
-				$errors[] = 'Agent component preset "' . $preset . '" does not expose a memory or tool capability.';
+				$errors[] = sprintf($this->translate('component_preset_capability_error', 'Agent component preset "%s" does not expose a memory or tool capability.'), $preset);
 				continue;
 			}
 
@@ -1191,7 +1232,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		$decoded = base64_decode($base64, true);
 
 		if (!is_string($decoded)) {
-			$errors[] = $label . ' could not be decoded from base64.';
+			$errors[] = sprintf($this->translate('base64_decode_error', '%s could not be decoded from base64.'), $label);
 
 			return '';
 		}
@@ -1210,7 +1251,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			return json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
 		}
 		catch (JsonException $e) {
-			$errors[] = $label . ' must be valid JSON: ' . $e->getMessage();
+			$errors[] = sprintf($this->translate('json_invalid', '%s must be valid JSON: %s'), $label, $e->getMessage());
 
 			return null;
 		}
@@ -1225,12 +1266,12 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
 		}
 		catch (JsonException $e) {
-			$errors[] = $label . ' must be valid JSON: ' . $e->getMessage();
+			$errors[] = sprintf($this->translate('json_invalid', '%s must be valid JSON: %s'), $label, $e->getMessage());
 			return [];
 		}
 
 		if (!is_array($decoded)) {
-			$errors[] = $label . ' must decode to a JSON object or array.';
+			$errors[] = sprintf($this->translate('json_object_or_array', '%s must decode to a JSON object or array.'), $label);
 			return [];
 		}
 

@@ -29,6 +29,7 @@ use Base3\Core\ComponentDefinition;
 use Base3\Database\Api\IDatabase;
 use Base3\Event\Api\IEventManager;
 use Base3\Event\EventManager;
+use Base3\Language\Api\ILanguage;
 use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\State\Api\IStateStore;
@@ -301,6 +302,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentConfigFormService::class, fn($c) => new AgentConfigFormService(
 				$c->get(IRequest::class),
+				$c->get(ILanguage::class),
 				$c->get(ISettingsStore::class),
 				$c->get(IClassMap::class),
 				$c->get(IComponentResolver::class),
