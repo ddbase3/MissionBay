@@ -1217,3 +1217,21 @@ the request options and result metadata.
 These contracts are plugin-to-plugin slots because Chatbot, administrative
 configuration plugins, and alternative assistant runtimes must be able to
 consume or replace speech implementations without depending on MissionBay.
+
+## `IAssistantResponseExtension`
+
+**Owner:** AssistantFoundation.
+
+Use this interface for optional assistant output capabilities that are supplied by independent plugins. An implementation declares a stable technical id, administration metadata, default activation, a model instruction block, an optional browser ES-module plugin descriptor and options for existing client plugins.
+
+The consuming application discovers implementations through `IClassMap::getInstancesByInterface()`, owns activation settings and composes the active instructions and browser modules. Implementations must not execute model-provided JavaScript or create a second client plugin manager.
+
+Chatbot provides the registry and settings service. The optional ChatbotExtensions plugin provides the initial implementations.
+
+## `IAssistantResponseExtensionExamples`
+
+**Owner:** AssistantFoundation.
+
+Implement this small presentation contract together with `IAssistantResponseExtension` when an extension can provide practical prompts for administration or documentation. The prompts demonstrate the capability; they do not alter model execution and are not added to the system prompt.
+
+The consuming administration may localize or replace the returned fallback prompts. Capability implementations keep their examples with the same plugin that owns the model contract and browser adapter.
