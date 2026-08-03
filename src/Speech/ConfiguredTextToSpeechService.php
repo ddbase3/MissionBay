@@ -18,6 +18,7 @@
 namespace MissionBay\Speech;
 
 use AssistantFoundation\Api\ITextToSpeechService;
+use AssistantFoundation\Api\ITextToSpeechStream;
 use AssistantFoundation\Dto\TextToSpeechRequest;
 use AssistantFoundation\Dto\TextToSpeechResult;
 use Base3\Api\IClassMap;
@@ -40,7 +41,10 @@ final class ConfiguredTextToSpeechService implements ITextToSpeechService {
 		private readonly IAgentConfigValueResolver $configValueResolver
 	) {}
 
-	public function synthesize(TextToSpeechRequest $request): TextToSpeechResult {
+	public function synthesize(
+		TextToSpeechRequest $request,
+		ITextToSpeechStream $stream
+	): TextToSpeechResult {
 		$serviceId = $this->normalizeKey($request->getServiceId());
 		if($serviceId === '') {
 			throw new RuntimeException('Missing text-to-speech service id.');
@@ -51,7 +55,7 @@ final class ConfiguredTextToSpeechService implements ITextToSpeechService {
 		$secret = $this->resolveConnectionSecret($connectionConfig);
 		$driver = $this->resolveDriver($serviceConfig->getDriver());
 
-		return $driver->synthesize($serviceConfig, $connectionConfig, $secret, $request);
+		return $driver->synthesize($serviceConfig, $connectionConfig, $secret, $request, $stream);
 	}
 
 	private function loadServiceConfig(string $serviceId): ServiceConfig {

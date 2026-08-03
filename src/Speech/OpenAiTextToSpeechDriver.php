@@ -17,6 +17,7 @@
 
 namespace MissionBay\Speech;
 
+use AssistantFoundation\Api\ITextToSpeechStream;
 use AssistantFoundation\Dto\TextToSpeechRequest;
 use AssistantFoundation\Dto\TextToSpeechResult;
 use MissionBay\Api\ITextToSpeechDriver;
@@ -47,7 +48,8 @@ final class OpenAiTextToSpeechDriver implements ITextToSpeechDriver {
 		ServiceConfig $serviceConfig,
 		ConnectionConfig $connectionConfig,
 		string $secret,
-		TextToSpeechRequest $request
+		TextToSpeechRequest $request,
+		ITextToSpeechStream $stream
 	): TextToSpeechResult {
 		$text = trim($request->getText());
 		if($text === '') {
@@ -77,6 +79,7 @@ final class OpenAiTextToSpeechDriver implements ITextToSpeechDriver {
 			'input' => $text,
 			'voice' => $voice,
 			'response_format' => $responseFormat,
+			'stream_format' => 'audio',
 			'speed' => $speed
 		];
 		if($instructions !== '') {
@@ -93,37 +96,43 @@ final class OpenAiTextToSpeechDriver implements ITextToSpeechDriver {
 			$authHeaderName = 'Authorization';
 		}
 
-		$audio = $this->postJson(
+		$mimeType = self::MIME_TYPES[$responseFormat];
+		$metadata = [
+			'provider' => 'openai',
+			'model' => $model,
+			'voice' => $voice,
+			'responseFormat' => $responseFormat,
+			'speed' => $speed
+		];
+
+		$this->postJsonStream(
 			$baseUrl . '/v1/audio/speech',
 			$payload,
 			$secret,
 			$authHeaderName,
-			$connectionConfig->getTimeoutSeconds()
+			$connectionConfig->getTimeoutSeconds(),
+			$mimeType,
+			$metadata,
+			$stream
 		);
 
-		return new TextToSpeechResult(
-			$audio,
-			self::MIME_TYPES[$responseFormat],
-			[
-				'provider' => 'openai',
-				'model' => $model,
-				'voice' => $voice,
-				'responseFormat' => $responseFormat,
-				'speed' => $speed
-			]
-		);
+		return new TextToSpeechResult($mimeType, $metadata);
 	}
 
 	/**
 	 * @param array<string,mixed> $payload
+	 * @param array<string,mixed> $metadata
 	 */
-	private function postJson(
+	private function postJsonStream(
 		string $url,
 		array $payload,
 		string $secret,
 		string $authHeaderName,
-		int $timeoutSeconds
-	): string {
+		int $timeoutSeconds,
+		string $mimeType,
+		array $metadata,
+		ITextToSpeechStream $stream
+	): void {
 		if(!function_exists('curl_init')) {
 			throw new RuntimeException('PHP cURL extension is required for OpenAI text-to-speech.');
 		}
@@ -131,47 +140,94 @@ final class OpenAiTextToSpeechDriver implements ITextToSpeechDriver {
 			throw new RuntimeException('Invalid authentication header name for OpenAI text-to-speech.');
 		}
 
-		$curl = curl_init($url);
-		if($curl === false) {
-			throw new RuntimeException('Unable to initialize OpenAI text-to-speech request.');
-		}
-
 		$body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		if($body === false) {
 			throw new RuntimeException('Unable to encode OpenAI text-to-speech request.');
 		}
 
+		$curl = curl_init($url);
+		if($curl === false) {
+			throw new RuntimeException('Unable to initialize OpenAI text-to-speech request.');
+		}
+
+		$statusCode = 0;
+		$errorBody = '';
+		$streamStarted = false;
+		$audioBytes = 0;
+
 		curl_setopt_array($curl, [
 			CURLOPT_POST => true,
-			CURLOPT_RETURNTRANSFER => true,
+			CURLOPT_RETURNTRANSFER => false,
 			CURLOPT_TIMEOUT => $timeoutSeconds,
+			CURLOPT_BUFFERSIZE => 16384,
 			CURLOPT_HTTPHEADER => [
 				$authHeaderName . ': Bearer ' . $secret,
 				'Content-Type: application/json',
 				'Accept: application/octet-stream'
 			],
-			CURLOPT_POSTFIELDS => $body
+			CURLOPT_POSTFIELDS => $body,
+			CURLOPT_HEADERFUNCTION => static function($curl, string $header) use (&$statusCode): int {
+				$line = trim($header);
+				if(preg_match('#^HTTP/\S+\s+(\d{3})#i', $line, $matches) === 1) {
+					$statusCode = (int)$matches[1];
+				}
+
+				return strlen($header);
+			},
+			CURLOPT_WRITEFUNCTION => static function($curl, string $chunk) use (
+				&$statusCode,
+				&$errorBody,
+				&$streamStarted,
+				&$audioBytes,
+				$mimeType,
+				$metadata,
+				$stream
+			): int {
+				$length = strlen($chunk);
+				if($stream->isCancelled()) {
+					return 0;
+				}
+
+				if($statusCode >= 200 && $statusCode < 300) {
+					if(!$streamStarted) {
+						$stream->start($mimeType, $metadata);
+						$streamStarted = true;
+					}
+					$stream->write($chunk);
+					$audioBytes += $length;
+					return $length;
+				}
+
+				if(strlen($errorBody) < 65536) {
+					$errorBody .= substr($chunk, 0, 65536 - strlen($errorBody));
+				}
+
+				return $length;
+			}
 		]);
 
-		$responseBody = curl_exec($curl);
-		$statusCode = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+		$result = curl_exec($curl);
+		$finalStatusCode = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
 		$error = curl_error($curl);
 		curl_close($curl);
 
-		if($responseBody === false) {
+		if($statusCode === 0) {
+			$statusCode = $finalStatusCode;
+		}
+		if($result === false) {
+			if($stream->isCancelled()) {
+				return;
+			}
 			throw new RuntimeException('OpenAI text-to-speech request failed: ' . $error);
 		}
-
 		if($statusCode < 200 || $statusCode >= 300) {
-			$message = $this->extractErrorMessage((string)$responseBody);
-			throw new RuntimeException('OpenAI text-to-speech request failed with HTTP ' . $statusCode . ': ' . $message);
+			throw new RuntimeException(
+				'OpenAI text-to-speech request failed with HTTP ' . $statusCode . ': ' . $this->extractErrorMessage($errorBody)
+			);
 		}
-
-		if((string)$responseBody === '') {
+		if($audioBytes === 0 && !$stream->isCancelled()) {
 			throw new RuntimeException('OpenAI text-to-speech response is empty.');
 		}
-
-		return (string)$responseBody;
 	}
 
 	private function extractErrorMessage(string $body): string {

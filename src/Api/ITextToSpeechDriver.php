@@ -17,6 +17,7 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Api\ITextToSpeechStream;
 use AssistantFoundation\Dto\TextToSpeechRequest;
 use AssistantFoundation\Dto\TextToSpeechResult;
 use Base3\Api\IBase;
@@ -31,6 +32,7 @@ interface ITextToSpeechDriver extends IBase {
 		ServiceConfig $serviceConfig,
 		ConnectionConfig $connectionConfig,
 		string $secret,
-		TextToSpeechRequest $request
+		TextToSpeechRequest $request,
+		ITextToSpeechStream $stream
 	): TextToSpeechResult;
 }
