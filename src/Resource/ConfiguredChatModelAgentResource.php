@@ -22,6 +22,7 @@ use AssistantFoundation\Dto\AiChatResult;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Api\IChatModelServiceDriverDefinition;
 use MissionBay\ChatModel\MistralChatModel;
 use MissionBay\ChatModel\OpenAiChatModel;
 use MissionBay\ChatModel\OpenAiCompatibleChatModel;
@@ -161,7 +162,29 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 			'mistral-chat' => MistralChatModel::getName()
 		];
 
-		return $map[$driver] ?? '';
+		if(isset($map[$driver])) {
+			return $map[$driver];
+		}
+
+		$definitions = $this->classMap->getInstancesByInterface(IChatModelServiceDriverDefinition::class);
+
+		foreach($definitions as $definition) {
+			if(!$definition instanceof IChatModelServiceDriverDefinition) {
+				continue;
+			}
+
+			if($definition->getServiceType() !== self::SERVICE_TYPE) {
+				continue;
+			}
+
+			if($this->normalizeKey($definition->getDriver()) !== $driver) {
+				continue;
+			}
+
+			return trim($definition->getChatModelName());
+		}
+
+		return '';
 	}
 
 	/**

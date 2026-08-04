@@ -50,6 +50,15 @@ final class AgentAssistantFallbackBuilder implements IAgentAssistantFallbackBuil
 				$message = $orchestrationResult->getFailureCode();
 			}
 
+			$technicalCause = $this->findSafeTechnicalCause($orchestrationResult);
+
+			if ($technicalCause !== '') {
+				return 'Ich konnte die Anfrage nicht vollständig abschließen. Grund: '
+					. $message
+					. ' Technische Ursache: '
+					. $technicalCause;
+			}
+
 			return 'Ich konnte die Anfrage nicht vollständig abschließen. Grund: ' . $message;
 		}
 
@@ -121,4 +130,20 @@ final class AgentAssistantFallbackBuilder implements IAgentAssistantFallbackBuil
 
 		return '';
 	}
+
+	private function findSafeTechnicalCause(AgentToolOrchestratorResult $orchestrationResult): string {
+		$detail = $orchestrationResult->getFailureDetail();
+		$message = is_scalar($detail['message'] ?? null)
+			? trim((string)$detail['message'])
+			: '';
+
+		if ($message === '' || !str_starts_with($message, 'Local LLM')) {
+			return '';
+		}
+
+		$message = preg_replace('/Bearer\s+[^\s,;]+/i', 'Bearer [REDACTED]', $message) ?? $message;
+
+		return mb_substr($message, 0, 2000);
+	}
+
 }

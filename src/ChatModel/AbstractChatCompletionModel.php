@@ -34,6 +34,9 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 
 	protected ?IAiProvider $provider = null;
 
+	private bool $streamReasoningActive = false;
+	private int $streamReasoningBytes = 0;
+
 	public function __construct(
 		protected readonly IClassMap $classMap,
 		AiProviderRequestEventDispatcher $providerRequestEvents
@@ -100,6 +103,7 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
 		$payload = $this->buildPayload($messages, $tools, true);
 		$sseBuffer = '';
+		$this->resetReasoningStream();
 
 		$this->getProvider()->stream(
 			$this->getChatCompletionPath(),
@@ -112,6 +116,7 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		);
 
 		$this->flushSseBuffer($sseBuffer, $onData, $onMeta);
+		$this->finishReasoningStream($onMeta);
 	}
 
 	protected function getProvider(): IAiProvider {
@@ -172,6 +177,16 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		$topP = $this->getNullableFloatOption('top_p');
 		if($topP !== null) {
 			$payload['top_p'] = $topP;
+		}
+
+		if(array_key_exists('chat_template_kwargs', $this->options)) {
+			$chatTemplateKwargs = $this->options['chat_template_kwargs'];
+
+			if(!is_array($chatTemplateKwargs)) {
+				throw new \RuntimeException('Chat template kwargs must be a JSON object.');
+			}
+
+			$payload['chat_template_kwargs'] = $chatTemplateKwargs;
 		}
 
 		if($stream) {
@@ -551,6 +566,8 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		}
 
 		if($data === '[DONE]') {
+			$this->finishReasoningStream($onMeta);
+
 			if($onMeta !== null) {
 				$onMeta(['event' => 'done']);
 			}
@@ -565,8 +582,14 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		}
 
 		$choice = $json['choices'][0] ?? [];
+		$reasoningDelta = $choice['delta']['reasoning'] ?? ($choice['delta']['reasoning_content'] ?? null);
+
+		if(is_string($reasoningDelta) && $reasoningDelta !== '') {
+			$this->observeReasoningDelta($reasoningDelta, $onMeta);
+		}
 
 		if($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
+			$this->finishReasoningStream($onMeta);
 			$onMeta([
 				'event' => 'meta',
 				'finish_reason' => $choice['finish_reason'],
@@ -581,13 +604,54 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		}
 
 		if(is_string($delta) && $delta !== '') {
+			$this->finishReasoningStream($onMeta);
 			$onData($delta);
 		}
 
 		if(!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
+			$this->finishReasoningStream($onMeta);
 			$onMeta([
 				'event' => 'toolcall',
 				'tool_calls' => $choice['delta']['tool_calls'],
+			]);
+		}
+	}
+
+	private function resetReasoningStream(): void {
+		$this->streamReasoningActive = false;
+		$this->streamReasoningBytes = 0;
+	}
+
+	private function observeReasoningDelta(string $delta, ?callable $onMeta): void {
+		$this->streamReasoningBytes += strlen($delta);
+
+		if($this->streamReasoningActive) {
+			return;
+		}
+
+		$this->streamReasoningActive = true;
+
+		if($onMeta !== null) {
+			$onMeta([
+				'event' => 'reasoning_start',
+				'visible' => false,
+			]);
+		}
+	}
+
+	private function finishReasoningStream(?callable $onMeta): void {
+		if(!$this->streamReasoningActive) {
+			return;
+		}
+
+		$bytes = $this->streamReasoningBytes;
+		$this->resetReasoningStream();
+
+		if($onMeta !== null) {
+			$onMeta([
+				'event' => 'reasoning_end',
+				'visible' => false,
+				'bytes' => $bytes,
 			]);
 		}
 	}

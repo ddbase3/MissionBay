@@ -287,7 +287,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(ConfiguredAiModelConfigurationProvider::class, fn($c) => new ConfiguredAiModelConfigurationProvider(
 				$c->get(ISettingsStore::class),
-				$c->get(IAgentConfigValueResolver::class)
+				$c->get(IAgentConfigValueResolver::class),
+				$c->get(IClassMap::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAiModelConfigurationProvider::class, fn($c) => $c->get(ConfiguredAiModelConfigurationProvider::class), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IRealtimeSpeechToTextSessionService::class, fn($c) => new ConfiguredRealtimeSpeechToTextSessionService(
