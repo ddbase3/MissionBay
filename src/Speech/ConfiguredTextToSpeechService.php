@@ -17,6 +17,7 @@
 
 namespace MissionBay\Speech;
 
+use AssistantFoundation\Api\IServiceDriverDefinition;
 use AssistantFoundation\Api\ITextToSpeechService;
 use AssistantFoundation\Api\ITextToSpeechStream;
 use AssistantFoundation\Dto\TextToSpeechRequest;
@@ -121,13 +122,28 @@ final class ConfiguredTextToSpeechService implements ITextToSpeechService {
 
 	private function resolveDriver(string $driverName): ITextToSpeechDriver {
 		$driverName = $this->normalizeKey($driverName);
-		$drivers = $this->classMap->getInstancesByInterface(ITextToSpeechDriver::class);
+		$definitions = $this->classMap->getInstancesByInterface(IServiceDriverDefinition::class);
 
-		foreach($drivers as $driver) {
-			if(!$driver instanceof ITextToSpeechDriver) {
+		foreach($definitions as $definition) {
+			if(!$definition instanceof IServiceDriverDefinition) {
 				continue;
 			}
-			if($this->normalizeKey($driver->getDriver()) === $driverName) {
+			if($this->normalizeKey($definition->getServiceType()) !== 'tts') {
+				continue;
+			}
+			if($this->normalizeKey($definition->getDriver()) !== $driverName) {
+				continue;
+			}
+			if(trim($definition->getImplementationInterface()) !== ITextToSpeechDriver::class) {
+				continue;
+			}
+
+			$driver = $this->classMap->getInstanceByInterfaceName(
+				ITextToSpeechDriver::class,
+				trim($definition->getImplementationName())
+			);
+
+			if($driver instanceof ITextToSpeechDriver) {
 				return $driver;
 			}
 		}

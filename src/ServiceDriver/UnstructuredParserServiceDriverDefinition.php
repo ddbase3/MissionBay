@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use MissionBay\Api\IParserService;
+use MissionBay\ParserService\UnstructuredParserService;
 
 final class UnstructuredParserServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class UnstructuredParserServiceDriverDefinition implements IServiceDriverD
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return IParserService::class;
+	}
+
+	public function getImplementationName(): string {
+		return UnstructuredParserService::getName();
 	}
 
 	public function getConfigSchema(): array {

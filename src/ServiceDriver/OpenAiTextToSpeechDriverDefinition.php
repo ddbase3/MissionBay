@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use MissionBay\Api\ITextToSpeechDriver;
+use MissionBay\Speech\OpenAiTextToSpeechDriver;
 
 final class OpenAiTextToSpeechDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class OpenAiTextToSpeechDriverDefinition implements IServiceDriverDefiniti
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return ITextToSpeechDriver::class;
+	}
+
+	public function getImplementationName(): string {
+		return OpenAiTextToSpeechDriver::getName();
 	}
 
 	public function getConfigSchema(): array {

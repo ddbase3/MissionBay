@@ -19,6 +19,25 @@ namespace MissionBay\Service;
 
 final class ServiceConfig {
 
+	private const CONNECTION_OWNED_OPTION_KEYS = [
+		'endpoint',
+		'baseurl',
+		'apikey',
+		'auth',
+		'authtype',
+		'authheadername',
+		'authsecret',
+		'secret',
+		'secretmode',
+		'secretvalue',
+		'secretconfig'
+	];
+
+	/**
+	 * @var array<string,mixed>
+	 */
+	private readonly array $options;
+
 	/**
 	 * @param array<string,mixed> $options
 	 */
@@ -30,8 +49,10 @@ final class ServiceConfig {
 		private readonly string $driver,
 		private readonly string $model,
 		private readonly bool $enabled,
-		private readonly array $options = []
-	) {}
+		array $options = []
+	) {
+		$this->options = self::sanitizeOptions($options);
+	}
 
 	/**
 	 * @param array<string,mixed> $settings
@@ -127,6 +148,27 @@ final class ServiceConfig {
 	 */
 	public function getOptions(): array {
 		return $this->options;
+	}
+
+	public static function isConnectionOwnedOptionKey(string $key): bool {
+		$key = strtolower(trim($key));
+		$key = preg_replace('/[^a-z0-9]+/', '', $key) ?? '';
+
+		return in_array($key, self::CONNECTION_OWNED_OPTION_KEYS, true);
+	}
+
+	/**
+	 * @param array<string,mixed> $options
+	 * @return array<string,mixed>
+	 */
+	private static function sanitizeOptions(array $options): array {
+		foreach(array_keys($options) as $key) {
+			if(is_string($key) && self::isConnectionOwnedOptionKey($key)) {
+				unset($options[$key]);
+			}
+		}
+
+		return $options;
 	}
 
 	private static function normalizeKey(mixed $value): string {

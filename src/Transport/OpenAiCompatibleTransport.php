@@ -182,16 +182,26 @@ class OpenAiCompatibleTransport implements IAiProvider {
 	 * @return array<int,string>
 	 */
 	private function buildHeaders(array $options): array {
-		$apiKey = trim((string)($options['apikey'] ?? $this->options['apikey'] ?? ''));
+		$authType = strtolower(trim((string)($options['auth_type'] ?? $this->options['auth_type'] ?? 'bearer')));
+		$headerName = trim((string)($options['auth_header_name'] ?? $this->options['auth_header_name'] ?? ''));
+		$secret = trim((string)($options['apikey'] ?? $this->options['apikey'] ?? ''));
+		$headers = ['Content-Type: application/json'];
 
-		if($apiKey === '') {
-			throw new \RuntimeException('Missing API key for OpenAI-compatible transport.');
+		if($authType !== 'none') {
+			if($secret === '') {
+				throw new \RuntimeException('Missing authentication secret for OpenAI-compatible transport.');
+			}
+
+			if($authType === 'api-key') {
+				$headers[] = ($headerName !== '' ? $headerName : 'X-API-Key') . ': ' . $secret;
+			}
+			elseif($authType === 'basic') {
+				$headers[] = ($headerName !== '' ? $headerName : 'Authorization') . ': Basic ' . base64_encode($secret);
+			}
+			else {
+				$headers[] = ($headerName !== '' ? $headerName : 'Authorization') . ': Bearer ' . $secret;
+			}
 		}
-
-		$headers = [
-			'Content-Type: application/json',
-			'Authorization: Bearer ' . $apiKey
-		];
 
 		foreach(($options['headers'] ?? []) as $header) {
 			if(is_string($header) && trim($header) !== '') {

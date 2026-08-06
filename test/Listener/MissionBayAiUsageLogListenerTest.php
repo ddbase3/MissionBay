@@ -72,4 +72,56 @@ final class MissionBayAiUsageLogListenerTest extends TestCase {
 		$this->assertStringContainsString("\n\t\t\t\t42,\n\t\t\t\t'test.user',\n\t\t\t\t'web_api',\n", $queries[1]);
 		$this->assertStringContainsString("\n\t\t\t\t10,\n\t\t\t\t4,\n\t\t\t\t14,\n", $queries[1]);
 	}
+
+	public function testStoresImageTokenUsageInTheSameAiUsageTable(): void {
+		$queries = [];
+		$database = $this->createMock(IDatabase::class);
+		$logger = $this->createMock(ILogger::class);
+		$usermanager = $this->createMock(IUsermanager::class);
+		$request = $this->createMock(IRequest::class);
+
+		$database->expects($this->once())->method('connect');
+		$database->expects($this->exactly(2))
+			->method('nonQuery')
+			->willReturnCallback(static function(string $query) use (&$queries): void {
+				$queries[] = $query;
+			});
+		$database->expects($this->exactly(2))->method('isError')->willReturn(false);
+		$database->method('escape')->willReturnCallback(
+			static fn(string $value): string => addslashes($value)
+		);
+		$logger->expects($this->never())->method('error');
+		$usermanager->method('getUser')->willReturn(null);
+		$request->method('getContext')->willReturn(IRequest::CONTEXT_CRON);
+
+		$listener = new MissionBayAiUsageLogListener($database, $logger, $usermanager, $request);
+		$listener->onProviderRequestCompleted(new AiProviderRequestCompletedEvent(
+			new AiResultMetadata(
+				'image',
+				'mistraltransport',
+				'mistral-small-latest',
+				'image-request-1',
+				1700000000,
+				850.0,
+				'stop',
+				new AiUsage(21, 9, 30, null, null, [
+					'input_prompts' => 1,
+					'output_images' => 1
+				]),
+				['adapter' => 'mistralimagemodel']
+			),
+			'mistralimagemodel',
+			1700000001
+		));
+
+		$this->assertCount(2, $queries);
+		$this->assertStringContainsString('CREATE TABLE IF NOT EXISTS `base3_missionbay_ai_usage`', $queries[0]);
+		$this->assertStringContainsString('INSERT INTO `base3_missionbay_ai_usage`', $queries[1]);
+		$this->assertStringContainsString("'image'", $queries[1]);
+		$this->assertStringContainsString("'mistraltransport'", $queries[1]);
+		$this->assertStringContainsString("'mistral-small-latest'", $queries[1]);
+		$this->assertStringContainsString("\n\t\t\t\t21,\n\t\t\t\t9,\n\t\t\t\t30,\n", $queries[1]);
+		$this->assertStringContainsString('output_images', $queries[1]);
+	}
+
 }

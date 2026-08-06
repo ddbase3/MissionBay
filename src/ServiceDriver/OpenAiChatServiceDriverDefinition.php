@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\ChatModel\OpenAiChatModel;
 
 final class OpenAiChatServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class OpenAiChatServiceDriverDefinition implements IServiceDriverDefinitio
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return IAiChatModel::class;
+	}
+
+	public function getImplementationName(): string {
+		return OpenAiChatModel::getName();
 	}
 
 	public function getConfigSchema(): array {

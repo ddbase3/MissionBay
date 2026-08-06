@@ -18,11 +18,11 @@
 namespace MissionBay\ImageModel;
 
 use AssistantFoundation\Api\IAiProvider;
+use AssistantFoundation\Api\IImageGenerationModel;
 use AssistantFoundation\Dto\AiImageResult;
 use Base3\Api\IClassMap;
 use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Ai\AiResultNormalizer;
-use MissionBay\Api\IImageGenerationModel;
 use RuntimeException;
 
 abstract class AbstractImageGenerationModel implements IImageGenerationModel {
@@ -129,6 +129,8 @@ abstract class AbstractImageGenerationModel implements IImageGenerationModel {
 		$provider->setOptions([
 			'endpoint' => $this->getEndpoint($this->options),
 			'apikey' => $this->getApiKey($this->options),
+			'auth_type' => (string)($this->options['auth_type'] ?? 'bearer'),
+			'auth_header_name' => (string)($this->options['auth_header_name'] ?? ''),
 			'timeout' => $this->getIntOption($this->options, 'timeout_seconds', 120),
 			'connect_timeout' => $this->getIntOption($this->options, 'connect_timeout_seconds', 15)
 		]);
@@ -240,8 +242,9 @@ abstract class AbstractImageGenerationModel implements IImageGenerationModel {
 	 */
 	protected function getApiKey(array $runtimeOptions): string {
 		$apiKey = trim((string)($runtimeOptions['apikey'] ?? ''));
+		$authType = strtolower(trim((string)($runtimeOptions['auth_type'] ?? 'bearer')));
 
-		if($apiKey === '') {
+		if($apiKey === '' && $authType !== 'none') {
 			throw new RuntimeException('Missing API key for image generation model.');
 		}
 

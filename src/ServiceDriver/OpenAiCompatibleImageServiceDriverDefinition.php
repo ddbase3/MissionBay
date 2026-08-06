@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IImageGenerationModel;
+use MissionBay\ImageModel\OpenAiCompatibleImageModel;
 
 final class OpenAiCompatibleImageServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -45,6 +47,15 @@ final class OpenAiCompatibleImageServiceDriverDefinition implements IServiceDriv
 		return ['http'];
 	}
 
+	public function getImplementationInterface(): string {
+		return IImageGenerationModel::class;
+	}
+
+	public function getImplementationName(): string {
+		return OpenAiCompatibleImageModel::getName();
+	}
+
+
 	public function getConfigSchema(): array {
 		return [
 			'type' => 'object',
@@ -58,27 +69,46 @@ final class OpenAiCompatibleImageServiceDriverDefinition implements IServiceDriv
 				'size' => [
 					'type' => 'string',
 					'label' => 'Size',
-					'default' => '1024x1024'
+					'default' => '1024x1024',
+					'runtimeKey' => 'size'
 				],
 				'quality' => [
 					'type' => 'string',
 					'label' => 'Quality',
-					'default' => 'auto'
+					'default' => 'auto',
+					'runtimeKey' => 'quality'
 				],
 				'outputFormat' => [
 					'type' => 'string',
 					'label' => 'Output format',
-					'default' => 'png'
+					'default' => 'png',
+					'runtimeKey' => 'output_format'
 				],
 				'background' => [
 					'type' => 'string',
 					'label' => 'Background',
-					'default' => 'auto'
+					'default' => 'auto',
+					'runtimeKey' => 'background'
+				],
+				'moderation' => [
+					'type' => 'string',
+					'label' => 'Moderation',
+					'default' => 'auto',
+					'runtimeKey' => 'moderation'
 				],
 				'numberOfImages' => [
 					'type' => 'integer',
 					'label' => 'Number of images',
-					'default' => 1
+					'minimum' => 1,
+					'default' => 1,
+					'runtimeKey' => 'n'
+				],
+				'outputCompression' => [
+					'type' => 'integer',
+					'label' => 'Output compression',
+					'minimum' => 0,
+					'maximum' => 100,
+					'runtimeKey' => 'output_compression'
 				]
 			]
 		];

@@ -22,10 +22,6 @@ use AssistantFoundation\Dto\AiChatResult;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IChatModelServiceDriverDefinition;
-use MissionBay\ChatModel\MistralChatModel;
-use MissionBay\ChatModel\OpenAiChatModel;
-use MissionBay\ChatModel\OpenAiCompatibleChatModel;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
@@ -156,35 +152,12 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 	}
 
 	private function resolveChatModelName(string $driver): string {
-		$map = [
-			'openai-chat' => OpenAiChatModel::getName(),
-			'openai-compatible-chat' => OpenAiCompatibleChatModel::getName(),
-			'mistral-chat' => MistralChatModel::getName()
-		];
-
-		if(isset($map[$driver])) {
-			return $map[$driver];
-		}
-
-		$definitions = $this->classMap->getInstancesByInterface(IChatModelServiceDriverDefinition::class);
-
-		foreach($definitions as $definition) {
-			if(!$definition instanceof IChatModelServiceDriverDefinition) {
-				continue;
-			}
-
-			if($definition->getServiceType() !== self::SERVICE_TYPE) {
-				continue;
-			}
-
-			if($this->normalizeKey($definition->getDriver()) !== $driver) {
-				continue;
-			}
-
-			return trim($definition->getChatModelName());
-		}
-
-		return '';
+		return $this->resolveServiceImplementationName(
+			$this->classMap,
+			$driver,
+			self::SERVICE_TYPE,
+			IAiChatModel::class
+		);
 	}
 
 	/**

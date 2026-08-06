@@ -23,8 +23,6 @@ use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Connection\ConnectionConfig;
-use MissionBay\EmbeddingModel\OpenAiCompatibleEmbeddingModel;
-use MissionBay\EmbeddingModel\OpenAiEmbeddingModel;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
@@ -136,12 +134,12 @@ class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAge
 	}
 
 	private function resolveEmbeddingModelName(string $driver): string {
-		$map = [
-			'openai-embedding' => OpenAiEmbeddingModel::getName(),
-			'openai-compatible-embedding' => OpenAiCompatibleEmbeddingModel::getName()
-		];
-
-		return $map[$driver] ?? '';
+		return $this->resolveServiceImplementationName(
+			$this->classMap,
+			$driver,
+			self::SERVICE_TYPE,
+			IAiEmbeddingModel::class
+		);
 	}
 
 	/**

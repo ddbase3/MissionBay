@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use MissionBay\Api\ISearchService;
+use MissionBay\SearchService\MistralWebSearchService;
 
 final class MistralWebSearchServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class MistralWebSearchServiceDriverDefinition implements IServiceDriverDef
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return ISearchService::class;
+	}
+
+	public function getImplementationName(): string {
+		return MistralWebSearchService::getName();
 	}
 
 	public function getConfigSchema(): array {

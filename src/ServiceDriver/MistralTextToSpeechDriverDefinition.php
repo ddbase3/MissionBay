@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use MissionBay\Api\ITextToSpeechDriver;
+use MissionBay\Speech\MistralTextToSpeechDriver;
 
 final class MistralTextToSpeechDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class MistralTextToSpeechDriverDefinition implements IServiceDriverDefinit
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return ITextToSpeechDriver::class;
+	}
+
+	public function getImplementationName(): string {
+		return MistralTextToSpeechDriver::getName();
 	}
 
 	public function getConfigSchema(): array {

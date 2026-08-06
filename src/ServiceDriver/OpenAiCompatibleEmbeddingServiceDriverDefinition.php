@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IAiEmbeddingModel;
+use MissionBay\EmbeddingModel\OpenAiCompatibleEmbeddingModel;
 
 final class OpenAiCompatibleEmbeddingServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class OpenAiCompatibleEmbeddingServiceDriverDefinition implements IService
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return IAiEmbeddingModel::class;
+	}
+
+	public function getImplementationName(): string {
+		return OpenAiCompatibleEmbeddingModel::getName();
 	}
 
 	public function getConfigSchema(): array {

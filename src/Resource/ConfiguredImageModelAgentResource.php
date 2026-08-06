@@ -17,14 +17,13 @@
 
 namespace MissionBay\Resource;
 
+use AssistantFoundation\Api\IImageGenerationModel;
+use AssistantFoundation\Api\IServiceDriverDefinition;
 use AssistantFoundation\Dto\AiImageResult;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IImageGenerationModel;
 use MissionBay\Connection\ConnectionConfig;
-use MissionBay\ImageModel\OpenAiCompatibleImageModel;
-use MissionBay\ImageModel\OpenAiImageModel;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
@@ -111,15 +110,20 @@ class ConfiguredImageModelAgentResource extends AbstractConfiguredServiceAgentRe
 
 		$serviceConfig = $this->loadServiceConfig(self::IMAGE_SETTINGS_GROUP, $serviceId, self::SERVICE_TYPE);
 		$connectionConfig = $this->loadConnectionConfig(self::CONNECTION_SETTINGS_GROUP, $serviceConfig->getConnectionId());
+		$driverDefinition = $this->resolveServiceDriverDefinition(
+			$this->classMap,
+			$serviceConfig->getDriver(),
+			self::SERVICE_TYPE,
+			IImageGenerationModel::class
+		);
 
-		$modelName = $this->resolveImageModelName($serviceConfig->getDriver());
-
-		if($modelName === '') {
+		if(!$driverDefinition instanceof IServiceDriverDefinition) {
 			throw new RuntimeException(
 				'Image service config has no usable driver: ' . $serviceId . ' ' . $this->formatConfigDebug($serviceConfig->toSettings())
 			);
 		}
 
+		$modelName = trim($driverDefinition->getImplementationName());
 		$model = $this->classMap->getInstanceByInterfaceName(IImageGenerationModel::class, $modelName);
 
 		if(!$model instanceof IImageGenerationModel) {
@@ -128,26 +132,21 @@ class ConfiguredImageModelAgentResource extends AbstractConfiguredServiceAgentRe
 			);
 		}
 
-		$this->resolvedOptions = $this->buildRuntimeOptions($serviceConfig, $connectionConfig);
+		$this->resolvedOptions = $this->buildRuntimeOptions($serviceConfig, $connectionConfig, $driverDefinition);
 		$this->resolvedOptions = array_merge($this->resolvedOptions, $this->optionOverrides);
 
 		$this->model = $model;
 		$this->applyResolvedOptions();
 	}
 
-	private function resolveImageModelName(string $driver): string {
-		$map = [
-			'openai-image' => OpenAiImageModel::getName(),
-			'openai-compatible-image' => OpenAiCompatibleImageModel::getName()
-		];
-
-		return $map[$driver] ?? '';
-	}
-
 	/**
 	 * @return array<string,mixed>
 	 */
-	private function buildRuntimeOptions(ServiceConfig $serviceConfig, ConnectionConfig $connectionConfig): array {
+	private function buildRuntimeOptions(
+		ServiceConfig $serviceConfig,
+		ConnectionConfig $connectionConfig,
+		IServiceDriverDefinition $driverDefinition
+	): array {
 		$options = $this->buildBaseRuntimeOptions($serviceConfig, $connectionConfig, self::SERVICE_ALIAS);
 		$serviceOptions = $serviceConfig->getOptions();
 
@@ -162,37 +161,67 @@ class ConfiguredImageModelAgentResource extends AbstractConfiguredServiceAgentRe
 			'connection_driver' => true,
 			'model' => true,
 			'endpoint' => true,
-			'apikey' => true
+			'base_url' => true,
+			'apikey' => true,
+			'auth_type' => true,
+			'auth_header_name' => true,
+			'auth_secret' => true,
+			'timeout_seconds' => true,
+			'connect_timeout_seconds' => true,
+			'timeoutSeconds' => true,
+			'connectTimeoutSeconds' => true
 		]);
 
-		$this->mapOptionalNumber($options, $serviceOptions, 'numberOfImages', 'n', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'outputCompression', 'output_compression', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'timeoutSeconds', 'timeout_seconds', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'connectTimeoutSeconds', 'connect_timeout_seconds', 'int');
-		$this->mapOptionalString($options, $serviceOptions, 'size', 'size');
-		$this->mapOptionalString($options, $serviceOptions, 'quality', 'quality');
-		$this->mapOptionalString($options, $serviceOptions, 'outputFormat', 'output_format');
-		$this->mapOptionalString($options, $serviceOptions, 'background', 'background');
-		$this->mapOptionalString($options, $serviceOptions, 'moderation', 'moderation');
+		$schema = $driverDefinition->getConfigSchema();
+		$properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+
+		foreach($properties as $sourceKey => $property) {
+			if(!is_string($sourceKey) || !is_array($property) || $sourceKey === 'model') {
+				continue;
+			}
+
+			$targetKey = trim((string)($property['runtimeKey'] ?? ''));
+
+			if($targetKey === '' || !array_key_exists($sourceKey, $serviceOptions)) {
+				continue;
+			}
+
+			$this->mapSchemaOption($options, $serviceOptions[$sourceKey], $targetKey, $property);
+		}
 
 		return $options;
 	}
 
 	/**
 	 * @param array<string,mixed> $runtimeOptions
-	 * @param array<string,mixed> $sourceOptions
+	 * @param array<string,mixed> $property
 	 */
-	private function mapOptionalString(array &$runtimeOptions, array $sourceOptions, string $sourceKey, string $targetKey): void {
-		if(!array_key_exists($sourceKey, $sourceOptions)) {
+	private function mapSchemaOption(array &$runtimeOptions, mixed $value, string $targetKey, array $property): void {
+		$type = strtolower(trim((string)($property['type'] ?? 'string')));
+
+		if($type === 'integer' || $type === 'number') {
+			if($value === null || $value === '' || !is_numeric($value)) {
+				return;
+			}
+
+			$runtimeOptions[$targetKey] = $type === 'integer' ? (int)$value : (float)$value;
 			return;
 		}
 
-		$value = trim((string)$sourceOptions[$sourceKey]);
-
-		if($value === '') {
+		if($type === 'boolean') {
+			$runtimeOptions[$targetKey] = $this->toBool($value, false);
 			return;
 		}
 
-		$runtimeOptions[$targetKey] = $value;
+		if(is_array($value) || is_object($value)) {
+			$runtimeOptions[$targetKey] = $value;
+			return;
+		}
+
+		$value = trim((string)$value);
+
+		if($value !== '') {
+			$runtimeOptions[$targetKey] = $value;
+		}
 	}
 }

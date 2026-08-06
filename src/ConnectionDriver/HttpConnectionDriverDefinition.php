@@ -17,7 +17,7 @@
 
 namespace MissionBay\ConnectionDriver;
 
-use MissionBay\Api\IConnectionDriverDefinition;
+use AssistantFoundation\Api\IConnectionDriverDefinition;
 
 final class HttpConnectionDriverDefinition implements IConnectionDriverDefinition {
 

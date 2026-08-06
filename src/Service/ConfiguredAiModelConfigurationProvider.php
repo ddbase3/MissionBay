@@ -17,12 +17,13 @@
 
 namespace MissionBay\Service;
 
+use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Api\IAiModelConfigurationProvider;
+use AssistantFoundation\Api\IServiceDriverDefinition;
 use AssistantFoundation\Dto\AiModelConfiguration;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IChatModelServiceDriverDefinition;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Transport\ChatCompletionEndpointResolver;
 use RuntimeException;
@@ -179,6 +180,7 @@ final class ConfiguredAiModelConfigurationProvider implements IAiModelConfigurat
 			unset($result['topP']);
 		}
 		unset(
+			$result['chatCompletionPath'],
 			$result['timeoutSeconds'],
 			$result['connectTimeoutSeconds'],
 			$result['chat_completion_path'],
@@ -189,16 +191,23 @@ final class ConfiguredAiModelConfigurationProvider implements IAiModelConfigurat
 
 	/** @param array<string,mixed> $options */
 	private function resolveChatCompletionPath(string $driver, array $options): string {
-		$path = trim((string)($options['chat_completion_path'] ?? ($options['path'] ?? '')));
+		$path = trim((string)($options['chatCompletionPath'] ?? ($options['chat_completion_path'] ?? ($options['path'] ?? ''))));
 
 		if ($path !== '') {
 			return $path;
 		}
 
-		$definition = $this->findExternalDriverDefinition($driver);
+		$definition = $this->findDriverDefinition($driver);
 
-		if ($definition instanceof IChatModelServiceDriverDefinition) {
-			$path = trim($definition->getDefaultChatCompletionPath());
+		if ($definition instanceof IServiceDriverDefinition) {
+			$defaultConfig = $definition->getDefaultConfig();
+			$defaultOptions = is_array($defaultConfig['options'] ?? null) ? $defaultConfig['options'] : [];
+			$path = trim((string)(
+				$defaultOptions['chatCompletionPath']
+				?? $defaultOptions['chat_completion_path']
+				?? $defaultOptions['path']
+				?? ''
+			));
 
 			if ($path !== '') {
 				return $path;
@@ -209,28 +218,28 @@ final class ConfiguredAiModelConfigurationProvider implements IAiModelConfigurat
 	}
 
 	private function isSupportedDriver(string $driver): bool {
-		if (in_array($driver, ['openai-chat', 'openai-compatible-chat', 'mistral-chat'], true)) {
-			return true;
-		}
-
-		return $this->findExternalDriverDefinition($driver) instanceof IChatModelServiceDriverDefinition;
+		return $this->findDriverDefinition($driver) instanceof IServiceDriverDefinition;
 	}
 
-	private function findExternalDriverDefinition(string $driver): ?IChatModelServiceDriverDefinition {
+	private function findDriverDefinition(string $driver): ?IServiceDriverDefinition {
 		$driver = $this->normalizeKey($driver);
 
 		if ($driver === '') {
 			return null;
 		}
 
-		$definitions = $this->classMap->getInstancesByInterface(IChatModelServiceDriverDefinition::class);
+		$definitions = $this->classMap->getInstancesByInterface(IServiceDriverDefinition::class);
 
 		foreach ($definitions as $definition) {
-			if (!$definition instanceof IChatModelServiceDriverDefinition) {
+			if (!$definition instanceof IServiceDriverDefinition) {
 				continue;
 			}
 
 			if ($definition->getServiceType() !== 'llm') {
+				continue;
+			}
+
+			if (trim($definition->getImplementationInterface()) !== IAiChatModel::class) {
 				continue;
 			}
 

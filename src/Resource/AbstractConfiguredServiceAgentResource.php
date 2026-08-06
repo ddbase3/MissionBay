@@ -17,6 +17,8 @@
 
 namespace MissionBay\Resource;
 
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Connection\ConnectionConfig;
@@ -144,7 +146,8 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 			'auth_header_name' => $connectionConfig->getAuthHeaderName(),
 			'model' => $model,
 			'endpoint' => $baseUrl,
-			'base_url' => $baseUrl
+			'base_url' => $baseUrl,
+			'timeout_seconds' => $connectionConfig->getTimeoutSeconds()
 		];
 
 		$secret = $this->resolveConnectionSecret($connectionConfig);
@@ -155,6 +158,63 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 		}
 
 		return $options;
+	}
+
+	protected function resolveServiceDriverDefinition(
+		IClassMap $classMap,
+		string $driver,
+		string $serviceType,
+		string $implementationInterface
+	): ?IServiceDriverDefinition {
+		$driver = $this->normalizeKey($driver);
+		$serviceType = $this->normalizeKey($serviceType);
+		$implementationInterface = trim($implementationInterface);
+
+		if($driver === '' || $serviceType === '' || $implementationInterface === '') {
+			return null;
+		}
+
+		$definitions = $classMap->getInstancesByInterface(IServiceDriverDefinition::class);
+
+		foreach($definitions as $definition) {
+			if(!$definition instanceof IServiceDriverDefinition) {
+				continue;
+			}
+
+			if($this->normalizeKey($definition->getServiceType()) !== $serviceType) {
+				continue;
+			}
+
+			if($this->normalizeKey($definition->getDriver()) !== $driver) {
+				continue;
+			}
+
+			if(trim($definition->getImplementationInterface()) !== $implementationInterface) {
+				continue;
+			}
+
+			return $definition;
+		}
+
+		return null;
+	}
+
+	protected function resolveServiceImplementationName(
+		IClassMap $classMap,
+		string $driver,
+		string $serviceType,
+		string $implementationInterface
+	): string {
+		$definition = $this->resolveServiceDriverDefinition(
+			$classMap,
+			$driver,
+			$serviceType,
+			$implementationInterface
+		);
+
+		return $definition instanceof IServiceDriverDefinition
+			? trim($definition->getImplementationName())
+			: '';
 	}
 
 	protected function resolveConnectionSecret(ConnectionConfig $connectionConfig): ?string {

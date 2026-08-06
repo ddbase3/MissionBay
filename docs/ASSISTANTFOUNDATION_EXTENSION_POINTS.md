@@ -84,7 +84,10 @@ Model, provider, result, memory, and vector contracts are normally implemented b
 | `IAgentToolResultCache` | projects may replace tool-result cache storage | container service | `MissionBay\Cache\StateStoreAgentToolResultCache` |
 | `IAiChatModel` | plugins may provide chat-model adapters | direct adapter/resource | `MissionBay\Resource\ConfiguredChatModelAgentResource` |
 | `IAiEmbeddingModel` | plugins may provide embedding adapters | direct adapter/resource | `MissionBay\Resource\ConfiguredEmbeddingModelAgentResource` |
+| `IImageGenerationModel` | plugins may provide image-generation adapters without importing MissionBay APIs | direct adapter/resource | `MissionBay\Resource\ConfiguredImageModelAgentResource` |
 | `IAiProvider` | plugins may provide transport/provider implementations | direct adapter | `MissionBay\Transport\OpenAiCompatibleTransport` |
+| `IServiceDriverDefinition` | specialty plugins may contribute configured service drivers for every provider/service type | class-map discovery | `MissionBay\ServiceDriver\OpenAiChatServiceDriverDefinition` |
+| `IConnectionDriverDefinition` | specialty plugins may contribute connection protocols and connection-only schemas | class-map discovery | `MissionBay\ConnectionDriver\HttpConnectionDriverDefinition` |
 | `IAiResult` | plugins may add provider-neutral result DTOs | result contract | `AssistantFoundation\Dto\AiChatResult` |
 | `IAiServiceTester` | plugins may add service health tests | class-map discovery | `AssistantRuntime\Display\AiServiceDashboardDisplay` consumer |
 | `IVectorSearch` | plugins may provide vector-search backends | direct adapter/resource | `MissionBay\Resource\QdrantVectorSearch` |
@@ -962,6 +965,95 @@ final class ProjectEmbeddingModel implements IAiEmbeddingModel {
     }
 }
 ```
+
+## `IImageGenerationModel`
+
+### Use case
+
+Implement this interface for a provider-neutral image-generation adapter that can be supplied by an independent provider plugin.
+
+### Requirements
+
+- stable lowercase `getName()` for class-map selection;
+- accept a text prompt and operation-specific options;
+- return `AiImageResult` with normalized metadata and usage;
+- keep endpoint, authentication and secret values outside the model's persisted service configuration;
+- dispatch the normal AI provider-request event when the implementation participates in MissionBay usage logging.
+
+### Example skeleton
+
+```php
+<?php declare(strict_types=1);
+
+namespace ProjectAi\Image;
+
+use AssistantFoundation\Api\IImageGenerationModel;
+use AssistantFoundation\Dto\AiImageResult;
+
+final class ProjectImageModel implements IImageGenerationModel {
+
+    private array $options = [];
+
+    public static function getName(): string {
+        return 'projectimagemodel';
+    }
+
+    public function generateResult(string $prompt, array $options = []): AiImageResult {
+        // Call the provider and normalize images, metadata and usage.
+    }
+
+    public function generate(string $prompt, array $options = []): array {
+        return $this->generateResult($prompt, $options)->getImages();
+    }
+
+    public function setOptions(array $options): void {
+        $this->options = array_merge($this->options, $options);
+    }
+
+    public function getOptions(): array {
+        return $this->options;
+    }
+}
+```
+
+Register the implementation as a discoverable class and pair it with one `IServiceDriverDefinition`.
+
+## `IServiceDriverDefinition`
+
+### Use case
+
+Implement this interface when a provider or specialty plugin contributes a configured service driver. The same contract is used for chat, embeddings, images, search, parser, vector-store, speech and future service types.
+
+### Requirements
+
+- stable lowercase driver id and definition `getName()`;
+- one service type;
+- exact runtime implementation interface and implementation `getName()` value;
+- service-only schema and defaults;
+- no endpoint, authentication, secret, or API-key fields;
+- no provider branches or hardcoded maps in consuming runtimes.
+
+### Registration
+
+Place the definition below the plugin's `src/` directory. `PluginClassMap` discovers it through `IServiceDriverDefinition`. The consumer resolves the implementation declared by `getImplementationInterface()` and `getImplementationName()`.
+
+See `AssistantFoundation/docs/SERVICE_AND_CONNECTION_DRIVERS.md` and `MissionBay/docs/SERVICE_DRIVERS.md`.
+
+## `IConnectionDriverDefinition`
+
+### Use case
+
+Implement this interface when a specialty plugin introduces a genuinely new connection protocol or connection configuration shape.
+
+### Requirements
+
+- stable lowercase connection driver id;
+- connection type and human-readable label;
+- connection-only schema and defaults;
+- optional health-check schema;
+- ownership of endpoint, authentication, secret resolver and connection timeout.
+
+Service definitions reference connections but must not duplicate these fields.
 
 ## `IAiProvider`
 

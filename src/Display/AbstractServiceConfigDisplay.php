@@ -17,13 +17,13 @@
 
 namespace MissionBay\Display;
 
+use AssistantFoundation\Api\IServiceDriverDefinition;
 use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IServiceDriverDefinition;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
@@ -271,6 +271,8 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 				'label' => $instance->getLabel(),
 				'requiresConnection' => $instance->requiresConnection(),
 				'supportedConnectionTypes' => $instance->getSupportedConnectionTypes(),
+				'implementationInterface' => $instance->getImplementationInterface(),
+				'implementationName' => $instance->getImplementationName(),
 				'configSchema' => $instance->getConfigSchema(),
 				'defaultConfig' => $instance->getDefaultConfig()
 			];
@@ -378,6 +380,14 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 
 		if(!is_array($decoded)) {
 			throw new RuntimeException('Options must be a valid JSON object.');
+		}
+
+		foreach(array_keys($decoded) as $key) {
+			if(is_string($key) && ServiceConfig::isConnectionOwnedOptionKey($key)) {
+				throw new RuntimeException(
+					'Connection option "' . $key . '" must be configured on the referenced connection.'
+				);
+			}
 		}
 
 		return $decoded;

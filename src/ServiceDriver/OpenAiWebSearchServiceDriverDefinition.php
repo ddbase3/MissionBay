@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use MissionBay\Api\ISearchService;
+use MissionBay\SearchService\OpenAiWebSearchService;
 
 final class OpenAiWebSearchServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class OpenAiWebSearchServiceDriverDefinition implements IServiceDriverDefi
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return ISearchService::class;
+	}
+
+	public function getImplementationName(): string {
+		return OpenAiWebSearchService::getName();
 	}
 
 	public function getConfigSchema(): array {

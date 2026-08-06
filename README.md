@@ -8,6 +8,8 @@ The current assistant tool-loop stage order, context prerequisites, phase transi
 
 Inbound MCP server operation is documented in [docs/MCP.md](docs/MCP.md). Remote Streamable HTTP MCP servers can be attached through the Agent Component Preset described in [docs/MCP_CLIENT_AGENT_RESOURCE.md](docs/MCP_CLIENT_AGENT_RESOURCE.md).
 
+Configured OpenAI, OpenAI-compatible, and Mistral image generation plus shared AI usage logging are documented in [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md). Generic service-driver discovery, external provider extensions, and the configured vector-search slot are documented in [docs/SERVICE_DRIVERS.md](docs/SERVICE_DRIVERS.md).
+
 Mutation approval and deterministic resume are documented in [docs/AGENT_ACTION_APPROVAL_AND_RESUME.md](docs/AGENT_ACTION_APPROVAL_AND_RESUME.md). Durable server-owned suspension handles are documented in [docs/AGENT_DURABLE_SUSPENSIONS.md](docs/AGENT_DURABLE_SUSPENSIONS.md). Final authorization and optimistic-concurrency checks are documented in [docs/AGENT_MUTATION_COMMIT_GUARD.md](docs/AGENT_MUTATION_COMMIT_GUARD.md). Agent tool implementation, mutation annotations, and user-facing reviews are documented in [docs/AGENT_TOOL_DEVELOPMENT.md](docs/AGENT_TOOL_DEVELOPMENT.md). Tool input/output contracts are documented in [docs/AGENT_TOOL_CONTRACT_VALIDATION.md](docs/AGENT_TOOL_CONTRACT_VALIDATION.md). The staged path toward the broader interface-driven harness is tracked in [docs/AGENT_HARNESS_ROADMAP.md](docs/AGENT_HARNESS_ROADMAP.md). The fixed migration-cleanup countdown is documented in [docs/AGENT_LEGACY_CLEANUP.md](docs/AGENT_LEGACY_CLEANUP.md).
 
 ## Overview

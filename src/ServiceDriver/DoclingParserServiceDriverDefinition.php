@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use MissionBay\Api\IParserService;
+use MissionBay\ParserService\DoclingParserService;
 
 final class DoclingParserServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class DoclingParserServiceDriverDefinition implements IServiceDriverDefini
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return IParserService::class;
+	}
+
+	public function getImplementationName(): string {
+		return DoclingParserService::getName();
 	}
 
 	public function getConfigSchema(): array {

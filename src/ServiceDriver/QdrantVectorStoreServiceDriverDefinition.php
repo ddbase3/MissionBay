@@ -17,7 +17,9 @@
 
 namespace MissionBay\ServiceDriver;
 
-use MissionBay\Api\IServiceDriverDefinition;
+use AssistantFoundation\Api\IServiceDriverDefinition;
+use MissionBay\Api\IVectorStoreService;
+use MissionBay\VectorStore\QdrantVectorStoreService;
 
 final class QdrantVectorStoreServiceDriverDefinition implements IServiceDriverDefinition {
 
@@ -43,6 +45,14 @@ final class QdrantVectorStoreServiceDriverDefinition implements IServiceDriverDe
 
 	public function getSupportedConnectionTypes(): array {
 		return ['http'];
+	}
+
+	public function getImplementationInterface(): string {
+		return IVectorStoreService::class;
+	}
+
+	public function getImplementationName(): string {
+		return QdrantVectorStoreService::getName();
 	}
 
 	public function getConfigSchema(): array {

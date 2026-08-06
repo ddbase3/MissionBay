@@ -164,6 +164,8 @@ abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {
 		$provider->setOptions([
 			'endpoint' => $this->getEndpoint(),
 			'apikey' => $this->getApiKey(),
+			'auth_type' => (string)($this->options['auth_type'] ?? 'bearer'),
+			'auth_header_name' => (string)($this->options['auth_header_name'] ?? ''),
 			'timeout' => $this->getIntOption('timeout_seconds', 60),
 			'connect_timeout' => $this->getIntOption('connect_timeout_seconds', 15)
 		]);
@@ -278,8 +280,9 @@ abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {
 
 	protected function getApiKey(): string {
 		$apiKey = trim((string)($this->options['apikey'] ?? ''));
+		$authType = strtolower(trim((string)($this->options['auth_type'] ?? 'bearer')));
 
-		if($apiKey === '') {
+		if($apiKey === '' && $authType !== 'none') {
 			throw new RuntimeException('Missing API key for embedding model.');
 		}
 

@@ -124,6 +124,7 @@ use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
 use MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
 use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
 use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
+use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 use MissionBay\Orchestrator\Validation\JsonSchemaValidator;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
 use MissionBay\Policy\MutationApprovalAgentActionPolicy;
@@ -364,16 +365,21 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IStateStore::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentInteractionResponseResolver::class, fn() => new AgentInteractionResponseResolver(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(UnavailableAgentSuspensionRepository::class, fn() => new UnavailableAgentSuspensionRepository(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionResumeService::class, fn($c) => new AgentActionResumeService(
 				$c->get(AgentActionFingerprint::class),
-				$c->get(IAgentSuspensionRepository::class),
+				$c->has(IAgentSuspensionRepository::class)
+					? $c->get(IAgentSuspensionRepository::class)
+					: $c->get(UnavailableAgentSuspensionRepository::class),
 				$c->get(IEventManager::class),
 				$c->get(AgentInteractionResponseResolver::class),
 				$c->get(AgentBatchExecutionService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionReviewService::class, fn($c) => new AgentActionReviewService(
 				$c->get(AgentActionFingerprint::class),
-				$c->get(IAgentSuspensionRepository::class),
+				$c->has(IAgentSuspensionRepository::class)
+					? $c->get(IAgentSuspensionRepository::class)
+					: $c->get(UnavailableAgentSuspensionRepository::class),
 				900,
 				$c->get(AgentMutationCommitGuardService::class),
 				$c->get(IEventManager::class)

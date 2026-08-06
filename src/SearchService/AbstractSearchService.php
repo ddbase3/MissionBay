@@ -85,6 +85,8 @@ abstract class AbstractSearchService implements ISearchService {
 		$provider->setOptions([
 			'endpoint' => $this->getEndpoint($this->options),
 			'apikey' => $this->getApiKey($this->options),
+			'auth_type' => (string)($this->options['auth_type'] ?? 'bearer'),
+			'auth_header_name' => (string)($this->options['auth_header_name'] ?? ''),
 			'timeout' => $this->getIntOption($this->options, 'timeout_seconds', 120),
 			'connect_timeout' => $this->getIntOption($this->options, 'connect_timeout_seconds', 15)
 		]);
@@ -125,8 +127,9 @@ abstract class AbstractSearchService implements ISearchService {
 	 */
 	protected function getApiKey(array $runtimeOptions): string {
 		$apiKey = trim((string)($runtimeOptions['apikey'] ?? ''));
+		$authType = strtolower(trim((string)($runtimeOptions['auth_type'] ?? 'bearer')));
 
-		if($apiKey === '') {
+		if($apiKey === '' && $authType !== 'none') {
 			throw new RuntimeException('Missing API key for search service.');
 		}
 

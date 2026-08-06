@@ -9,7 +9,7 @@
 	</div>
 
 	<div class="imgcfg-hint">
-		Image services define concrete image generation models. Technical endpoint and authentication are taken from the selected connection.
+		Image services reference an existing connection and contain only model and generation settings.
 	</div>
 
 	<div class="imgcfg-layout">
@@ -27,15 +27,12 @@
 						<th>Connection</th>
 						<th>Driver</th>
 						<th>Model</th>
-						<th>Size</th>
-						<th>Quality</th>
-						<th>Format</th>
 						<th>Status</th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="10" class="mono">Loading...</td></tr>
+					<tr><td colspan="7" class="mono">Loading...</td></tr>
 				</tbody>
 			</table>
 		</div>
@@ -44,29 +41,19 @@
 			<form data-role="form">
 				<h4 data-role="legend">Create image service</h4>
 
-				<div class="imgcfg-hint" data-role="idhint">
-					Technical image service id. Agent resources use this id to resolve the configured image generation service.
+				<div class="imgcfg-hint">
+					The technical id is used by configured image resources to resolve this service.
 				</div>
 
 				<div class="imgcfg-grid">
 					<div class="imgcfg-field">
 						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-id">Image service id</label>
-						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-id" name="id" placeholder="openai_default_image" autocomplete="off">
+						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-id" name="id" placeholder="mistral_course_images" autocomplete="off">
 					</div>
 
 					<div class="imgcfg-field">
 						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-name">Name</label>
-						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-name" name="name" placeholder="OpenAI Default Image" autocomplete="off">
-					</div>
-
-					<div class="imgcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection">Connection</label>
-						<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection" name="connection">
-							<option value="">Loading connections...</option>
-						</select>
-						<div class="imgcfg-hint imgcfg-inline-hint" data-role="connectionhint">
-							Connections contain endpoint and authentication data.
-						</div>
+						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-name" name="name" placeholder="Mistral Course Images" autocomplete="off">
 					</div>
 
 					<div class="imgcfg-field">
@@ -77,92 +64,30 @@
 					</div>
 
 					<div class="imgcfg-field">
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection">Connection</label>
+						<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection" name="connection">
+							<option value="">Loading connections...</option>
+						</select>
+					</div>
+
+					<div class="imgcfg-field imgcfg-field-wide">
 						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model">Model</label>
-						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model" name="model" placeholder="gpt-image-2" autocomplete="off">
+						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model" name="model" autocomplete="off">
 					</div>
+				</div>
 
-					<div class="imgcfg-field imgcfg-field-row">
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-size">Size</label>
-							<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-size" name="size" placeholder="1024x1024" autocomplete="off">
-						</div>
+				<div data-role="driveroptions" class="imgcfg-grid imgcfg-driver-options"></div>
 
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-quality">Quality</label>
-							<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-quality" name="quality">
-								<option value="">default</option>
-								<option value="auto">auto</option>
-								<option value="low">low</option>
-								<option value="medium">medium</option>
-								<option value="high">high</option>
-							</select>
-						</div>
-					</div>
-
-					<div class="imgcfg-field imgcfg-field-row">
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-outputformat">Output format</label>
-							<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-outputformat" name="outputFormat">
-								<option value="">default</option>
-								<option value="png">png</option>
-								<option value="jpeg">jpeg</option>
-								<option value="webp">webp</option>
-							</select>
-						</div>
-
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-background">Background</label>
-							<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-background" name="background">
-								<option value="">default</option>
-								<option value="auto">auto</option>
-								<option value="opaque">opaque</option>
-								<option value="transparent">transparent</option>
-							</select>
-						</div>
-					</div>
-
-					<div class="imgcfg-field imgcfg-field-row">
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-moderation">Moderation</label>
-							<select id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-moderation" name="moderation">
-								<option value="">default</option>
-								<option value="auto">auto</option>
-								<option value="low">low</option>
-							</select>
-						</div>
-
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-numberofimages">Number of images</label>
-							<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-numberofimages" name="numberOfImages" placeholder="1" autocomplete="off">
-						</div>
-					</div>
-
-					<div class="imgcfg-field imgcfg-field-row">
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-compression">Output compression</label>
-							<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-compression" name="outputCompression" placeholder="" autocomplete="off">
-						</div>
-
-						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-timeout">Timeout seconds</label>
-							<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-timeout" name="timeoutSeconds" placeholder="120" autocomplete="off">
-						</div>
-					</div>
-
-					<div class="imgcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connecttimeout">Connect timeout seconds</label>
-						<input type="text" id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connecttimeout" name="connectTimeoutSeconds" placeholder="" autocomplete="off">
-					</div>
-
-					<div class="imgcfg-field">
+				<div class="imgcfg-grid">
+					<div class="imgcfg-field imgcfg-field-wide">
 						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-options">Advanced options JSON</label>
 						<textarea id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-options" name="options" spellcheck="false" placeholder="{&#10;}"></textarea>
 						<div class="imgcfg-hint imgcfg-inline-hint">
-							Optional provider-specific options. Explicit fields above override duplicate keys in this JSON object.
+							Only generation options not represented by the selected driver schema belong here. Connection fields such as endpoint, authentication and API key are rejected.
 						</div>
 					</div>
 
-					<div class="imgcfg-field imgcfg-field-checkbox">
+					<div class="imgcfg-field imgcfg-field-checkbox imgcfg-field-wide">
 						<label class="imgcfg-checkbox">
 							<input type="checkbox" name="enabled" checked>
 							<span>Enabled</span>
@@ -192,14 +117,17 @@
 	color: #333;
 }
 
-.image-config-admin h3 {
+.image-config-admin h3,
+.image-config-admin h4 {
 	margin-top: 0;
+}
+
+.image-config-admin h3 {
 	margin-bottom: 12px;
 	font-size: 1.1em;
 }
 
 .image-config-admin h4 {
-	margin-top: 0;
 	margin-bottom: 10px;
 	font-size: 1em;
 }
@@ -226,7 +154,7 @@
 
 .imgcfg-layout {
 	display: grid;
-	grid-template-columns: minmax(760px, 1fr) minmax(380px, 520px);
+	grid-template-columns: minmax(620px, 1fr) minmax(380px, 520px);
 	gap: 16px;
 	align-items: start;
 }
@@ -239,14 +167,19 @@
 	padding: 12px;
 }
 
-.imgcfg-toolbar {
+.imgcfg-toolbar,
+.imgcfg-actions {
 	display: flex;
 	gap: 8px;
+}
+
+.imgcfg-toolbar {
 	margin-bottom: 10px;
 }
 
 .imgcfg-toolbar button,
-.imgcfg-actions button {
+.imgcfg-actions button,
+.imgcfg-edit-btn {
 	border: 1px solid #c9c9c9;
 	background: #f1f1f1;
 	color: #333;
@@ -255,18 +188,19 @@
 	cursor: pointer;
 }
 
+.imgcfg-edit-btn {
+	padding: 5px 8px;
+}
+
 .imgcfg-toolbar button:hover,
-.imgcfg-actions button:hover {
+.imgcfg-actions button:hover,
+.imgcfg-edit-btn:hover {
 	background: #e8e8e8;
 }
 
 .imgcfg-actions .primary {
 	background: #eaf3ff;
 	border-color: #aac6ea;
-}
-
-.imgcfg-actions .primary:hover {
-	background: #dcecff;
 }
 
 .imgcfg-actions button[disabled] {
@@ -277,236 +211,207 @@
 .imgcfg-table {
 	width: 100%;
 	border-collapse: collapse;
-	background: #fff;
+	font-size: 13px;
 }
 
 .imgcfg-table th,
 .imgcfg-table td {
-	padding: 8px 10px;
-	border-bottom: 1px solid #e0e0e0;
-	vertical-align: middle;
+	border-bottom: 1px solid #ddd;
+	padding: 8px;
 	text-align: left;
-	font-size: 13px;
+	vertical-align: top;
 }
 
 .imgcfg-table th {
-	background: #f5f5f5;
-	font-weight: 600;
-	border-bottom: 2px solid #cfcfcf;
-}
-
-.imgcfg-table tr:hover td {
-	background: #fafafa;
+	background: #f1f1f1;
+	white-space: nowrap;
 }
 
 .imgcfg-table tr.selected td {
-	background: #eef5ff;
+	background: #edf5ff;
 }
 
-.imgcfg-table td.id-col,
-.imgcfg-table td.model-col,
-.imgcfg-table td.connection-col,
-.imgcfg-table td.driver-col,
-.imgcfg-table td.option-col {
+.imgcfg-table .id-col,
+.imgcfg-table .driver-col,
+.imgcfg-table .model-col,
+.imgcfg-table .connection-col {
 	font-family: Consolas, monospace;
-	font-size: 12px;
 }
 
-.imgcfg-table td.model-col {
-	max-width: 220px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.imgcfg-edit-btn {
-	border: 1px solid #c9c9c9;
-	background: #f1f1f1;
-	border-radius: 6px;
-	padding: 5px 8px;
-	cursor: pointer;
-	font-size: 12px;
-}
-
-.imgcfg-edit-btn:hover {
-	background: #e8e8e8;
-}
-
-.badge {
-	display: inline-block;
-	padding: 2px 8px;
-	border-radius: 999px;
-	border: 1px solid #ccc;
-	background: #f6f6f6;
-	color: #333;
-	font-size: 12px;
-	white-space: nowrap;
-}
-
-.badge.ok {
-	border-color: #8d8;
-	background: #f6fff6;
-	color: #2d6b2d;
-}
-
-.badge.off {
-	border-color: #d7c17a;
-	background: #fff8df;
-	color: #876c11;
-}
-
-.badge.warn {
-	border-color: #e0a56b;
-	background: #fff4e8;
-	color: #8a4f12;
-}
-
-.imgcfg-hint {
-	margin-bottom: 12px;
-	font-size: 12px;
-	color: #666;
-}
-
-.imgcfg-inline-hint {
-	margin-top: 6px;
-	margin-bottom: 0;
+.imgcfg-table .model-col {
+	max-width: 190px;
+	word-break: break-word;
 }
 
 .imgcfg-grid {
 	display: grid;
-	grid-template-columns: 1fr;
-	gap: 12px;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.imgcfg-driver-options:empty {
+	display: none;
+}
+
+.imgcfg-field {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	min-width: 0;
+}
+
+.imgcfg-field-wide {
+	grid-column: 1 / -1;
 }
 
 .imgcfg-field label {
-	display: block;
-	font-weight: 600;
-	margin-bottom: 6px;
 	font-size: 13px;
+	font-weight: bold;
 }
 
 .imgcfg-field input[type="text"],
+.imgcfg-field input[type="number"],
 .imgcfg-field select,
 .imgcfg-field textarea {
 	width: 100%;
 	box-sizing: border-box;
 	border: 1px solid #cfcfcf;
-	border-radius: 6px;
-	padding: 8px 10px;
+	border-radius: 4px;
+	padding: 8px;
 	background: #fff;
 	color: #333;
 }
 
 .imgcfg-field textarea {
-	min-height: 150px;
+	min-height: 110px;
 	font-family: Consolas, monospace;
-	font-size: 12px;
 	resize: vertical;
 }
 
-.imgcfg-field input[readonly] {
-	background: #f6f6f6;
-	color: #666;
-}
-
-.imgcfg-field-row {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 10px;
-}
-
 .imgcfg-field-checkbox {
-	padding-top: 4px;
+	justify-content: center;
 }
 
 .imgcfg-checkbox {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
-	font-weight: 600;
+	font-weight: normal !important;
+}
+
+.imgcfg-hint {
+	margin-bottom: 12px;
+	padding: 9px 10px;
+	border-left: 3px solid #b9c9dc;
+	background: #f5f8fb;
+	font-size: 13px;
+	line-height: 1.4;
+	color: #4f5d6b;
+}
+
+.imgcfg-inline-hint {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	font-size: 12px;
 }
 
 .imgcfg-form-feedback {
-	margin-top: 14px;
-	border: 1px solid #ddd;
-	border-radius: 6px;
-	padding: 9px 11px;
+	margin: 10px 0;
+	padding: 9px 10px;
+	border-radius: 4px;
 	font-size: 13px;
-	line-height: 1.4;
 }
 
 .imgcfg-form-feedback.success {
-	border-color: #8d8;
-	background: #f6fff6;
-	color: #2d6b2d;
+	background: #edf8ef;
+	border: 1px solid #b9d9bf;
+	color: #2c6335;
 }
 
 .imgcfg-form-feedback.error {
-	border-color: #d88;
-	background: #fff5f5;
-	color: #a33;
+	background: #fff0f0;
+	border: 1px solid #e0b4b4;
+	color: #8a3030;
 }
 
-.imgcfg-actions {
-	display: flex;
-	gap: 8px;
-	margin-top: 14px;
+.badge {
+	display: inline-block;
+	border-radius: 10px;
+	padding: 3px 8px;
+	font-size: 11px;
+	white-space: nowrap;
 }
 
-@media (max-width: 1200px) {
+.badge.ok {
+	background: #e5f4e8;
+	color: #276334;
+}
+
+.badge.off {
+	background: #ededed;
+	color: #666;
+}
+
+.badge.warn {
+	background: #fff3d6;
+	color: #795500;
+}
+
+@media (max-width: 1150px) {
 	.imgcfg-layout {
 		grid-template-columns: 1fr;
 	}
 }
 
-@media (max-width: 620px) {
-	.imgcfg-field-row {
+@media (max-width: 680px) {
+	.imgcfg-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.imgcfg-field-wide {
+		grid-column: auto;
+	}
+
+	.imgcfg-listbox {
+		overflow-x: auto;
 	}
 }
 </style>
 
 <script>
 (function() {
-	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
+	"use strict";
+
+	const rootId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
 
 	function init() {
-		const root = document.getElementById(instanceId);
-		if (!root || root.dataset.initialized === "1") {
+		const root = document.getElementById(rootId);
+		if (!root) {
 			return;
 		}
 
-		root.dataset.initialized = "1";
-
 		const refs = {
 			loading: root.querySelector("[data-role='loading']"),
-			lastupdate: root.querySelector("[data-role='lastupdate']"),
-			formfeedback: root.querySelector("[data-role='formfeedback']"),
+			lastUpdate: root.querySelector("[data-role='lastupdate']"),
 			tbody: root.querySelector("[data-role='tbody']"),
 			form: root.querySelector("[data-role='form']"),
 			legend: root.querySelector("[data-role='legend']"),
-			idhint: root.querySelector("[data-role='idhint']"),
-			connectionhint: root.querySelector("[data-role='connectionhint']"),
+			feedback: root.querySelector("[data-role='formfeedback']"),
 			newBtn: root.querySelector("[data-role='new']"),
 			reloadBtn: root.querySelector("[data-role='reload']"),
 			deleteBtn: root.querySelector("[data-role='delete']"),
-			id: root.querySelector("input[name='id']"),
-			name: root.querySelector("input[name='name']"),
-			connection: root.querySelector("select[name='connection']"),
-			driver: root.querySelector("select[name='driver']"),
-			model: root.querySelector("input[name='model']"),
-			size: root.querySelector("input[name='size']"),
-			quality: root.querySelector("select[name='quality']"),
-			outputFormat: root.querySelector("select[name='outputFormat']"),
-			background: root.querySelector("select[name='background']"),
-			moderation: root.querySelector("select[name='moderation']"),
-			numberOfImages: root.querySelector("input[name='numberOfImages']"),
-			outputCompression: root.querySelector("input[name='outputCompression']"),
-			timeoutSeconds: root.querySelector("input[name='timeoutSeconds']"),
-			connectTimeoutSeconds: root.querySelector("input[name='connectTimeoutSeconds']"),
-			options: root.querySelector("textarea[name='options']"),
-			enabled: root.querySelector("input[name='enabled']")
+			driverOptions: root.querySelector("[data-role='driveroptions']"),
+			id: root.querySelector("[name='id']"),
+			name: root.querySelector("[name='name']"),
+			connection: root.querySelector("[name='connection']"),
+			driver: root.querySelector("[name='driver']"),
+			model: root.querySelector("[name='model']"),
+			options: root.querySelector("[name='options']"),
+			enabled: root.querySelector("[name='enabled']")
 		};
 
 		const state = {
@@ -516,243 +421,264 @@
 			selectedId: ""
 		};
 
-		function esc(s) {
-			return String(s ?? "").replace(/[&<>"']/g, function(c) {
-				return {
-					"&": "&amp;",
-					"<": "&lt;",
-					">": "&gt;",
-					'"': "&quot;",
-					"'": "&#039;"
-				}[c];
-			});
+		function esc(value) {
+			return String(value ?? "")
+				.replace(/&/g, "&amp;")
+				.replace(/</g, "&lt;")
+				.replace(/>/g, "&gt;")
+				.replace(/"/g, "&quot;")
+				.replace(/'/g, "&#039;");
 		}
 
-		function normalizeKey(s) {
-			s = String(s ?? "").trim().toLowerCase();
-			return s.replace(/[^a-z0-9._-]+/g, "");
+		function normalizeKey(value) {
+			return String(value || "")
+				.toLowerCase()
+				.trim()
+				.replace(/[^a-z0-9._-]+/g, "");
 		}
 
 		function setLoading(active) {
-			refs.loading.style.display = active ? "block" : "none";
+			refs.loading.style.display = active ? "inline" : "none";
 		}
 
-		function setLastUpdate(ts) {
-			refs.lastupdate.textContent = ts || "-";
-		}
-
-		function showFeedback(message, type) {
-			refs.formfeedback.style.display = "block";
-			refs.formfeedback.className = "imgcfg-form-feedback " + (type === "error" ? "error" : "success");
-			refs.formfeedback.textContent = message;
+		function setLastUpdate(timestamp) {
+			refs.lastUpdate.textContent = timestamp || new Date().toISOString();
 		}
 
 		function clearFeedback() {
-			refs.formfeedback.style.display = "none";
-			refs.formfeedback.className = "imgcfg-form-feedback";
-			refs.formfeedback.textContent = "";
+			refs.feedback.style.display = "none";
+			refs.feedback.className = "imgcfg-form-feedback";
+			refs.feedback.textContent = "";
+		}
+
+		function showFeedback(message, type) {
+			refs.feedback.textContent = message;
+			refs.feedback.className = "imgcfg-form-feedback " + type;
+			refs.feedback.style.display = "block";
 		}
 
 		function findImage(id) {
-			id = String(id || "");
-			return state.images.find(function(item) {
-				return String(item.id || "") === id;
+			return state.images.find(function(image) {
+				return String(image.id || "") === String(id || "");
 			}) || null;
 		}
 
 		function findConnection(id) {
-			id = String(id || "");
-			return state.connections.find(function(item) {
-				return String(item.id || "") === id;
+			return state.connections.find(function(connection) {
+				return String(connection.id || "") === String(id || "");
 			}) || null;
 		}
 
-		function findDriver(driver) {
-			driver = String(driver || "");
-			return state.drivers.find(function(item) {
-				return String(item.driver || "") === driver;
+		function findDriver(id) {
+			return state.drivers.find(function(driver) {
+				return String(driver.driver || "") === String(id || "");
 			}) || null;
+		}
+
+		function driverProperties(driver) {
+			const schema = driver && driver.configSchema && typeof driver.configSchema === "object"
+				? driver.configSchema
+				: {};
+			return schema.properties && typeof schema.properties === "object"
+				? schema.properties
+				: {};
+		}
+
+		function driverDefaults(driver) {
+			const config = driver && driver.defaultConfig && typeof driver.defaultConfig === "object"
+				? driver.defaultConfig
+				: {};
+			return {
+				model: String(config.model || ""),
+				options: config.options && typeof config.options === "object" && !Array.isArray(config.options)
+					? config.options
+					: {}
+			};
+		}
+
+		function modelRequired(driver) {
+			const property = driverProperties(driver).model;
+			return !!(property && property.required);
+		}
+
+		function renderDriverOptions(values, useDefaults) {
+			const driver = findDriver(refs.driver.value);
+			const properties = driverProperties(driver);
+			const defaults = driverDefaults(driver).options;
+			const source = values && typeof values === "object" ? values : {};
+
+			refs.driverOptions.innerHTML = "";
+
+			Object.keys(properties).forEach(function(key) {
+				if (key === "model") {
+					return;
+				}
+
+				const schema = properties[key] && typeof properties[key] === "object" ? properties[key] : {};
+				const type = String(schema.type || "string").toLowerCase();
+				const labelText = String(schema.label || key);
+				const field = document.createElement("div");
+				field.className = "imgcfg-field";
+
+				let value = Object.prototype.hasOwnProperty.call(source, key)
+					? source[key]
+					: (useDefaults && Object.prototype.hasOwnProperty.call(defaults, key)
+						? defaults[key]
+						: schema.default);
+
+				if (type === "boolean") {
+					field.classList.add("imgcfg-field-checkbox");
+					const label = document.createElement("label");
+					label.className = "imgcfg-checkbox";
+					const input = document.createElement("input");
+					input.type = "checkbox";
+					input.name = key;
+					input.setAttribute("data-driver-option", key);
+					input.checked = value === true || value === 1 || value === "1" || value === "true" || value === "yes" || value === "on";
+					const text = document.createElement("span");
+					text.textContent = labelText;
+					label.appendChild(input);
+					label.appendChild(text);
+					field.appendChild(label);
+				} else {
+					const label = document.createElement("label");
+					label.textContent = labelText + (schema.required ? " *" : "");
+					field.appendChild(label);
+
+					let input;
+					if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+						input = document.createElement("select");
+						if (!schema.required) {
+							const emptyOption = document.createElement("option");
+							emptyOption.value = "";
+							emptyOption.textContent = "default";
+							input.appendChild(emptyOption);
+						}
+
+						schema.enum.forEach(function(entry) {
+							const option = document.createElement("option");
+							option.value = String(entry);
+							option.textContent = String(entry);
+							input.appendChild(option);
+						});
+					} else {
+						input = document.createElement("input");
+						input.type = type === "integer" || type === "number" ? "number" : "text";
+						if (type === "number") {
+							input.step = "any";
+						}
+						if (schema.minimum !== undefined) {
+							input.min = String(schema.minimum);
+						}
+						if (schema.maximum !== undefined) {
+							input.max = String(schema.maximum);
+						}
+					}
+
+					input.name = key;
+					input.setAttribute("data-driver-option", key);
+					input.value = value === undefined || value === null ? "" : String(value);
+					field.appendChild(input);
+				}
+
+				if (schema.description) {
+					const description = document.createElement("div");
+					description.className = "imgcfg-hint imgcfg-inline-hint";
+					description.textContent = String(schema.description);
+					field.appendChild(description);
+				}
+
+				refs.driverOptions.appendChild(field);
+			});
+		}
+
+		function renderDriverSelect(selected) {
+			refs.driver.innerHTML = "<option value=''>Select driver...</option>";
+
+			state.drivers.forEach(function(driver) {
+				const option = document.createElement("option");
+				option.value = String(driver.driver || "");
+				option.textContent = String(driver.label || driver.driver || "");
+				refs.driver.appendChild(option);
+			});
+
+			refs.driver.value = selected || "";
+		}
+
+		function renderConnectionSelect(selected) {
+			const driver = findDriver(refs.driver.value);
+			const supported = driver && Array.isArray(driver.supportedConnectionTypes)
+				? driver.supportedConnectionTypes
+				: [];
+
+			refs.connection.innerHTML = "<option value=''>Select connection...</option>";
+
+			state.connections.forEach(function(connection) {
+				if (supported.length > 0 && !supported.includes(connection.type)) {
+					return;
+				}
+
+				const option = document.createElement("option");
+				option.value = String(connection.id || "");
+				option.textContent = String(connection.name || connection.id || "")
+					+ " [" + String(connection.type || "") + "]"
+					+ (connection.enabled ? "" : " (disabled)");
+				refs.connection.appendChild(option);
+			});
+
+			refs.connection.value = selected || "";
+		}
+
+
+		function knownOptionKeys(driver) {
+			return new Set(Object.keys(driverProperties(driver)).filter(function(key) {
+				return key !== "model";
+			}));
+		}
+
+		function advancedOptions(options, driver) {
+			const known = knownOptionKeys(driver);
+			const out = {};
+			Object.keys(options || {}).forEach(function(key) {
+				if (!known.has(key)) {
+					out[key] = options[key];
+				}
+			});
+			return out;
 		}
 
 		function formatOptions(options) {
-			const clean = Object.assign({}, options || {});
-			delete clean.size;
-			delete clean.quality;
-			delete clean.outputFormat;
-			delete clean.background;
-			delete clean.moderation;
-			delete clean.numberOfImages;
-			delete clean.outputCompression;
-			delete clean.timeoutSeconds;
-			delete clean.connectTimeoutSeconds;
-
-			if (Object.keys(clean).length === 0) {
-				return "{\n}";
-			}
-
-			return JSON.stringify(clean, null, 2);
+			return JSON.stringify(options && typeof options === "object" ? options : {}, null, 2);
 		}
 
 		function setEditMode(editing) {
 			refs.id.readOnly = editing;
+			refs.legend.textContent = editing ? "Edit image service" : "Create image service";
 			refs.deleteBtn.disabled = !editing;
-
-			if (editing) {
-				refs.legend.textContent = "Edit image service";
-				refs.idhint.textContent = "Technical image service id is fixed for existing entries. Create a new entry if you need another key.";
-			} else {
-				refs.legend.textContent = "Create image service";
-				refs.idhint.textContent = "Technical image service id. Agent resources use this id to resolve the configured image generation service.";
-			}
 		}
 
-		function connectionLabel(id) {
-			const connection = findConnection(id);
-
-			if (!connection) {
-				return id || "";
-			}
-
-			let label = connection.name || connection.id || "";
-
-			if (connection.type) {
-				label += " (" + connection.type + ")";
-			}
-
-			return label;
-		}
-
-		function updateConnectionHint() {
-			const connection = findConnection(refs.connection.value);
-
-			if (!connection) {
-				refs.connectionhint.textContent = "Connections contain endpoint and authentication data.";
-				return;
-			}
-
-			let text = "Type: " + (connection.type || "unknown") + ". Driver: " + (connection.driver || "unknown") + ". Base URL: " + (connection.baseUrl || "not set") + ".";
-
-			if (!connection.enabled) {
-				text += " This connection is currently disabled.";
-			}
-
-			refs.connectionhint.textContent = text;
-		}
-
-		function renderConnectionOptions(selected) {
-			const connections = Array.isArray(state.connections) ? state.connections : [];
-			refs.connection.innerHTML = "";
-
-			if (connections.length === 0) {
-				const option = document.createElement("option");
-				option.value = "";
-				option.textContent = "No connections configured";
-				refs.connection.appendChild(option);
-				updateConnectionHint();
-				return;
-			}
-
-			const empty = document.createElement("option");
-			empty.value = "";
-			empty.textContent = "Select connection";
-			refs.connection.appendChild(empty);
-
-			for (const connection of connections) {
-				const option = document.createElement("option");
-				option.value = connection.id || "";
-				option.textContent = connectionLabel(connection.id);
-
-				if (!connection.enabled) {
-					option.textContent += " [disabled]";
-				}
-
-				refs.connection.appendChild(option);
-			}
-
-			refs.connection.value = selected || refs.connection.value || "";
-			updateConnectionHint();
-		}
-
-		function renderDriverOptions(selected) {
-			const drivers = Array.isArray(state.drivers) ? state.drivers : [];
-			refs.driver.innerHTML = "";
-
-			if (drivers.length === 0) {
-				const option = document.createElement("option");
-				option.value = "";
-				option.textContent = "No image drivers available";
-				refs.driver.appendChild(option);
-				return;
-			}
-
-			const empty = document.createElement("option");
-			empty.value = "";
-			empty.textContent = "Select driver";
-			refs.driver.appendChild(empty);
-
-			for (const driver of drivers) {
-				const option = document.createElement("option");
-				option.value = driver.driver || "";
-				option.textContent = driver.label || driver.driver || "";
-				refs.driver.appendChild(option);
-			}
-
-			refs.driver.value = selected || refs.driver.value || "";
-		}
-
-		function applyDriverDefaults(force) {
+		function applyDriverDefaults() {
 			const driver = findDriver(refs.driver.value);
-
-			if (!driver) {
-				return;
-			}
-
-			const defaults = driver.defaultConfig && typeof driver.defaultConfig === "object" ? driver.defaultConfig : {};
-			const options = defaults.options && typeof defaults.options === "object" ? defaults.options : {};
-
-			if (force || !refs.model.value) {
-				refs.model.value = defaults.model || "";
-			}
-
-			if (force || !refs.size.value) {
-				refs.size.value = options.size ?? "";
-			}
-
-			if (force) {
-				refs.quality.value = options.quality ?? "";
-				refs.outputFormat.value = options.outputFormat ?? "";
-				refs.background.value = options.background ?? "";
-				refs.moderation.value = options.moderation ?? "";
-				refs.numberOfImages.value = options.numberOfImages ?? "";
-				refs.outputCompression.value = options.outputCompression ?? "";
-				refs.timeoutSeconds.value = options.timeoutSeconds ?? "";
-				refs.connectTimeoutSeconds.value = options.connectTimeoutSeconds ?? "";
-				refs.options.value = formatOptions(options);
-			}
+			const defaults = driverDefaults(driver);
+			refs.model.value = defaults.model || String(driverProperties(driver).model?.default || "");
+			renderConnectionSelect(refs.connection.value);
+			renderDriverOptions({}, true);
+			refs.options.value = "{\n}";
 		}
 
 		function resetForm() {
 			refs.form.reset();
 			refs.id.value = "";
 			refs.name.value = "";
-			refs.connection.value = "";
 			refs.driver.value = "";
+			refs.connection.value = "";
 			refs.model.value = "";
-			refs.size.value = "";
-			refs.quality.value = "";
-			refs.outputFormat.value = "";
-			refs.background.value = "";
-			refs.moderation.value = "";
-			refs.numberOfImages.value = "";
-			refs.outputCompression.value = "";
-			refs.timeoutSeconds.value = "";
-			refs.connectTimeoutSeconds.value = "";
 			refs.options.value = "{\n}";
 			refs.enabled.checked = true;
-
+			refs.driverOptions.innerHTML = "";
 			state.selectedId = "";
 			setEditMode(false);
-			updateConnectionHint();
+			renderConnectionSelect("");
 			highlightSelection();
 		}
 
@@ -764,24 +690,14 @@
 
 			refs.id.value = image.id || "";
 			refs.name.value = image.name || "";
-			refs.connection.value = image.connection || "";
 			refs.driver.value = image.driver || "";
+			renderConnectionSelect(image.connection || "");
 			refs.model.value = image.model || "";
-			refs.size.value = image.size || "";
-			refs.quality.value = image.quality || "";
-			refs.outputFormat.value = image.outputFormat || "";
-			refs.background.value = image.background || "";
-			refs.moderation.value = image.moderation || "";
-			refs.numberOfImages.value = image.numberOfImages || "";
-			refs.outputCompression.value = image.outputCompression || "";
-			refs.timeoutSeconds.value = image.timeoutSeconds || "";
-			refs.connectTimeoutSeconds.value = image.connectTimeoutSeconds || "";
-			refs.options.value = formatOptions(image.options || {});
+			renderDriverOptions(image.options || {}, false);
+			refs.options.value = formatOptions(advancedOptions(image.options || {}, findDriver(image.driver)));
 			refs.enabled.checked = !!image.enabled;
-
 			state.selectedId = image.id || "";
 			setEditMode(true);
-			updateConnectionHint();
 			highlightSelection();
 		}
 
@@ -789,60 +705,44 @@
 			if (!image.enabled) {
 				return "<span class='badge off'>disabled</span>";
 			}
-
 			if (!image.connectionEnabled) {
 				return "<span class='badge warn'>connection off</span>";
 			}
-
 			return "<span class='badge ok'>enabled</span>";
 		}
 
 		function renderRows() {
-			const images = Array.isArray(state.images) ? state.images : [];
 			refs.tbody.innerHTML = "";
-
-			if (images.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='10' class='mono'>No image services configured.</td></tr>";
+			if (state.images.length === 0) {
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'>No image services configured.</td></tr>";
 				return;
 			}
 
-			for (const image of images) {
+			state.images.forEach(function(image) {
 				const tr = document.createElement("tr");
 				tr.setAttribute("data-id", String(image.id || ""));
-
 				tr.innerHTML =
 					"<td class='id-col'>" + esc(image.id) + "</td>" +
 					"<td>" + esc(image.name) + "</td>" +
-					"<td class='connection-col' title='" + esc(connectionLabel(image.connection)) + "'>" +
-						esc(image.connection) + "<br><span style='color:#777'>" + esc(image.connectionType || "") + "</span>" +
-					"</td>" +
+					"<td class='connection-col'>" + esc(image.connection) + "<br><span style='color:#777'>" + esc(image.connectionType || "") + "</span></td>" +
 					"<td class='driver-col'>" + esc(image.driverLabel || image.driver) + "</td>" +
-					"<td class='model-col' title='" + esc(image.model) + "'>" + esc(image.model) + "</td>" +
-					"<td class='option-col'>" + esc(image.size || "") + "</td>" +
-					"<td class='option-col'>" + esc(image.quality || "") + "</td>" +
-					"<td class='option-col'>" + esc(image.outputFormat || "") + "</td>" +
+					"<td class='model-col'>" + esc(image.model) + "</td>" +
 					"<td>" + statusBadge(image) + "</td>" +
 					"<td><button type='button' class='imgcfg-edit-btn' data-action='edit' data-id='" + esc(image.id) + "'>Edit</button></td>";
-
 				refs.tbody.appendChild(tr);
-			}
+			});
 
 			highlightSelection();
 		}
 
 		function highlightSelection() {
 			root.querySelectorAll("tbody tr[data-id]").forEach(function(row) {
-				if (row.getAttribute("data-id") === state.selectedId) {
-					row.classList.add("selected");
-				} else {
-					row.classList.remove("selected");
-				}
+				row.classList.toggle("selected", row.getAttribute("data-id") === state.selectedId);
 			});
 		}
 
 		async function callApi(params) {
 			setLoading(true);
-
 			try {
 				const body = new URLSearchParams();
 				Object.keys(params || {}).forEach(function(key) {
@@ -857,26 +757,22 @@
 					},
 					body: body.toString()
 				});
-
 				const text = await response.text();
-				let json = null;
-
+				let json;
 				try {
 					json = JSON.parse(text);
-				} catch (e) {
+				} catch (error) {
 					showFeedback("The server response could not be read.", "error");
 					return null;
 				}
 
 				setLastUpdate(json.timestamp || "");
-
 				if (json.status !== "ok") {
 					showFeedback(json.message || "The request could not be completed.", "error");
 					return null;
 				}
-
 				return json;
-			} catch (e) {
+			} catch (error) {
 				showFeedback("The request failed. Please try again.", "error");
 				return null;
 			} finally {
@@ -885,33 +781,23 @@
 		}
 
 		async function loadList(preselectId) {
-			const json = await callApi({
-				action: "list"
-			});
-
+			const json = await callApi({action: "list"});
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='10' class='mono'>Image services could not be loaded.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'>Image services could not be loaded.</td></tr>";
 				return;
 			}
 
-			state.connections = (json.data && Array.isArray(json.data.connections)) ? json.data.connections : [];
-			state.drivers = (json.data && Array.isArray(json.data.drivers)) ? json.data.drivers : [];
-			state.images = (json.data && Array.isArray(json.data.images)) ? json.data.images : [];
+			state.connections = json.data && Array.isArray(json.data.connections) ? json.data.connections : [];
+			state.drivers = json.data && Array.isArray(json.data.drivers) ? json.data.drivers : [];
+			state.images = json.data && Array.isArray(json.data.images) ? json.data.images : [];
 
-			renderConnectionOptions(refs.connection.value || "");
-			renderDriverOptions(refs.driver.value || "");
+			renderDriverSelect(refs.driver.value || "");
+			renderConnectionSelect(refs.connection.value || "");
 			renderRows();
 
-			if (preselectId) {
-				const image = findImage(preselectId);
-				if (image) {
-					fillForm(image);
-					return;
-				}
-			}
-
-			if (state.selectedId) {
-				const image = findImage(state.selectedId);
+			const target = preselectId || state.selectedId;
+			if (target) {
+				const image = findImage(target);
 				if (image) {
 					fillForm(image);
 					return;
@@ -925,33 +811,38 @@
 
 		function readOptionsJson() {
 			const raw = String(refs.options.value || "").trim();
-
 			if (!raw) {
 				return "{}";
 			}
 
 			try {
 				const parsed = JSON.parse(raw);
-
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
 					showFeedback("Advanced options must be a JSON object.", "error");
 					return null;
 				}
-
 				return JSON.stringify(parsed);
-			} catch (e) {
+			} catch (error) {
 				showFeedback("Advanced options must be valid JSON.", "error");
 				return null;
 			}
 		}
 
+		function appendDriverOptionParams(params) {
+			refs.driverOptions.querySelectorAll("[data-driver-option]").forEach(function(input) {
+				const key = input.getAttribute("data-driver-option");
+				params[key] = input.type === "checkbox"
+					? (input.checked ? "1" : "0")
+					: String(input.value || "").trim();
+			});
+		}
+
 		async function saveCurrent() {
 			clearFeedback();
-
 			const id = normalizeKey(refs.id.value);
 			const name = String(refs.name.value || "").trim();
 			const connection = normalizeKey(refs.connection.value);
-			const driver = normalizeKey(refs.driver.value);
+			const driverId = normalizeKey(refs.driver.value);
 			const model = String(refs.model.value || "").trim();
 			const options = readOptionsJson();
 
@@ -960,96 +851,59 @@
 			}
 
 			refs.id.value = id;
-			refs.connection.value = connection;
-			refs.driver.value = driver;
-
-			if (!id) {
-				showFeedback("Image service id is required.", "error");
+			if (!id || !name || !connection || !driverId) {
+				showFeedback("Image service id, name, connection and driver are required.", "error");
 				return;
 			}
-
-			if (!name) {
-				showFeedback("Name is required.", "error");
-				return;
-			}
-
-			if (!connection) {
-				showFeedback("Connection is required.", "error");
-				return;
-			}
-
-			if (!driver) {
-				showFeedback("Driver is required.", "error");
-				return;
-			}
-
-			if (!model) {
+			if (modelRequired(findDriver(driverId)) && !model) {
 				showFeedback("Model is required.", "error");
 				return;
 			}
 
-			const json = await callApi({
+			const params = {
 				action: "save",
 				id: id,
 				name: name,
 				connection: connection,
-				driver: driver,
+				driver: driverId,
 				model: model,
-				size: String(refs.size.value || "").trim(),
-				quality: String(refs.quality.value || "").trim(),
-				outputFormat: String(refs.outputFormat.value || "").trim(),
-				background: String(refs.background.value || "").trim(),
-				moderation: String(refs.moderation.value || "").trim(),
-				numberOfImages: String(refs.numberOfImages.value || "").trim(),
-				outputCompression: String(refs.outputCompression.value || "").trim(),
-				timeoutSeconds: String(refs.timeoutSeconds.value || "").trim(),
-				connectTimeoutSeconds: String(refs.connectTimeoutSeconds.value || "").trim(),
 				options: options,
 				enabled: refs.enabled.checked ? "1" : "0"
-			});
+			};
+			appendDriverOptionParams(params);
 
+			const json = await callApi(params);
 			if (!json) {
 				return;
 			}
 
-			const image = (json.data && json.data.image) ? json.data.image : null;
-
+			const image = json.data && json.data.image ? json.data.image : null;
 			showFeedback("Image service saved.", "success");
-
 			await loadList(image && image.id ? image.id : id);
 		}
 
 		async function removeCurrent() {
 			clearFeedback();
-
 			const id = String(state.selectedId || refs.id.value || "").trim();
-
 			if (!id) {
 				showFeedback("No image service selected.", "error");
 				return;
 			}
-
 			if (!window.confirm("Delete image service '" + id + "'?")) {
 				return;
 			}
 
-			const json = await callApi({
-				action: "remove",
-				id: id
-			});
-
+			const json = await callApi({action: "remove", id: id});
 			if (!json) {
 				return;
 			}
-
 			showFeedback("Image service deleted.", "success");
-
 			resetForm();
 			await loadList();
 		}
 
-		refs.form.addEventListener("submit", function(e) {
-			e.preventDefault();
+		refs.form.addEventListener("submit", function(event) {
+			event.preventDefault();
 			saveCurrent();
 		});
 
@@ -1063,28 +917,15 @@
 			loadList(state.selectedId || "");
 		});
 
-		refs.deleteBtn.addEventListener("click", function() {
-			removeCurrent();
-		});
-
-		refs.connection.addEventListener("change", function() {
-			updateConnectionHint();
-		});
-
-		refs.driver.addEventListener("change", function() {
-			applyDriverDefaults(false);
-		});
-
-		refs.tbody.addEventListener("click", function(e) {
-			const btn = e.target.closest("button[data-action='edit']");
-			if (!btn) {
+		refs.deleteBtn.addEventListener("click", removeCurrent);
+		refs.driver.addEventListener("change", applyDriverDefaults);
+		refs.tbody.addEventListener("click", function(event) {
+			const button = event.target.closest("button[data-action='edit']");
+			if (!button) {
 				return;
 			}
-
 			clearFeedback();
-
-			const image = findImage(btn.getAttribute("data-id"));
-			fillForm(image);
+			fillForm(findImage(button.getAttribute("data-id")));
 		});
 
 		loadList();

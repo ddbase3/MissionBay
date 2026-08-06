@@ -17,6 +17,8 @@
 
 namespace MissionBay\Display;
 
+use RuntimeException;
+
 final class ImageConfigDisplay extends AbstractServiceConfigDisplay {
 
 	private const SETTINGS_GROUP = 'service-image';
@@ -80,68 +82,113 @@ final class ImageConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function readSpecificOptions(array $options): array {
-		$numberOfImages = $this->readOptionalInt('numberOfImages', 'Number of images');
-		$outputCompression = $this->readOptionalInt('outputCompression', 'Output compression');
-		$timeoutSeconds = $this->readOptionalInt('timeoutSeconds', 'Timeout seconds');
-		$connectTimeoutSeconds = $this->readOptionalInt('connectTimeoutSeconds', 'Connect timeout seconds');
-		$size = trim((string)$this->request->request('size', ''));
-		$quality = trim((string)$this->request->request('quality', ''));
-		$outputFormat = trim((string)$this->request->request('outputFormat', ''));
-		$background = trim((string)$this->request->request('background', ''));
-		$moderation = trim((string)$this->request->request('moderation', ''));
+		$driver = $this->normalizeKey((string)$this->request->request('driver', ''));
+		$drivers = $this->listDriverDefinitionsByDriver();
+		$definition = $drivers[$driver] ?? null;
 
-		if($size !== '') {
-			$options['size'] = $size;
+		if(!is_array($definition)) {
+			return $options;
 		}
 
-		if($quality !== '') {
-			$options['quality'] = $quality;
-		}
+		$schema = is_array($definition['configSchema'] ?? null) ? $definition['configSchema'] : [];
+		$properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+		$requestData = $this->request->allRequest();
 
-		if($outputFormat !== '') {
-			$options['outputFormat'] = $outputFormat;
-		}
+		foreach($properties as $key => $property) {
+			if(!is_string($key) || $key === 'model' || !is_array($property)) {
+				continue;
+			}
 
-		if($background !== '') {
-			$options['background'] = $background;
-		}
+			if(!array_key_exists($key, $requestData)) {
+				continue;
+			}
 
-		if($moderation !== '') {
-			$options['moderation'] = $moderation;
-		}
+			$value = $this->readSchemaValue($key, $property);
 
-		if($numberOfImages !== null) {
-			$options['numberOfImages'] = $numberOfImages;
-		}
+			if($value === null) {
+				unset($options[$key]);
+				continue;
+			}
 
-		if($outputCompression !== null) {
-			$options['outputCompression'] = $outputCompression;
-		}
-
-		if($timeoutSeconds !== null) {
-			$options['timeoutSeconds'] = $timeoutSeconds;
-		}
-
-		if($connectTimeoutSeconds !== null) {
-			$options['connectTimeoutSeconds'] = $connectTimeoutSeconds;
+			$options[$key] = $value;
 		}
 
 		return $options;
 	}
 
 	protected function expandSpecificDisplayOptions(array $row): array {
-		$options = is_array($row['options'] ?? null) ? $row['options'] : [];
-
-		$row['size'] = trim((string)($options['size'] ?? ''));
-		$row['quality'] = trim((string)($options['quality'] ?? ''));
-		$row['outputFormat'] = trim((string)($options['outputFormat'] ?? ''));
-		$row['background'] = trim((string)($options['background'] ?? ''));
-		$row['moderation'] = trim((string)($options['moderation'] ?? ''));
-		$row['numberOfImages'] = $this->normalizeNullableNumber($options['numberOfImages'] ?? null);
-		$row['outputCompression'] = $this->normalizeNullableNumber($options['outputCompression'] ?? null);
-		$row['timeoutSeconds'] = $this->normalizeNullableNumber($options['timeoutSeconds'] ?? null);
-		$row['connectTimeoutSeconds'] = $this->normalizeNullableNumber($options['connectTimeoutSeconds'] ?? null);
-
 		return $row;
+	}
+
+	/**
+	 * @param array<string,mixed> $property
+	 */
+	private function readSchemaValue(string $key, array $property): mixed {
+		$type = strtolower(trim((string)($property['type'] ?? 'string')));
+		$label = trim((string)($property['label'] ?? $key));
+		$required = (bool)($property['required'] ?? false);
+		$raw = $this->request->request($key, null);
+
+		if($type === 'boolean') {
+			if($raw === null || $raw === '') {
+				return $required ? false : null;
+			}
+
+			return $this->normalizeBool($raw);
+		}
+
+		if($raw === null) {
+			if($required) {
+				throw new RuntimeException($label . ' is required.');
+			}
+
+			return null;
+		}
+
+		if($type === 'integer' || $type === 'number') {
+			$value = trim((string)$raw);
+
+			if($value === '') {
+				if($required) {
+					throw new RuntimeException($label . ' is required.');
+				}
+
+				return null;
+			}
+
+			if(!is_numeric($value)) {
+				throw new RuntimeException($label . ' must be numeric.');
+			}
+
+			$number = $type === 'integer' ? (int)$value : (float)$value;
+
+			if(isset($property['minimum']) && is_numeric($property['minimum']) && $number < (float)$property['minimum']) {
+				throw new RuntimeException($label . ' must be at least ' . $property['minimum'] . '.');
+			}
+
+			if(isset($property['maximum']) && is_numeric($property['maximum']) && $number > (float)$property['maximum']) {
+				throw new RuntimeException($label . ' must be at most ' . $property['maximum'] . '.');
+			}
+
+			return $number;
+		}
+
+		$value = trim((string)$raw);
+
+		if($value === '') {
+			if($required) {
+				throw new RuntimeException($label . ' is required.');
+			}
+
+			return null;
+		}
+
+		$enum = is_array($property['enum'] ?? null) ? $property['enum'] : [];
+
+		if($enum !== [] && !in_array($value, $enum, true)) {
+			throw new RuntimeException($label . ' contains an unsupported value.');
+		}
+
+		return $value;
 	}
 }

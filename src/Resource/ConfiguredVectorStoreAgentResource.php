@@ -25,7 +25,6 @@ use MissionBay\Api\IVectorStoreService;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Dto\AgentEmbeddingChunk;
 use MissionBay\Service\ServiceConfig;
-use MissionBay\VectorStore\QdrantVectorStoreService;
 use RuntimeException;
 
 /**
@@ -159,11 +158,12 @@ final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredService
 	}
 
 	private function resolveVectorStoreServiceName(string $driver): string {
-		$map = [
-			'qdrant-vectorstore' => QdrantVectorStoreService::getName()
-		];
-
-		return $map[$driver] ?? '';
+		return $this->resolveServiceImplementationName(
+			$this->classMap,
+			$driver,
+			self::SERVICE_TYPE,
+			IVectorStoreService::class
+		);
 	}
 
 	/**

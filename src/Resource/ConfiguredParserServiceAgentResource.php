@@ -25,8 +25,6 @@ use MissionBay\Api\IParserService;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Dto\AgentParsedContent;
-use MissionBay\ParserService\DoclingParserService;
-use MissionBay\ParserService\UnstructuredParserService;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
@@ -140,12 +138,12 @@ final class ConfiguredParserServiceAgentResource extends AbstractConfiguredServi
 	}
 
 	private function resolveParserServiceName(string $driver): string {
-		$map = [
-			'unstructured-parser' => UnstructuredParserService::getName(),
-			'docling-parser' => DoclingParserService::getName()
-		];
-
-		return $map[$driver] ?? '';
+		return $this->resolveServiceImplementationName(
+			$this->classMap,
+			$driver,
+			self::SERVICE_TYPE,
+			IParserService::class
+		);
 	}
 
 	/**

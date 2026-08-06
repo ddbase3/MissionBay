@@ -18,25 +18,25 @@
 namespace MissionBay\ServiceDriver;
 
 use AssistantFoundation\Api\IServiceDriverDefinition;
-use AssistantFoundation\Api\IAiChatModel;
-use MissionBay\ChatModel\OpenAiCompatibleChatModel;
+use AssistantFoundation\Api\IImageGenerationModel;
+use MissionBay\ImageModel\MistralImageModel;
 
-final class OpenAiCompatibleChatServiceDriverDefinition implements IServiceDriverDefinition {
+final class MistralImageServiceDriverDefinition implements IServiceDriverDefinition {
 
 	public static function getName(): string {
-		return 'openaicompatiblechatservicedriverdefinition';
+		return 'mistralimageservicedriverdefinition';
 	}
 
 	public function getDriver(): string {
-		return 'openai-compatible-chat';
+		return 'mistral-image';
 	}
 
 	public function getServiceType(): string {
-		return 'llm';
+		return 'image';
 	}
 
 	public function getLabel(): string {
-		return 'OpenAI-Compatible Chat';
+		return 'Mistral Image';
 	}
 
 	public function requiresConnection(): bool {
@@ -48,11 +48,11 @@ final class OpenAiCompatibleChatServiceDriverDefinition implements IServiceDrive
 	}
 
 	public function getImplementationInterface(): string {
-		return IAiChatModel::class;
+		return IImageGenerationModel::class;
 	}
 
 	public function getImplementationName(): string {
-		return OpenAiCompatibleChatModel::getName();
+		return MistralImageModel::getName();
 	}
 
 	public function getConfigSchema(): array {
@@ -62,23 +62,16 @@ final class OpenAiCompatibleChatServiceDriverDefinition implements IServiceDrive
 				'model' => [
 					'type' => 'string',
 					'label' => 'Model',
-					'default' => '',
+					'default' => 'mistral-small-latest',
 					'required' => true
 				],
-				'temperature' => [
-					'type' => 'number',
-					'label' => 'Temperature',
-					'default' => 0.3
-				],
-				'maxTokens' => [
-					'type' => 'integer',
-					'label' => 'Max tokens',
-					'default' => 4000
-				],
-				'topP' => [
-					'type' => 'number',
-					'label' => 'Top P',
-					'default' => 1
+				'toolChoice' => [
+					'type' => 'string',
+					'label' => 'Tool choice',
+					'description' => 'Controls whether Mistral must execute the image_generation tool.',
+					'enum' => ['required', 'any', 'auto'],
+					'default' => 'required',
+					'runtimeKey' => 'tool_choice'
 				]
 			]
 		];
@@ -86,14 +79,12 @@ final class OpenAiCompatibleChatServiceDriverDefinition implements IServiceDrive
 
 	public function getDefaultConfig(): array {
 		return [
-			'serviceType' => 'llm',
-			'driver' => 'openai-compatible-chat',
-			'model' => '',
+			'serviceType' => 'image',
+			'driver' => 'mistral-image',
+			'model' => 'mistral-small-latest',
 			'enabled' => true,
 			'options' => [
-				'temperature' => 0.3,
-				'maxTokens' => 4000,
-				'topP' => 1
+				'toolChoice' => 'required'
 			]
 		];
 	}

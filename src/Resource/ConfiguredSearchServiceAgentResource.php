@@ -27,8 +27,6 @@ use AssistantFoundation\Dto\AiSearchResult;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\ISearchService;
 use MissionBay\Connection\ConnectionConfig;
-use MissionBay\SearchService\MistralWebSearchService;
-use MissionBay\SearchService\OpenAiWebSearchService;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
@@ -253,12 +251,12 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 	}
 
 	private function resolveSearchServiceName(string $driver): string {
-		$map = [
-			'openai-websearch' => OpenAiWebSearchService::getName(),
-			'mistral-websearch' => MistralWebSearchService::getName()
-		];
-
-		return $map[$driver] ?? '';
+		return $this->resolveServiceImplementationName(
+			$this->classMap,
+			$driver,
+			self::SERVICE_TYPE,
+			ISearchService::class
+		);
 	}
 
 	/**

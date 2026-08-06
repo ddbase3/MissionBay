@@ -146,18 +146,7 @@ final class SearchConfigDisplay extends AbstractServiceConfigDisplay {
 			return false;
 		}
 
-		return in_array($driver, [
-			'openai_websearch',
-			'openai-websearch',
-			'openai_responses_websearch',
-			'openai-responses-websearch',
-			'openai_chat_websearch',
-			'openai-chat-websearch',
-			'openai_search',
-			'openai-search',
-			'mistral_websearch',
-			'mistral-websearch'
-		], true);
+		return false;
 	}
 
 	protected function readSpecificOptions(array $options): array {

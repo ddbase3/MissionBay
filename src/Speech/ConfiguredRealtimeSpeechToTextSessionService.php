@@ -17,6 +17,7 @@
 
 namespace MissionBay\Speech;
 
+use AssistantFoundation\Api\IServiceDriverDefinition;
 use AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
 use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
 use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
@@ -117,13 +118,28 @@ final class ConfiguredRealtimeSpeechToTextSessionService implements IRealtimeSpe
 
 	private function resolveDriver(string $driverName): IRealtimeSpeechToTextDriver {
 		$driverName = $this->normalizeKey($driverName);
-		$drivers = $this->classMap->getInstancesByInterface(IRealtimeSpeechToTextDriver::class);
+		$definitions = $this->classMap->getInstancesByInterface(IServiceDriverDefinition::class);
 
-		foreach($drivers as $driver) {
-			if(!$driver instanceof IRealtimeSpeechToTextDriver) {
+		foreach($definitions as $definition) {
+			if(!$definition instanceof IServiceDriverDefinition) {
 				continue;
 			}
-			if($this->normalizeKey($driver->getDriver()) === $driverName) {
+			if($this->normalizeKey($definition->getServiceType()) !== 'stt') {
+				continue;
+			}
+			if($this->normalizeKey($definition->getDriver()) !== $driverName) {
+				continue;
+			}
+			if(trim($definition->getImplementationInterface()) !== IRealtimeSpeechToTextDriver::class) {
+				continue;
+			}
+
+			$driver = $this->classMap->getInstanceByInterfaceName(
+				IRealtimeSpeechToTextDriver::class,
+				trim($definition->getImplementationName())
+			);
+
+			if($driver instanceof IRealtimeSpeechToTextDriver) {
 				return $driver;
 			}
 		}

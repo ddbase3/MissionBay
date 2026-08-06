@@ -24,7 +24,7 @@ use Base3\Api\IRequest;
 use Base3\ConfigValue\Api\IConfigValueResolver;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IConnectionDriverDefinition;
+use AssistantFoundation\Api\IConnectionDriverDefinition;
 use MissionBay\Connection\ConnectionConfig;
 use RuntimeException;
 
