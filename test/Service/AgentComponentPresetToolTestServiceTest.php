@@ -11,6 +11,7 @@ use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Dto\AgentSuspensionState;
 use Base3\Event\Api\IEventManager;
 use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Api\IAgentTool;
@@ -148,6 +149,20 @@ final class ComponentPresetTestSuspensionRepository implements IAgentSuspensionR
 		$handle = 'component-preset-test-' . count($this->suspensions);
 		$this->suspensions[$handle] = $suspension;
 		return $handle;
+	}
+
+	public function findPending(string $scopeId): ?AgentSuspensionState {
+		foreach ($this->suspensions as $handle => $suspension) {
+			if ($suspension->getScopeId() === $scopeId) {
+				return new AgentSuspensionState(
+					true,
+					$suspension->getStatus(),
+					$suspension->getRequests(),
+					$handle
+				);
+			}
+		}
+		return null;
 	}
 
 	public function claim(string $resumeHandle): AgentSuspensionClaim {

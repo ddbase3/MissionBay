@@ -727,6 +727,7 @@ Replace this repository when a project needs a durable backend for approval/inpu
 ### Requirements
 
 - `create()` returns an opaque, unguessable resume handle;
+- `findPending()` resolves the same canonical suspension record by its stable scope id without creating a second persisted copy or lookup state;
 - `claim()` provides an exclusive short-lived claim or throws the typed repository exception;
 - `release()` makes a non-consumed claim available again;
 - `consume()` atomically makes the suspension unusable;
@@ -743,6 +744,7 @@ namespace ProjectAgent\Suspension;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Dto\AgentSuspensionState;
 
 final class DatabaseSuspensionRepository implements IAgentSuspensionRepository {
 
@@ -750,6 +752,11 @@ final class DatabaseSuspensionRepository implements IAgentSuspensionRepository {
         $handle = bin2hex(random_bytes(32));
         // Persist suspension, expiry, and unclaimed state transactionally.
         return $handle;
+    }
+
+    public function findPending(string $scopeId): ?AgentSuspensionState {
+        // Resolve the same canonical suspension record used by claim().
+        return null;
     }
 
     public function claim(string $resumeHandle): AgentSuspensionClaim {

@@ -26,6 +26,7 @@ use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentSuspension;
+use AssistantFoundation\Dto\AgentSuspensionScope;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
@@ -139,8 +140,13 @@ final class AgentActionReviewService {
 		$status = $hasInputRequest
 			? AgentExecutionStatus::AWAITING_INPUT
 			: AgentExecutionStatus::AWAITING_APPROVAL;
+		$suspensionId = $this->createSuspensionId();
+		$scopeId = AgentSuspensionScope::forConversation(
+			trim((string)($context->getVar('conversation_channel_id') ?? '')),
+			trim((string)($context->getVar('conversation_id') ?? ''))
+		);
 		$suspension = new AgentSuspension(
-			id: $this->createSuspensionId(),
+			id: $suspensionId,
 			status: $status,
 			requests: $suspensionRequests,
 			state: $this->createSnapshot($context, $projectedPatch),
@@ -148,7 +154,8 @@ final class AgentActionReviewService {
 			metadata: [
 				'node_id' => (string)($context->getVar(AgentToolLoopContextKeys::NODE_ID) ?? ''),
 				'iteration' => (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0)
-			]
+			],
+			scopeId: $scopeId !== '' ? $scopeId : $suspensionId
 		);
 
 		try {

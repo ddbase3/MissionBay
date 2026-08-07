@@ -39,13 +39,14 @@ The serialized `AgentSuspension` is never accepted from the client.
 AssistantRuntime\Service\StateStoreAgentSuspensionRepository
 ```
 
-It stores suspension state through `IStateStore`. MissionBay consumes only the `IAgentSuspensionRepository` contract and may be composed with another host-provided implementation.
+It stores suspension state through `IStateStore`. A suspension with a stable scope id is stored as one canonical state record. `findPending()` and `claim()` both resolve that same record; no secondary suspension copy or lookup index is maintained. MissionBay consumes only the `IAgentSuspensionRepository` contract and may be composed with another host-provided implementation.
 
 ## Lifecycle
 
 ```text
 action review
-  -> persist exact suspension snapshot
+  -> persist exact suspension snapshot under its stable scope
+  -> reject a second pending suspension for the same scope
   -> return opaque resume handle
 
 resume request

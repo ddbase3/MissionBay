@@ -20,12 +20,17 @@ namespace MissionBay\Orchestrator\Suspension;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Dto\AgentSuspensionState;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 
 /** Fails closed when a project has not configured persistent runtime state. */
 final class UnavailableAgentSuspensionRepository implements IAgentSuspensionRepository {
 
 	public function create(AgentSuspension $suspension, int $ttlSeconds): string {
+		throw $this->unavailable();
+	}
+
+	public function findPending(string $scopeId): ?AgentSuspensionState {
 		throw $this->unavailable();
 	}
 

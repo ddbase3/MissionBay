@@ -245,6 +245,7 @@ PHP);
 	);
 	$resumeRepository = new class implements \AssistantFoundation\Api\IAgentSuspensionRepository {
 		public function create(\AssistantFoundation\Dto\AgentSuspension $suspension, int $ttlSeconds): string { return 'resume-handle'; }
+		public function findPending(string $scopeId): ?\AssistantFoundation\Dto\AgentSuspensionState { return null; }
 		public function claim(string $resumeHandle): \AssistantFoundation\Dto\AgentSuspensionClaim { throw new \RuntimeException('Not used.'); }
 		public function release(\AssistantFoundation\Dto\AgentSuspensionClaim $claim): void {}
 		public function consume(\AssistantFoundation\Dto\AgentSuspensionClaim $claim): void {}
