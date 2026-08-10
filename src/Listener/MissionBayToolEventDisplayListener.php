@@ -27,6 +27,12 @@ use MissionBay\Event\MissionBayToolStartedEvent;
 class MissionBayToolEventDisplayListener {
 
 	private const TABLE = 'base3_missionbay_tooluse';
+	private const STATUS_WAITING_APPROVAL = 'waiting_approval';
+	private const STATUS_READY = 'ready';
+	private const STATUS_RUNNING = 'running';
+	private const STATUS_FINISHED = 'finished';
+	private const STATUS_FAILED = 'failed';
+	private const STATUS_DENIED = 'denied';
 
 	private IDatabase $database;
 	private IUsermanager $usermanager;
@@ -91,7 +97,7 @@ class MissionBayToolEventDisplayListener {
 			$callId = $event->getCallId();
 			$current = $this->getRecord($nodeId, $callId);
 			$currentMeta = $this->decodeJsonArray($current['meta_json'] ?? null);
-			$status = $this->resolveToolStatus($phase, $current['status'] ?? '', $currentMeta);
+			$status = $this->resolveToolStatus($phase);
 			$time = $this->normalizeTimestamp($event->getTimestamp());
 			$record = $this->buildToolRecord($event, $status, $time, $currentMeta);
 
@@ -373,7 +379,7 @@ class MissionBayToolEventDisplayListener {
 			'error_code' => $this->nullableRecordString($current, 'error_code'),
 			'created_at' => $this->recordString($current, 'created_at', $time),
 			'updated_at' => $time,
-			'finished_at' => $event->getType() === MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED
+			'finished_at' => $this->isTerminalStatus($status)
 				? $time
 				: $this->nullableRecordString($current, 'finished_at')
 		];
@@ -428,58 +434,36 @@ class MissionBayToolEventDisplayListener {
 		return $this->mergeMeta($currentMeta, $patch);
 	}
 
-	/**
-	 * @param array<string,mixed> $currentMeta
-	 */
-	private function resolveToolStatus(string $phase, string $currentStatus, array $currentMeta): string {
-		if (!$this->wasApproved($currentStatus, $currentMeta)) {
-			return $phase;
-		}
-
+	private function resolveToolStatus(string $phase): string {
 		return match ($phase) {
-			'started' => 'approved_started',
-			'finished' => 'approved_finished',
-			'failed' => 'approved_failed',
-			default => $phase
+			'started' => self::STATUS_RUNNING,
+			'finished' => self::STATUS_FINISHED,
+			'failed' => self::STATUS_FAILED,
+			default => trim($phase) !== '' ? trim($phase) : self::STATUS_RUNNING
 		};
 	}
 
-	/**
-	 * @param array<string,mixed> $currentMeta
-	 */
 	private function resolveActionStatus(MissionBayAgentActionAuditEvent $event, string $currentStatus): string {
 		return match ($event->getType()) {
-			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_REQUESTED => 'approval_requested',
-			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_GRANTED => $this->approvedStatusFor($currentStatus),
-			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED => 'approval_denied',
-			default => trim($currentStatus) !== '' ? $currentStatus : $event->getType()
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_REQUESTED => self::STATUS_WAITING_APPROVAL,
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_GRANTED => self::STATUS_READY,
+			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED => self::STATUS_DENIED,
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_BLOCKED,
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_FAILED => self::STATUS_FAILED,
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_SUCCEEDED => self::STATUS_FINISHED,
+			MissionBayAgentActionAuditEvent::TYPE_COMMIT_ALLOWED => trim($currentStatus) !== ''
+				? $currentStatus
+				: self::STATUS_READY,
+			default => trim($currentStatus) !== '' ? $currentStatus : self::STATUS_RUNNING
 		};
 	}
 
-	private function approvedStatusFor(string $currentStatus): string {
-		return match ($currentStatus) {
-			'started', 'approved_started' => 'approved_started',
-			'finished', 'approved_finished' => 'approved_finished',
-			'failed', 'error', 'approved_failed' => 'approved_failed',
-			default => 'approval_granted'
-		};
-	}
-
-	/**
-	 * @param array<string,mixed> $meta
-	 */
-	private function wasApproved(string $status, array $meta): bool {
-		if (in_array($status, [
-			'approval_granted',
-			'approved_started',
-			'approved_finished',
-			'approved_failed'
-		], true)) {
-			return true;
-		}
-
-		$approval = $meta['approval'] ?? null;
-		return is_array($approval) && trim((string)($approval['status'] ?? '')) === 'granted';
+	private function isTerminalStatus(string $status): bool {
+		return in_array($status, [
+			self::STATUS_FINISHED,
+			self::STATUS_FAILED,
+			self::STATUS_DENIED
+		], true);
 	}
 
 	/**
