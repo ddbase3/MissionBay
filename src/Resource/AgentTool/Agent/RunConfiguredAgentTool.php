@@ -41,7 +41,7 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 
 	private const SETTINGS_GROUP = 'agent';
 	private const DEFAULT_TOOL_NAME = 'run_configured_agent';
-	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
+	private const ASSISTANT_NODE_ID = 'assistant';
 	private const MAX_TEXT_LENGTH = 12000;
 
 	protected string $agentId = '';
@@ -235,11 +235,10 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 			));
 
 			$output = $result->getOutput();
-			$assistantNodeId = $this->getAssistantNodeId($settings);
-			$message = $this->extractAssistantMessage($output, $assistantNodeId);
+			$message = $this->extractAssistantMessage($output);
 
 			if($message === null) {
-				$error = $this->extractFlowError($output, $assistantNodeId);
+				$error = $this->extractFlowError($output);
 
 				if($error !== '') {
 					return $this->flowErrorResult($error, $output);
@@ -323,31 +322,12 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 	}
 
 	/**
-	 * @param array<string,mixed> $settings
-	 */
-	private function getAssistantNodeId(array $settings): string {
-		$nodeId = trim((string)($settings['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID));
-
-		return $nodeId !== '' ? $nodeId : self::DEFAULT_ASSISTANT_NODE_ID;
-	}
-
-	/**
 	 * @param array<string,mixed> $output
 	 * @return ?array<string,mixed>
 	 */
-	private function extractAssistantMessage(array $output, string $assistantNodeId): ?array {
-		if(isset($output[$assistantNodeId]['message']) && is_array($output[$assistantNodeId]['message'])) {
-			return $output[$assistantNodeId]['message'];
-		}
-
-		if(isset($output['assistant']['message']) && is_array($output['assistant']['message'])) {
-			return $output['assistant']['message'];
-		}
-
-		foreach($output as $nodeOutput) {
-			if(is_array($nodeOutput) && isset($nodeOutput['message']) && is_array($nodeOutput['message'])) {
-				return $nodeOutput['message'];
-			}
+	private function extractAssistantMessage(array $output): ?array {
+		if(isset($output[self::ASSISTANT_NODE_ID]['message']) && is_array($output[self::ASSISTANT_NODE_ID]['message'])) {
+			return $output[self::ASSISTANT_NODE_ID]['message'];
 		}
 
 		return null;
@@ -356,19 +336,9 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 	/**
 	 * @param array<string,mixed> $output
 	 */
-	private function extractFlowError(array $output, string $assistantNodeId): string {
-		if(isset($output[$assistantNodeId]['error']) && is_scalar($output[$assistantNodeId]['error'])) {
-			return trim((string)$output[$assistantNodeId]['error']);
-		}
-
-		if(isset($output['assistant']['error']) && is_scalar($output['assistant']['error'])) {
-			return trim((string)$output['assistant']['error']);
-		}
-
-		foreach($output as $nodeOutput) {
-			if(is_array($nodeOutput) && isset($nodeOutput['error']) && is_scalar($nodeOutput['error'])) {
-				return trim((string)$nodeOutput['error']);
-			}
+	private function extractFlowError(array $output): string {
+		if(isset($output[self::ASSISTANT_NODE_ID]['error']) && is_scalar($output[self::ASSISTANT_NODE_ID]['error'])) {
+			return trim((string)$output[self::ASSISTANT_NODE_ID]['error']);
 		}
 
 		return '';

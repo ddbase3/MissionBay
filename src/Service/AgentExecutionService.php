@@ -31,8 +31,7 @@ use MissionBay\Api\IAgentStateContext;
  */
 final class AgentExecutionService implements IAgentRuntimeService {
 
-	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
-	private const ASSISTANT_NODE_TYPE = 'aiassistantnode';
+	private const ASSISTANT_NODE_ID = 'assistant';
 	private const CANONICAL_USER_INPUT = 'prompt';
 	private const LEGACY_USER_INPUT = 'user';
 	private const CANONICAL_RESUME_INPUT = 'resume';
@@ -73,7 +72,6 @@ final class AgentExecutionService implements IAgentRuntimeService {
 		$compilation = $this->flowCompiler->compile($agentConfiguration);
 		[$effectiveFlow, $executionWarnings] = $this->prepareFlowForInputs(
 			$compilation->getFlow(),
-			$agentConfiguration,
 			$inputs
 		);
 		[$flow, $context] = $this->createFlow($effectiveFlow, $request->getContext(), $eventSink);
@@ -131,20 +129,16 @@ final class AgentExecutionService implements IAgentRuntimeService {
 
 	/**
 	 * @param array<string,mixed> $flow
-	 * @param array<string,mixed> $agentConfiguration
 	 * @param array<string,mixed> $inputs
 	 * @return array{0:array<string,mixed>,1:array<int,string>}
 	 */
-	private function prepareFlowForInputs(array $flow, array $agentConfiguration, array $inputs): array {
-		$assistantNodeId = $this->normalizeAssistantNodeId(
-			$agentConfiguration['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID
-		);
+	private function prepareFlowForInputs(array $flow, array $inputs): array {
 		$warnings = [];
 
 		if (array_key_exists(self::CANONICAL_MODE_INPUT, $inputs)) {
 			[$flow, $modeWarnings] = $this->ensureAssistantInputConnection(
 				$flow,
-				$assistantNodeId,
+				self::ASSISTANT_NODE_ID,
 				self::CANONICAL_MODE_INPUT
 			);
 			$warnings = array_merge($warnings, $modeWarnings);
@@ -153,7 +147,7 @@ final class AgentExecutionService implements IAgentRuntimeService {
 		if (array_key_exists(self::CANONICAL_RESUME_INPUT, $inputs)) {
 			[$flow, $resumeWarnings] = $this->ensureAssistantInputConnection(
 				$flow,
-				$assistantNodeId,
+				self::ASSISTANT_NODE_ID,
 				self::CANONICAL_RESUME_INPUT
 			);
 			$warnings = array_merge($warnings, $resumeWarnings);
@@ -211,7 +205,6 @@ final class AgentExecutionService implements IAgentRuntimeService {
 
 	/** @param array<string,mixed> $flow */
 	private function findAssistantNodeIndex(array $flow, string $assistantNodeId): ?int {
-		$fallback = null;
 		foreach ($flow['nodes'] ?? [] as $index => $node) {
 			if (!is_array($node)) {
 				continue;
@@ -219,15 +212,7 @@ final class AgentExecutionService implements IAgentRuntimeService {
 			if ((string)($node['id'] ?? '') === $assistantNodeId) {
 				return (int)$index;
 			}
-			if ($fallback === null && (string)($node['type'] ?? '') === self::ASSISTANT_NODE_TYPE) {
-				$fallback = (int)$index;
-			}
 		}
-		return $fallback;
-	}
-
-	private function normalizeAssistantNodeId(mixed $value): string {
-		$nodeId = trim((string)$value);
-		return $nodeId !== '' ? $nodeId : self::DEFAULT_ASSISTANT_NODE_ID;
+		return null;
 	}
 }

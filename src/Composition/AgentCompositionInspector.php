@@ -35,7 +35,7 @@ use MissionBay\Resource\ConfiguredAgentMemoryResource;
 final class AgentCompositionInspector {
 
 	private const TOOL_PROFILE_SETTINGS_GROUP = 'tool-profile';
-	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
+	private const ASSISTANT_NODE_ID = 'assistant';
 
 	public function __construct(
 		private readonly ISettingsStore $settingsStore,
@@ -89,8 +89,8 @@ final class AgentCompositionInspector {
 			$errors[] = 'Effective flow could not be built: ' . $e->getMessage();
 		}
 
-		$assistantNode = $this->findAssistantNode($effectiveFlow, (string)($settings['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID));
-		$assistantNodeId = (string)($assistantNode['id'] ?? self::DEFAULT_ASSISTANT_NODE_ID);
+		$assistantNode = $this->findAssistantNode($effectiveFlow);
+		$assistantNodeId = (string)($assistantNode['id'] ?? self::ASSISTANT_NODE_ID);
 		$nodeInputs = is_array($assistantNode['inputs'] ?? null) ? $assistantNode['inputs'] : [];
 		$coreStageIds = $this->normalizeIds($nodeInputs['stages'] ?? ($profile?->getStageIds() ?? []), false);
 		$sourceConfig = AgentCapabilitySourceConfig::fromArray(
@@ -719,20 +719,16 @@ final class AgentCompositionInspector {
 	}
 
 	/** @param array<string,mixed> $flow @return array<string,mixed> */
-	private function findAssistantNode(array $flow, string $preferredId): array {
-		$fallback = [];
+	private function findAssistantNode(array $flow): array {
 		foreach ($flow['nodes'] ?? [] as $node) {
 			if (!is_array($node)) {
 				continue;
 			}
-			if ((string)($node['id'] ?? '') === $preferredId) {
+			if ((string)($node['id'] ?? '') === self::ASSISTANT_NODE_ID) {
 				return $node;
 			}
-			if ($fallback === [] && (string)($node['type'] ?? '') === 'aiassistantnode') {
-				$fallback = $node;
-			}
 		}
-		return $fallback;
+		return [];
 	}
 
 	private function presetIdFromWrapper(string $resourceId, string $prefix): string {

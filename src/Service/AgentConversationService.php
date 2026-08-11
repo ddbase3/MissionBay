@@ -19,7 +19,7 @@ use MissionBay\Profile\AgentMemoryProfileResolver;
  */
 final class AgentConversationService implements IAgentConversationRuntimeService {
 
-	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
+	private const ASSISTANT_NODE_ID = 'assistant';
 
 	public function __construct(
 		private readonly AgentMemoryProfileResolver $memoryProfileResolver,
@@ -144,10 +144,7 @@ final class AgentConversationService implements IAgentConversationRuntimeService
 
 		$nodeId = $request->getNodeId();
 		if ($nodeId === '') {
-			$nodeId = trim((string)($configuration['agent_components_assistant_node'] ?? ''));
-		}
-		if ($nodeId === '') {
-			$nodeId = self::DEFAULT_ASSISTANT_NODE_ID;
+			$nodeId = self::ASSISTANT_NODE_ID;
 		}
 
 		return [$memory, $nodeId, $materialization->getWarnings()];

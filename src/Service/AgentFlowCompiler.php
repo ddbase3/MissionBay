@@ -36,13 +36,10 @@ use MissionBay\Profile\AgentToolProfileResolver;
  */
 final class AgentFlowCompiler implements IAgentFlowCompiler {
 
+	private const ASSISTANT_NODE_ID = 'assistant';
+	private const ASSISTANT_NODE_TYPE = 'aiassistantnode';
 	private const CHAT_LLM_RESOURCE_ID = 'chatllm';
 	private const CHAT_LLM_RESOURCE_TYPE = 'configuredchatmodelagentresource';
-	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
-	private const CANONICAL_ASSISTANT_NODE_TYPE = 'aiassistantnode';
-	private const LEGACY_ASSISTANT_NODE_TYPE = 'streamingaiassistantnode';
-	private const CANONICAL_USER_INPUT = 'prompt';
-	private const LEGACY_USER_INPUT = 'user';
 
 	public function __construct(
 		private readonly IAgentComponentFlowBuilder $componentFlowBuilder,
@@ -58,31 +55,22 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 
 	public function compile(array $agentSettings): AgentFlowCompilation {
 		$warnings = [];
-		$flow = $this->normalizeAgentFlow($agentSettings['agent_flow'] ?? []);
-		$flow = $this->normalizeAssistantNodeTypes($flow, $warnings);
-		$flow = $this->normalizePromptInputConnections($flow);
-
-		if ($flow === []) {
-			throw new \RuntimeException('Invalid Flow JSON');
-		}
-
 		$llm = $this->normalizeTechnicalKey((string)($agentSettings['llm'] ?? ''));
-		if ($llm !== '') {
-			$flow = $this->applyLlmToAgentFlow($flow, $llm);
+
+		if ($llm === '') {
+			throw new \RuntimeException('Configured LLM service is required.');
 		}
 
-		$assistantNodeId = $this->normalizeAssistantNodeId(
-			$agentSettings['agent_components_assistant_node'] ?? self::DEFAULT_ASSISTANT_NODE_ID
-		);
+		$flow = $this->createBaseFlow($llm);
 		$profileId = trim((string)($agentSettings['orchestrator_profile'] ?? ''));
 		if ($profileId !== '') {
 			if (!$this->orchestratorProfileRepository instanceof AgentOrchestratorProfileRepository) {
 				throw new \RuntimeException('Agent orchestrator profile repository is not available.');
 			}
 			$profile = $this->orchestratorProfileRepository->getProfile($profileId);
-			$flow = $this->applyOrchestratorProfile($flow, $profile, $assistantNodeId, $warnings);
+			$flow = $this->applyOrchestratorProfile($flow, $profile, $warnings);
 		}
-		$flow = $this->applyCapabilityConfiguration($flow, $agentSettings, $assistantNodeId);
+		$flow = $this->applyCapabilityConfiguration($flow, $agentSettings);
 
 		$memoryProfileId = $this->normalizeTechnicalKey((string)($agentSettings['memory_profile'] ?? ''));
 		$contextProfileId = $this->normalizeTechnicalKey((string)($agentSettings['context_profile'] ?? ''));
@@ -104,7 +92,6 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 			$memoryProfileComponents = $this->memoryProfileResolver->resolveComponents($memoryProfileId);
 		}
 
-
 		$contextProfileComponents = [];
 		if ($contextProfileId !== '') {
 			if (!$this->contextProfileResolver instanceof AgentContextProfileResolver) {
@@ -113,92 +100,63 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 			$contextProfileComponents = $this->contextProfileResolver->resolveComponents($contextProfileId);
 		}
 
-		$legacyComponents = $this->normalizeAgentComponents($agentSettings['agent_components'] ?? []);
+		$directComponents = $this->normalizeAgentComponents($agentSettings['agent_components'] ?? []);
 		$components = $this->mergeAgentComponents(
 			array_merge($profileComponents, $memoryProfileComponents, $contextProfileComponents),
-			$legacyComponents
+			$directComponents
 		);
 
 		if ($components !== []) {
-			$flow = $this->componentFlowBuilder->build($flow, $components, $assistantNodeId);
+			$flow = $this->componentFlowBuilder->build($flow, $components, self::ASSISTANT_NODE_ID);
 			$warnings = array_merge($warnings, $this->componentFlowBuilder->getWarnings());
 		}
 
 		return new AgentFlowCompilation(
-			$this->normalizePromptInputConnections($flow),
+			$flow,
 			array_values(array_unique($warnings))
 		);
 	}
 
 	/** @return array<string,mixed> */
-	private function normalizeAgentFlow(mixed $value): array {
-		if (is_array($value)) {
-			return $value;
-		}
-		if (!is_string($value)) {
-			return [];
-		}
-		$value = trim($value);
-		if ($value === '') {
-			return [];
-		}
-		$decoded = json_decode($value, true);
-		return is_array($decoded) ? $decoded : [];
-	}
-
-	/**
-	 * @param array<string,mixed> $flow
-	 * @param array<int,string> $warnings
-	 * @return array<string,mixed>
-	 */
-	private function normalizeAssistantNodeTypes(array $flow, array &$warnings): array {
-		$converted = false;
-		foreach ($flow['nodes'] ?? [] as $index => $node) {
-			if (!is_array($node) || (string)($node['type'] ?? '') !== self::LEGACY_ASSISTANT_NODE_TYPE) {
-				continue;
-			}
-			$flow['nodes'][$index]['type'] = self::CANONICAL_ASSISTANT_NODE_TYPE;
-			$converted = true;
-		}
-		if ($converted) {
-			$warnings[] = 'Legacy node type "' . self::LEGACY_ASSISTANT_NODE_TYPE . '" was normalized to "' . self::CANONICAL_ASSISTANT_NODE_TYPE . '". Save the flow with the canonical node type.';
-		}
-		return $flow;
-	}
-
-	/** @param array<string,mixed> $flow @return array<string,mixed> */
-	private function normalizePromptInputConnections(array $flow): array {
-		if (!isset($flow['connections']) || !is_array($flow['connections'])) {
-			return $flow;
-		}
-		$connections = [];
-		$seen = [];
-		foreach ($flow['connections'] as $connection) {
-			if (!is_array($connection)) {
-				continue;
-			}
-			if ((string)($connection['from'] ?? '') === '__input__' && (string)($connection['output'] ?? '') === self::LEGACY_USER_INPUT) {
-				$connection['output'] = self::CANONICAL_USER_INPUT;
-			}
-			$key = implode("\0", [
-				(string)($connection['from'] ?? ''),
-				(string)($connection['output'] ?? ''),
-				(string)($connection['to'] ?? ''),
-				(string)($connection['input'] ?? '')
-			]);
-			if (isset($seen[$key])) {
-				continue;
-			}
-			$seen[$key] = true;
-			$connections[] = $connection;
-		}
-		$flow['connections'] = $connections;
-		return $flow;
+	private function createBaseFlow(string $llm): array {
+		return [
+			'nodes' => [[
+				'id' => self::ASSISTANT_NODE_ID,
+				'type' => self::ASSISTANT_NODE_TYPE,
+				'docks' => [
+					'chatmodel' => [self::CHAT_LLM_RESOURCE_ID]
+				]
+			]],
+			'resources' => [[
+				'id' => self::CHAT_LLM_RESOURCE_ID,
+				'type' => self::CHAT_LLM_RESOURCE_TYPE,
+				'config' => [
+					'service' => [
+						'mode' => 'fixed',
+						'value' => $llm
+					]
+				]
+			]],
+			'connections' => [
+				[
+					'from' => '__input__',
+					'output' => 'system',
+					'to' => self::ASSISTANT_NODE_ID,
+					'input' => 'system'
+				],
+				[
+					'from' => '__input__',
+					'output' => 'prompt',
+					'to' => self::ASSISTANT_NODE_ID,
+					'input' => 'prompt'
+				]
+			]
+		];
 	}
 
 	/** @param array<string,mixed> $flow @param array<string,mixed> $settings @return array<string,mixed> */
-	private function applyCapabilityConfiguration(array $flow, array $settings, string $assistantNodeId): array {
-		$nodeIndex = $this->findAssistantNodeIndex($flow, $assistantNodeId);
+	private function applyCapabilityConfiguration(array $flow, array $settings): array {
+		$nodeIndex = $this->findAssistantNodeIndex($flow);
 		if ($nodeIndex === null) {
 			return $flow;
 		}
@@ -226,12 +184,11 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 	private function applyOrchestratorProfile(
 		array $flow,
 		AgentOrchestratorProfile $profile,
-		string $assistantNodeId,
 		array &$warnings
 	): array {
-		$nodeIndex = $this->findAssistantNodeIndex($flow, $assistantNodeId);
+		$nodeIndex = $this->findAssistantNodeIndex($flow);
 		if ($nodeIndex === null) {
-			$warnings[] = 'Assistant node not found for orchestrator profile: ' . $assistantNodeId;
+			$warnings[] = 'Assistant node not found: ' . self::ASSISTANT_NODE_ID;
 			return $flow;
 		}
 		if (!isset($flow['nodes'][$nodeIndex]['inputs']) || !is_array($flow['nodes'][$nodeIndex]['inputs'])) {
@@ -247,30 +204,26 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 	}
 
 	/** @param array<string,mixed> $flow */
-	private function findAssistantNodeIndex(array $flow, string $assistantNodeId): ?int {
-		$fallback = null;
+	private function findAssistantNodeIndex(array $flow): ?int {
 		foreach ($flow['nodes'] ?? [] as $index => $node) {
 			if (!is_array($node)) {
 				continue;
 			}
-			if ((string)($node['id'] ?? '') === $assistantNodeId) {
+			if ((string)($node['id'] ?? '') === self::ASSISTANT_NODE_ID) {
 				return (int)$index;
 			}
-			if ($fallback === null && (string)($node['type'] ?? '') === self::CANONICAL_ASSISTANT_NODE_TYPE) {
-				$fallback = (int)$index;
-			}
 		}
-		return $fallback;
+		return null;
 	}
 
 	/**
 	 * @param array<int,array<string,mixed>> $profileComponents
-	 * @param array<int,array<string,mixed>> $legacyComponents
+	 * @param array<int,array<string,mixed>> $directComponents
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function mergeAgentComponents(array $profileComponents, array $legacyComponents): array {
+	private function mergeAgentComponents(array $profileComponents, array $directComponents): array {
 		$result = [];
-		foreach (array_merge($profileComponents, $legacyComponents) as $component) {
+		foreach (array_merge($profileComponents, $directComponents) as $component) {
 			if (!is_array($component)) {
 				continue;
 			}
@@ -334,68 +287,6 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 			$result[] = $component;
 		}
 		return $result;
-	}
-
-	private function normalizeAssistantNodeId(mixed $value): string {
-		$nodeId = trim((string)$value);
-		return $nodeId !== '' ? $nodeId : self::DEFAULT_ASSISTANT_NODE_ID;
-	}
-
-	/** @param array<string,mixed> $agentFlow @return array<string,mixed> */
-	private function applyLlmToAgentFlow(array $agentFlow, string $llm): array {
-		if ($llm === '') {
-			return $agentFlow;
-		}
-		if (!isset($agentFlow['resources']) || !is_array($agentFlow['resources'])) {
-			$agentFlow['resources'] = [];
-		}
-		$resources = $agentFlow['resources'];
-		$resourceIndex = $this->findChatLlmResourceIndex($resources);
-		$resource = [
-			'id' => self::CHAT_LLM_RESOURCE_ID,
-			'type' => self::CHAT_LLM_RESOURCE_TYPE,
-			'config' => [
-				'service' => [
-					'mode' => 'fixed',
-					'value' => $llm
-				]
-			]
-		];
-		if ($resourceIndex !== null && isset($resources[$resourceIndex]) && is_array($resources[$resourceIndex])) {
-			$resource = array_merge($resources[$resourceIndex], $resource);
-			$resource['config'] = is_array($resources[$resourceIndex]['config'] ?? null)
-				? $resources[$resourceIndex]['config']
-				: [];
-			$resource['config']['service'] = [
-				'mode' => 'fixed',
-				'value' => $llm
-			];
-			$resource['type'] = self::CHAT_LLM_RESOURCE_TYPE;
-		}
-		if ($resourceIndex === null) {
-			$resources[] = $resource;
-		}
-		else {
-			$resources[$resourceIndex] = $resource;
-		}
-		$agentFlow['resources'] = array_values($resources);
-		return $agentFlow;
-	}
-
-	private function findChatLlmResourceIndex(array $resources): ?int {
-		$fallback = null;
-		foreach ($resources as $index => $resource) {
-			if (!is_array($resource)) {
-				continue;
-			}
-			if ((string)($resource['id'] ?? '') === self::CHAT_LLM_RESOURCE_ID) {
-				return (int)$index;
-			}
-			if ($fallback === null && (string)($resource['type'] ?? '') === self::CHAT_LLM_RESOURCE_TYPE) {
-				$fallback = (int)$index;
-			}
-		}
-		return $fallback;
 	}
 
 	private function normalizeTechnicalKey(string $value): string {

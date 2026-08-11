@@ -12,6 +12,7 @@ use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Api\IAgentFlowCompiler;
 use MissionBay\Composition\AgentCompositionInspector;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use MissionBay\Profile\AgentContextProfileResolver;
@@ -38,6 +39,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 		private readonly AgentToolProfileResolver $toolProfiles,
 		private readonly AgentMemoryProfileResolver $memoryProfiles,
 		private readonly AgentContextProfileResolver $contextProfiles,
+		private readonly IAgentFlowCompiler $flowCompiler,
 		private readonly AgentCompositionInspector $compositionInspector
 	) {}
 
@@ -270,8 +272,11 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 			if ($contextProfileId !== '' && !isset($availableContextProfiles[$contextProfileId])) {
 				$problems[] = 'Context profile unavailable: ' . $contextProfileId;
 			}
-			if (!$this->hasUsableFlow($settings['agent_flow'] ?? null)) {
-				$problems[] = 'Agent flow is empty or invalid.';
+			try {
+				$this->flowCompiler->compile($settings);
+			}
+			catch (Throwable $e) {
+				$problems[] = 'Effective flow could not be built: ' . $e->getMessage();
 			}
 
 			$rows[] = [
@@ -331,17 +336,6 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 	private function normalizeId(string $value): string {
 		$value = strtolower(trim($value));
 		return preg_replace('/[^a-z0-9._-]+/', '', $value) ?? '';
-	}
-
-	private function hasUsableFlow(mixed $value): bool {
-		if (is_array($value)) {
-			return $value !== [];
-		}
-		if (!is_string($value) || trim($value) === '') {
-			return false;
-		}
-		$decoded = json_decode($value, true);
-		return is_array($decoded) && $decoded !== [];
 	}
 
 	private function lower(string $value): string {

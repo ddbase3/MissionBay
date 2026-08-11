@@ -16,16 +16,47 @@ use PHPUnit\Framework\TestCase;
 
 final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 
-	public function testHighLevelCapabilitySettingsAreAppliedToNamedAssistantNode(): void {
+	public function testCompilerBuildsCanonicalConfiguredLlmFlow(): void {
 		$flow = $this->createCompiler()->compile([
-			'agent_flow' => [
-				'nodes' => [[
-					'id' => 'assistant',
-					'type' => 'aiassistantnode',
-					'inputs' => ['system' => 'Keep me']
-				]],
-				'connections' => []
+			'llm' => 'llm-a'
+		])->getFlow();
+
+		$this->assertSame([[
+			'id' => 'assistant',
+			'type' => 'aiassistantnode',
+			'docks' => [
+				'chatmodel' => ['chatllm']
+			]
+		]], $flow['nodes']);
+		$this->assertSame([[
+			'id' => 'chatllm',
+			'type' => 'configuredchatmodelagentresource',
+			'config' => [
+				'service' => [
+					'mode' => 'fixed',
+					'value' => 'llm-a'
+				]
+			]
+		]], $flow['resources']);
+		$this->assertSame([
+			[
+				'from' => '__input__',
+				'output' => 'system',
+				'to' => 'assistant',
+				'input' => 'system'
 			],
+			[
+				'from' => '__input__',
+				'output' => 'prompt',
+				'to' => 'assistant',
+				'input' => 'prompt'
+			]
+		], $flow['connections']);
+	}
+
+	public function testHighLevelCapabilitySettingsAreAppliedToCanonicalAssistantNode(): void {
+		$flow = $this->createCompiler()->compile([
+			'llm' => 'llm-a',
 			'capability_sources' => [
 				'tools' => ['internal-rag'],
 				'providers' => ['github-mcp'],
@@ -37,7 +68,7 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 			]
 		])->getFlow();
 
-		$this->assertSame('Keep me', $flow['nodes'][0]['inputs']['system']);
+		$this->assertSame('assistant', $flow['nodes'][0]['id']);
 		$this->assertSame(['internal-rag'], $flow['nodes'][0]['inputs']['capabilitysources']['tools']);
 		$this->assertSame(['github-mcp'], $flow['nodes'][0]['inputs']['capabilitysources']['providers']);
 		$this->assertSame(['coding-style'], $flow['nodes'][0]['inputs']['capabilitysources']['modules']);
@@ -45,35 +76,38 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 		$this->assertSame(['crm'], $flow['nodes'][0]['inputs']['capabilityselection']['include_tags']);
 	}
 
-	public function testAssistantIsUsedAsFallbackWhenConfiguredIdIsAbsent(): void {
-		$flow = $this->createCompiler()->compile([
-			'agent_components_assistant_node' => 'missing',
-			'agent_flow' => [
-				'nodes' => [[
-					'id' => 'buffered',
-					'type' => 'aiassistantnode'
-				]],
-				'connections' => []
-			],
-			'capability_sources' => ['modules' => ['customer-research']]
-		])->getFlow();
-
-		$this->assertSame(['customer-research'], $flow['nodes'][0]['inputs']['capabilitysources']['modules']);
-	}
-
-	public function testLegacyStreamingNodeIsNormalizedDuringCompilation(): void {
+	public function testHistoricalFlowSettingsCannotAlterCanonicalFlow(): void {
 		$compilation = $this->createCompiler()->compile([
+			'llm' => 'llm-a',
+			'agent_components_assistant_node' => 'historical',
 			'agent_flow' => [
 				'nodes' => [[
-					'id' => 'assistant',
+					'id' => 'historical',
 					'type' => 'streamingaiassistantnode'
+				]],
+				'resources' => [[
+					'id' => 'historical-llm',
+					'type' => 'historical-resource'
 				]],
 				'connections' => []
 			]
 		]);
+		$flow = $compilation->getFlow();
 
-		$this->assertSame('aiassistantnode', $compilation->getFlow()['nodes'][0]['type']);
-		$this->assertNotEmpty($compilation->getWarnings());
+		$this->assertCount(1, $flow['nodes']);
+		$this->assertSame('assistant', $flow['nodes'][0]['id']);
+		$this->assertSame('aiassistantnode', $flow['nodes'][0]['type']);
+		$this->assertCount(1, $flow['resources']);
+		$this->assertSame('chatllm', $flow['resources'][0]['id']);
+		$this->assertSame('llm-a', $flow['resources'][0]['config']['service']['value']);
+		$this->assertSame([], $compilation->getWarnings());
+	}
+
+	public function testCompilerRejectsMissingConfiguredLlm(): void {
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('Configured LLM service is required.');
+
+		$this->createCompiler()->compile([]);
 	}
 
 	public function testNormalExecutionDoesNotAddResumeConnection(): void {
@@ -139,7 +173,7 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 
 		$compiler = $this->createMock(IAgentFlowCompiler::class);
 		$compiler->method('compile')->willReturn(new AgentFlowCompilation(
-			$this->minimalAgentSettings()['agent_flow']
+			$this->minimalCompiledFlow()
 		));
 
 		return new AgentExecutionService($contextFactory, $flowFactory, $compiler);
@@ -148,18 +182,36 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 	/** @return array<string,mixed> */
 	private function minimalAgentSettings(): array {
 		return [
-			'agent_flow' => [
-				'nodes' => [[
-					'id' => 'assistant',
-					'type' => 'aiassistantnode'
-				]],
-				'connections' => [[
-					'from' => '__input__',
-					'output' => 'prompt',
-					'to' => 'assistant',
-					'input' => 'prompt'
-				]]
-			]
+			'llm' => 'configured-llm'
+		];
+	}
+
+	/** @return array<string,mixed> */
+	private function minimalCompiledFlow(): array {
+		return [
+			'nodes' => [[
+				'id' => 'assistant',
+				'type' => 'aiassistantnode',
+				'docks' => [
+					'chatmodel' => ['chatllm']
+				]
+			]],
+			'resources' => [[
+				'id' => 'chatllm',
+				'type' => 'configuredchatmodelagentresource',
+				'config' => [
+					'service' => [
+						'mode' => 'fixed',
+						'value' => 'configured-llm'
+					]
+				]
+			]],
+			'connections' => [[
+				'from' => '__input__',
+				'output' => 'prompt',
+				'to' => 'assistant',
+				'input' => 'prompt'
+			]]
 		];
 	}
 

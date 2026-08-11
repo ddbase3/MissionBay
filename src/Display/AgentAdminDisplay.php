@@ -40,6 +40,7 @@ use Throwable;
 final class AgentAdminDisplay implements IDisplay {
 
         private const SETTINGS_GROUP = 'agent';
+        private const ASSISTANT_NODE_ID = 'assistant';
         private const BATCH_SIZE = 50;
 
         /**
@@ -482,9 +483,8 @@ final class AgentAdminDisplay implements IDisplay {
                         $output = $agentResult->getOutput();
                 }
 
-                $assistantNodeId = $this->getAssistantNodeId($settings);
-                $message = $this->extractAssistantMessage($output, $assistantNodeId);
-                $flowError = $this->extractFlowError($output, $assistantNodeId);
+                $message = $this->extractAssistantMessage($output);
+                $flowError = $this->extractFlowError($output);
                 $messageText = $message !== null ? $this->normalizeMessageContent($message['content'] ?? '') : '';
                 $status = $agentResult?->getStatus() ?? ($flowError === '' ? 'completed' : 'failed');
 
@@ -504,7 +504,7 @@ final class AgentAdminDisplay implements IDisplay {
                         'action' => $success ? 'ran' : 'failed',
                         'id' => $id,
                         'status' => $status,
-                        'assistant_node_id' => $assistantNodeId,
+                        'assistant_node_id' => self::ASSISTANT_NODE_ID,
                         'message' => $message,
                         'message_text' => $messageText,
                         'flow_error' => $flowError,
@@ -561,31 +561,12 @@ final class AgentAdminDisplay implements IDisplay {
         }
 
         /**
-         * @param array<string,mixed> $settings
-         */
-        private function getAssistantNodeId(array $settings): string {
-                $nodeId = $this->normalizeLabel((string)($settings['agent_components_assistant_node'] ?? 'assistant'));
-
-                return $nodeId !== '' ? $nodeId : 'assistant';
-        }
-
-        /**
          * @param array<string,mixed> $output
          * @return ?array<string,mixed>
          */
-        private function extractAssistantMessage(array $output, string $assistantNodeId): ?array {
-                if(isset($output[$assistantNodeId]['message']) && is_array($output[$assistantNodeId]['message'])) {
-                        return $output[$assistantNodeId]['message'];
-                }
-
-                if(isset($output['assistant']['message']) && is_array($output['assistant']['message'])) {
-                        return $output['assistant']['message'];
-                }
-
-                foreach($output as $nodeOutput) {
-                        if(is_array($nodeOutput) && isset($nodeOutput['message']) && is_array($nodeOutput['message'])) {
-                                return $nodeOutput['message'];
-                        }
+        private function extractAssistantMessage(array $output): ?array {
+                if(isset($output[self::ASSISTANT_NODE_ID]['message']) && is_array($output[self::ASSISTANT_NODE_ID]['message'])) {
+                        return $output[self::ASSISTANT_NODE_ID]['message'];
                 }
 
                 return null;
@@ -594,19 +575,9 @@ final class AgentAdminDisplay implements IDisplay {
         /**
          * @param array<string,mixed> $output
          */
-        private function extractFlowError(array $output, string $assistantNodeId): string {
-                if(isset($output[$assistantNodeId]['error']) && is_scalar($output[$assistantNodeId]['error'])) {
-                        return trim((string)$output[$assistantNodeId]['error']);
-                }
-
-                if(isset($output['assistant']['error']) && is_scalar($output['assistant']['error'])) {
-                        return trim((string)$output['assistant']['error']);
-                }
-
-                foreach($output as $nodeOutput) {
-                        if(is_array($nodeOutput) && isset($nodeOutput['error']) && is_scalar($nodeOutput['error'])) {
-                                return trim((string)$nodeOutput['error']);
-                        }
+        private function extractFlowError(array $output): string {
+                if(isset($output[self::ASSISTANT_NODE_ID]['error']) && is_scalar($output[self::ASSISTANT_NODE_ID]['error'])) {
+                        return trim((string)$output[self::ASSISTANT_NODE_ID]['error']);
                 }
 
                 return '';

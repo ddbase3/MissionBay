@@ -46,8 +46,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 	protected const LLM_SETTINGS_GROUP = 'service-llm';
 	protected const AGENT_COMPONENT_PRESET_GROUP = 'agent-component-preset';
-	protected const CHAT_LLM_RESOURCE_ID = 'chatllm';
-	protected const CHAT_LLM_RESOURCE_TYPE = 'configuredchatmodelagentresource';
 
 	/**
 	 * @var array<string,array<int,string>>|null
@@ -90,7 +88,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'context_profile' => '',
 			'expert_overrides_enabled' => false,
 			'system_prompt' => '',
-			'agent_flow' => [],
 			'agent_components' => [],
 			'capability_sources' => (new AgentCapabilitySourceConfig())->toArray(),
 			'capability_selection' => (new AgentCapabilitySelectionConfig())->toArray()
@@ -98,12 +95,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 	}
 
 	public function getPostedSettings(array &$errors): array {
-		$agentFlow = $this->decodeConfigJsonInput(
-			$this->getPostedJsonText('agent_flow_b64', 'agent_flow', $this->translate('agentflow_label', 'AgentFlow configuration'), $errors),
-			$this->translate('agentflow_label', 'AgentFlow configuration'),
-			$errors
-		);
-
 		$agentComponentsInput = $this->decodePostedJsonValue(
 			'agent_components_json_b64',
 			'agent_components_json',
@@ -122,7 +113,10 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 		$llm = $this->normalizeTechnicalKey((string)$this->request->request('llm'));
 
-		if ($llm !== '' && !$this->llmExists($llm)) {
+		if ($llm === '') {
+			$errors[] = $this->translate('llm_required', 'Please select an LLM.');
+		}
+		elseif (!$this->llmExists($llm)) {
 			$errors[] = sprintf($this->translate('selected_llm_missing', 'Selected LLM does not exist in settings group "%s": %s'), self::LLM_SETTINGS_GROUP, $llm);
 		}
 
@@ -174,16 +168,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			}
 		}
 
-		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
-
-		if (!$this->hasUsableAgentFlow($agentFlow)) {
-			$errors[] = $this->translate('agentflow_node_required', 'MissionBay AgentFlow configuration must contain at least one node.');
-		}
-
-		if ($errors === [] && $llm !== '') {
-			$agentFlow = $this->applyLlmToAgentFlow($agentFlow, $llm);
-		}
-
 		return $this->normalizeSettings([
 			'llm' => $llm,
 			'orchestrator_profile' => $orchestratorProfile,
@@ -192,7 +176,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'context_profile' => $contextProfile,
 			'expert_overrides_enabled' => $this->toBool($this->request->request('expert_overrides_enabled', false)),
 			'system_prompt' => $this->normalizeTextBlock((string)$this->request->request('system_prompt')),
-			'agent_flow' => $agentFlow,
 			'agent_components' => $agentComponents,
 			'capability_sources' => $this->normalizeCapabilitySources($this->request->request('capability_sources', [])),
 			'capability_selection' => $this->normalizeCapabilitySelection($this->request->request('capability_selection', []), $errors)
@@ -220,7 +203,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'context_profile' => $this->normalizeTechnicalKey((string)$this->request->request('context_profile', '')),
 			'expert_overrides_enabled' => $this->toBool($this->request->request('expert_overrides_enabled', false)),
 			'system_prompt' => $this->normalizeTextBlock((string)$this->request->request('system_prompt')),
-			'agent_flow_json' => $this->getPostedJsonText('agent_flow_b64', 'agent_flow', $this->translate('agentflow_label', 'AgentFlow configuration'), $errors),
 			'agent_components' => $this->normalizeAgentComponentsViewInput($agentComponentsInput),
 			'capability_sources' => $this->normalizeCapabilitySources($this->request->request('capability_sources', [])),
 			'capability_selection' => $this->normalizeCapabilitySelection($this->request->request('capability_selection', []), $errors)
@@ -230,14 +212,8 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 	public function normalizeSettings(array $settings): array {
 		$defaults = $this->getDefaultSettings();
 
-		$agentFlow = is_array($settings['agent_flow'] ?? null) ? $settings['agent_flow'] : $defaults['agent_flow'];
-		$agentFlow = $this->normalizePromptInputConnections($agentFlow);
 		$agentComponents = $this->normalizeAgentComponentsViewInput($settings['agent_components'] ?? $defaults['agent_components']);
 		$llm = $this->normalizeTechnicalKey((string)($settings['llm'] ?? ''));
-
-		if ($llm === '') {
-			$llm = $this->extractLlmFromAgentFlow($agentFlow);
-		}
 
 		$memoryProfile = $this->normalizeTechnicalKey((string)($settings['memory_profile'] ?? $defaults['memory_profile']));
 		$contextProfile = $this->normalizeTechnicalKey((string)($settings['context_profile'] ?? $defaults['context_profile']));
@@ -255,7 +231,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'context_profile' => $contextProfile,
 			'expert_overrides_enabled' => $this->toBool($settings['expert_overrides_enabled'] ?? $defaults['expert_overrides_enabled']),
 			'system_prompt' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? $defaults['system_prompt'])),
-			'agent_flow' => $agentFlow,
 			'agent_components' => $agentComponents,
 			'capability_sources' => $this->normalizeCapabilitySources($settings['capability_sources'] ?? $defaults['capability_sources']),
 			'capability_selection' => $this->normalizeCapabilitySelection($settings['capability_selection'] ?? $defaults['capability_selection'])
@@ -273,7 +248,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'context_profile' => $settings['context_profile'],
 			'expert_overrides_enabled' => $settings['expert_overrides_enabled'],
 			'system_prompt' => $settings['system_prompt'],
-			'agent_flow_json' => $this->formatConfigJson($settings['agent_flow'], '{}'),
 			'agent_components' => $settings['agent_components'],
 			'capability_sources' => $settings['capability_sources'],
 			'capability_selection' => $settings['capability_selection']
@@ -1080,145 +1054,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 	}
 
 	// ---------------------------------------------------------------------
-	// AgentFlow LLM binding
-	// ---------------------------------------------------------------------
-
-	protected function applyLlmToAgentFlow(array $agentFlow, string $llm): array {
-		if ($llm === '') {
-			return $agentFlow;
-		}
-
-		if (!isset($agentFlow['resources']) || !is_array($agentFlow['resources'])) {
-			$agentFlow['resources'] = [];
-		}
-
-		$resources = $agentFlow['resources'];
-		$resourceIndex = $this->findChatLlmResourceIndex($resources);
-
-		$resource = [
-			'id' => self::CHAT_LLM_RESOURCE_ID,
-			'type' => self::CHAT_LLM_RESOURCE_TYPE,
-			'config' => [
-				'service' => [
-					'mode' => 'fixed',
-					'value' => $llm
-				]
-			]
-		];
-
-		if ($resourceIndex !== null && isset($resources[$resourceIndex]) && is_array($resources[$resourceIndex])) {
-			$resource = array_merge($resources[$resourceIndex], $resource);
-			$resource['config'] = is_array($resources[$resourceIndex]['config'] ?? null)
-				? $resources[$resourceIndex]['config']
-				: [];
-			$resource['config']['service'] = [
-				'mode' => 'fixed',
-				'value' => $llm
-			];
-			$resource['type'] = self::CHAT_LLM_RESOURCE_TYPE;
-		}
-
-		if ($resourceIndex === null) {
-			$resources[] = $resource;
-		}
-		else {
-			$resources[$resourceIndex] = $resource;
-		}
-
-		$agentFlow['resources'] = array_values($resources);
-
-		return $agentFlow;
-	}
-
-	protected function findChatLlmResourceIndex(array $resources): ?int {
-		$fallback = null;
-
-		foreach ($resources as $index => $resource) {
-			if (!is_array($resource)) {
-				continue;
-			}
-
-			if ((string)($resource['id'] ?? '') === self::CHAT_LLM_RESOURCE_ID) {
-				return (int)$index;
-			}
-
-			if ($fallback === null && (string)($resource['type'] ?? '') === self::CHAT_LLM_RESOURCE_TYPE) {
-				$fallback = (int)$index;
-			}
-		}
-
-		return $fallback;
-	}
-
-	/**
-	 * @param array<string,mixed> $agentFlow
-	 * @return array<string,mixed>
-	 */
-	protected function normalizePromptInputConnections(array $agentFlow): array {
-		if (!isset($agentFlow['connections']) || !is_array($agentFlow['connections'])) {
-			return $agentFlow;
-		}
-
-		$connections = [];
-		$seen = [];
-
-		foreach ($agentFlow['connections'] as $connection) {
-			if (!is_array($connection)) {
-				continue;
-			}
-
-			if ((string)($connection['from'] ?? '') === '__input__' && (string)($connection['output'] ?? '') === 'user') {
-				$connection['output'] = 'prompt';
-			}
-
-			$key = implode("\0", [
-				(string)($connection['from'] ?? ''),
-				(string)($connection['output'] ?? ''),
-				(string)($connection['to'] ?? ''),
-				(string)($connection['input'] ?? '')
-			]);
-
-			if (isset($seen[$key])) {
-				continue;
-			}
-
-			$seen[$key] = true;
-			$connections[] = $connection;
-		}
-
-		$agentFlow['connections'] = $connections;
-
-		return $agentFlow;
-	}
-
-	protected function extractLlmFromAgentFlow(array $agentFlow): string {
-		$resources = $agentFlow['resources'] ?? null;
-
-		if (!is_array($resources)) {
-			return '';
-		}
-
-		$resourceIndex = $this->findChatLlmResourceIndex($resources);
-
-		if ($resourceIndex === null || !isset($resources[$resourceIndex]) || !is_array($resources[$resourceIndex])) {
-			return '';
-		}
-
-		$resource = $resources[$resourceIndex];
-		$service = $resource['config']['service'] ?? null;
-
-		if (!is_array($service)) {
-			return '';
-		}
-
-		if ((string)($service['mode'] ?? '') !== 'fixed') {
-			return '';
-		}
-
-		return $this->normalizeTechnicalKey((string)($service['value'] ?? ''));
-	}
-
-	// ---------------------------------------------------------------------
 	// Helpers
 	// ---------------------------------------------------------------------
 
@@ -1257,60 +1092,8 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		}
 	}
 
-	protected function decodeConfigJsonInput(string $raw, string $label, array &$errors): array {
-		if ($raw === '') {
-			return [];
-		}
-
-		try {
-			$decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-		}
-		catch (JsonException $e) {
-			$errors[] = sprintf($this->translate('json_invalid', '%s must be valid JSON: %s'), $label, $e->getMessage());
-			return [];
-		}
-
-		if (!is_array($decoded)) {
-			$errors[] = sprintf($this->translate('json_object_or_array', '%s must decode to a JSON object or array.'), $label);
-			return [];
-		}
-
-		return $decoded;
-	}
-
-	protected function formatConfigJson(array $data, string $emptyJson): string {
-		if ($data === []) {
-			return $emptyJson;
-		}
-
-		try {
-			return json_encode(
-				$data,
-				JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-			);
-		}
-		catch (JsonException) {
-			return $emptyJson;
-		}
-	}
-
 	protected function normalizeTextBlock(string $value): string {
 		return str_replace(["\r\n", "\r"], "\n", $value);
-	}
-
-	/** @param array<string,mixed> $flow */
-	protected function hasUsableAgentFlow(array $flow): bool {
-		if (!isset($flow['nodes']) || !is_array($flow['nodes']) || $flow['nodes'] === []) {
-			return false;
-		}
-
-		foreach ($flow['nodes'] as $node) {
-			if (is_array($node) && trim((string)($node['id'] ?? '')) !== '') {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	protected function normalizeTechnicalKey(string $value): string {

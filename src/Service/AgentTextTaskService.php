@@ -27,8 +27,7 @@ use MissionBay\Profile\AgentToolProfileResolver;
  */
 final class AgentTextTaskService implements IAgentTextTaskRuntimeService {
 
-	private const DEFAULT_ASSISTANT_NODE_ID = 'assistant';
-	private const ASSISTANT_NODE_TYPE = 'aiassistantnode';
+	private const ASSISTANT_NODE_ID = 'assistant';
 
 	public function __construct(
 		private readonly IAgentFlowCompiler $flowCompiler,
@@ -55,7 +54,7 @@ final class AgentTextTaskService implements IAgentTextTaskRuntimeService {
 		$contextVars['source'] = 'agent-text-task';
 		$contextVars['agent_text_task'] = $request->getTaskName();
 		$context = $this->presetMaterializer->createContext($contextVars);
-		$model = $this->resolveModel($compilation->getFlow(), $configuration, $context);
+		$model = $this->resolveModel($compilation->getFlow(), $context);
 		$warnings = $compilation->getWarnings();
 		$messages = [];
 
@@ -96,33 +95,20 @@ final class AgentTextTaskService implements IAgentTextTaskRuntimeService {
 		);
 	}
 
-	/**
-	 * @param array<string,mixed> $flow
-	 * @param array<string,mixed> $configuration
-	 */
-	private function resolveModel(array $flow, array $configuration, IAgentContext $context): IAiChatModel {
-		$assistantNodeId = trim((string)($configuration['agent_components_assistant_node'] ?? ''));
-		if ($assistantNodeId === '') {
-			$assistantNodeId = self::DEFAULT_ASSISTANT_NODE_ID;
-		}
-
+	/** @param array<string,mixed> $flow */
+	private function resolveModel(array $flow, IAgentContext $context): IAiChatModel {
 		$assistantNode = null;
-		$fallbackNode = null;
 		foreach ($flow['nodes'] ?? [] as $node) {
 			if (!is_array($node)) {
 				continue;
 			}
-			if ((string)($node['id'] ?? '') === $assistantNodeId) {
+			if ((string)($node['id'] ?? '') === self::ASSISTANT_NODE_ID) {
 				$assistantNode = $node;
 				break;
 			}
-			if ($fallbackNode === null && (string)($node['type'] ?? '') === self::ASSISTANT_NODE_TYPE) {
-				$fallbackNode = $node;
-			}
 		}
-		$assistantNode ??= $fallbackNode;
 		if (!is_array($assistantNode)) {
-			throw new \RuntimeException('Agent text task could not resolve the configured assistant node.');
+			throw new \RuntimeException('Agent text task could not resolve the canonical assistant node.');
 		}
 
 		$docks = is_array($assistantNode['docks'] ?? null) ? $assistantNode['docks'] : [];
