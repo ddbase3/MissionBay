@@ -62,11 +62,7 @@ class ConfiguredImageModelAgentResource extends AbstractConfiguredServiceAgentRe
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->setServiceConfigFromResourceConfig($config);
 		$this->model = null;
-		$this->resolvedOptions = [];
-
-		$this->configureModel();
 	}
 
 	public function generate(string $prompt, array $options = []): array {

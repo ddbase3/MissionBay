@@ -23,8 +23,8 @@ use MissionBay\Api\IAgentComponentPresetRepository;
 /**
  * AgentComponentFlowBuilder
  *
- * Builds an effective AgentFlow from configured tool, conversation-memory and
- * context-contributor component presets.
+ * Builds an effective AgentFlow from configured chat-model, tool,
+ * conversation-memory and context-contributor component presets.
  */
 class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
@@ -112,6 +112,10 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
 		$baseResourceId = $this->ensurePresetResource($flow, $presetId, $preset);
 		$attachAs = $this->normalizeStringList($component['attach_as'] ?? ($preset['capabilities'] ?? []));
+
+		if (in_array('chatmodel', $attachAs, true)) {
+			$this->addChatModel($flow, $assistantIndex, $baseResourceId);
+		}
 
 		if (in_array('tool', $attachAs, true)) {
 			$this->addConfiguredTool($flow, $assistantIndex, $presetId, $baseResourceId, $component, $index);
@@ -220,6 +224,13 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 		}
 
 		return $docks;
+	}
+
+	/**
+	 * @param array<string,mixed> $flow
+	 */
+	private function addChatModel(array &$flow, int $assistantIndex, string $baseResourceId): void {
+		$this->addNodeDockResource($flow, $assistantIndex, 'chatmodel', $baseResourceId);
 	}
 
 	/**

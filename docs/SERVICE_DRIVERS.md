@@ -32,6 +32,18 @@ At runtime MissionBay:
 
 There is no hardcoded map for OpenAI, Mistral, embedding, image, search, parser, vector-store, or speech drivers.
 
+## Configured resource lifecycle
+
+Configured agent resources keep configuration and runtime resolution separate.
+
+`setConfig()` stores the configured service reference and invalidates any previously resolved runtime implementation. It must not load the service record, load the connection, resolve a driver, or instantiate the runtime adapter. This keeps agent composition declarative: adding an optional tool or dock does not activate its external service while the flow is being built.
+
+Runtime resolution happens only when the configured resource is actually used, for example through `complete()`, `embed()`, `generate()`, `search()`, or `parse()`. `getOptions()` is also an explicit runtime-introspection operation and therefore resolves the configured implementation before returning its effective options.
+
+`setOptions()` stores runtime overrides without forcing resolution. If the runtime implementation already exists, the overrides are applied immediately; otherwise they are applied when the implementation is resolved later.
+
+This lifecycle is shared by configured chat, embedding, image, parser, search, vector-search, and vector-store resources.
+
 ## Configuration boundary
 
 Connection settings are maintained only through the connection configuration:

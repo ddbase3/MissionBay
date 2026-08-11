@@ -19,6 +19,7 @@ namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AiChatResult;
+use Base3\Api\ISchemaProvider;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use AssistantFoundation\Api\IAgentContext;
@@ -41,7 +42,7 @@ use MissionBay\Api\IAgentResource;
  * - Can strip orphaned tool messages before delegating to targets,
  *   preventing OpenAI-compatible backends from rejecting requests.
  */
-class RoutingChatModelAgentResource extends AbstractAgentResource implements IAiChatModel {
+class RoutingChatModelAgentResource extends AbstractAgentResource implements IAiChatModel, ISchemaProvider {
 
 
 	protected IAgentConfigValueResolver $resolver;
@@ -93,6 +94,45 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 
 	public function getDescription(): string {
 		return 'Routes chat requests between multiple IAiChatModel resources (failover/roundrobin, capabilities, sticky, cooldown).';
+	}
+
+	public function getSchema(): array {
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'strategy' => [
+					'type' => 'string',
+					'description' => 'Target selection strategy.',
+					'enum' => ['failover', 'roundrobin'],
+					'default' => 'failover'
+				],
+				'sticky' => [
+					'type' => 'boolean',
+					'description' => 'Reuse a successful target while it remains available.',
+					'default' => true
+				],
+				'stickymode' => [
+					'type' => 'string',
+					'description' => 'Apply sticky selection globally or independently per operation.',
+					'enum' => ['global', 'per_op'],
+					'default' => 'global'
+				],
+				'maxfailures' => [
+					'type' => 'integer',
+					'description' => 'Failures allowed before a target enters cooldown.',
+					'default' => 3,
+					'minimum' => 1
+				],
+				'cooldownsec' => [
+					'type' => 'integer',
+					'description' => 'Cooldown duration in seconds after the failure threshold is reached.',
+					'default' => 120,
+					'minimum' => 0
+				]
+			],
+			'required' => []
+		];
 	}
 
 	public function getDockDefinitions(): array {

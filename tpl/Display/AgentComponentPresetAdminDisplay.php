@@ -9,7 +9,7 @@ $secretValueMarker = (string)($this->_['secret_value_marker'] ?? '__missionbay_s
 $categoryOptions = ['context', 'web', 'ai', 'memory', 'tool', 'storage', 'integration', 'system', 'experimental'];
 $statusOptions = ['draft', 'ready', 'disabled', 'deprecated'];
 $riskOptions = ['none', 'read_external_url', 'reads_context', 'writes_memory', 'writes_settings', 'external_api', 'destructive', 'experimental'];
-$capabilityOptions = ['memory', 'context', 'tool'];
+$capabilityOptions = ['memory', 'context', 'tool', 'chatmodel'];
 $modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
 $modularGridJsUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/index.js');
 $modularDialogCssUrl = (string) $resolve('plugin/ClientStack/assets/modulardialog/styles/modulardialog.css');
@@ -1060,6 +1060,12 @@ function createConfigControl(key, schema, value, mode, required = false, secretC
 	if (Array.isArray(schema && schema.enum) && schema.enum.length > 0) {
 		control = document.createElement('select');
 		control.className = 'agent-component-preset-step5-select';
+		if (required || value === null || value === undefined || value === '') {
+			const empty = document.createElement('option');
+			empty.value = '';
+			empty.textContent = 'Select...';
+			control.appendChild(empty);
+		}
 		schema.enum.forEach((item) => {
 			const option = document.createElement('option');
 			option.value = String(item);
@@ -1077,6 +1083,12 @@ function createConfigControl(key, schema, value, mode, required = false, secretC
 		control.step = type === 'integer' ? '1' : 'any';
 		control.className = 'agent-component-preset-step5-input';
 		control.value = value === null || value === undefined ? '' : String(value);
+		if (schema && schema.minimum !== undefined) {
+			control.min = String(schema.minimum);
+		}
+		if (schema && schema.maximum !== undefined) {
+			control.max = String(schema.maximum);
+		}
 	} else if (type === 'string' && isSensitive) {
 		control = document.createElement('input');
 		control.type = 'password';
@@ -1200,7 +1212,10 @@ function buildConfigJsonFromControls(form) {
 		return null;
 	}
 
-	const result = {};
+	const configField = form.elements.namedItem('config_json');
+	const result = configField
+		? parseEditorJsonField(form, 'config_json', 'Config JSON', true)
+		: {};
 
 	controls.forEach((control) => {
 		const key = control.dataset.configKey || '';
@@ -1281,6 +1296,8 @@ function renderDockControls(form, docks, currentPresetId = '') {
 		select.className = 'agent-component-preset-step5-select';
 		select.dataset.dockName = dockName;
 		select.multiple = isMultiple;
+		select.required = !!dock.required;
+		select.setAttribute('aria-required', dock.required ? 'true' : 'false');
 
 		if (!isMultiple) {
 			const empty = document.createElement('option');
@@ -2261,6 +2278,8 @@ function bindEditorEvents() {
 	if (elements.form && elements.form.elements.namedItem('type')) {
 		elements.form.elements.namedItem('type').addEventListener('change', () => {
 			try {
+				setFormValue(elements.form, 'config_json', '{}');
+				setFormValue(elements.form, 'docks_json', '{}');
 				renderResourceEditor(elements.form);
 			} catch (error) {
 				setEditorStatus(error && error.message ? error.message : String(error), 'error');

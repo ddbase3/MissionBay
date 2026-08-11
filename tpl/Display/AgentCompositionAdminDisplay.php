@@ -129,9 +129,9 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		wrapper.appendChild(element('agent-composition-cell-sub', 'context: ' + text(row.context_profile, 'none')));
 		return wrapper;
 	}
-	function renderLlm(value, row) {
+	function renderChatModel(value, row) {
 		const wrapper = element('agent-composition-cell');
-		wrapper.appendChild(element('agent-composition-cell-main', text(row.llm, 'not selected')));
+		wrapper.appendChild(element('agent-composition-cell-main', text(row.chatmodel, 'not selected')));
 		return wrapper;
 	}
 	async function postJson(payload) {
@@ -191,7 +191,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const overview = element('agent-composition-card');
 		const title = document.createElement('h3'); title.textContent = 'Orchestrator and stages'; overview.prepend(title);
 		appendKeyValue(overview, 'Agent', record.label + ' (' + record.agent_id + ')');
-		appendKeyValue(overview, 'LLM', record.llm || 'not selected');
+		appendKeyValue(overview, 'Chat model', record.chatmodel || 'not selected');
 		appendKeyValue(overview, 'Orchestrator profile', text(record.orchestrator && record.orchestrator.label) + ' [' + text(record.orchestrator && record.orchestrator.id) + ']');
 		const memoryProfile = record.memory_profile || {};
 		const contextProfile = record.context_profile || {};
@@ -334,7 +334,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 					{ key: 'agent_id', label: 'Agent', width: 300, render: renderAgent },
 					{ key: 'status', label: 'Configuration state', width: 430, render: renderState },
 					{ key: 'orchestrator_profile', label: 'Profiles', width: 420, render: renderProfiles },
-					{ key: 'llm', label: 'LLM', width: 260, render: renderLlm }
+					{ key: 'chatmodel', label: 'Chat model', width: 260, render: renderChatModel }
 				]
 			});
 			grid.init();

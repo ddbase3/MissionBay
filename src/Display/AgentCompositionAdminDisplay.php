@@ -124,7 +124,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 				return str_contains($this->lower(implode("\n", [
 					(string)$row['agent_id'],
 					(string)$row['label'],
-					(string)$row['llm'],
+					(string)$row['chatmodel'],
 					(string)$row['orchestrator_profile'],
 					(string)$row['tool_profile_text'],
 					(string)$row['memory_profile'],
@@ -285,7 +285,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 				'label' => trim((string)($settings['label'] ?? '')) ?: $agentId,
 				'enabled' => $this->toBool($settings['enabled'] ?? true),
 				'enabled_label' => $this->toBool($settings['enabled'] ?? true) ? 'enabled' : 'disabled',
-				'llm' => trim((string)($settings['llm'] ?? '')),
+				'chatmodel' => trim((string)($settings['chatmodel'] ?? '')),
 				'orchestrator_profile' => $profileId,
 				'tool_profile_count' => count($toolProfileIds),
 				'tool_profile_text' => implode(', ', $toolProfileIds),
@@ -307,7 +307,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 		}
 		$sort = is_array($sort) ? $sort : [];
 		$key = (string)($sort['key'] ?? 'agent_id');
-		$allowed = ['agent_id', 'label', 'status', 'orchestrator_profile', 'tool_profile_count', 'llm'];
+		$allowed = ['agent_id', 'label', 'status', 'orchestrator_profile', 'tool_profile_count', 'chatmodel'];
 		if (!in_array($key, $allowed, true)) {
 			$key = 'agent_id';
 		}

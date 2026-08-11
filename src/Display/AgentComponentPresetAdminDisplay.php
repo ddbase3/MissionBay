@@ -29,8 +29,10 @@ use Base3\Settings\Api\ISettingsStore;
 use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAiChatModel;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;
+use MissionBay\Orchestrator\Validation\JsonSchemaValidator;
 use Throwable;
 
 /**
@@ -318,6 +320,13 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			$config = $this->restoreSecretConfig($type, $config, $oldId, $id);
 			$docks = $this->decodeJsonObject((string)($payload['docks_json'] ?? ''), 'Docks JSON');
 			$meta = $this->decodeJsonObject((string)($payload['meta_json'] ?? ''), 'Meta JSON');
+		}
+		catch(Throwable $e) {
+			return $this->buildErrorResponse($e->getMessage(), 'save');
+		}
+
+		try {
+			$this->validatePresetDefinition($id, $oldId, $type, $config, $docks);
 		}
 		catch(Throwable $e) {
 			return $this->buildErrorResponse($e->getMessage(), 'save');
@@ -784,6 +793,10 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 			$capabilities[] = 'tool';
 		}
 
+		if($resource instanceof IAiChatModel) {
+			$capabilities[] = 'chatmodel';
+		}
+
 		$capabilities = array_values(array_unique($capabilities));
 		sort($capabilities);
 
@@ -1127,6 +1140,207 @@ final class AgentComponentPresetAdminDisplay implements IDisplay {
 		}
 
 		return [];
+	}
+
+	/**
+	 * @param array<string,mixed> $config
+	 * @param array<string,mixed> $docks
+	 */
+	private function validatePresetDefinition(string $id, string $oldId, string $type, array $config, array $docks): void {
+		$options = $this->listResourceOptionsById();
+		$resource = $options[$type] ?? null;
+
+		if(!is_array($resource)) {
+			throw new \InvalidArgumentException('Unknown resource type: ' . $type);
+		}
+
+		$this->validatePresetConfig($config, is_array($resource['schema'] ?? null) ? $resource['schema'] : []);
+		$this->validatePresetDocks($id, $oldId, $docks, is_array($resource['docks'] ?? null) ? $resource['docks'] : []);
+	}
+
+	/**
+	 * @param array<string,mixed> $config
+	 * @param array<string,mixed> $schema
+	 */
+	private function validatePresetConfig(array $config, array $schema): void {
+		$properties = is_array($schema['properties'] ?? null) ? $schema['properties'] : [];
+		$required = $this->normalizeStringArray($schema['required'] ?? []);
+		$validator = new JsonSchemaValidator();
+
+		foreach($required as $key) {
+			if(!array_key_exists($key, $config) || !$this->hasConfiguredValue($config[$key])) {
+				throw new \InvalidArgumentException('Missing required config field: ' . $key);
+			}
+		}
+
+		foreach($properties as $key => $propertySchema) {
+			$key = (string)$key;
+
+			if(!array_key_exists($key, $config) || !is_array($propertySchema)) {
+				continue;
+			}
+
+			$value = $config[$key];
+			$resolved = $this->getLiteralConfigValueForValidation($value);
+
+			if(!$resolved['literal']) {
+				continue;
+			}
+
+			$result = $validator->validate($resolved['value'], $propertySchema);
+
+			if($result['valid']) {
+				continue;
+			}
+
+			$issue = is_array($result['issues'][0] ?? null) ? $result['issues'][0] : [];
+			$message = trim((string)($issue['message'] ?? 'Value does not match the resource schema.'));
+			throw new \InvalidArgumentException('Invalid config field "' . $key . '": ' . $message);
+		}
+	}
+
+	private function hasConfiguredValue(mixed $value): bool {
+		if(is_array($value) && array_key_exists('mode', $value)) {
+			$mode = trim((string)($value['mode'] ?? ''));
+
+			if($mode === '') {
+				return false;
+			}
+
+			if($mode !== 'fixed') {
+				return count($value) > 1;
+			}
+
+			$value = $value['value'] ?? null;
+		}
+
+		if(is_string($value)) {
+			return trim($value) !== '';
+		}
+
+		if(is_array($value)) {
+			return $value !== [];
+		}
+
+		return $value !== null;
+	}
+
+	/**
+	 * @return array{literal:bool,value:mixed}
+	 */
+	private function getLiteralConfigValueForValidation(mixed $value): array {
+		if(!is_array($value) || !array_key_exists('mode', $value)) {
+			return ['literal' => true, 'value' => $value];
+		}
+
+		$mode = trim((string)($value['mode'] ?? ''));
+
+		if($mode !== 'fixed') {
+			return ['literal' => false, 'value' => null];
+		}
+
+		return ['literal' => true, 'value' => $value['value'] ?? null];
+	}
+
+	/**
+	 * @param array<string,mixed> $docks
+	 * @param array<int,array<string,mixed>> $definitions
+	 */
+	private function validatePresetDocks(string $id, string $oldId, array $docks, array $definitions): void {
+		$definitionsByName = [];
+
+		foreach($definitions as $definition) {
+			if(!is_array($definition)) {
+				continue;
+			}
+
+			$name = trim((string)($definition['name'] ?? ''));
+
+			if($name !== '') {
+				$definitionsByName[$name] = $definition;
+			}
+		}
+
+		foreach($docks as $name => $targets) {
+			$name = trim((string)$name);
+
+			if($name === '' || !isset($definitionsByName[$name])) {
+				throw new \InvalidArgumentException('Unknown dock for selected resource type: ' . $name);
+			}
+		}
+
+		foreach($definitionsByName as $name => $definition) {
+			$targets = $this->normalizeDockTargets($docks[$name] ?? []);
+			$required = $this->toBool($definition['required'] ?? false);
+			$maxConnections = isset($definition['maxConnections']) ? (int)$definition['maxConnections'] : null;
+
+			if($required && $targets === []) {
+				throw new \InvalidArgumentException('Required dock has no target: ' . $name);
+			}
+
+			if($maxConnections !== null && count($targets) > $maxConnections) {
+				throw new \InvalidArgumentException('Dock "' . $name . '" allows at most ' . $maxConnections . ' target(s).');
+			}
+
+			$requiredInterface = trim((string)($definition['interface'] ?? ''));
+
+			foreach($targets as $targetId) {
+				$this->validateDockTarget($id, $oldId, $name, $targetId, $requiredInterface);
+			}
+		}
+	}
+
+	/** @return array<int,string> */
+	private function normalizeDockTargets(mixed $value): array {
+		if(is_string($value)) {
+			$value = [$value];
+		}
+
+		if(!is_array($value)) {
+			throw new \InvalidArgumentException('Dock targets must be a string or array.');
+		}
+
+		$result = [];
+
+		foreach($value as $targetId) {
+			if(!is_scalar($targetId) && $targetId !== null) {
+				throw new \InvalidArgumentException('Dock target ids must be scalar values.');
+			}
+
+			$targetId = $this->normalizeTechnicalKey((string)$targetId);
+
+			if($targetId !== '') {
+				$result[$targetId] = $targetId;
+			}
+		}
+
+		return array_values($result);
+	}
+
+	private function validateDockTarget(string $presetId, string $oldId, string $dockName, string $targetId, string $requiredInterface): void {
+		if($targetId === $presetId || ($oldId !== '' && $targetId === $oldId)) {
+			throw new \InvalidArgumentException('Preset cannot dock itself: ' . $presetId);
+		}
+
+		if(!$this->settingsStore->has(self::SETTINGS_GROUP, $targetId)) {
+			throw new \InvalidArgumentException('Dock target preset does not exist: ' . $targetId);
+		}
+
+		$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $targetId, []);
+
+		if(!is_array($settings) || !$this->toBool($settings['enabled'] ?? true)) {
+			throw new \InvalidArgumentException('Dock target preset is disabled or invalid: ' . $targetId);
+		}
+
+		$type = $this->normalizeTechnicalKey((string)($settings['type'] ?? ''));
+		$options = $this->listResourceOptionsById();
+		$interfaces = is_array($options[$type]['interfaces'] ?? null) ? $options[$type]['interfaces'] : [];
+
+		if($requiredInterface !== '' && !in_array($requiredInterface, $interfaces, true)) {
+			throw new \InvalidArgumentException(
+				'Dock target "' . $targetId . '" does not implement ' . $requiredInterface . ' required by dock "' . $dockName . '".'
+			);
+		}
 	}
 
 	/** @return array<int,string> */

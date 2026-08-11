@@ -1,0 +1,158 @@
+<?php declare(strict_types=1);
+
+namespace MissionBay\Test\Resource;
+
+use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\Api\IClassMap;
+use Base3\Logger\Api\ILogger;
+use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Api\IAgentVectorFilter;
+use MissionBay\Api\IAgentVectorStore;
+use MissionBay\Resource\ConfiguredChatModelAgentResource;
+use MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
+use MissionBay\Resource\ConfiguredVectorStoreAgentResource;
+use MissionBay\Resource\EmbeddingCacheAgentResource;
+use MissionBay\Resource\RetrievalAgentTool;
+use MissionBay\Resource\RoutingChatModelAgentResource;
+use PHPUnit\Framework\TestCase;
+
+final class RetrievalCompositionSchemaTest extends TestCase {
+
+	public function testRetrievalPublishesConfigSchemaAndComposableDocks(): void {
+		$resource = new RetrievalAgentTool($this->resolver(), 'retrieval');
+		$schema = $resource->getSchema();
+		$docks = $this->docksByName($resource->getDockDefinitions());
+
+		$this->assertSame('integer', $schema['properties']['limit']['type']);
+		$this->assertSame(3, $schema['properties']['limit']['default']);
+		$this->assertSame(1, $schema['properties']['limit']['minimum']);
+		$this->assertSame(['number', 'null'], $schema['properties']['minscore']['type']);
+		$this->assertSame(0.75, $schema['properties']['minscore']['default']);
+		$this->assertSame('default', $schema['properties']['collectionkey']['default']);
+
+		$this->assertSame(IAiEmbeddingModel::class, $docks['embedding']->interface);
+		$this->assertSame(1, $docks['embedding']->maxConnections);
+		$this->assertTrue($docks['embedding']->required);
+		$this->assertSame(IAgentVectorStore::class, $docks['vectorstore']->interface);
+		$this->assertSame(1, $docks['vectorstore']->maxConnections);
+		$this->assertTrue($docks['vectorstore']->required);
+		$this->assertSame(IAgentVectorFilter::class, $docks['filters']->interface);
+		$this->assertNull($docks['filters']->maxConnections);
+		$this->assertFalse($docks['filters']->required);
+		$this->assertSame(ILogger::class, $docks['logger']->interface);
+		$this->assertSame(1, $docks['logger']->maxConnections);
+		$this->assertFalse($docks['logger']->required);
+	}
+
+	public function testConfiguredLeafResourcesExposeEnabledServiceIds(): void {
+		$settingsStore = $this->settingsStore();
+		$classMap = $this->createMock(IClassMap::class);
+		$resolver = $this->resolver();
+
+		$chat = new ConfiguredChatModelAgentResource($resolver, $settingsStore, $classMap, 'chat');
+		$embedding = new ConfiguredEmbeddingModelAgentResource($resolver, $settingsStore, $classMap, 'embedding');
+		$vectorStore = new ConfiguredVectorStoreAgentResource($resolver, $settingsStore, $classMap, 'vector');
+
+		$this->assertSame(['chat-main'], $chat->getSchema()['properties']['service']['enum']);
+		$this->assertSame(['embedding-main'], $embedding->getSchema()['properties']['service']['enum']);
+		$this->assertSame(['vector-main'], $vectorStore->getSchema()['properties']['service']['enum']);
+		$this->assertSame(['service'], $chat->getSchema()['required']);
+		$this->assertSame(['service'], $embedding->getSchema()['required']);
+		$this->assertSame(['service'], $vectorStore->getSchema()['required']);
+	}
+
+	public function testRouterPublishesScalarConfigAndChatModelTargetDock(): void {
+		$resource = new RoutingChatModelAgentResource($this->resolver(), 'router');
+		$schema = $resource->getSchema();
+		$docks = $this->docksByName($resource->getDockDefinitions());
+
+		$this->assertSame(['failover', 'roundrobin'], $schema['properties']['strategy']['enum']);
+		$this->assertSame(['global', 'per_op'], $schema['properties']['stickymode']['enum']);
+		$this->assertSame(1, $schema['properties']['maxfailures']['minimum']);
+		$this->assertSame(0, $schema['properties']['cooldownsec']['minimum']);
+		$this->assertArrayNotHasKey('targets', $schema['properties']);
+		$this->assertSame(IAiChatModel::class, $docks['targets']->interface);
+		$this->assertTrue($docks['targets']->required);
+		$this->assertSame(99, $docks['targets']->maxConnections);
+	}
+
+	public function testEmbeddingCacheRemainsComposableInFrontOfConfiguredEmbedding(): void {
+		$database = $this->createMock(\Base3\Database\Api\IDatabase::class);
+		$resource = new EmbeddingCacheAgentResource($database, $this->resolver(), 'cache');
+		$docks = $this->docksByName($resource->getDockDefinitions());
+
+		$this->assertSame(IAiEmbeddingModel::class, $docks['embedding']->interface);
+		$this->assertTrue($docks['embedding']->required);
+		$this->assertSame(1, $docks['embedding']->maxConnections);
+		$this->assertArrayHasKey('table', $resource->getSchema()['properties']);
+	}
+
+	private function resolver(): IAgentConfigValueResolver {
+		return new class implements IAgentConfigValueResolver {
+			public function resolveValue(array|string|int|float|bool|null $config): mixed {
+				if(is_array($config) && ($config['mode'] ?? null) === 'fixed') {
+					return $config['value'] ?? null;
+				}
+
+				return $config;
+			}
+		};
+	}
+
+	private function settingsStore(): ISettingsStore {
+		return new class implements ISettingsStore {
+			private array $groups = [
+				'service-llm' => [
+					'chat-main' => ['id' => 'chat-main', 'serviceType' => 'llm', 'enabled' => true],
+					'chat-disabled' => ['id' => 'chat-disabled', 'serviceType' => 'llm', 'enabled' => false],
+					'wrong-type' => ['id' => 'wrong-type', 'serviceType' => 'embedding', 'enabled' => true]
+				],
+				'service-embedding' => [
+					'embedding-main' => ['id' => 'embedding-main', 'serviceType' => 'embedding', 'enabled' => true]
+				],
+				'service-vectorstore' => [
+					'vector-main' => ['id' => 'vector-main', 'serviceType' => 'vectorstore', 'enabled' => true]
+				]
+			];
+
+			public function get(string $group, string $name, array $default = []): array {
+				return $this->groups[$group][$name] ?? $default;
+			}
+
+			public function set(string $group, string $name, array $settings): void {
+				$this->groups[$group][$name] = $settings;
+			}
+
+			public function has(string $group, string $name): bool {
+				return isset($this->groups[$group][$name]);
+			}
+
+			public function remove(string $group, string $name): void {
+				unset($this->groups[$group][$name]);
+			}
+
+			public function getGroup(string $group): array {
+				return $this->groups[$group] ?? [];
+			}
+
+			public function save(): void {}
+			public function reload(): void {}
+		};
+	}
+
+	/**
+	 * @param array<int,\MissionBay\Agent\AgentNodeDock> $docks
+	 * @return array<string,\MissionBay\Agent\AgentNodeDock>
+	 */
+	private function docksByName(array $docks): array {
+		$result = [];
+
+		foreach($docks as $dock) {
+			$result[$dock->name] = $dock;
+		}
+
+		return $result;
+	}
+}

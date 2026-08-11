@@ -62,11 +62,7 @@ final class ConfiguredParserServiceAgentResource extends AbstractConfiguredServi
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->setServiceConfigFromResourceConfig($config);
 		$this->service = null;
-		$this->resolvedOptions = [];
-
-		$this->configureService();
 	}
 
 	public function getPriority(): int {

@@ -18,6 +18,7 @@
 namespace MissionBay\Resource;
 
 use Base3\Api\IClassMap;
+use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentVectorStore;
@@ -33,7 +34,7 @@ use RuntimeException;
  * Loads a configured vector store service and delegates vector storage
  * operations to the matching backend adapter.
  */
-final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredServiceAgentResource implements IAgentVectorStore {
+final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredServiceAgentResource implements IAgentVectorStore, ISchemaProvider {
 
 	private const VECTORSTORE_SETTINGS_GROUP = 'service-vectorstore';
 	private const CONNECTION_SETTINGS_GROUP = 'connection';
@@ -59,14 +60,18 @@ final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredService
 		return 'Loads a configured vector store service by id and delegates vector store operations.';
 	}
 
+
+	public function getSchema(): array {
+		return $this->buildConfiguredServiceSchema(
+			self::VECTORSTORE_SETTINGS_GROUP,
+			self::SERVICE_TYPE,
+			'Configured vector-store service id from the service-vectorstore settings group.'
+		);
+	}
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->setServiceConfigFromResourceConfig($config);
 		$this->service = null;
-		$this->resolvedOptions = [];
-
-		$this->configureService();
 	}
 
 	public function upsert(AgentEmbeddingChunk $chunk): void {

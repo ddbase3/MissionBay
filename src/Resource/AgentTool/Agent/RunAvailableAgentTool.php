@@ -533,7 +533,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 			'label' => $label !== '' ? $label : $id,
 			'user_prompt' => $userPrompt,
 			'has_default_prompt' => trim($userPrompt) !== '',
-			'llm' => trim((string)($settings['llm'] ?? '')),
+			'chatmodel' => trim((string)($settings['chatmodel'] ?? '')),
 			'policy' => $this->normalizeTechnicalKey((string)($policy['policy'] ?? '')),
 			'policy_data_text' => $this->formatPolicyDataText($policyData),
 			'component_count' => count($components)
@@ -559,7 +559,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 				(string)($agent['id'] ?? ''),
 				(string)($agent['label'] ?? ''),
 				(string)($agent['user_prompt'] ?? ''),
-				(string)($agent['llm'] ?? ''),
+				(string)($agent['chatmodel'] ?? ''),
 				(string)($agent['policy'] ?? ''),
 				(string)($agent['policy_data_text'] ?? '')
 			]);
@@ -682,7 +682,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 			'agent_id' => (string)$agent['id'],
 			'label' => (string)$agent['label'],
 			'has_default_prompt' => (bool)$agent['has_default_prompt'],
-			'llm' => (string)$agent['llm'],
+			'chatmodel' => (string)$agent['chatmodel'],
 			'component_count' => (int)$agent['component_count']
 		];
 
@@ -704,7 +704,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 			'agent_id' => (string)$agent['id'],
 			'label' => (string)$agent['label'],
 			'has_default_prompt' => (bool)$agent['has_default_prompt'],
-			'llm' => (string)$agent['llm'],
+			'chatmodel' => (string)$agent['chatmodel'],
 			'component_count' => (int)$agent['component_count'],
 			'policy' => (string)$agent['policy'],
 			'policy_data' => (string)$agent['policy_data_text']

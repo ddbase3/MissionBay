@@ -17,6 +17,8 @@
 
 namespace MissionBay\Resource;
 
+use Base3\Api\ISchemaProvider;
+use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentTool;
 use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -31,7 +33,7 @@ use Base3\Logger\Api\ILogger;
  * Read-only vector retrieval tool.
  * No collection lifecycle side effects.
  */
-class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool {
+class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, ISchemaProvider {
 
 	protected IAgentConfigValueResolver $resolver;
 
@@ -63,14 +65,74 @@ class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool {
 		return 'Performs read-only similarity search on a vector store.';
 	}
 
+	public function getSchema(): array {
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'limit' => [
+					'type' => 'integer',
+					'description' => 'Maximum number of vector-search results returned for one retrieval call.',
+					'default' => 3,
+					'minimum' => 1
+				],
+				'minscore' => [
+					'type' => ['number', 'null'],
+					'description' => 'Optional minimum similarity score passed to the vector store.',
+					'default' => 0.75
+				],
+				'collectionkey' => [
+					'type' => 'string',
+					'description' => 'Logical collection key searched by this retrieval tool.',
+					'default' => 'default'
+				]
+			],
+			'required' => []
+		];
+	}
+
+	public function getDockDefinitions(): array {
+		return [
+			new AgentNodeDock(
+				name: 'embedding',
+				description: 'Embedding model used to vectorize the retrieval query.',
+				interface: IAiEmbeddingModel::class,
+				maxConnections: 1,
+				required: true
+			),
+			new AgentNodeDock(
+				name: 'vectorstore',
+				description: 'Vector store searched by the retrieval tool.',
+				interface: IAgentVectorStore::class,
+				maxConnections: 1,
+				required: true
+			),
+			new AgentNodeDock(
+				name: 'filters',
+				description: 'Optional vector filters merged before search.',
+				interface: IAgentVectorFilter::class,
+				maxConnections: null,
+				required: false
+			),
+			new AgentNodeDock(
+				name: 'logger',
+				description: 'Optional retrieval logger.',
+				interface: ILogger::class,
+				maxConnections: 1,
+				required: false
+			)
+		];
+	}
+
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
 		if (isset($config['limit'])) {
 			$this->limit = (int)$this->resolver->resolveValue($config['limit']);
 		}
-		if (isset($config['minscore'])) {
-			$this->minScore = (float)$this->resolver->resolveValue($config['minscore']);
+		if (array_key_exists('minscore', $config)) {
+			$value = $this->resolver->resolveValue($config['minscore']);
+			$this->minScore = $value === null || $value === '' ? null : (float)$value;
 		}
 
 		if (isset($config['collectionkey'])) {

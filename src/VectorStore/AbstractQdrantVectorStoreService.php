@@ -55,18 +55,19 @@ abstract class AbstractQdrantVectorStoreService implements IVectorStoreService {
 		$this->options = array_merge($this->options, $options);
 
 		$baseUrl = trim((string)($this->options['base_url'] ?? ''));
+		$authType = strtolower(trim((string)($this->options['auth_type'] ?? 'api-key')));
 		$authSecret = trim((string)($this->options['auth_secret'] ?? ''));
 
 		if($baseUrl === '') {
 			throw new \InvalidArgumentException(static::getName() . ': base_url is required.');
 		}
 
-		if($authSecret === '') {
+		if($authType !== 'none' && $authSecret === '') {
 			throw new \InvalidArgumentException(static::getName() . ': auth_secret is required.');
 		}
 
 		$this->baseUrl = $this->normalizeBaseUrl($baseUrl);
-		$this->authSecret = $authSecret;
+		$this->authSecret = $authSecret !== '' ? $authSecret : null;
 		$this->createPayloadIndexes = $this->readBoolOption('create_payload_indexes', true);
 	}
 
@@ -174,7 +175,6 @@ abstract class AbstractQdrantVectorStoreService implements IVectorStoreService {
 
 	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null, ?array $filterSpec = null): array {
 		$this->assertReady();
-		$this->ensureCollection($collectionKey);
 
 		$collection = $this->normalizer->getBackendCollectionName($collectionKey);
 		$url = $this->buildUrl("/collections/{$collection}/points/search");

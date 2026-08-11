@@ -73,11 +73,7 @@ final class ConfiguredVectorSearchAgentResource extends AbstractConfiguredServic
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->setServiceConfigFromResourceConfig($config);
 		$this->service = null;
-		$this->resolvedOptions = [];
-
-		$this->configureService();
 	}
 
 	public function search(array $vector, int $limit = 3, ?float $minScore = null): array {

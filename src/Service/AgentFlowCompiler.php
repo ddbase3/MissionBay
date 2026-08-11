@@ -38,8 +38,6 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 
 	private const ASSISTANT_NODE_ID = 'assistant';
 	private const ASSISTANT_NODE_TYPE = 'aiassistantnode';
-	private const CHAT_LLM_RESOURCE_ID = 'chatllm';
-	private const CHAT_LLM_RESOURCE_TYPE = 'configuredchatmodelagentresource';
 
 	public function __construct(
 		private readonly IAgentComponentFlowBuilder $componentFlowBuilder,
@@ -55,13 +53,13 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 
 	public function compile(array $agentSettings): AgentFlowCompilation {
 		$warnings = [];
-		$llm = $this->normalizeTechnicalKey((string)($agentSettings['llm'] ?? ''));
+		$chatModelPreset = $this->normalizeTechnicalKey((string)($agentSettings['chatmodel'] ?? ''));
 
-		if ($llm === '') {
-			throw new \RuntimeException('Configured LLM service is required.');
+		if ($chatModelPreset === '') {
+			throw new \RuntimeException('Chat model preset is required.');
 		}
 
-		$flow = $this->createBaseFlow($llm);
+		$flow = $this->createBaseFlow();
 		$profileId = trim((string)($agentSettings['orchestrator_profile'] ?? ''));
 		if ($profileId !== '') {
 			if (!$this->orchestratorProfileRepository instanceof AgentOrchestratorProfileRepository) {
@@ -101,15 +99,19 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 		}
 
 		$directComponents = $this->normalizeAgentComponents($agentSettings['agent_components'] ?? []);
+		$chatModelComponent = [
+			'preset' => $chatModelPreset,
+			'attach_as' => ['chatmodel'],
+			'enabled' => true
+		];
 		$components = $this->mergeAgentComponents(
-			array_merge($profileComponents, $memoryProfileComponents, $contextProfileComponents),
+			array_merge([$chatModelComponent], $profileComponents, $memoryProfileComponents, $contextProfileComponents),
 			$directComponents
 		);
 
-		if ($components !== []) {
-			$flow = $this->componentFlowBuilder->build($flow, $components, self::ASSISTANT_NODE_ID);
-			$warnings = array_merge($warnings, $this->componentFlowBuilder->getWarnings());
-		}
+		$flow = $this->componentFlowBuilder->build($flow, $components, self::ASSISTANT_NODE_ID);
+		$warnings = array_merge($warnings, $this->componentFlowBuilder->getWarnings());
+		$this->assertSingleChatModel($flow, $chatModelPreset);
 
 		return new AgentFlowCompilation(
 			$flow,
@@ -118,25 +120,14 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 	}
 
 	/** @return array<string,mixed> */
-	private function createBaseFlow(string $llm): array {
+	private function createBaseFlow(): array {
 		return [
 			'nodes' => [[
 				'id' => self::ASSISTANT_NODE_ID,
 				'type' => self::ASSISTANT_NODE_TYPE,
-				'docks' => [
-					'chatmodel' => [self::CHAT_LLM_RESOURCE_ID]
-				]
+				'docks' => []
 			]],
-			'resources' => [[
-				'id' => self::CHAT_LLM_RESOURCE_ID,
-				'type' => self::CHAT_LLM_RESOURCE_TYPE,
-				'config' => [
-					'service' => [
-						'mode' => 'fixed',
-						'value' => $llm
-					]
-				]
-			]],
+			'resources' => [],
 			'connections' => [
 				[
 					'from' => '__input__',
@@ -201,6 +192,25 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 		$flow['nodes'][$nodeIndex]['inputs']['orchestratorprofile'] = $profile->getId();
 		$flow['nodes'][$nodeIndex]['inputs']['deliberateplanning'] = $profile->isDeliberatePlanningEnabled();
 		return $flow;
+	}
+
+	/** @param array<string,mixed> $flow */
+	private function assertSingleChatModel(array $flow, string $presetId): void {
+		$nodeIndex = $this->findAssistantNodeIndex($flow);
+
+		if ($nodeIndex === null) {
+			throw new \RuntimeException('Assistant node is missing after flow compilation.');
+		}
+
+		$docks = is_array($flow['nodes'][$nodeIndex]['docks'] ?? null) ? $flow['nodes'][$nodeIndex]['docks'] : [];
+		$chatModels = is_array($docks['chatmodel'] ?? null) ? array_values(array_filter(
+			$docks['chatmodel'],
+			static fn(mixed $id): bool => is_string($id) && trim($id) !== ''
+		)) : [];
+
+		if (count($chatModels) !== 1) {
+			throw new \RuntimeException('Chat model preset could not be attached exactly once: ' . $presetId);
+		}
 	}
 
 	/** @param array<string,mixed> $flow */

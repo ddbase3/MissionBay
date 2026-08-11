@@ -20,7 +20,7 @@ namespace MissionBay\Api;
 /**
  * IAgentComponentPresetRepository
  *
- * Stores reusable component presets for agent tools, memories and resources.
+ * Stores reusable component presets for chat models, agent tools, memories and resources.
  */
 interface IAgentComponentPresetRepository {
 

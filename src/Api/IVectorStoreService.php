@@ -17,7 +17,9 @@
 
 namespace MissionBay\Api;
 
-interface IVectorStoreService extends IAgentVectorStore {
+use Base3\Api\IBase;
+
+interface IVectorStoreService extends IAgentVectorStore, IBase {
 
 	/**
 	 * @param array<string,mixed> $options

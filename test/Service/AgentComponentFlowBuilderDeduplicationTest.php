@@ -74,6 +74,52 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 		$this->assertArrayNotHasKey('contextcontributors', $flow['nodes'][0]['docks']);
 	}
 
+
+	public function testChatModelAttachmentMaterializesComposedRouterGraph(): void {
+		$builder = new AgentComponentFlowBuilder($this->repository());
+		$flow = $builder->build($this->baseFlow(), [[
+			'preset' => 'chat-router',
+			'attach_as' => ['chatmodel']
+		]]);
+
+		$resources = [];
+		foreach($flow['resources'] as $resource) {
+			$resources[(string)$resource['id']] = $resource;
+		}
+
+		$this->assertSame(['preset_chat_router'], $flow['nodes'][0]['docks']['chatmodel']);
+		$this->assertSame('routingchatmodelagentresource', $resources['preset_chat_router']['type']);
+		$this->assertSame(
+			['preset_chat_primary', 'preset_chat_secondary'],
+			$resources['preset_chat_router']['docks']['targets']
+		);
+		$this->assertSame('configuredchatmodelagentresource', $resources['preset_chat_primary']['type']);
+		$this->assertSame('llm-primary', $resources['preset_chat_primary']['config']['service']['value']);
+		$this->assertSame('configuredchatmodelagentresource', $resources['preset_chat_secondary']['type']);
+		$this->assertSame('llm-secondary', $resources['preset_chat_secondary']['config']['service']['value']);
+	}
+
+	public function testRetrievalPresetMaterializesEmbeddingVectorStoreAndFilterDocks(): void {
+		$builder = new AgentComponentFlowBuilder($this->repository());
+		$flow = $builder->build($this->baseFlow(), [[
+			'preset' => 'retrieval-main',
+			'attach_as' => ['tool']
+		]]);
+
+		$resources = [];
+		foreach($flow['resources'] as $resource) {
+			$resources[(string)$resource['id']] = $resource;
+		}
+
+		$this->assertSame('retrievalagenttool', $resources['preset_retrieval_main']['type']);
+		$this->assertSame(['preset_embedding_cache'], $resources['preset_retrieval_main']['docks']['embedding']);
+		$this->assertSame(['preset_vector_main'], $resources['preset_retrieval_main']['docks']['vectorstore']);
+		$this->assertSame(['preset_filter_kind'], $resources['preset_retrieval_main']['docks']['filters']);
+		$this->assertSame(['preset_embedding_main'], $resources['preset_embedding_cache']['docks']['embedding']);
+		$this->assertSame('configuredembeddingmodelagentresource', $resources['preset_embedding_main']['type']);
+		$this->assertSame('configuredvectorstoreagentresource', $resources['preset_vector_main']['type']);
+	}
+
 	/** @return array<string,mixed> */
 	private function baseFlow(): array {
 		return [
@@ -100,6 +146,61 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 					'type' => 'sessionmemoryagentresource',
 					'enabled' => true,
 					'capabilities' => ['memory']
+				],
+				'chat-primary' => [
+					'id' => 'chat-primary',
+					'type' => 'configuredchatmodelagentresource',
+					'enabled' => true,
+					'capabilities' => ['chatmodel'],
+					'config' => ['service' => ['mode' => 'fixed', 'value' => 'llm-primary']]
+				],
+				'chat-secondary' => [
+					'id' => 'chat-secondary',
+					'type' => 'configuredchatmodelagentresource',
+					'enabled' => true,
+					'capabilities' => ['chatmodel'],
+					'config' => ['service' => ['mode' => 'fixed', 'value' => 'llm-secondary']]
+				],
+				'chat-router' => [
+					'id' => 'chat-router',
+					'type' => 'routingchatmodelagentresource',
+					'enabled' => true,
+					'capabilities' => ['chatmodel'],
+					'docks' => ['targets' => ['chat-primary', 'chat-secondary']]
+				],
+				'embedding-main' => [
+					'id' => 'embedding-main',
+					'type' => 'configuredembeddingmodelagentresource',
+					'enabled' => true,
+					'config' => ['service' => ['mode' => 'fixed', 'value' => 'embedding-service']]
+				],
+				'embedding-cache' => [
+					'id' => 'embedding-cache',
+					'type' => 'embeddingcacheagentresource',
+					'enabled' => true,
+					'docks' => ['embedding' => ['embedding-main']]
+				],
+				'vector-main' => [
+					'id' => 'vector-main',
+					'type' => 'configuredvectorstoreagentresource',
+					'enabled' => true,
+					'config' => ['service' => ['mode' => 'fixed', 'value' => 'vector-service']]
+				],
+				'filter-kind' => [
+					'id' => 'filter-kind',
+					'type' => 'testvectorfilter',
+					'enabled' => true
+				],
+				'retrieval-main' => [
+					'id' => 'retrieval-main',
+					'type' => 'retrievalagenttool',
+					'enabled' => true,
+					'capabilities' => ['tool'],
+					'docks' => [
+						'embedding' => ['embedding-cache'],
+						'vectorstore' => ['vector-main'],
+						'filters' => ['filter-kind']
+					]
 				]
 			];
 			public function getPresets(): array { return $this->presets; }

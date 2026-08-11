@@ -20,6 +20,7 @@ namespace MissionBay\Resource;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AiChatResult;
 use Base3\Api\IClassMap;
+use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Connection\ConnectionConfig;
@@ -32,7 +33,7 @@ use RuntimeException;
  * Loads a configured LLM service and delegates to the matching
  * IAiChatModel adapter.
  */
-class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentResource implements IAiChatModel {
+class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentResource implements IAiChatModel, ISchemaProvider {
 
 
 	private const LLM_SETTINGS_GROUP = 'service-llm';
@@ -59,14 +60,18 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 		return 'Loads a configured LLM service by id and delegates to the matching IAiChatModel adapter.';
 	}
 
+
+	public function getSchema(): array {
+		return $this->buildConfiguredServiceSchema(
+			self::LLM_SETTINGS_GROUP,
+			self::SERVICE_TYPE,
+			'Configured LLM service id from the service-llm settings group.'
+		);
+	}
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->setServiceConfigFromResourceConfig($config);
 		$this->model = null;
-		$this->resolvedOptions = [];
-
-		$this->configureModel();
 	}
 
 	public function complete(array $messages, array $tools = []): AiChatResult {

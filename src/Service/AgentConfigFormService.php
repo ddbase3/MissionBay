@@ -32,6 +32,7 @@ use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use AssistantFoundation\Api\IAgentContextContributor;
 use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
+use AssistantFoundation\Api\IAiChatModel;
 use MissionBay\Api\IAgentPromptProvider;
 use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentResourceProvider;
@@ -44,7 +45,6 @@ use Throwable;
 
 class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
-	protected const LLM_SETTINGS_GROUP = 'service-llm';
 	protected const AGENT_COMPONENT_PRESET_GROUP = 'agent-component-preset';
 
 	/**
@@ -81,7 +81,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 	public function getDefaultSettings(): array {
 		return [
-			'llm' => '',
+			'chatmodel' => '',
 			'orchestrator_profile' => AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
 			'tool_profiles' => [],
 			'memory_profile' => '',
@@ -111,13 +111,13 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$errors
 		);
 
-		$llm = $this->normalizeTechnicalKey((string)$this->request->request('llm'));
+		$chatModel = $this->normalizeTechnicalKey((string)$this->request->request('chatmodel'));
 
-		if ($llm === '') {
-			$errors[] = $this->translate('llm_required', 'Please select an LLM.');
+		if ($chatModel === '') {
+			$errors[] = $this->translate('chatmodel_required', 'Please select a chat model preset.');
 		}
-		elseif (!$this->llmExists($llm)) {
-			$errors[] = sprintf($this->translate('selected_llm_missing', 'Selected LLM does not exist in settings group "%s": %s'), self::LLM_SETTINGS_GROUP, $llm);
+		elseif (!$this->isUsableChatModelPreset($chatModel)) {
+			$errors[] = sprintf($this->translate('selected_chatmodel_missing', 'Selected chat model preset is not available or does not implement IAiChatModel: %s'), $chatModel);
 		}
 
 		$orchestratorProfile = $this->normalizeTechnicalKey((string)$this->request->request(
@@ -169,7 +169,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		}
 
 		return $this->normalizeSettings([
-			'llm' => $llm,
+			'chatmodel' => $chatModel,
 			'orchestrator_profile' => $orchestratorProfile,
 			'tool_profiles' => $toolProfiles,
 			'memory_profile' => $memoryProfile,
@@ -196,7 +196,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		}
 
 		return [
-			'llm' => $this->normalizeTechnicalKey((string)$this->request->request('llm')),
+			'chatmodel' => $this->normalizeTechnicalKey((string)$this->request->request('chatmodel')),
 			'orchestrator_profile' => $this->normalizeTechnicalKey((string)$this->request->request('orchestrator_profile', AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID)),
 			'tool_profiles' => $this->normalizeTechnicalKeyList($this->request->request('tool_profiles', [])),
 			'memory_profile' => $this->normalizeTechnicalKey((string)$this->request->request('memory_profile', '')),
@@ -213,7 +213,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		$defaults = $this->getDefaultSettings();
 
 		$agentComponents = $this->normalizeAgentComponentsViewInput($settings['agent_components'] ?? $defaults['agent_components']);
-		$llm = $this->normalizeTechnicalKey((string)($settings['llm'] ?? ''));
+		$chatModel = $this->normalizeTechnicalKey((string)($settings['chatmodel'] ?? ''));
 
 		$memoryProfile = $this->normalizeTechnicalKey((string)($settings['memory_profile'] ?? $defaults['memory_profile']));
 		$contextProfile = $this->normalizeTechnicalKey((string)($settings['context_profile'] ?? $defaults['context_profile']));
@@ -224,7 +224,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		}
 
 		return [
-			'llm' => $llm,
+			'chatmodel' => $chatModel,
 			'orchestrator_profile' => $this->normalizeTechnicalKey((string)($settings['orchestrator_profile'] ?? $defaults['orchestrator_profile'])) ?: AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
 			'tool_profiles' => $this->normalizeTechnicalKeyList($settings['tool_profiles'] ?? $defaults['tool_profiles']),
 			'memory_profile' => $memoryProfile,
@@ -241,7 +241,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		$settings = $this->normalizeSettings($settings);
 
 		return [
-			'llm' => $settings['llm'],
+			'chatmodel' => $settings['chatmodel'],
 			'orchestrator_profile' => $settings['orchestrator_profile'],
 			'tool_profiles' => $settings['tool_profiles'],
 			'memory_profile' => $settings['memory_profile'],
@@ -259,7 +259,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 		return [
 			'provider' => 'MissionBay',
-			'model' => (string)$settings['llm']
+			'model' => (string)$settings['chatmodel']
 		];
 	}
 
@@ -274,15 +274,17 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$formId = 'base3_agent_config';
 		}
 
+		$componentPresets = $this->listAgentComponentPresetOptions();
+
 		return [
 			'form_id' => $formId,
 			'values' => $values,
-			'llm_options' => $this->listLlmOptions(),
+			'chatmodel_preset_options' => $this->filterPresetOptionsByCapability($componentPresets, 'chatmodel'),
 			'orchestrator_profile_options' => $this->orchestratorProfileRepository->getOptions(),
 			'tool_profile_options' => $this->toolProfileResolver->getOptions(),
 			'memory_profile_options' => $this->memoryProfileResolver->getOptions(),
 			'context_profile_options' => $this->contextProfileResolver->getOptions(),
-			'agent_component_presets' => $this->listAgentComponentPresetOptions(),
+			'agent_component_presets' => $this->filterPresetOptionsWithoutCapability($componentPresets, 'chatmodel'),
 			'capability_component_options' => $this->listCapabilityComponentOptions(),
 			'export_catalog' => $this->buildExportCatalog(),
 			'translations' => $this->getTranslations()
@@ -339,7 +341,6 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		}
 
 		return $this->redactSensitiveData([
-			'llm_settings' => $this->normalizeExportGroup(self::LLM_SETTINGS_GROUP),
 			'orchestrator_profiles' => $orchestratorProfiles,
 			'tool_profiles' => $this->normalizeExportGroup(AgentToolProfileResolver::SETTINGS_GROUP),
 			'memory_profiles' => $this->normalizeExportGroup(AgentMemoryProfileResolver::SETTINGS_GROUP),
@@ -697,10 +698,13 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 			$enabled = $this->toBool($row['enabled'] ?? true);
 			$presetSettings = $this->loadAgentComponentPresetSettings($preset);
-			$attachAs = $this->normalizeAgentComponentAttachAs($row, $presetSettings);
+			$attachAs = array_values(array_filter(
+				$this->normalizeAgentComponentAttachAs($row, $presetSettings),
+				static fn(string $capability): bool => $capability !== 'chatmodel'
+			));
 
 			if ($attachAs === []) {
-				$errors[] = sprintf($this->translate('component_preset_capability_error', 'Agent component preset "%s" does not expose a memory or tool capability.'), $preset);
+				$errors[] = sprintf($this->translate('component_preset_capability_error', 'Agent component preset "%s" does not expose a tool, memory or context capability.'), $preset);
 				continue;
 			}
 
@@ -741,7 +745,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			foreach ($row['attach_as'] as $value) {
 				$value = strtolower(trim((string)$value));
 
-				if (in_array($value, ['memory', 'tool'], true)) {
+				if (in_array($value, ['memory', 'context', 'tool', 'chatmodel'], true)) {
 					$attachAs[] = $value;
 				}
 			}
@@ -835,6 +839,10 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 				$capabilities[] = 'tool';
 			}
 
+			if ($resource instanceof IAiChatModel) {
+				$capabilities[] = 'chatmodel';
+			}
+
 			$map[$type] = $this->normalizeAttachCapabilityList($capabilities);
 		}
 
@@ -860,7 +868,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		foreach ($value as $item) {
 			$item = strtolower(trim((string)$item));
 
-			if (in_array($item, ['memory', 'context', 'tool'], true)) {
+			if (in_array($item, ['memory', 'context', 'tool', 'chatmodel'], true)) {
 				$result[] = $item;
 			}
 		}
@@ -966,91 +974,45 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 	}
 
 	// ---------------------------------------------------------------------
-	// LLM options
+	// Chat model preset options
 	// ---------------------------------------------------------------------
 
 	/**
+	 * @param array<int,array<string,mixed>> $options
 	 * @return array<int,array<string,mixed>>
 	 */
-	protected function listLlmOptions(): array {
-		$rows = [];
+	protected function filterPresetOptionsByCapability(array $options, string $capability): array {
+		$capability = strtolower(trim($capability));
 
-		try {
-			$group = $this->settingsStore->getGroup(self::LLM_SETTINGS_GROUP);
-		}
-		catch (Throwable) {
-			return [];
-		}
+		return array_values(array_filter($options, static function(array $option) use ($capability): bool {
+			$capabilities = is_array($option['capabilities'] ?? null) ? $option['capabilities'] : [];
 
-		if (!is_array($group)) {
-			return [];
-		}
-
-		foreach ($group as $id => $settings) {
-			if (!is_string($id) || $id === '' || !is_array($settings)) {
-				continue;
-			}
-
-			$rows[] = $this->normalizeLlmOption($id, $settings);
-		}
-
-		usort($rows, static function(array $a, array $b): int {
-			$aSort = trim((string)($a['label'] ?? ''));
-			$bSort = trim((string)($b['label'] ?? ''));
-
-			if ($aSort === '') {
-				$aSort = (string)($a['id'] ?? '');
-			}
-
-			if ($bSort === '') {
-				$bSort = (string)($b['id'] ?? '');
-			}
-
-			$cmp = strcasecmp($aSort, $bSort);
-
-			if ($cmp !== 0) {
-				return $cmp;
-			}
-
-			return strcasecmp((string)($a['id'] ?? ''), (string)($b['id'] ?? ''));
-		});
-
-		return $rows;
+			return in_array($capability, array_map('strval', $capabilities), true);
+		}));
 	}
 
 	/**
-	 * @return array<string,mixed>
+	 * @param array<int,array<string,mixed>> $options
+	 * @return array<int,array<string,mixed>>
 	 */
-	protected function normalizeLlmOption(string $id, array $settings): array {
-		$label = trim((string)($settings['name'] ?? ($settings['label'] ?? '')));
+	protected function filterPresetOptionsWithoutCapability(array $options, string $capability): array {
+		$capability = strtolower(trim($capability));
 
-		if ($label === '') {
-			$label = $id;
-		}
+		return array_values(array_filter($options, static function(array $option) use ($capability): bool {
+			$capabilities = is_array($option['capabilities'] ?? null) ? $option['capabilities'] : [];
 
-		return [
-			'id' => $id,
-			'label' => $label,
-			'model' => trim((string)($settings['model'] ?? '')),
-			'driver' => trim((string)($settings['driver'] ?? '')),
-			'connection' => trim((string)($settings['connection'] ?? ($settings['provider'] ?? ''))),
-			'enabled' => $this->toBool($settings['enabled'] ?? true)
-		];
+			return !in_array($capability, array_map('strval', $capabilities), true);
+		}));
 	}
 
-	protected function llmExists(string $id): bool {
-		if ($id === '') {
+	protected function isUsableChatModelPreset(string $id): bool {
+		$preset = $this->loadAgentComponentPresetSettings($id);
+
+		if ($preset === null || !$this->toBool($preset['enabled'] ?? true)) {
 			return false;
 		}
 
-		try {
-			$settings = $this->settingsStore->get(self::LLM_SETTINGS_GROUP, $id, []);
-		}
-		catch (Throwable) {
-			return false;
-		}
-
-		return is_array($settings) && $settings !== [];
+		return in_array('chatmodel', $this->derivePresetCapabilities($preset, []), true);
 	}
 
 	// ---------------------------------------------------------------------

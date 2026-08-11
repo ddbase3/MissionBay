@@ -138,7 +138,7 @@ final class AgentCompositionInspector {
 			'agent_id' => $agentId,
 			'label' => trim((string)($settings['label'] ?? '')) ?: $agentId,
 			'enabled' => $this->toBool($settings['enabled'] ?? true),
-			'llm' => trim((string)($settings['llm'] ?? '')),
+			'chatmodel' => trim((string)($settings['chatmodel'] ?? '')),
 			'status' => $status,
 			'orchestrator' => $profile !== null ? $profile->toArray() : [
 				'id' => $profileId,

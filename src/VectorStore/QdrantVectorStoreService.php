@@ -30,11 +30,28 @@ final class QdrantVectorStoreService extends AbstractQdrantVectorStoreService {
 	}
 
 	protected function buildHeaders(): array {
-		$authHeaderName = $this->getStringOption('auth_header_name', 'api-key');
+		$authType = strtolower($this->getStringOption('auth_type', 'api-key'));
+		$headers = ['Content-Type: application/json'];
 
-		return [
-			'Content-Type: application/json',
-			$authHeaderName . ': ' . $this->getAuthSecret()
-		];
+		if($authType === 'none') {
+			return $headers;
+		}
+
+		$authSecret = $this->getAuthSecret();
+
+		if($authType === 'api-key') {
+			$authHeaderName = $this->getStringOption('auth_header_name', 'api-key');
+			$headers[] = $authHeaderName . ': ' . $authSecret;
+		}
+		elseif($authType === 'basic') {
+			$authHeaderName = $this->getStringOption('auth_header_name', 'Authorization');
+			$headers[] = $authHeaderName . ': Basic ' . base64_encode($authSecret);
+		}
+		else {
+			$authHeaderName = $this->getStringOption('auth_header_name', 'Authorization');
+			$headers[] = $authHeaderName . ': Bearer ' . $authSecret;
+		}
+
+		return $headers;
 	}
 }

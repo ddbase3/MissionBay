@@ -92,6 +92,7 @@ final class ConfiguredImageModelAgentResourceTest extends TestCase {
 		$resource->setConfig([
 			'service' => 'mistral_course_images'
 		]);
+		$resource->getOptions();
 
 		$this->assertSame('mistral-small-latest', $capturedOptions['model']);
 		$this->assertSame('https://api.mistral.ai', $capturedOptions['endpoint']);

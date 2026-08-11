@@ -37,9 +37,7 @@ use RuntimeException;
  * ISearchService adapter.
  *
  * The resource also exposes the configured search service as an
- * assistant tool. Tool usage is intentionally defensive: configuration
- * errors are returned as structured tool results instead of breaking
- * the whole assistant flow during resource setup.
+ * assistant tool. Tool-call failures are returned as structured results.
  */
 class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgentResource implements ISearchService, IAgentTool, ISchemaProvider {
 
@@ -100,15 +98,10 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->setServiceConfigFromResourceConfig($config);
 		$this->service = null;
-		$this->resolvedOptions = [];
 
 		$this->toolMaxResults = $this->readOptionalPositiveIntConfig($config, 'maxresults');
 		$this->includeRawResult = $this->readOptionalBoolConfig($config, 'includeraw', false);
-
-		// Do not configure the service here.
-		// A broken search service must not prevent the assistant from starting.
 	}
 
 	public function search(string $query, array $options = []): array {
@@ -186,15 +179,7 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 	}
 
 	protected function ensureConfigured(): void {
-		try {
-			$this->ensureService();
-		} catch(\Throwable $e) {
-			$this->resolvedOptions['configuration_error'] = [
-				'message' => $e->getMessage(),
-				'type' => get_class($e),
-				'code' => $e->getCode()
-			];
-		}
+		$this->ensureService();
 	}
 
 	protected function applyResolvedOptions(): void {

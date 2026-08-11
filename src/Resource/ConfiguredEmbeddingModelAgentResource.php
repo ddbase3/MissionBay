@@ -20,6 +20,7 @@ namespace MissionBay\Resource;
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Dto\AiEmbeddingResult;
 use Base3\Api\IClassMap;
+use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Connection\ConnectionConfig;
@@ -32,7 +33,7 @@ use RuntimeException;
  * Loads a configured embedding service and delegates to the matching
  * IAiEmbeddingModel adapter.
  */
-class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAgentResource implements IAiEmbeddingModel {
+class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAgentResource implements IAiEmbeddingModel, ISchemaProvider {
 
 	private const EMBEDDING_SETTINGS_GROUP = 'service-embedding';
 	private const CONNECTION_SETTINGS_GROUP = 'connection';
@@ -58,14 +59,18 @@ class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAge
 		return 'Loads a configured embedding service by id and delegates to the matching IAiEmbeddingModel adapter.';
 	}
 
+
+	public function getSchema(): array {
+		return $this->buildConfiguredServiceSchema(
+			self::EMBEDDING_SETTINGS_GROUP,
+			self::SERVICE_TYPE,
+			'Configured embedding service id from the service-embedding settings group.'
+		);
+	}
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		$this->setServiceConfigFromResourceConfig($config);
 		$this->model = null;
-		$this->resolvedOptions = [];
-
-		$this->configureModel();
 	}
 
 	public function embed(array $texts): array {

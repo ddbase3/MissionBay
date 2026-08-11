@@ -47,6 +47,17 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 		parent::__construct($id);
 	}
 
+	/**
+	 * Stores the configured service reference without resolving its runtime implementation.
+	 * Resolution happens on first operational access or when resolved options are requested.
+	 */
+	public function setConfig(array $config): void {
+		parent::setConfig($config);
+
+		$this->setServiceConfigFromResourceConfig($config);
+		$this->resolvedOptions = [];
+	}
+
 	public function getOptions(): array {
 		$this->ensureConfigured();
 
@@ -79,6 +90,66 @@ abstract class AbstractConfiguredServiceAgentResource extends AbstractAgentResou
 		}
 
 		return $this->normalizeKey((string)$value);
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	protected function listConfiguredServiceIds(string $settingsGroup, string $expectedServiceType): array {
+		$records = $this->settingsStore->getGroup($settingsGroup);
+
+		if(!is_array($records)) {
+			return [];
+		}
+
+		$result = [];
+
+		foreach($records as $id => $settings) {
+			if(!is_string($id) || $id === '' || !is_array($settings)) {
+				continue;
+			}
+
+			$config = ServiceConfig::fromSettings($id, $settings);
+
+			if(!$config->isEnabled() || $config->getServiceType() !== $expectedServiceType) {
+				continue;
+			}
+
+			$serviceId = $this->normalizeKey($config->getId());
+
+			if($serviceId !== '') {
+				$result[$serviceId] = $serviceId;
+			}
+		}
+
+		$result = array_values($result);
+		sort($result);
+
+		return $result;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	protected function buildConfiguredServiceSchema(string $settingsGroup, string $serviceType, string $description): array {
+		$service = [
+			'type' => 'string',
+			'description' => $description
+		];
+		$serviceIds = $this->listConfiguredServiceIds($settingsGroup, $serviceType);
+
+		if($serviceIds !== []) {
+			$service['enum'] = $serviceIds;
+		}
+
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'service' => $service
+			],
+			'required' => ['service']
+		];
 	}
 
 	protected function loadServiceConfig(string $settingsGroup, string $serviceId, string $expectedServiceType): ServiceConfig {

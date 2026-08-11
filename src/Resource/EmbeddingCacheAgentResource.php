@@ -21,13 +21,14 @@ use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Dto\AiEmbeddingResult;
 use AssistantFoundation\Dto\AiResultMetadata;
 use AssistantFoundation\Dto\AiUsage;
+use Base3\Api\ISchemaProvider;
 use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
 
-final class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
+final class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEmbeddingModel, ISchemaProvider {
 
 	private IDatabase $db;
 	private IAgentConfigValueResolver $resolver;
@@ -57,6 +58,31 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 
 	public function getDescription(): string {
 		return 'DB-backed embedding cache proxy. Docks a real embedding model (dock: embedding).';
+	}
+
+	public function getSchema(): array {
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'table' => [
+					'type' => 'string',
+					'description' => 'Database table used for cached embeddings.',
+					'default' => 'base3_embedding_cache'
+				],
+				'salt' => [
+					'type' => 'string',
+					'description' => 'Optional cache hash namespace used to separate otherwise identical embeddings.',
+					'default' => ''
+				],
+				'model' => [
+					'type' => 'string',
+					'description' => 'Optional model identifier override used only for cache key scoping.',
+					'default' => ''
+				]
+			],
+			'required' => []
+		];
 	}
 
 	public function getDockDefinitions(): array {
