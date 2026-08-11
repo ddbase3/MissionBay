@@ -1,0 +1,63 @@
+{
+  "display": "chartreportdisplay",
+  "schema": "missionbay_ai",
+  "table": "base3_missionbay_ai_usage",
+  "chart": {
+    "type": "doughnut",
+    "title": "AI Requests by Operation",
+    "dimension": "operation",
+    "measures": [
+      { "alias": "requests", "label": "Requests", "aggregation": "COUNT" }
+    ],
+    "sort": { "by": "requests", "direction": "desc" }
+  },
+  "fields": [
+    {
+      "alias": "operation",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "operation" },
+      "config": { "label": "Operation" }
+    },
+    {
+      "alias": "occurred_at",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "occurred_at" },
+      "config": {
+        "label": "Period",
+        "filter": {
+          "enabled": true,
+          "visibility": "always",
+          "type": "daterange",
+          "match": "between",
+          "control": "chronopicker",
+          "format": "DD.MM.YYYY",
+          "valueFormat": "YYYY-MM-DD",
+          "defaultValue": { "from": "", "to": "" },
+          "initialValue": { "from": "", "to": "" },
+          "fromPlaceholder": "From",
+          "toPlaceholder": "To",
+          "width": 240,
+          "inputWidth": 110
+        }
+      }
+    },
+    {
+      "alias": "provider",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "provider" },
+      "config": { "label": "Provider", "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Provider", "width": 150 } }
+    },
+    {
+      "alias": "model",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "model" },
+      "config": { "label": "Model", "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Model", "width": 170 } }
+    },
+    {
+      "alias": "user_login",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "user_login" },
+      "config": { "label": "User", "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "User", "width": 150 } }
+    },
+    {
+      "alias": "request_context",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "request_context" },
+      "config": { "label": "Context", "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Context", "width": 150 } }
+    }
+  ]
+}

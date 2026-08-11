@@ -1,0 +1,153 @@
+{
+  "name": "base3_missionbay_ai_usage",
+  "label": "MissionBay AI usage",
+  "description": "Provider request usage events recorded by MissionBay across chat, embeddings, images, speech, search and future AI operations.",
+  "domain": "missionbay",
+  "category": "ai_usage",
+  "tags": [
+    "ai",
+    "usage",
+    "provider",
+    "tokens",
+    "operations"
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "type": "integer",
+      "label": "ID",
+      "required": true,
+      "primaryKey": true
+    },
+    {
+      "name": "operation",
+      "type": "string",
+      "label": "Operation",
+      "required": true
+    },
+    {
+      "name": "source_name",
+      "type": "string",
+      "label": "Source",
+      "required": true
+    },
+    {
+      "name": "provider",
+      "type": "string",
+      "label": "Provider",
+      "required": true
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "label": "Model",
+      "required": true
+    },
+    {
+      "name": "request_id",
+      "type": "string",
+      "label": "Request ID",
+      "nullable": true
+    },
+    {
+      "name": "user_id",
+      "type": "integer",
+      "label": "User ID",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "name": "user_login",
+      "type": "string",
+      "label": "User",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "name": "request_context",
+      "type": "string",
+      "label": "Request context",
+      "required": true
+    },
+    {
+      "name": "input_tokens",
+      "type": "integer",
+      "label": "Input tokens",
+      "nullable": true
+    },
+    {
+      "name": "output_tokens",
+      "type": "integer",
+      "label": "Output tokens",
+      "nullable": true
+    },
+    {
+      "name": "total_tokens",
+      "type": "integer",
+      "label": "Total tokens",
+      "nullable": true
+    },
+    {
+      "name": "cached_input_tokens",
+      "type": "integer",
+      "label": "Cached input tokens",
+      "nullable": true
+    },
+    {
+      "name": "reasoning_tokens",
+      "type": "integer",
+      "label": "Reasoning tokens",
+      "nullable": true
+    },
+    {
+      "name": "duration_ms",
+      "type": "float",
+      "label": "Duration in ms",
+      "nullable": true
+    },
+    {
+      "name": "finish_reason",
+      "type": "string",
+      "label": "Finish reason",
+      "nullable": true
+    },
+    {
+      "name": "provider_created_at",
+      "type": "datetime",
+      "label": "Provider timestamp",
+      "nullable": true
+    },
+    {
+      "name": "metrics_json",
+      "type": "text",
+      "label": "Usage metrics",
+      "nullable": true
+    },
+    {
+      "name": "details_json",
+      "type": "text",
+      "label": "Usage details",
+      "nullable": true,
+      "sensitive": true
+    },
+    {
+      "name": "extra_json",
+      "type": "text",
+      "label": "Provider metadata",
+      "nullable": true,
+      "sensitive": true
+    },
+    {
+      "name": "occurred_at",
+      "type": "datetime",
+      "label": "Occurred at",
+      "required": true
+    }
+  ],
+  "joins": [],
+  "defaultFilters": [],
+  "position": {
+    "x": 0,
+    "y": 0
+  }
+}

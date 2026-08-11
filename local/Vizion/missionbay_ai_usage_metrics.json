@@ -1,0 +1,174 @@
+{
+  "display": "metricreportdisplay",
+  "schema": "missionbay_ai",
+  "table": "base3_missionbay_ai_usage",
+  "config": {
+    "title": "AI Usage Overview",
+    "description": "Headline usage metrics across all recorded MissionBay AI provider requests.",
+    "cardMinWidth": 150
+  },
+  "metrics": [
+    {
+      "key": "requests",
+      "label": "AI Requests",
+      "description": "All recorded provider requests across every AI operation.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": { "type": "fn", "function": "COUNT", "params": ["*"] },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0 }
+    },
+    {
+      "key": "token_measured_requests",
+      "label": "Token-measured Requests",
+      "description": "Requests for which the provider supplied a total token count.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": {
+              "type": "fn",
+              "function": "COUNT",
+              "params": [
+                { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "total_tokens" }
+              ]
+            },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0 }
+    },
+    {
+      "key": "total_tokens",
+      "label": "Total Tokens",
+      "description": "Total provider-reported token usage.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": {
+              "type": "fn",
+              "function": "SUM",
+              "params": [
+                { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "total_tokens" }
+              ]
+            },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0 }
+    },
+    {
+      "key": "input_tokens",
+      "label": "Input Tokens",
+      "description": "Provider-reported input token usage.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": {
+              "type": "fn",
+              "function": "SUM",
+              "params": [
+                { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "input_tokens" }
+              ]
+            },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0 }
+    },
+    {
+      "key": "output_tokens",
+      "label": "Output Tokens",
+      "description": "Provider-reported output token usage.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": {
+              "type": "fn",
+              "function": "SUM",
+              "params": [
+                { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "output_tokens" }
+              ]
+            },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0 }
+    },
+    {
+      "key": "cached_input_tokens",
+      "label": "Cached Input Tokens",
+      "description": "Input tokens reported as served from provider cache.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": {
+              "type": "fn",
+              "function": "SUM",
+              "params": [
+                { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "cached_input_tokens" }
+              ]
+            },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0 }
+    },
+    {
+      "key": "reasoning_tokens",
+      "label": "Reasoning Tokens",
+      "description": "Reasoning token usage where reported by the provider.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": {
+              "type": "fn",
+              "function": "SUM",
+              "params": [
+                { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "reasoning_tokens" }
+              ]
+            },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0 }
+    },
+    {
+      "key": "avg_duration_ms",
+      "label": "Avg. Duration",
+      "description": "Average provider request duration.",
+      "valueField": "value",
+      "query": {
+        "fields": [
+          {
+            "element": {
+              "type": "fn",
+              "function": "AVG",
+              "params": [
+                { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "duration_ms" }
+              ]
+            },
+            "alias": "value"
+          }
+        ]
+      },
+      "format": { "type": "number", "decimals": 0, "suffix": " ms" }
+    }
+  ]
+}

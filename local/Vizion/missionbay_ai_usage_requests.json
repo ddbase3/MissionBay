@@ -1,0 +1,130 @@
+{
+  "display": "modulargridreportdisplay",
+  "schema": "missionbay_ai",
+  "table": "base3_missionbay_ai_usage",
+  "config": {
+    "paging": true,
+    "columnSelector": true,
+    "pageSize": 50,
+    "sortColumn": "occurred_at",
+    "sortDirection": "desc"
+  },
+  "fields": [
+    {
+      "alias": "occurred_at",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "occurred_at" },
+      "config": {
+        "label": "Occurred At",
+        "sortable": true,
+        "type": "datetime",
+        "width": 175,
+        "search": false,
+        "filter": {
+          "enabled": true,
+          "visibility": "always",
+          "type": "daterange",
+          "match": "between",
+          "control": "chronopicker",
+          "format": "DD.MM.YYYY",
+          "valueFormat": "YYYY-MM-DD",
+          "defaultValue": { "from": "", "to": "" },
+          "initialValue": { "from": "", "to": "" },
+          "fromPlaceholder": "From",
+          "toPlaceholder": "To",
+          "width": 240,
+          "inputWidth": 110
+        }
+      }
+    },
+    {
+      "alias": "operation",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "operation" },
+      "config": { "label": "Operation", "sortable": true, "width": 130, "filter": { "enabled": true, "visibility": "always", "type": "text", "match": "contains", "placeholder": "Operation", "width": 130 } }
+    },
+    {
+      "alias": "source_name",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "source_name" },
+      "config": { "label": "Source", "sortable": true, "width": 180, "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Source", "width": 150 } }
+    },
+    {
+      "alias": "provider",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "provider" },
+      "config": { "label": "Provider", "sortable": true, "width": 180, "filter": { "enabled": true, "visibility": "always", "type": "text", "match": "contains", "placeholder": "Provider", "width": 150 } }
+    },
+    {
+      "alias": "model",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "model" },
+      "config": { "label": "Model", "sortable": true, "width": 220, "filter": { "enabled": true, "visibility": "always", "type": "text", "match": "contains", "placeholder": "Model", "width": 170 } }
+    },
+    {
+      "alias": "user_login",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "user_login" },
+      "config": { "label": "User", "sortable": true, "width": 200, "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "User", "width": 160 } }
+    },
+    {
+      "alias": "request_context",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "request_context" },
+      "config": { "label": "Context", "sortable": true, "width": 150, "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Context", "width": 150 } }
+    },
+    {
+      "alias": "input_tokens",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "input_tokens" },
+      "config": { "label": "Input", "sortable": true, "type": "integer", "width": 110, "search": false }
+    },
+    {
+      "alias": "output_tokens",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "output_tokens" },
+      "config": { "label": "Output", "sortable": true, "type": "integer", "width": 110, "search": false }
+    },
+    {
+      "alias": "total_tokens",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "total_tokens" },
+      "config": { "label": "Total Tokens", "sortable": true, "type": "integer", "width": 125, "search": false }
+    },
+    {
+      "alias": "cached_input_tokens",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "cached_input_tokens" },
+      "config": { "label": "Cached", "sortable": true, "type": "integer", "width": 110, "search": false }
+    },
+    {
+      "alias": "reasoning_tokens",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "reasoning_tokens" },
+      "config": { "label": "Reasoning", "sortable": true, "type": "integer", "width": 115, "search": false }
+    },
+    {
+      "alias": "duration_ms",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "duration_ms" },
+      "config": { "label": "Duration ms", "sortable": true, "type": "number", "width": 125, "search": false }
+    },
+    {
+      "alias": "finish_reason",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "finish_reason" },
+      "config": { "label": "Finish Reason", "sortable": true, "width": 150, "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Finish reason", "width": 150 } }
+    },
+    {
+      "alias": "request_id",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "request_id" },
+      "config": { "label": "Request ID", "sortable": true, "visible": false, "width": 260 }
+    },
+    {
+      "alias": "provider_created_at",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "provider_created_at" },
+      "config": { "label": "Provider Timestamp", "sortable": true, "type": "datetime", "visible": false, "width": 175, "search": false }
+    },
+    {
+      "alias": "metrics_json",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "metrics_json" },
+      "config": { "label": "Metrics JSON", "visible": false, "width": 320, "search": false }
+    },
+    {
+      "alias": "details_json",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "details_json" },
+      "config": { "label": "Details JSON", "visible": false, "width": 320, "search": false }
+    },
+    {
+      "alias": "extra_json",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "extra_json" },
+      "config": { "label": "Extra JSON", "visible": false, "width": 320, "search": false }
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "display": "chartreportdisplay",
+  "schema": "missionbay_ai",
+  "table": "base3_missionbay_ai_usage",
+  "chart": {
+    "type": "line",
+    "title": "Token Usage over Time",
+    "dimension": {
+      "field": "usage_day",
+      "label": "Day",
+      "element": {
+        "type": "fn",
+        "function": "DATE_FORMAT",
+        "params": [
+          { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "occurred_at" },
+          "%Y-%m-%d"
+        ]
+      },
+      "formatter": {
+        "type": "date",
+        "format": "DD.MM.YYYY",
+        "valueFormat": "YYYY-MM-DD"
+      },
+      "bucketInterval": "day"
+    },
+    "measures": [
+      { "alias": "input_tokens", "label": "Input Tokens", "field": "input_tokens", "aggregation": "SUM" },
+      { "alias": "output_tokens", "label": "Output Tokens", "field": "output_tokens", "aggregation": "SUM" },
+      { "alias": "cached_input_tokens", "label": "Cached Input Tokens", "field": "cached_input_tokens", "aggregation": "SUM" },
+      { "alias": "reasoning_tokens", "label": "Reasoning Tokens", "field": "reasoning_tokens", "aggregation": "SUM" }
+    ],
+    "sort": { "by": "dimension", "direction": "asc" }
+  },
+  "fields": [
+    {
+      "alias": "occurred_at",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "occurred_at" },
+      "config": {
+        "label": "Period",
+        "filter": {
+          "enabled": true,
+          "visibility": "always",
+          "type": "daterange",
+          "match": "between",
+          "control": "chronopicker",
+          "format": "DD.MM.YYYY",
+          "valueFormat": "YYYY-MM-DD",
+          "defaultValue": { "from": "", "to": "" },
+          "initialValue": { "from": "", "to": "" },
+          "fromPlaceholder": "From",
+          "toPlaceholder": "To",
+          "width": 240,
+          "inputWidth": 110
+        }
+      }
+    },
+    {
+      "alias": "operation",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "operation" },
+      "config": {
+        "label": "Operation",
+        "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Operation", "width": 140 }
+      }
+    },
+    {
+      "alias": "provider",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "provider" },
+      "config": {
+        "label": "Provider",
+        "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Provider", "width": 150 }
+      }
+    },
+    {
+      "alias": "model",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "model" },
+      "config": {
+        "label": "Model",
+        "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Model", "width": 170 }
+      }
+    },
+    {
+      "alias": "source_name",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "source_name" },
+      "config": {
+        "label": "Source",
+        "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Source", "width": 150 }
+      }
+    },
+    {
+      "alias": "user_login",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "user_login" },
+      "config": {
+        "label": "User",
+        "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "User", "width": 150 }
+      }
+    },
+    {
+      "alias": "request_context",
+      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "request_context" },
+      "config": {
+        "label": "Context",
+        "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Context", "width": 150 }
+      }
+    },
+    { "alias": "input_tokens", "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "input_tokens" }, "config": { "label": "Input Tokens" } },
+    { "alias": "output_tokens", "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "output_tokens" }, "config": { "label": "Output Tokens" } },
+    { "alias": "cached_input_tokens", "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "cached_input_tokens" }, "config": { "label": "Cached Input Tokens" } },
+    { "alias": "reasoning_tokens", "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "reasoning_tokens" }, "config": { "label": "Reasoning Tokens" } }
+  ]
+}

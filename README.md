@@ -10,6 +10,8 @@ Inbound MCP server operation is documented in [docs/MCP.md](docs/MCP.md). Remote
 
 Configured OpenAI, OpenAI-compatible, and Mistral image generation plus shared AI usage logging are documented in [docs/IMAGE_GENERATION.md](docs/IMAGE_GENERATION.md). Generic service-driver discovery, external provider extensions, and the configured vector-search slot are documented in [docs/SERVICE_DRIVERS.md](docs/SERVICE_DRIVERS.md).
 
+MissionBay-owned AI usage reporting metadata lives in `local/DataHawk/source` and `local/Vizion`. DataHawk queries the recorded usage table directly and Vizion renders the report definitions; no reporting materialization layer is required for this reporting path.
+
 Mutation approval and deterministic resume are documented in [docs/AGENT_ACTION_APPROVAL_AND_RESUME.md](docs/AGENT_ACTION_APPROVAL_AND_RESUME.md). Durable server-owned suspension handles are documented in [docs/AGENT_DURABLE_SUSPENSIONS.md](docs/AGENT_DURABLE_SUSPENSIONS.md). Final authorization and optimistic-concurrency checks are documented in [docs/AGENT_MUTATION_COMMIT_GUARD.md](docs/AGENT_MUTATION_COMMIT_GUARD.md). Agent tool implementation, mutation annotations, and user-facing reviews are documented in [docs/AGENT_TOOL_DEVELOPMENT.md](docs/AGENT_TOOL_DEVELOPMENT.md). Tool input/output contracts are documented in [docs/AGENT_TOOL_CONTRACT_VALIDATION.md](docs/AGENT_TOOL_CONTRACT_VALIDATION.md). The staged path toward the broader interface-driven harness is tracked in [docs/AGENT_HARNESS_ROADMAP.md](docs/AGENT_HARNESS_ROADMAP.md). The fixed migration-cleanup countdown is documented in [docs/AGENT_LEGACY_CLEANUP.md](docs/AGENT_LEGACY_CLEANUP.md).
 
 ## Overview

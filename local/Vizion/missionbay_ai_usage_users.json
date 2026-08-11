@@ -1,0 +1,259 @@
+{
+  "display": "modulargridreportdisplay",
+  "schema": "missionbay_ai",
+  "table": "base3_missionbay_ai_usage",
+  "config": {
+    "paging": true,
+    "columnSelector": true,
+    "pageSize": 50,
+    "sortColumn": "total_tokens",
+    "sortDirection": "desc"
+  },
+  "group_by": [
+    {
+      "type": "fld",
+      "table": "base3_missionbay_ai_usage",
+      "field": "operation"
+    },
+    {
+      "type": "fld",
+      "table": "base3_missionbay_ai_usage",
+      "field": "user_id"
+    },
+    {
+      "type": "fld",
+      "table": "base3_missionbay_ai_usage",
+      "field": "user_login"
+    },
+    {
+      "type": "fld",
+      "table": "base3_missionbay_ai_usage",
+      "field": "request_context"
+    }
+  ],
+  "fields": [
+    {
+      "alias": "user_id",
+      "element": {
+        "type": "fld",
+        "table": "base3_missionbay_ai_usage",
+        "field": "user_id"
+      },
+      "config": {
+        "label": "User ID",
+        "sortable": true,
+        "type": "integer",
+        "visible": false,
+        "width": 110,
+        "search": false
+      }
+    },
+    {
+      "alias": "operation",
+      "element": {
+        "type": "fld",
+        "table": "base3_missionbay_ai_usage",
+        "field": "operation"
+      },
+      "config": {
+        "label": "Operation",
+        "sortable": true,
+        "width": 130,
+        "filter": {
+          "enabled": true,
+          "visibility": "always",
+          "type": "text",
+          "match": "contains",
+          "placeholder": "Operation",
+          "width": 130
+        }
+      }
+    },
+    {
+      "alias": "user_login",
+      "element": {
+        "type": "fld",
+        "table": "base3_missionbay_ai_usage",
+        "field": "user_login"
+      },
+      "config": {
+        "label": "User",
+        "sortable": true,
+        "width": 220,
+        "filter": {
+          "enabled": true,
+          "visibility": "always",
+          "type": "text",
+          "match": "contains",
+          "placeholder": "User",
+          "width": 170
+        }
+      }
+    },
+    {
+      "alias": "request_context",
+      "element": {
+        "type": "fld",
+        "table": "base3_missionbay_ai_usage",
+        "field": "request_context"
+      },
+      "config": {
+        "label": "Context",
+        "sortable": true,
+        "width": 160,
+        "filter": {
+          "enabled": true,
+          "visibility": "always",
+          "type": "text",
+          "match": "contains",
+          "placeholder": "Context",
+          "width": 150
+        }
+      }
+    },
+    {
+      "alias": "requests",
+      "element": {
+        "type": "fn",
+        "function": "COUNT",
+        "params": [
+          "*"
+        ]
+      },
+      "config": {
+        "label": "Requests",
+        "sortable": true,
+        "type": "integer",
+        "width": 110,
+        "search": false
+      }
+    },
+    {
+      "alias": "input_tokens",
+      "element": {
+        "type": "fn",
+        "function": "SUM",
+        "params": [
+          {
+            "type": "fld",
+            "table": "base3_missionbay_ai_usage",
+            "field": "input_tokens"
+          }
+        ]
+      },
+      "config": {
+        "label": "Input Tokens",
+        "sortable": true,
+        "type": "integer",
+        "width": 140,
+        "search": false
+      }
+    },
+    {
+      "alias": "output_tokens",
+      "element": {
+        "type": "fn",
+        "function": "SUM",
+        "params": [
+          {
+            "type": "fld",
+            "table": "base3_missionbay_ai_usage",
+            "field": "output_tokens"
+          }
+        ]
+      },
+      "config": {
+        "label": "Output Tokens",
+        "sortable": true,
+        "type": "integer",
+        "width": 140,
+        "search": false
+      }
+    },
+    {
+      "alias": "total_tokens",
+      "element": {
+        "type": "fn",
+        "function": "SUM",
+        "params": [
+          {
+            "type": "fld",
+            "table": "base3_missionbay_ai_usage",
+            "field": "total_tokens"
+          }
+        ]
+      },
+      "config": {
+        "label": "Total Tokens",
+        "sortable": true,
+        "type": "integer",
+        "width": 140,
+        "search": false
+      }
+    },
+    {
+      "alias": "cached_input_tokens",
+      "element": {
+        "type": "fn",
+        "function": "SUM",
+        "params": [
+          {
+            "type": "fld",
+            "table": "base3_missionbay_ai_usage",
+            "field": "cached_input_tokens"
+          }
+        ]
+      },
+      "config": {
+        "label": "Cached Tokens",
+        "sortable": true,
+        "type": "integer",
+        "visible": false,
+        "width": 140,
+        "search": false
+      }
+    },
+    {
+      "alias": "avg_duration_ms",
+      "element": {
+        "type": "fn",
+        "function": "AVG",
+        "params": [
+          {
+            "type": "fld",
+            "table": "base3_missionbay_ai_usage",
+            "field": "duration_ms"
+          }
+        ]
+      },
+      "config": {
+        "label": "Avg. Duration ms",
+        "sortable": true,
+        "type": "number",
+        "width": 150,
+        "search": false
+      }
+    },
+    {
+      "alias": "last_used",
+      "element": {
+        "type": "fn",
+        "function": "MAX",
+        "params": [
+          {
+            "type": "fld",
+            "table": "base3_missionbay_ai_usage",
+            "field": "occurred_at"
+          }
+        ]
+      },
+      "config": {
+        "label": "Last Used",
+        "sortable": true,
+        "type": "datetime",
+        "width": 170,
+        "search": false
+      }
+    }
+  ]
+}
