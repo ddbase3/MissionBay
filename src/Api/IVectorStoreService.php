@@ -17,9 +17,11 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Api\IRetrievalIndex;
+use AssistantFoundation\Api\IRetrievalIndexInspector;
 use Base3\Api\IBase;
 
-interface IVectorStoreService extends IAgentVectorStore, IBase {
+interface IVectorStoreService extends IRetrievalIndex, IRetrievalIndexInspector, IBase {
 
 	/**
 	 * @param array<string,mixed> $options

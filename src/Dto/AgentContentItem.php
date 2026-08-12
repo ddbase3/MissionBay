@@ -23,7 +23,7 @@ namespace MissionBay\Dto;
  * Unified input DTO for the embedding pipeline.
  *
  * Produced by: IAgentContentExtractor
- * Consumed by: AiEmbeddingNode (and then parsers/chunkers depending on action)
+ * Consumed by: AiIndexingNode (and then parsers/chunkers depending on action)
  *
  * Key principles:
  * - Explicit control fields: action + collectionKey are FIRST-CLASS fields, never hidden in metadata.

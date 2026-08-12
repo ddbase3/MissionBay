@@ -19,7 +19,10 @@ namespace MissionBay\Node\Ai;
 
 use Base3\Logger\Api\ILogger;
 use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentVectorStore;
+use AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use AssistantFoundation\Api\IRetrievalIndex;
+use AssistantFoundation\Dto\RetrievalIndexItem;
+use MissionBay\Retrieval\PhoneticTextMaterializer;
 use MissionBay\Api\IAgentContentExtractor;
 use MissionBay\Api\IAgentContentParser;
 use MissionBay\Api\IAgentChunker;
@@ -28,12 +31,9 @@ use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Dto\AgentParsedContent;
-use MissionBay\Dto\AgentEmbeddingChunk;
 use MissionBay\Node\AbstractAgentNode;
 
-final class AiEmbeddingNode extends AbstractAgentNode {
-
-	private const META_CONTENT_UUID = 'content_uuid';
+final class AiIndexingNode extends AbstractAgentNode {
 
 	protected ?ILogger $logger = null;
 
@@ -41,12 +41,20 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 	private int $debugMaxTextPreview = 180;
 	private int $debugMaxMetaKeys = 60;
 
+	public function __construct(
+		private readonly PhoneticTextMaterializer $phoneticTextMaterializer,
+		private readonly IRetrievalCollectionDefinition $collectionDefinition,
+		?string $id = null
+	) {
+		parent::__construct($id);
+	}
+
 	public static function getName(): string {
-		return 'aiembeddingnode';
+		return 'aiindexingnode';
 	}
 
 	public function getDescription(): string {
-		return 'Extraction → parsing → chunking → embedding → vector store. Node creates AgentEmbeddingChunk objects.';
+		return 'Extraction → parsing → chunking → search representation materialization → embedding → retrieval index.';
 	}
 
 	public function getInputDefinitions(): array {
@@ -133,8 +141,8 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			),
 			new AgentNodeDock(
 				name: 'vectordb',
-				description: 'Vector-store back-end.',
-				interface: IAgentVectorStore::class,
+				description: 'Retrieval-index back-end.',
+				interface: IRetrievalIndex::class,
 				maxConnections: 1,
 				required: true
 			),
@@ -197,7 +205,6 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			'num_chunks' => 0,
 
 			'num_vectors' => 0,
-			'num_vectors_skipped_empty' => 0,
 
 			'num_store_upserts' => 0,
 			'num_store_errors' => 0,
@@ -321,7 +328,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 		array $parsers,
 		array $chunkers,
 		IAiEmbeddingModel $embedder,
-		IAgentVectorStore $store,
+		IRetrievalIndex $store,
 		array &$stats
 	): array {
 		$action = strtolower(trim((string)$item->action));
@@ -348,18 +355,23 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 	protected function processDeleteItem(
 		AgentContentItem $item,
 		string $collectionKey,
-		IAgentVectorStore $store,
+		IRetrievalIndex $store,
 		array &$stats
 	): array {
-		$uuid = $this->requireMetadataString($item, self::META_CONTENT_UUID);
+		[$identityField, $identityValue] = $this->requireLifecycleIdentity($item, $collectionKey);
 
 		$deleted = $store->deleteByFilter($collectionKey, [
-			self::META_CONTENT_UUID => $uuid
+			$identityField => $identityValue
 		]);
 
 		$stats['num_deleted'] += (int)$deleted;
 
-		$this->log('Delete ok col=' . $collectionKey . ' content_uuid=' . $uuid . ' deleted=' . (string)$deleted);
+		$this->log(
+			'Delete ok col=' . $collectionKey
+			. ' identity_field=' . $identityField
+			. ' identity=' . (string)$identityValue
+			. ' deleted=' . (string)$deleted
+		);
 
 		return [
 			'action' => 'delete',
@@ -379,7 +391,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 		array $parsers,
 		array $chunkers,
 		IAiEmbeddingModel $embedder,
-		IAgentVectorStore $store,
+		IRetrievalIndex $store,
 		array &$stats
 	): array {
 		$hash = trim((string)$item->hash);
@@ -398,14 +410,19 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 		}
 
 		if ($mode === 'replace') {
-			$uuid = $this->requireMetadataString($item, self::META_CONTENT_UUID);
+			[$identityField, $identityValue] = $this->requireLifecycleIdentity($item, $collectionKey);
 
 			$deleted = $store->deleteByFilter($collectionKey, [
-				self::META_CONTENT_UUID => $uuid
+				$identityField => $identityValue
 			]);
 
 			$stats['num_deleted'] += (int)$deleted;
-			$this->log('Replace delete ok col=' . $collectionKey . ' content_uuid=' . $uuid . ' deleted=' . (string)$deleted);
+			$this->log(
+				'Replace delete ok col=' . $collectionKey
+				. ' identity_field=' . $identityField
+				. ' identity=' . (string)$identityValue
+				. ' deleted=' . (string)$deleted
+			);
 		}
 
 		$parsed = $this->stepParse($parsers, $item, $stats);
@@ -429,7 +446,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'stored' => 0, 'status' => 'no-chunks'];
 		}
 
-		$chunks = $this->buildEmbeddingChunks($item, $parsed, $rawChunks, $collectionKey, $hash);
+		$chunks = $this->buildIndexItems($item, $parsed, $rawChunks, $collectionKey, $hash);
 		if (!$chunks) {
 			return ['action' => 'upsert', 'collection_key' => $collectionKey, 'stored' => 0, 'status' => 'no-chunks'];
 		}
@@ -447,20 +464,31 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 		];
 	}
 
-	protected function requireMetadataString(AgentContentItem $item, string $key): string {
-		$value = $item->metadata[$key] ?? null;
-		if (!is_string($value)) {
-			$id = $item->id ?? '(no-id)';
-			throw new \RuntimeException("Missing required item metadata '$key' for item $id");
+	/**
+	 * @return array{0:string,1:string|int|float|bool}
+	 */
+	protected function requireLifecycleIdentity(AgentContentItem $item, string $collectionKey): array {
+		$contextSchema = $this->collectionDefinition->getContextSchema($collectionKey);
+		$field = trim((string)($contextSchema['group_field'] ?? ''));
+		if ($field === '') {
+			throw new \RuntimeException("Collection '$collectionKey' does not define a lifecycle group field.");
 		}
 
-		$value = trim($value);
-		if ($value === '') {
+		$value = $item->metadata[$field] ?? null;
+		if (!is_string($value) && !is_int($value) && !is_float($value) && !is_bool($value)) {
 			$id = $item->id ?? '(no-id)';
-			throw new \RuntimeException("Empty required item metadata '$key' for item $id");
+			throw new \RuntimeException("Missing scalar item metadata '$field' for item $id");
 		}
 
-		return $value;
+		if (is_string($value)) {
+			$value = trim($value);
+			if ($value === '') {
+				$id = $item->id ?? '(no-id)';
+				throw new \RuntimeException("Empty required item metadata '$field' for item $id");
+			}
+		}
+
+		return [$field, $value];
 	}
 
 	protected function stepParse(array $parsers, AgentContentItem $item, array &$stats): ?AgentParsedContent {
@@ -528,9 +556,9 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 
 	/**
 	 * @param array<int,array<string,mixed>> $rawChunks
-	 * @return AgentEmbeddingChunk[]
+	 * @return RetrievalIndexItem[]
 	 */
-	protected function buildEmbeddingChunks(
+	protected function buildIndexItems(
 		AgentContentItem $item,
 		AgentParsedContent $parsed,
 		array $rawChunks,
@@ -575,14 +603,20 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			}
 
 			$meta['num_chunks'] = $numChunks;
+			$phonetic = $this->phoneticTextMaterializer->materialize($collectionKey, $n['text'], $meta);
+			$phoneticPhrase = $this->phoneticTextMaterializer->materialize($collectionKey, $n['text']);
 
-			$out[] = new AgentEmbeddingChunk(
+			$out[] = new RetrievalIndexItem(
 				collectionKey: $collectionKey,
 				chunkIndex: $chunkIndex,
 				text: $n['text'],
 				hash: $hash,
 				metadata: $meta,
-				vector: []
+				denseVector: [],
+				representations: [
+					'phonetic' => $phonetic,
+					'phonetic_phrase' => $phoneticPhrase
+				]
 			);
 
 			$chunkIndex++;
@@ -594,7 +628,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 	}
 
 	/**
-	 * @param AgentEmbeddingChunk[] $chunks
+	 * @param RetrievalIndexItem[] $chunks
 	 */
 	protected function stepEmbedAssign(IAiEmbeddingModel $embedder, array &$chunks, array &$stats): void {
 		$texts = [];
@@ -639,97 +673,76 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			$this->log($msg);
 
 			$embeddings = $embedder->embed($texts);
-		} catch (\Throwable $e) {
+		}
+		catch (\Throwable $e) {
 			$stats['num_embed_errors']++;
 			$msg = 'Embedding failed: ' . $e->getMessage();
 			$this->log('Embed ERROR exception=' . get_class($e) . ' message=' . $e->getMessage());
 			throw new \RuntimeException($msg, 0, $e);
 		}
 
+		if(!is_array($embeddings) || count($embeddings) !== count($texts)) {
+			$stats['num_embed_errors']++;
+			throw new \RuntimeException(
+				'Embedding failed: expected ' . count($texts) . ' vectors, got ' . (is_array($embeddings) ? count($embeddings) : 0) . '.'
+			);
+		}
+
 		$dimensions = [];
 		foreach ($embeddings as $vector) {
-			if (is_array($vector) && $vector) {
-				$dimensions[count($vector)] = true;
+			if (!is_array($vector) || $vector === []) {
+				$stats['num_embed_errors']++;
+				throw new \RuntimeException('Embedding failed: provider returned an empty or invalid vector.');
 			}
+
+			$dimensions[count($vector)] = true;
 		}
 
 		$dimensionList = array_keys($dimensions);
 		sort($dimensionList);
 		$this->log(
-			'Embed vectors=' . (is_array($embeddings) ? count($embeddings) : 0)
+			'Embed vectors=' . count($embeddings)
 			. ' dimensions=' . ($dimensionList ? implode(',', $dimensionList) : 'none')
 		);
 
-		$assigned = 0;
 		foreach ($posToChunkIndex as $pos => $chunkIndex) {
-			$vec = $embeddings[$pos] ?? null;
-			if (!is_array($vec) || !$vec) {
-				$chunks[$chunkIndex]->vector = [];
-				continue;
-			}
-
-			$chunks[$chunkIndex]->vector = $vec;
+			$chunks[$chunkIndex]->denseVector = $embeddings[$pos];
 			$stats['num_vectors']++;
-			$assigned++;
-		}
-
-		if ($assigned === 0) {
-			$stats['num_embed_errors']++;
-			throw new \RuntimeException('Embedding failed: no vectors returned for non-empty input.');
 		}
 	}
 
 	/**
-	 * @param AgentEmbeddingChunk[] $chunks
+	 * @param RetrievalIndexItem[] $chunks
 	 */
-	protected function stepStoreChunks(IAgentVectorStore $store, array $chunks, array &$stats): int {
+	protected function stepStoreChunks(IRetrievalIndex $store, array $chunks, array &$stats): int {
 		$stored = 0;
-		$attempted = 0;
-		$storeErrorsBefore = (int)$stats['num_store_errors'];
-		$lastError = null;
 
 		foreach ($chunks as $chunk) {
-			if (trim($chunk->text) === '') {
-				continue;
+			if (trim($chunk->text) === '' || !$chunk->hasDenseVector()) {
+				throw new \RuntimeException('Index item reached storage without text or dense vector.');
 			}
-
-			if (!$chunk->hasVector()) {
-				$stats['num_vectors_skipped_empty']++;
-				$this->log(
-					'Store skip no-vector col=' . $chunk->collectionKey
-					. ' chunk=' . $chunk->chunkIndex
-					. ' hash=' . $chunk->hash
-				);
-				continue;
-			}
-
-			$attempted++;
 
 			try {
 				$store->upsert($chunk);
 				$stats['num_store_upserts']++;
 				$stored++;
-			} catch (\Throwable $e) {
+			}
+			catch (\Throwable $e) {
 				$stats['num_store_errors']++;
-				$lastError = $e;
 				$this->log(
 					'Store ERROR col=' . $chunk->collectionKey
 					. ' chunk=' . $chunk->chunkIndex
-					. ' dimensions=' . count($chunk->vector)
+					. ' dimensions=' . count($chunk->denseVector)
 					. ' hash=' . $chunk->hash
 					. ' exception=' . get_class($e)
 					. ' message=' . $e->getMessage()
 				);
+
+				throw new \RuntimeException('Retrieval index upsert failed: ' . $e->getMessage(), 0, $e);
 			}
 		}
 
-		$itemStoreErrors = (int)$stats['num_store_errors'] - $storeErrorsBefore;
-		$this->log('Store stored=' . $stored . ' attempted=' . $attempted . ' errors=' . $itemStoreErrors);
-
-		if ($attempted > 0 && $stored === 0 && $lastError instanceof \Throwable) {
-			throw new \RuntimeException('Vector store upsert failed: ' . $lastError->getMessage(), 0, $lastError);
-		}
-
+		$this->log('Store stored=' . $stored . ' attempted=' . count($chunks) . ' errors=0');
 		return $stored;
 	}
 
@@ -753,7 +766,7 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 
 	protected function log(string $msg): void {
 		if ($this->logger) {
-			$this->logger->log('AiEmbeddingNode', '[' . $this->getName() . '|' . $this->getId() . '] ' . $msg);
+			$this->logger->log('AiIndexingNode', '[' . $this->getName() . '|' . $this->getId() . '] ' . $msg);
 		}
 
 		if ($this->debugEnabled) {

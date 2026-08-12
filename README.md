@@ -256,38 +256,32 @@ public function execute(array $inputs, array $resources, AgentContext $ctx): arr
 
 ---
 
-## 🧠 RAG, Embedding, and Vector Pipelines
+## 🧠 Retrieval and Indexing Pipelines
 
-MissionBay also supports RAG-style pipelines through dedicated nodes and resources:
+MissionBay provides a generic multi-representation indexing and retrieval path:
 
 * **AiAssistantNode** – sends user prompts to a docked chat model, with memory and tool calls
-* **AiEmbeddingNode** – full embedding pipeline node (extract → parse → chunk → embed → store)
+* **AiIndexingNode** – deterministic extract → parse → chunk → search-representation → embed → store pipeline
 * **Content Extractor Resources** – fetch raw content from DB, HTTP, files, uploads
-* **Parser Resources** – select the right parser by priority (e.g. Docling, NoParser)
-* **Chunker Resources** – chunk parsed text into embedding-friendly segments
-* **Embedding Resources** – implement `IAiEmbeddingModel` (e.g. OpenAI embeddings)
-* **Vector Store Resources** – implement `IAgentVectorStore` for read/write similarity search
-* **LoggerResource** – used throughout for debug and audit logs
+* **Parser Resources** – normalize source content into text and metadata
+* **Chunker Resources** – split parsed text into indexable chunks
+* **Embedding Resources** – implement `IAiEmbeddingModel`
+* **ConfiguredVectorStoreAgentResource** – resolves a configured vector-store service and exposes the `IRetrievalIndex` contract
+* **RetrievalAgentTool** – semantic, lexical, phrase, phonetic and metadata-aware retrieval plus neighbor context
 
-Typical embedding flow:
+The shared retrieval contracts live in `AssistantFoundation`. MissionBay contains only generic implementations. Domain plugins provide an `IRetrievalCollectionDefinition` that owns the physical collection mapping, index schema, payload schema, filterable fields and agent-facing payload projection.
 
-1. Cron or another trigger executes a flow containing `aiembeddingnode`.
-2. One or more extractors collect raw content items.
-3. Parsers decide which content they support and normalize it into `{ text, meta }`.
-4. Chunkers split the text into chunks with IDs and metadata.
-5. An embedding resource batches texts and returns vectors.
-6. A vector store upserts vectors plus metadata.
-7. Duplicate detection is performed early via a content hash and `existsByHash()` on the vector store.
+Typical indexing flow:
 
-Example resources used for testing:
+1. A job or another trigger executes a flow containing `aiindexingnode`.
+2. One or more extractors collect raw content items and select a logical collection key.
+3. Parsers normalize supported content into text and metadata.
+4. Chunkers split the text into chunks.
+5. MissionBay materializes lexical and optional phonetic search representations.
+6. The configured embedding resource produces dense vectors.
+7. The configured retrieval index stores dense, sparse and payload representations according to the domain collection definition.
 
-* `DummyExtractorAgentResource` – simple static text list
-* `NoParserAgentResource` – pass-through parser for plain text
-* `NoChunkerAgentResource` – single-chunk strategy
-* `MemoryVectorStoreAgentResource` – in-memory vector store (non-persistent)
-* `OpenAiEmbeddingModelAgentResource` – OpenAI embedding API adapter
-
-These resources live under `MissionBay\Resource\...` and all extend `AbstractAgentResource`.
+The runtime does not derive domain collection names, ACL fields or agent-visible metadata in MissionBay itself. Those decisions belong to the consuming domain plugin.
 
 ---
 
@@ -420,7 +414,7 @@ RewriteRule ^mcp$ index.php?name=missionbaymcp&out=json [L,QSA]
 | SimpleOpenAiNode     | Basic OpenAI chat call                                   |
 | OpenAiResponseNode   | Stateful OpenAI conversation                             |
 | AiAssistantNode      | Tool-enabled assistant with memory and logging           |
-| AiEmbeddingNode      | Embedding pipeline (extract, parse, chunk, embed, store) |
+| AiIndexingNode       | Multi-representation indexing pipeline                   |
 | SwitchNode           | Branch by value (like switch)                            |
 | IfNode               | Simple true/false branching                              |
 | ForEachNode          | Loop over a list of items                                |
@@ -446,7 +440,7 @@ RewriteRule ^mcp$ index.php?name=missionbaymcp&out=json [L,QSA]
 * ✔️ JSON-based agent flows fully supported
 * ✔️ Configuration, context, logging, memory integrated
 * ✔️ Resource and docking system fully supported
-* ✔️ RAG and embedding pipelines available
+* ✔️ Hybrid retrieval and multi-representation indexing pipelines available
 * ⚧️ Subflows, validation and visual tools in progress
 
 ## 📜 License

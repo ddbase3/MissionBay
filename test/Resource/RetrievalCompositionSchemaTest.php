@@ -3,47 +3,178 @@
 namespace MissionBay\Test\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiEmbeddingModel;
+use AssistantFoundation\Api\IPhoneticEncoder;
+use AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use AssistantFoundation\Api\IRetrievalFilterProvider;
+use AssistantFoundation\Api\IRetrievalIndex;
+use AssistantFoundation\Dto\RetrievalSearchRequest;
+use AssistantFoundation\Dto\RetrievalSearchResult;
 use Base3\Api\IClassMap;
 use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentVectorFilter;
-use MissionBay\Api\IAgentVectorStore;
 use MissionBay\Resource\ConfiguredChatModelAgentResource;
 use MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
 use MissionBay\Resource\ConfiguredVectorStoreAgentResource;
 use MissionBay\Resource\EmbeddingCacheAgentResource;
 use MissionBay\Resource\RetrievalAgentTool;
 use MissionBay\Resource\RoutingChatModelAgentResource;
+use MissionBay\Retrieval\DefaultRetrievalCollectionDefinition;
+use MissionBay\Retrieval\PhoneticTextMaterializer;
 use PHPUnit\Framework\TestCase;
 
 final class RetrievalCompositionSchemaTest extends TestCase {
 
 	public function testRetrievalPublishesConfigSchemaAndComposableDocks(): void {
-		$resource = new RetrievalAgentTool($this->resolver(), 'retrieval');
+		$classMap = $this->createMock(IClassMap::class);
+		$definition = new DefaultRetrievalCollectionDefinition();
+		$resource = new RetrievalAgentTool(
+			$this->resolver(),
+			$definition,
+			new PhoneticTextMaterializer($classMap, $definition),
+			'retrieval'
+		);
 		$schema = $resource->getSchema();
 		$docks = $this->docksByName($resource->getDockDefinitions());
 
 		$this->assertSame('integer', $schema['properties']['limit']['type']);
-		$this->assertSame(3, $schema['properties']['limit']['default']);
+		$this->assertSame(5, $schema['properties']['limit']['default']);
 		$this->assertSame(1, $schema['properties']['limit']['minimum']);
 		$this->assertSame(['number', 'null'], $schema['properties']['minscore']['type']);
-		$this->assertSame(0.75, $schema['properties']['minscore']['default']);
+		$this->assertNull($schema['properties']['minscore']['default']);
+		$this->assertSame(20, $schema['properties']['candidate_limit']['default']);
 		$this->assertSame('default', $schema['properties']['collectionkey']['default']);
 
 		$this->assertSame(IAiEmbeddingModel::class, $docks['embedding']->interface);
 		$this->assertSame(1, $docks['embedding']->maxConnections);
 		$this->assertTrue($docks['embedding']->required);
-		$this->assertSame(IAgentVectorStore::class, $docks['vectorstore']->interface);
+		$this->assertSame(IRetrievalIndex::class, $docks['vectorstore']->interface);
 		$this->assertSame(1, $docks['vectorstore']->maxConnections);
 		$this->assertTrue($docks['vectorstore']->required);
-		$this->assertSame(IAgentVectorFilter::class, $docks['filters']->interface);
+		$this->assertSame(IRetrievalFilterProvider::class, $docks['filters']->interface);
 		$this->assertNull($docks['filters']->maxConnections);
 		$this->assertFalse($docks['filters']->required);
 		$this->assertSame(ILogger::class, $docks['logger']->interface);
 		$this->assertSame(1, $docks['logger']->maxConnections);
 		$this->assertFalse($docks['logger']->required);
+	}
+
+
+	public function testRetrievalToolDefinitionsMakeSearchModeAndContextReferenceExplicit(): void {
+		$classMap = $this->createMock(IClassMap::class);
+		$definition = new DefaultRetrievalCollectionDefinition();
+		$resource = new RetrievalAgentTool(
+			$this->resolver(),
+			$definition,
+			new PhoneticTextMaterializer($classMap, $definition),
+			'retrieval'
+		);
+
+		$definitions = [];
+		foreach($resource->getToolDefinitions() as $tool) {
+			$name = $tool['function']['name'] ?? null;
+			if(is_string($name)) {
+				$definitions[$name] = $tool['function'];
+			}
+		}
+
+		$this->assertStringContainsString(
+			'explicitly requests semantic, lexical/BM25/full-text, phonetic, or exact search',
+			$definitions['retrieval_search']['description']
+		);
+		$this->assertArrayNotHasKey(
+			'phonetic_phrases',
+			$definitions['retrieval_search']['parameters']['properties']
+		);
+		$this->assertStringContainsString(
+			'In mode=phonetic each phrase is phonetic-normalized',
+			$definitions['retrieval_search']['parameters']['properties']['phrases']['description']
+		);
+		$this->assertStringContainsString(
+			'required_terms for required terms',
+			$definitions['retrieval_search']['description']
+		);
+		$this->assertStringContainsString(
+			'do not claim it was applied',
+			$definitions['retrieval_search']['description']
+		);
+		$this->assertStringContainsString(
+			'Never invent unavailable filter fields',
+			$definitions['retrieval_search']['parameters']['properties']['filters']['description']
+		);
+		$this->assertStringContainsString(
+			'use required_terms instead',
+			$definitions['retrieval_search']['parameters']['properties']['phrases']['description']
+		);
+		$this->assertStringContainsString(
+			'retrieval_ref value verbatim',
+			$definitions['retrieval_context']['description']
+		);
+		$this->assertStringContainsString(
+			'Do not derive or reconstruct',
+			$definitions['retrieval_context']['parameters']['properties']['retrieval_ref']['description']
+		);
+	}
+
+
+	public function testPhoneticModeRoutesPhrasesToPhoneticPhraseConstraints(): void {
+		$encoder = new class implements IPhoneticEncoder {
+			public static function getName(): string {
+				return 'testphoneticencoder';
+			}
+
+			public function getAlgorithm(): string {
+				return 'test';
+			}
+
+			public function getVersion(): string {
+				return 'v1';
+			}
+
+			public function encode(string $token): string {
+				return mb_substr(mb_strtolower(trim($token)), 0, 1);
+			}
+		};
+
+		$classMap = $this->createMock(IClassMap::class);
+		$classMap->method('getInstanceByInterfaceName')
+			->with(IPhoneticEncoder::class, 'testphoneticencoder')
+			->willReturn($encoder);
+
+		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition->method('getBackendCollectionName')->with('default')->willReturn('content_v2');
+		$definition->method('getPhoneticEncoderNames')->with('default', [])->willReturn(['testphoneticencoder']);
+		$definition->method('getAgentFilterSchema')->with('default')->willReturn([]);
+
+		$index = $this->createMock(IRetrievalIndex::class);
+		$index->expects($this->once())
+			->method('search')
+			->with($this->callback(function(RetrievalSearchRequest $request): bool {
+				$this->assertSame(RetrievalSearchRequest::MODE_PHONETIC, $request->mode);
+				$this->assertSame([], $request->phrases);
+				$this->assertSame(['phtestv1xa phtestv1xb'], $request->phoneticPhrases);
+				return true;
+			}))
+			->willReturn(new RetrievalSearchResult([], ['phonetic']));
+
+		$resource = new RetrievalAgentTool(
+			$this->resolver(),
+			$definition,
+			new PhoneticTextMaterializer($classMap, $definition),
+			'retrieval'
+		);
+		$context = $this->createMock(IAgentContext::class);
+		$resource->init(['vectorstore' => [$index]], $context);
+
+		$result = $resource->callTool('retrieval_search', [
+			'query' => 'alpha beta',
+			'mode' => 'phonetic',
+			'phrases' => ['alpha beta']
+		], $context);
+
+		$this->assertSame(['phonetic'], $result['channels']);
 	}
 
 	public function testConfiguredLeafResourcesExposeEnabledServiceIds(): void {

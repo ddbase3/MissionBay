@@ -1,186 +1,117 @@
-# MissionBay RAG Payload Specification (v1)
+# MissionBay Retrieval Payload Specification
 
-This document defines the unified, extensible payload format used by MissionBay's RAG (Retrieval Augmented Generation) pipeline. It standardizes how extracted, parsed, chunked and embedded content is stored in vector databases (e.g., Qdrant).
+This document defines the generic payload boundary used by MissionBay indexing and retrieval. MissionBay does not define one universal domain payload. Each consuming domain provides an `AssistantFoundation\Api\IRetrievalCollectionDefinition` that owns its collection schema and external retrieval view.
 
-The goals of this specification:
+## 1. Responsibility split
 
-* Consistent and flat structure (vector DB friendly)
-* Support for multiple source types (files, DB, CMS, websites, API endpoints)
-* Full reference and navigation support
-* ACL-based access control
-* Hierarchical content navigation (chapter trees, knowledge structures)
-* Extendable metadata design
+```text
+AssistantFoundation
+  stable retrieval contracts and DTOs
 
----
+MissionBay
+  generic indexing, retrieval, Qdrant and phonetic implementations
 
-## 1. Overview
-
-Each stored vector has one associated **payload object**, containing the textual content and all metadata required for:
-
-* Identifying the data
-* Reconstructing origin and references
-* Enforcing permissions
-* Context-aware retrieval
-* Structurally filtered search (e.g., subtree queries)
-
-Payloads must remain **flat**, since Qdrant performs best with shallow key/value structures.
-
----
-
-## 2. Required Fields
-
-These fields are **always** present.
-
-```json
-{
-	"text": "... chunk text ...",
-	"hash": "... document or chunk hash ...",
-	"source_id": "... global source identifier ...",
-	"chunktoken": "... stable chunk identifier ...",
-	"chunk_index": 0
-}
+Domain plugin
+  logical collection keys
+  physical collection mapping
+  payload schema
+  index schema
+  filter allowlist
+  agent context projection
 ```
 
-### Definitions:
+A generic MissionBay class must not assume domain-specific field names, ACL conventions or backend collection names.
 
-* **text** — The actual content of the chunk.
-* **hash** — Hash of the original source (or content segment). Used for duplicate detection.
-* **source_id** — Logical ID of the content source (file, DB-record, URL, CMS node, etc.).
-* **chunktoken** — A stable identifier for the chunk (e.g., `hash + index`).
-* **chunk_index** — Position of this chunk within the source.
+## 2. RetrievalIndexItem
 
----
+`RetrievalIndexItem` is the write-side transfer object produced by the indexing node. It carries:
 
-## 3. Recommended Fields
+* logical collection key
+* chunk text
+* dense vector
+* stable hash
+* chunk position
+* domain metadata
+* additional search representations such as phonetic text
 
-These fields are optional but strongly recommended when available.
+The domain collection definition validates the item and converts it to the final stored payload.
 
-### 3.1 Source & Reference Information
+## 3. Stored payload
 
-```json
-{
-	"filename": "manual.pdf",
-	"url": "https://example.com/page",
-	"content_id": 4711
-}
+The stored payload may contain:
+
+* text used for retrieval and context
+* stable document/chunk identity
+* source metadata
+* ACL metadata
+* phrase-search fields
+* technical hashes and index markers
+
+The exact fields are returned by:
+
+```php
+IRetrievalCollectionDefinition::getPayloadSchema()
 ```
 
-* **filename** — Original file name (if document-based).
-* **url** — URL of original content (web/CMS/API).
-* **content_id** — ID of the record in its origin system.
+A backend such as Qdrant may create payload indexes from this schema. Payload fields therefore have an explicit owner instead of being inferred by the generic vector-store implementation.
 
-This enables the LLM to return clickable reference links.
+## 4. Search representations
 
----
+The collection definition returns backend-neutral representation metadata through:
 
-## 4. Access Control (ACL)
-
-```json
-{
-	"allowed_user_ids": [1002, 1005],
-	"allowed_group_ids": [200, 201]
-}
+```php
+IRetrievalCollectionDefinition::getIndexSchema()
 ```
 
-Payload-level ACL ensures:
+A collection may define, for example:
 
-* Vector retrieval filters out restricted chunks *before prompting*
-* Sensitive content never reaches the LLM
+* dense semantic vectors
+* sparse lexical/BM25 vectors
+* sparse phonetic vectors
+* phrase-search payload fields
+* phonetic phrase-search payload fields
 
----
+Not every collection must expose every representation. MissionBay reads the definition instead of hard-coding a domain layout.
 
-## 5. Structural Navigation
+## 5. Agent filter boundary
 
-This enables subtree-based retrieval ("search inside chapter X including all subchapters").
+Stored fields are not automatically filterable by an agent.
 
-```json
-{
-	"path": [1, 42, 57],
-	"parent_id": 42,
-	"section": "7.2 – Eligibility Requirements"
-}
+```php
+IRetrievalCollectionDefinition::getAgentFilterSchema()
 ```
 
-### Definitions:
+returns only fields and operators that a caller may expose as agent-controlled filters. Mandatory server-side filters, especially ACL constraints, are supplied independently and merged with agent filters. Agent filters may narrow retrieval but must not relax mandatory restrictions.
 
-* **path** — Array of hierarchical IDs from the root to this node.
-* **parent_id** — Direct parent node.
-* **section** — Human-readable structural label.
+## 6. Agent context projection
 
-With this structure, the system can:
+Stored payload is not automatically returned to the LLM.
 
-* Fetch all content belonging to a chapter recursively
-* Limit retrieval to specific knowledge trees
-* Allow fine-grained contextual RAG queries
-
----
-
-## 6. Additional Metadata
-
-```json
-{
-	"doctype": "pdf",
-	"lang": "de",
-	"created_at": "2024-09-01",
-	"updated_at": "2024-09-15"
-}
+```php
+IRetrievalCollectionDefinition::getAgentContextFields()
+IRetrievalCollectionDefinition::projectPayload()
 ```
 
-Useful for filtering, debugging, indexing and ranking.
+define the external retrieval view. Technical hashes, ACL arrays, internal index fields or other stored metadata remain private unless the domain explicitly exposes them.
 
----
+This projection is applied inside the retrieval-index boundary before a `RetrievalHit` reaches `RetrievalAgentTool`.
 
-## 7. Full Payload Example
+## 7. Neighbor context
 
-This shows the complete recommended shape.
+Collections that support neighbor retrieval define their document grouping and chunk position fields through:
 
-```json
-{
-	"text": "...",
-	"hash": "c93f...",
-	"source_id": "upload-4711",
-	"chunktoken": "c93f-0",
-	"chunk_index": 0,
-
-	"filename": "Skript Antragsstellung.txt",
-	"url": null,
-	"content_id": 57,
-
-	"allowed_user_ids": [1002],
-	"allowed_group_ids": [5, 7],
-
-	"path": [1, 42, 57],
-	"parent_id": 42,
-	"section": "Grundlagen",
-
-	"doctype": "text",
-	"lang": "de",
-	"created_at": "2024-09-01",
-	"updated_at": "2024-09-01"
-}
+```php
+IRetrievalCollectionDefinition::getContextSchema()
 ```
 
----
+`IRetrievalIndex::context()` reloads neighboring chunks while applying the supplied mandatory retrieval filter again. A previously returned point identifier therefore does not bypass access restrictions.
 
-## 8. Principles
+## 8. Design rules
 
-* Payload must be **flat**.
-* Fields must be **optional-friendly**.
-* No nested structures except arrays of primitives.
-* All values must be JSON-serializable.
-* Vector store should not enforce a schema.
-* Search and filtering should operate entirely on payload level.
-
----
-
-## 9. Future Extensions
-
-* Source-type-specific metadata modules
-* Embedding origin signatures
-* Multi-modal chunk descriptors (images, audio)
-* Semantic-rank field for improved retrieval ordering
-
----
-
-This concludes the **MissionBay RAG Payload Specification (v1)**.
-
+* one stored point may carry multiple search representations
+* collection names and domain fields belong to the domain collection definition
+* generic MissionBay code does not invent payload keys
+* payload schema and agent-visible context are separate concerns
+* mandatory access filters are independent from agent-controlled filters
+* retrieval results are projected before they leave the retrieval layer
+* domain plugins may evolve their schema without introducing domain assumptions into MissionBay

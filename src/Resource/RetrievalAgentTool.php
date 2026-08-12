@@ -17,44 +17,47 @@
 
 namespace MissionBay\Resource;
 
-use Base3\Api\ISchemaProvider;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentTool;
 use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentVectorFilter;
-use MissionBay\Api\IAgentVectorStore;
 use AssistantFoundation\Api\IAiEmbeddingModel;
+use AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use AssistantFoundation\Api\IRetrievalFilterProvider;
+use AssistantFoundation\Api\IRetrievalIndex;
+use AssistantFoundation\Dto\RetrievalHit;
+use AssistantFoundation\Dto\RetrievalSearchRequest;
+use Base3\Api\ISchemaProvider;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Agent\AgentNodeDock;
+use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Api\IAgentTool;
+use MissionBay\Retrieval\PhoneticTextMaterializer;
 
 /**
- * RetrievalAgentTool
+ * Read-only multi-representation retrieval tool.
  *
- * Read-only vector retrieval tool.
- * No collection lifecycle side effects.
+ * Domain-specific collection schemas, mandatory filters, filter exposure, and
+ * result projection remain outside this generic tool.
  */
-class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, ISchemaProvider {
+final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, ISchemaProvider {
 
-	protected IAgentConfigValueResolver $resolver;
+	private int $limit = 5;
+	private int $candidateLimit = 20;
+	private ?float $denseMinScore = null;
+	private string $collectionKey = 'default';
 
-	protected int $limit = 3;
-	protected ?float $minScore = 0.75;
+	private ?IAiEmbeddingModel $embeddingModel = null;
+	private ?IRetrievalIndex $retrievalIndex = null;
+	private ?ILogger $logger = null;
 
-	/**
-	 * Collection routing is decided upstream and carried here as config.
-	 */
-	protected string $collectionKey = 'default';
+	/** @var IRetrievalFilterProvider[] */
+	private array $filters = [];
 
-	protected ?IAiEmbeddingModel $embeddingModel = null;
-	protected ?IAgentVectorStore $vectorStore = null;
-	protected ?ILogger $logger = null;
-
-	/** @var IAgentVectorFilter[] */
-	protected array $filters = [];
-
-	public function __construct(IAgentConfigValueResolver $resolver, ?string $id = null) {
+	public function __construct(
+		private readonly IAgentConfigValueResolver $resolver,
+		private readonly IRetrievalCollectionDefinition $collectionDefinition,
+		private readonly PhoneticTextMaterializer $phoneticTextMaterializer,
+		?string $id = null
+	) {
 		parent::__construct($id);
-		$this->resolver = $resolver;
 	}
 
 	public static function getName(): string {
@@ -62,7 +65,7 @@ class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, IS
 	}
 
 	public function getDescription(): string {
-		return 'Performs read-only similarity search on a vector store.';
+		return 'Searches a retrieval index using semantic, lexical, phrase, phonetic, and metadata constraints.';
 	}
 
 	public function getSchema(): array {
@@ -72,14 +75,21 @@ class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, IS
 			'properties' => [
 				'limit' => [
 					'type' => 'integer',
-					'description' => 'Maximum number of vector-search results returned for one retrieval call.',
-					'default' => 3,
+					'description' => 'Default maximum number of retrieval results.',
+					'default' => 5,
+					'minimum' => 1,
+					'maximum' => 20
+				],
+				'candidate_limit' => [
+					'type' => 'integer',
+					'description' => 'Candidates collected per retrieval channel before fusion.',
+					'default' => 20,
 					'minimum' => 1
 				],
 				'minscore' => [
 					'type' => ['number', 'null'],
-					'description' => 'Optional minimum similarity score passed to the vector store.',
-					'default' => 0.75
+					'description' => 'Optional minimum score for a single semantic search channel.',
+					'default' => null
 				],
 				'collectionkey' => [
 					'type' => 'string',
@@ -95,22 +105,22 @@ class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, IS
 		return [
 			new AgentNodeDock(
 				name: 'embedding',
-				description: 'Embedding model used to vectorize the retrieval query.',
+				description: 'Embedding model used for semantic retrieval channels.',
 				interface: IAiEmbeddingModel::class,
 				maxConnections: 1,
 				required: true
 			),
 			new AgentNodeDock(
 				name: 'vectorstore',
-				description: 'Vector store searched by the retrieval tool.',
-				interface: IAgentVectorStore::class,
+				description: 'Retrieval index searched by this tool.',
+				interface: IRetrievalIndex::class,
 				maxConnections: 1,
 				required: true
 			),
 			new AgentNodeDock(
 				name: 'filters',
-				description: 'Optional vector filters merged before search.',
-				interface: IAgentVectorFilter::class,
+				description: 'Mandatory retrieval filters applied in addition to agent-requested filters.',
+				interface: IRetrievalFilterProvider::class,
 				maxConnections: null,
 				required: false
 			),
@@ -127,18 +137,19 @@ class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, IS
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
 
-		if (isset($config['limit'])) {
-			$this->limit = (int)$this->resolver->resolveValue($config['limit']);
+		if(isset($config['limit'])) {
+			$this->limit = max(1, min(20, (int)$this->resolver->resolveValue($config['limit'])));
 		}
-		if (array_key_exists('minscore', $config)) {
+		if(isset($config['candidate_limit'])) {
+			$this->candidateLimit = max(1, (int)$this->resolver->resolveValue($config['candidate_limit']));
+		}
+		if(array_key_exists('minscore', $config)) {
 			$value = $this->resolver->resolveValue($config['minscore']);
-			$this->minScore = $value === null || $value === '' ? null : (float)$value;
+			$this->denseMinScore = $value === null || $value === '' ? null : (float)$value;
 		}
-
-		if (isset($config['collectionkey'])) {
-			$key = (string)$this->resolver->resolveValue($config['collectionkey']);
-			$key = trim($key);
-			if ($key !== '') {
+		if(isset($config['collectionkey'])) {
+			$key = trim((string)$this->resolver->resolveValue($config['collectionkey']));
+			if($key !== '') {
 				$this->collectionKey = $key;
 			}
 		}
@@ -146,175 +157,570 @@ class RetrievalAgentTool extends AbstractAgentResource implements IAgentTool, IS
 
 	public function init(array $resources, IAgentContext $context): void {
 		$this->embeddingModel = $this->pickResource($resources, 'embedding', IAiEmbeddingModel::class);
-		$this->vectorStore = $this->pickResource($resources, 'vectorstore', IAgentVectorStore::class);
+		$this->retrievalIndex = $this->pickResource($resources, 'vectorstore', IRetrievalIndex::class);
 		$this->logger = $this->pickResource($resources, 'logger', ILogger::class);
-		$this->filters = $this->pickResources($resources, 'filters', IAgentVectorFilter::class);
+		$this->filters = $this->pickResources($resources, 'filters', IRetrievalFilterProvider::class);
 
-		$this->log(
-			"Initialized collectionKey={$this->collectionKey}, limit={$this->limit}, minScore={$this->minScore}, filters=" . count($this->filters)
-		);
+		$this->collectionDefinition->getBackendCollectionName($this->collectionKey);
+		$this->log('Initialized collectionKey=' . $this->collectionKey . ', mandatoryFilters=' . count($this->filters));
 	}
 
 	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Knowledge Base Lookup',
-			'category' => 'knowledge',
-			'tags' => ['retrieval', 'search'],
-			'priority' => 50,
-			'readOnlyHint' => true,
-			'mutation' => false,
-			'requiresApproval' => false,
-			'function' => [
-				'name' => 'retrieval_search',
-				'description' => 'Searches the vector store for documents relevant to a query.',
-				'parameters' => [
-					'type' => 'object',
-					'properties' => [
-						'query' => [
-							'type' => 'string',
-							'description' => 'The natural language query to search for.'
-						]
-					],
-					'required' => ['query']
+		return [
+			[
+				'type' => 'function',
+				'label' => 'Retrieval Search',
+				'category' => 'retrieval',
+				'tags' => ['retrieval', 'search', 'hybrid'],
+				'priority' => 50,
+				'readOnlyHint' => true,
+				'mutation' => false,
+				'requiresApproval' => false,
+				'function' => [
+					'name' => 'retrieval_search',
+					'description' => 'Searches indexed content. Use auto when no search strategy is requested. If the user explicitly requests semantic, lexical/BM25/full-text, phonetic, or exact search, set mode to semantic, lexical, phonetic, or exact accordingly. Use phrases for ordered multi-token phrases: in phonetic mode they are matched after phonetic normalization; in all other modes they are matched in the normal text index. Use required_terms for required terms and excluded_terms for exclusions. Use only metadata filters exposed by this schema; if a requested filter is unavailable, do not claim it was applied and do not silently substitute an unfiltered search.',
+					'parameters' => $this->getSearchToolParameters()
+				]
+			],
+			[
+				'type' => 'function',
+				'label' => 'Retrieval Context',
+				'category' => 'retrieval',
+				'tags' => ['retrieval', 'context', 'neighbors'],
+				'priority' => 45,
+				'readOnlyHint' => true,
+				'mutation' => false,
+				'requiresApproval' => false,
+				'function' => [
+					'name' => 'retrieval_context',
+					'description' => 'Loads neighboring chunks around an exact hit returned by retrieval_search. Pass that hit\'s retrieval_ref value verbatim. The reference is opaque and must not be derived or reconstructed from other result fields.',
+					'parameters' => [
+						'type' => 'object',
+						'properties' => [
+							'retrieval_ref' => [
+								'type' => 'string',
+								'description' => 'Opaque retrieval reference copied verbatim from the selected retrieval_search result. Do not derive or reconstruct this value from any other field.'
+							],
+							'before' => [
+								'type' => 'integer',
+								'minimum' => 0,
+								'maximum' => 10,
+								'default' => 1
+							],
+							'after' => [
+								'type' => 'integer',
+								'minimum' => 0,
+								'maximum' => 10,
+								'default' => 1
+							]
+						],
+						'required' => ['retrieval_ref'],
+						'additionalProperties' => false
+					]
 				]
 			]
-		]];
+		];
 	}
 
 	public function callTool(string $toolName, array $arguments, IAgentContext $context): array {
-		if ($toolName !== 'retrieval_search') {
-			throw new \InvalidArgumentException("Unsupported tool: $toolName");
-		}
-		if (!$this->embeddingModel || !$this->vectorStore) {
-			return $this->error('Retrieval tool not fully initialized.');
+		return match($toolName) {
+			'retrieval_search' => $this->callSearch($arguments),
+			'retrieval_context' => $this->callContext($arguments),
+			default => throw new \InvalidArgumentException("Unsupported tool: {$toolName}")
+		};
+	}
+
+	private function callSearch(array $arguments): array {
+		if(!$this->retrievalIndex instanceof IRetrievalIndex) {
+			return $this->error('Retrieval index not initialized.');
 		}
 
-		$query = $arguments['query'] ?? null;
-		if (!is_string($query) || trim($query) === '') {
+		$query = trim((string)($arguments['query'] ?? ''));
+		if($query === '') {
 			return $this->error('Missing required parameter: query');
 		}
-		$query = trim($query);
 
-		$filterSpec = $this->buildMergedFilterSpec();
-
-		$this->log(
-			"Search collectionKey={$this->collectionKey} query=\"{$query}\" filter=" .
-			($filterSpec ? json_encode($filterSpec) : 'null')
-		);
-
-		try {
-			$vector = $this->embeddingModel->embed([$query])[0] ?? null;
-		} catch (\Throwable $e) {
-			return $this->error('Embedding generation failed: ' . $e->getMessage());
-		}
-
-		if (!is_array($vector) || $vector === []) {
-			return $this->error('No embedding generated for query.');
+		$mode = strtolower(trim((string)($arguments['mode'] ?? RetrievalSearchRequest::MODE_AUTO)));
+		if(!in_array($mode, $this->getSearchModes(), true)) {
+			return $this->error('Unsupported retrieval mode: ' . $mode);
 		}
 
 		try {
-			$results = $this->vectorStore->search(
-				$this->collectionKey,
-				$vector,
-				$this->limit,
-				$this->minScore,
-				$filterSpec
+			$agentFilter = $this->buildAgentFilter($arguments['filters'] ?? []);
+			$filter = $this->mergeFilterSpecs($this->buildMandatoryFilter(), $agentFilter);
+			$phraseInput = $this->normalizeStringList($arguments['phrases'] ?? []);
+			$phrases = $mode === RetrievalSearchRequest::MODE_PHONETIC ? [] : $phraseInput;
+			$phoneticPhrases = $mode === RetrievalSearchRequest::MODE_PHONETIC
+				? $this->materializePhrases($phraseInput)
+				: [];
+			$requiredTerms = $this->normalizeStringList($arguments['required_terms'] ?? []);
+			$excludedTerms = $this->normalizeStringList($arguments['excluded_terms'] ?? []);
+			$phoneticMode = strtolower(trim((string)($arguments['phonetic'] ?? 'auto')));
+			$phoneticText = $this->buildPhoneticQuery($query, $mode, $phoneticMode);
+			$denseVector = $this->requiresDenseVector($mode) ? $this->embedQuery($query) : [];
+			$topK = max(1, min(20, (int)($arguments['top_k'] ?? $this->limit)));
+
+			$request = new RetrievalSearchRequest(
+				collectionKey: $this->collectionKey,
+				query: $query,
+				mode: $mode,
+				denseVector: $denseVector,
+				filterSpec: $filter,
+				phrases: $phrases,
+				phoneticPhrases: $phoneticPhrases,
+				requiredTerms: $requiredTerms,
+				excludedTerms: $excludedTerms,
+				phoneticText: $phoneticText,
+				limit: $topK,
+				candidateLimit: max($topK, $this->candidateLimit),
+				denseMinScore: $this->denseMinScore
 			);
-		} catch (\Throwable $e) {
-			return $this->error('Vector store search failed: ' . $e->getMessage());
+
+			$result = $this->retrievalIndex->search($request);
+		}
+		catch(\Throwable $e) {
+			return $this->error('Retrieval search failed: ' . $e->getMessage());
 		}
 
 		return [
 			'query' => $query,
-			'collectionKey' => $this->collectionKey,
-			'filter' => $filterSpec,
-			'results' => $results
+			'mode' => $mode,
+			'channels' => $result->getChannels(),
+			'results' => array_map(
+				fn(RetrievalHit $hit): array => $this->hitToAgentResult($hit),
+				$result->getHits()
+			)
 		];
 	}
 
-	// -------------------------------------------------
-	// Filter merge
-	// -------------------------------------------------
+	private function callContext(array $arguments): array {
+		if(!$this->retrievalIndex instanceof IRetrievalIndex) {
+			return $this->error('Retrieval index not initialized.');
+		}
 
-	protected function buildMergedFilterSpec(): ?array {
+		$retrievalRef = trim((string)($arguments['retrieval_ref'] ?? ''));
+		if($retrievalRef === '') {
+			return $this->error('Missing required parameter: retrieval_ref');
+		}
+
+		$before = max(0, min(10, (int)($arguments['before'] ?? 1)));
+		$after = max(0, min(10, (int)($arguments['after'] ?? 1)));
+
+		try {
+			$result = $this->retrievalIndex->context(
+				$this->collectionKey,
+				$retrievalRef,
+				$before,
+				$after,
+				$this->buildMandatoryFilter()
+			);
+		}
+		catch(\Throwable $e) {
+			return $this->error('Retrieval context failed: ' . $e->getMessage());
+		}
+
+		return [
+			'retrieval_ref' => $retrievalRef,
+			'chunks' => array_map(
+				fn(RetrievalHit $hit): array => $this->hitToAgentResult($hit),
+				$result->getHits()
+			)
+		];
+	}
+
+	/** @return array<string,mixed> */
+	private function getSearchToolParameters(): array {
+		return [
+			'type' => 'object',
+			'properties' => [
+				'query' => [
+					'type' => 'string',
+					'description' => 'Query text.'
+				],
+				'mode' => [
+					'type' => 'string',
+					'enum' => $this->getSearchModes(),
+					'default' => RetrievalSearchRequest::MODE_AUTO,
+					'description' => 'Retrieval strategy. Use auto only when the user did not request a specific strategy. Explicit semantic, lexical/BM25/full-text, phonetic, or exact requests must use the matching mode.'
+				],
+				'filters' => $this->getAgentFilterArraySchema(),
+				'phrases' => $this->stringArraySchema('Ordered multi-token phrases. In mode=phonetic each phrase is phonetic-normalized before ordered phrase matching; in all other modes it is matched in the normal text index. For a term that merely must occur, use required_terms instead.'),
+				'required_terms' => $this->stringArraySchema('Terms that must occur in the normal text index. Use this when the user requires a word or term to be present; do not encode it as a phrase unless contiguous phrase order is required.'),
+				'excluded_terms' => $this->stringArraySchema('Terms that must not occur in the normal text index.'),
+				'phonetic' => [
+					'type' => 'string',
+					'enum' => ['auto', 'on', 'off'],
+					'default' => 'auto',
+					'description' => 'Controls the phonetic retrieval channel. auto only enables it for suitable short name-like queries.'
+				],
+				'top_k' => [
+					'type' => 'integer',
+					'minimum' => 1,
+					'maximum' => 20,
+					'default' => $this->limit
+				]
+			],
+			'required' => ['query'],
+			'additionalProperties' => false
+		];
+	}
+
+	/** @return array<string,mixed> */
+	private function getAgentFilterArraySchema(): array {
+		$schema = $this->collectionDefinition->getAgentFilterSchema($this->collectionKey);
+		$variants = [];
+
+		foreach($schema as $field => $definition) {
+			if(!is_array($definition)) continue;
+
+			$type = strtolower(trim((string)($definition['type'] ?? '')));
+			$operators = $definition['operators'] ?? [];
+			if(!is_array($operators)) continue;
+
+			foreach($operators as $operator) {
+				$operator = strtolower(trim((string)$operator));
+				if($operator === '') continue;
+
+				$variants[] = [
+					'type' => 'object',
+					'properties' => [
+						'field' => ['type' => 'string', 'enum' => [(string)$field]],
+						'operator' => ['type' => 'string', 'enum' => [$operator]],
+						'value' => $this->getFilterValueSchema($type, $operator)
+					],
+					'required' => ['field', 'operator', 'value'],
+					'additionalProperties' => false
+				];
+			}
+		}
+
+		$out = [
+			'type' => 'array',
+			'description' => 'Optional domain-approved metadata filters. Only the listed field/operator combinations are accepted. Never invent unavailable filter fields; if the user requests one, report that the filter is unavailable instead of claiming it was applied.',
+			'default' => []
+		];
+		if($variants === []) {
+			$out['maxItems'] = 0;
+			$out['items'] = ['type' => 'object'];
+		}
+		else {
+			$out['items'] = ['oneOf' => $variants];
+		}
+
+		return $out;
+	}
+
+	/** @return array<string,mixed> */
+	private function getFilterValueSchema(string $type, string $operator): array {
+		if(in_array($operator, ['text', 'phrase'], true)) {
+			return ['type' => 'string', 'minLength' => 1];
+		}
+
+		$scalar = $this->getFilterScalarSchema($type);
+		if($operator === 'in') {
+			return [
+				'type' => 'array',
+				'items' => $scalar,
+				'minItems' => 1,
+				'uniqueItems' => true
+			];
+		}
+		if($operator === 'range') {
+			return [
+				'type' => 'object',
+				'properties' => [
+					'gt' => $scalar,
+					'gte' => $scalar,
+					'lt' => $scalar,
+					'lte' => $scalar
+				],
+				'minProperties' => 1,
+				'additionalProperties' => false
+			];
+		}
+
+		return $scalar;
+	}
+
+	/** @return array<string,mixed> */
+	private function getFilterScalarSchema(string $type): array {
+		return match($type) {
+			'integer' => ['type' => 'integer'],
+			'float' => ['type' => 'number'],
+			'bool', 'boolean' => ['type' => 'boolean'],
+			'datetime' => [
+				'type' => 'string',
+				'description' => 'Qdrant datetime value, for example 2026-08-12T10:30:00Z or 2026-08-12 10:30:00.'
+			],
+			default => ['type' => 'string', 'minLength' => 1]
+		};
+	}
+
+	/** @return string[] */
+	private function getSearchModes(): array {
+		return [
+			RetrievalSearchRequest::MODE_AUTO,
+			RetrievalSearchRequest::MODE_HYBRID,
+			RetrievalSearchRequest::MODE_SEMANTIC,
+			RetrievalSearchRequest::MODE_LEXICAL,
+			RetrievalSearchRequest::MODE_PHONETIC,
+			RetrievalSearchRequest::MODE_EXACT
+		];
+	}
+
+	/** @return array<string,mixed> */
+	private function stringArraySchema(string $description): array {
+		return [
+			'type' => 'array',
+			'description' => $description,
+			'items' => ['type' => 'string'],
+			'default' => []
+		];
+	}
+
+	/** @return array<float> */
+	private function embedQuery(string $query): array {
+		if(!$this->embeddingModel instanceof IAiEmbeddingModel) {
+			throw new \RuntimeException('Embedding model not initialized.');
+		}
+
+		$vector = $this->embeddingModel->embed([$query])[0] ?? null;
+		if(!is_array($vector) || $vector === []) {
+			throw new \RuntimeException('No embedding generated for query.');
+		}
+		return $vector;
+	}
+
+	private function requiresDenseVector(string $mode): bool {
+		return in_array($mode, [
+			RetrievalSearchRequest::MODE_AUTO,
+			RetrievalSearchRequest::MODE_HYBRID,
+			RetrievalSearchRequest::MODE_SEMANTIC
+		], true);
+	}
+
+	private function buildPhoneticQuery(string $query, string $mode, string $phoneticMode): string {
+		if(!in_array($phoneticMode, ['auto', 'on', 'off'], true)) {
+			throw new \InvalidArgumentException('Unsupported phonetic mode: ' . $phoneticMode);
+		}
+		if($phoneticMode === 'off') {
+			if($mode === RetrievalSearchRequest::MODE_PHONETIC) {
+				throw new \InvalidArgumentException('Phonetic retrieval mode cannot be combined with phonetic=off.');
+			}
+			return '';
+		}
+
+		$enabled = $phoneticMode === 'on'
+			|| $mode === RetrievalSearchRequest::MODE_PHONETIC
+			|| ($phoneticMode === 'auto' && $this->isSuitablePhoneticQuery($query));
+
+		return $enabled ? $this->phoneticTextMaterializer->materialize($this->collectionKey, $query) : '';
+	}
+
+	private function isSuitablePhoneticQuery(string $query): bool {
+		if(preg_match('/\d|§|https?:\/\/|www\.|@/iu', $query) === 1) {
+			return false;
+		}
+
+		$matches = [];
+		preg_match_all('/\p{L}[\p{L}\p{M}\'’\-]*/u', $query, $matches);
+		$tokens = array_values(array_filter(
+			$matches[0] ?? [],
+			static fn(string $token): bool => mb_strlen(trim($token)) >= 3
+		));
+
+		return count($tokens) >= 1 && count($tokens) <= 4;
+	}
+
+	/** @param string[] $phrases @return string[] */
+	private function materializePhrases(array $phrases): array {
+		$out = [];
+		foreach($phrases as $phrase) {
+			$materialized = $this->phoneticTextMaterializer->materialize($this->collectionKey, $phrase);
+			if($materialized !== '') $out[] = $materialized;
+		}
+		return $out;
+	}
+
+	/** @return array<string,mixed>|null */
+	private function buildMandatoryFilter(): ?array {
 		$out = null;
-
-		foreach ($this->filters as $filter) {
-			$spec = $filter->getFilterSpec();
-			if (is_array($spec)) {
+		foreach($this->filters as $filter) {
+			$spec = $filter->getRetrievalFilter();
+			if(is_array($spec)) {
 				$out = $this->mergeFilterSpecs($out, $spec);
 			}
 		}
-
 		return $out;
 	}
 
-	protected function mergeFilterSpecs(?array $a, array $b): array {
-		$out = $a ?? [];
+	/** @return array<string,mixed>|null */
+	private function buildAgentFilter(mixed $filters): ?array {
+		if($filters === null || $filters === []) return null;
+		if(!is_array($filters)) {
+			throw new \InvalidArgumentException('filters must be an array.');
+		}
 
-		$out['must'] = $this->mergeFilterGroup($out['must'] ?? null, $b['must'] ?? null);
-		$out['any'] = $this->mergeFilterGroup($out['any'] ?? null, $b['any'] ?? null);
-		$out['must_not'] = $this->mergeFilterGroup($out['must_not'] ?? null, $b['must_not'] ?? null);
-
-		if (empty($out['must'])) unset($out['must']);
-		if (empty($out['any'])) unset($out['any']);
-		if (empty($out['must_not'])) unset($out['must_not']);
-
-		return $out;
-	}
-
-	protected function mergeFilterGroup(mixed $a, mixed $b): array {
-		$out = is_array($a) ? $a : [];
-		if (!is_array($b)) return $out;
-
-		foreach ($b as $key => $value) {
-			if (!isset($out[$key])) {
-				$out[$key] = $value;
-			} else {
-				$out[$key] = $this->mergeFieldConstraint($out[$key], $value);
+		$schema = $this->collectionDefinition->getAgentFilterSchema($this->collectionKey);
+		$must = [];
+		foreach($filters as $filter) {
+			if(!is_array($filter)) {
+				throw new \InvalidArgumentException('Each retrieval filter must be an object.');
 			}
+
+			$field = trim((string)($filter['field'] ?? ''));
+			$operator = strtolower(trim((string)($filter['operator'] ?? '')));
+			if($field === '' || !isset($schema[$field]) || !is_array($schema[$field])) {
+				throw new \InvalidArgumentException("Retrieval filter field '{$field}' is not available.");
+			}
+
+			$operators = $schema[$field]['operators'] ?? [];
+			if(!is_array($operators) || !in_array($operator, $operators, true)) {
+				throw new \InvalidArgumentException("Retrieval filter operator '{$operator}' is not allowed for field '{$field}'.");
+			}
+
+			$value = $filter['value'] ?? null;
+			$this->validateFilterValue($field, $operator, $value, $schema[$field]);
+			$must[] = ['field' => $field, 'operator' => $operator, 'value' => $value];
+		}
+
+		return $must === [] ? null : ['must' => $must];
+	}
+
+	/** @param array<string,mixed> $definition */
+	private function validateFilterValue(string $field, string $operator, mixed $value, array $definition): void {
+		$type = strtolower(trim((string)($definition['type'] ?? '')));
+
+		if(in_array($operator, ['text', 'phrase'], true)) {
+			if($type !== 'text' || !is_string($value) || trim($value) === '') {
+				throw new \InvalidArgumentException("Retrieval {$operator} filter for '{$field}' requires non-empty text.");
+			}
+			return;
+		}
+
+		if($operator === 'in') {
+			if(!is_array($value) || $value === []) {
+				throw new \InvalidArgumentException("Retrieval in-filter for '{$field}' requires a non-empty array.");
+			}
+			foreach($value as $item) {
+				$this->assertFilterScalarType($field, $type, $item);
+			}
+			return;
+		}
+
+		if($operator === 'range') {
+			if(!is_array($value)) {
+				throw new \InvalidArgumentException("Retrieval range filter for '{$field}' requires an object value.");
+			}
+
+			$bounds = array_intersect(['gt', 'gte', 'lt', 'lte'], array_keys($value));
+			if($bounds === []) {
+				throw new \InvalidArgumentException("Retrieval range filter for '{$field}' requires gt, gte, lt, or lte.");
+			}
+			if(count($bounds) !== count($value)) {
+				throw new \InvalidArgumentException("Retrieval range filter for '{$field}' contains unsupported bounds.");
+			}
+			foreach($bounds as $bound) {
+				$this->assertRangeBoundType($field, $type, $value[$bound]);
+			}
+			return;
+		}
+
+		if($operator === 'eq') {
+			$this->assertFilterScalarType($field, $type, $value);
+			return;
+		}
+
+		throw new \InvalidArgumentException("Unsupported retrieval filter operator '{$operator}'.");
+	}
+
+	private function assertFilterScalarType(string $field, string $type, mixed $value): void {
+		$valid = match($type) {
+			'integer' => is_int($value),
+			'float' => is_int($value) || is_float($value),
+			'bool', 'boolean' => is_bool($value),
+			'keyword', 'text', 'uuid', 'datetime' => is_string($value) && trim($value) !== '',
+			default => false
+		};
+
+		if(!$valid) {
+			throw new \InvalidArgumentException("Retrieval filter for '{$field}' requires a {$type} value.");
+		}
+	}
+
+	private function assertRangeBoundType(string $field, string $type, mixed $value): void {
+		$valid = match($type) {
+			'integer' => is_int($value),
+			'float' => is_int($value) || is_float($value),
+			'datetime' => is_string($value) && trim($value) !== '',
+			default => false
+		};
+
+		if(!$valid) {
+			throw new \InvalidArgumentException("Retrieval range filter for '{$field}' is not valid for type '{$type}'.");
+		}
+	}
+
+	/** @return array<string,mixed> */
+	private function mergeFilterSpecs(?array $a, ?array $b): array {
+		$out = [];
+		foreach(['must', 'should', 'must_not'] as $group) {
+			$left = is_array($a[$group] ?? null) ? $a[$group] : [];
+			$right = is_array($b[$group] ?? null) ? $b[$group] : [];
+			$merged = array_values(array_merge($left, $right));
+			if($merged !== []) $out[$group] = $merged;
 		}
 		return $out;
 	}
 
-	protected function mergeFieldConstraint(mixed $a, mixed $b): mixed {
-		if (!is_array($a) && !is_array($b)) {
-			return $a === $b ? $a : [$a, $b];
+	/** @return string[] */
+	private function normalizeStringList(mixed $value): array {
+		if($value === null || $value === []) return [];
+		if(!is_array($value)) {
+			throw new \InvalidArgumentException('Expected an array of strings.');
 		}
 
-		$aa = is_array($a) ? $a : [$a];
-		$bb = is_array($b) ? $b : [$b];
+		$out = [];
+		foreach($value as $item) {
+			if(!is_string($item)) {
+				throw new \InvalidArgumentException('Expected an array of strings.');
+			}
 
-		return array_values(array_unique(array_merge($aa, $bb), SORT_REGULAR));
+			$item = trim($item);
+			if($item !== '') $out[$item] = $item;
+		}
+		return array_values($out);
 	}
 
-	// -------------------------------------------------
-	// Helpers
-	// -------------------------------------------------
+	/** @return array<string,mixed> */
+	private function hitToAgentResult(RetrievalHit $hit): array {
+		$out = [
+			'retrieval_ref' => $hit->id,
+			'context' => $hit->payload
+		];
+		if($hit->score !== null) $out['score'] = $hit->score;
+		return $out;
+	}
 
 	private function pickResource(array $resources, string $dock, string $class): mixed {
 		$list = $resources[$dock] ?? null;
-		return (is_array($list) && isset($list[0]) && $list[0] instanceof $class) ? $list[0] : null;
+		return is_array($list) && isset($list[0]) && $list[0] instanceof $class ? $list[0] : null;
 	}
 
 	private function pickResources(array $resources, string $dock, string $class): array {
 		$list = $resources[$dock] ?? null;
-		if (!is_array($list)) return [];
-
-		return array_values(array_filter(
-			$list,
-			static fn($r) => $r instanceof $class
-		));
+		if(!is_array($list)) return [];
+		return array_values(array_filter($list, static fn($resource) => $resource instanceof $class));
 	}
 
-	protected function log(string $message): void {
-		if ($this->logger) {
+	private function log(string $message): void {
+		if($this->logger) {
 			$this->logger->log('RetrievalAgentTool', '[' . $this->getId() . '] ' . $message);
 		}
 	}
 
-	protected function error(string $message): array {
+	/** @return array{error:string} */
+	private function error(string $message): array {
 		$this->log('ERROR: ' . $message);
 		return ['error' => $message];
 	}

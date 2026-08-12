@@ -17,24 +17,25 @@
 
 namespace MissionBay\Resource;
 
+use AssistantFoundation\Api\IRetrievalIndex;
+use AssistantFoundation\Api\IRetrievalIndexInspector;
+use AssistantFoundation\Dto\RetrievalIndexItem;
+use AssistantFoundation\Dto\RetrievalSearchRequest;
+use AssistantFoundation\Dto\RetrievalSearchResult;
 use Base3\Api\IClassMap;
 use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentVectorStore;
 use MissionBay\Api\IVectorStoreService;
 use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Dto\AgentEmbeddingChunk;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
 /**
- * ConfiguredVectorStoreAgentResource
- *
- * Loads a configured vector store service and delegates vector storage
+ * Loads a configured vector-store service and delegates retrieval-index
  * operations to the matching backend adapter.
  */
-final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredServiceAgentResource implements IAgentVectorStore, ISchemaProvider {
+final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredServiceAgentResource implements IRetrievalIndex, IRetrievalIndexInspector, ISchemaProvider {
 
 	private const VECTORSTORE_SETTINGS_GROUP = 'service-vectorstore';
 	private const CONNECTION_SETTINGS_GROUP = 'connection';
@@ -57,9 +58,8 @@ final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredService
 	}
 
 	public function getDescription(): string {
-		return 'Loads a configured vector store service by id and delegates vector store operations.';
+		return 'Loads a configured vector-store service by id and delegates retrieval-index operations.';
 	}
-
 
 	public function getSchema(): array {
 		return $this->buildConfiguredServiceSchema(
@@ -68,14 +68,14 @@ final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredService
 			'Configured vector-store service id from the service-vectorstore settings group.'
 		);
 	}
+
 	public function setConfig(array $config): void {
 		parent::setConfig($config);
-
 		$this->service = null;
 	}
 
-	public function upsert(AgentEmbeddingChunk $chunk): void {
-		$this->ensureService()->upsert($chunk);
+	public function upsert(RetrievalIndexItem $item): void {
+		$this->ensureService()->upsert($item);
 	}
 
 	public function existsByHash(string $collectionKey, string $hash): bool {
@@ -90,8 +90,18 @@ final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredService
 		return $this->ensureService()->deleteByFilter($collectionKey, $filter);
 	}
 
-	public function search(string $collectionKey, array $vector, int $limit = 3, ?float $minScore = null, ?array $filterSpec = null): array {
-		return $this->ensureService()->search($collectionKey, $vector, $limit, $minScore, $filterSpec);
+	public function search(RetrievalSearchRequest $request): RetrievalSearchResult {
+		return $this->ensureService()->search($request);
+	}
+
+	public function context(
+		string $collectionKey,
+		string $pointId,
+		int $before = 1,
+		int $after = 1,
+		?array $filterSpec = null
+	): RetrievalSearchResult {
+		return $this->ensureService()->context($collectionKey, $pointId, $before, $after, $filterSpec);
 	}
 
 	public function createCollection(string $collectionKey): void {
@@ -104,6 +114,22 @@ final class ConfiguredVectorStoreAgentResource extends AbstractConfiguredService
 
 	public function getInfo(string $collectionKey): array {
 		return $this->ensureService()->getInfo($collectionKey);
+	}
+
+	public function inspectPoints(
+		string $collectionKey,
+		int $limit = 10,
+		?array $filterSpec = null,
+		string|int|null $offset = null,
+		bool $withVectorSummary = false
+	): array {
+		return $this->ensureService()->inspectPoints(
+			$collectionKey,
+			$limit,
+			$filterSpec,
+			$offset,
+			$withVectorSummary
+		);
 	}
 
 	protected function ensureConfigured(): void {

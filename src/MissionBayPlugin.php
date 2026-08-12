@@ -35,6 +35,7 @@ use Base3\Settings\Api\ISettingsStore;
 use Base3\State\Api\IStateStore;
 use Base3\Usermanager\Api\IUsermanager;
 use AssistantFoundation\Api\IAgentActionPolicy;
+use AssistantFoundation\Api\IRetrievalCollectionDefinition;
 use AssistantFoundation\Api\IAiModelConfigurationProvider;
 use AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
 use AssistantFoundation\Api\ITextToSpeechService;
@@ -48,7 +49,6 @@ use MissionBay\Agent\AgentConfigValueResolver;
 use MissionBay\Agent\AgentContextFactory;
 use MissionBay\Agent\AgentFlowFactory;
 use MissionBay\Agent\AgentNodeFactory;
-use MissionBay\Agent\AgentRagPayloadNormalizer;
 use MissionBay\Agent\AgentResourceFactory;
 use MissionBay\Cache\AgentToolCacheKeyBuilder;
 use MissionBay\Cache\StateStoreAgentToolResultCache;
@@ -76,7 +76,6 @@ use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowCompiler;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Api\IAgentNodeFactory;
-use MissionBay\Api\IAgentRagPayloadNormalizer;
 use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IMcpClientFactory;
@@ -90,6 +89,8 @@ use MissionBay\Mcp\Client\McpHmacRequestSigner;
 use MissionBay\Mcp\Client\McpStreamableHttpTransport;
 use MissionBay\Mcp\McpProfileAuthorizer;
 use MissionBay\Mcp\McpToolProfileRepository;
+use MissionBay\Retrieval\DefaultRetrievalCollectionDefinition;
+use MissionBay\Retrieval\PhoneticTextMaterializer;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentStateSynchronizer;
@@ -313,7 +314,11 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentMemoryProfileResolver::class),
 				$c->get(AgentContextProfileResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentRagPayloadNormalizer::class, fn() => new AgentRagPayloadNormalizer(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IRetrievalCollectionDefinition::class, fn() => new DefaultRetrievalCollectionDefinition(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(PhoneticTextMaterializer::class, fn($c) => new PhoneticTextMaterializer(
+				$c->get(IClassMap::class),
+				$c->get(IRetrievalCollectionDefinition::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 
 			->set(AgentCapabilityCatalogBuilder::class, fn() => new AgentCapabilityCatalogBuilder(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentCapabilityDiscoveryService::class, fn($c) => new AgentCapabilityDiscoveryService(
