@@ -80,6 +80,7 @@ use MissionBay\Api\IAgentResourceFactory;
 use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IMcpClientFactory;
 use MissionBay\Api\IMcpTransport;
+use MissionBay\Api\IRetrievalSearchService;
 use MissionBay\Listener\MissionBayAiUsageLogListener;
 use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Mcp\Client\McpClientFactory;
@@ -137,6 +138,7 @@ use MissionBay\Service\AgentComponentFlowBuilder;
 use MissionBay\Service\AgentComponentPresetMaterializer;
 use MissionBay\Service\AgentComponentPresetToolTestService;
 use MissionBay\Service\AgentComponentPresetRepository;
+use MissionBay\Service\RetrievalSearchService;
 use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
 use MissionBay\Speech\ConfiguredRealtimeSpeechToTextSessionService;
@@ -428,6 +430,11 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentMutationCommitGuardService::class),
 				$c->get(IEventManager::class),
 				$c->get(AgentToolDefinitionSemantics::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IRetrievalSearchService::class, fn($c) => new RetrievalSearchService(
+				$c->get(IAgentComponentPresetRepository::class),
+				$c->get(IAgentComponentPresetMaterializer::class),
+				$c->get(AgentComponentPresetToolTestService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentStagePipelineResolver::class, fn($c) => new AgentStagePipelineResolver(
 				$c->get(IComponentResolver::class),
