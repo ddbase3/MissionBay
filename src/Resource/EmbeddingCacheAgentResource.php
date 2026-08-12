@@ -173,9 +173,16 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 
 		$model = $this->getModelScope();
 		$salt = $this->getSaltScope();
+		$dimensions = $this->getDimensionsScope();
 
-		$hashes = $this->buildHashes($texts, $model, $salt);
-		$cached = $this->loadCachedVectors($hashes, $model);
+		$this->log(
+			'Cache scope model=' . $model
+			. ' dimensions=' . ($dimensions ?? 'default')
+			. ' salt=' . $salt
+		);
+
+		$hashes = $this->buildHashes($texts, $model, $salt, $dimensions);
+		$cached = $this->loadCachedVectors($hashes, $model, $dimensions);
 
 		$result = array_fill(0, count($texts), []);
 		$missingTexts = [];
@@ -287,6 +294,18 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 		return 'default';
 	}
 
+	private function getDimensionsScope(): ?int {
+		$options = $this->embedding ? $this->embedding->getOptions() : [];
+		$dimensions = $options['dimensions'] ?? null;
+
+		if (!is_numeric($dimensions)) {
+			return null;
+		}
+
+		$dimensions = (int)$dimensions;
+		return $dimensions > 0 ? $dimensions : null;
+	}
+
 	private function ensureTable(): void {
 		if ($this->tableReady) {
 			return;
@@ -315,12 +334,17 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 		$this->log('Cache table ready: ' . $this->table);
 	}
 
-	private function buildHashes(array $texts, string $model, string $salt): array {
+	private function buildHashes(array $texts, string $model, string $salt, ?int $dimensions): array {
 		$out = [];
+		$scope = $model . "\n" . $salt;
+
+		if ($dimensions !== null) {
+			$scope .= "\n" . 'dimensions=' . $dimensions;
+		}
 
 		foreach ($texts as $t) {
 			$norm = $this->normalizeText((string)$t);
-			$out[] = hash('sha256', $model . "\n" . $salt . "\n" . $norm);
+			$out[] = hash('sha256', $scope . "\n" . $norm);
 		}
 
 		return $out;
@@ -332,7 +356,7 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 		return trim($text);
 	}
 
-	private function loadCachedVectors(array $hashes, string $model): array {
+	private function loadCachedVectors(array $hashes, string $model, ?int $expectedDimensions): array {
 		$this->db->connect();
 
 		$in = $this->buildInList($hashes);
@@ -343,7 +367,7 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 		$table = $this->escapeIdent($this->table);
 		$modelEsc = $this->db->escape($model);
 
-		$sql = "SELECT hash, vector_json
+		$sql = "SELECT hash, dimension, vector_json
 			FROM {$table}
 			WHERE model = '{$modelEsc}' AND hash IN ({$in})";
 
@@ -352,7 +376,17 @@ final class EmbeddingCacheAgentResource extends AbstractAgentResource implements
 		$out = [];
 		foreach ($rows as $r) {
 			$hash = (string)($r['hash'] ?? '');
+			$dimension = isset($r['dimension']) && is_numeric($r['dimension']) ? (int)$r['dimension'] : null;
 			$json = (string)($r['vector_json'] ?? '');
+
+			if ($expectedDimensions !== null && $dimension !== $expectedDimensions) {
+				$this->log(
+					'Cache dimension mismatch hash=' . $hash
+					. ' stored=' . ($dimension ?? 'unknown')
+					. ' expected=' . $expectedDimensions
+				);
+				continue;
+			}
 
 			$vec = json_decode($json, true);
 			if ($hash !== '' && is_array($vec)) {

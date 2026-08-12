@@ -613,18 +613,54 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 			return;
 		}
 
-		$this->log('Embed texts=' . count($texts));
-
 		try {
+			$options = $embedder->getOptions();
+			$model = trim((string)($options['model'] ?? ''));
+			$serviceId = trim((string)($options['embedding_id'] ?? ''));
+			$serviceDriver = trim((string)($options['service_driver'] ?? ''));
+			$configuredDimensions = isset($options['dimensions']) && is_numeric($options['dimensions'])
+				? (int)$options['dimensions']
+				: null;
+
+			$msg = 'Embed texts=' . count($texts)
+				. ' embedder=' . get_class($embedder);
+			if ($serviceId !== '') {
+				$msg .= ' service=' . $serviceId;
+			}
+			if ($serviceDriver !== '') {
+				$msg .= ' driver=' . $serviceDriver;
+			}
+			if ($model !== '') {
+				$msg .= ' model=' . $model;
+			}
+			if ($configuredDimensions !== null) {
+				$msg .= ' configured_dimensions=' . $configuredDimensions;
+			}
+			$this->log($msg);
+
 			$embeddings = $embedder->embed($texts);
 		} catch (\Throwable $e) {
 			$stats['num_embed_errors']++;
-			$this->log('Embed ERROR ' . $e->getMessage());
-			return;
+			$msg = 'Embedding failed: ' . $e->getMessage();
+			$this->log('Embed ERROR exception=' . get_class($e) . ' message=' . $e->getMessage());
+			throw new \RuntimeException($msg, 0, $e);
 		}
 
-		$this->log('Embed vectors=' . (is_array($embeddings) ? count($embeddings) : 0));
+		$dimensions = [];
+		foreach ($embeddings as $vector) {
+			if (is_array($vector) && $vector) {
+				$dimensions[count($vector)] = true;
+			}
+		}
 
+		$dimensionList = array_keys($dimensions);
+		sort($dimensionList);
+		$this->log(
+			'Embed vectors=' . (is_array($embeddings) ? count($embeddings) : 0)
+			. ' dimensions=' . ($dimensionList ? implode(',', $dimensionList) : 'none')
+		);
+
+		$assigned = 0;
 		foreach ($posToChunkIndex as $pos => $chunkIndex) {
 			$vec = $embeddings[$pos] ?? null;
 			if (!is_array($vec) || !$vec) {
@@ -634,6 +670,12 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 
 			$chunks[$chunkIndex]->vector = $vec;
 			$stats['num_vectors']++;
+			$assigned++;
+		}
+
+		if ($assigned === 0) {
+			$stats['num_embed_errors']++;
+			throw new \RuntimeException('Embedding failed: no vectors returned for non-empty input.');
 		}
 	}
 
@@ -642,6 +684,9 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 	 */
 	protected function stepStoreChunks(IAgentVectorStore $store, array $chunks, array &$stats): int {
 		$stored = 0;
+		$attempted = 0;
+		$storeErrorsBefore = (int)$stats['num_store_errors'];
+		$lastError = null;
 
 		foreach ($chunks as $chunk) {
 			if (trim($chunk->text) === '') {
@@ -650,8 +695,15 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 
 			if (!$chunk->hasVector()) {
 				$stats['num_vectors_skipped_empty']++;
+				$this->log(
+					'Store skip no-vector col=' . $chunk->collectionKey
+					. ' chunk=' . $chunk->chunkIndex
+					. ' hash=' . $chunk->hash
+				);
 				continue;
 			}
+
+			$attempted++;
 
 			try {
 				$store->upsert($chunk);
@@ -659,11 +711,24 @@ final class AiEmbeddingNode extends AbstractAgentNode {
 				$stored++;
 			} catch (\Throwable $e) {
 				$stats['num_store_errors']++;
-				$this->log('Store ERROR ' . $e->getMessage());
+				$lastError = $e;
+				$this->log(
+					'Store ERROR col=' . $chunk->collectionKey
+					. ' chunk=' . $chunk->chunkIndex
+					. ' dimensions=' . count($chunk->vector)
+					. ' hash=' . $chunk->hash
+					. ' exception=' . get_class($e)
+					. ' message=' . $e->getMessage()
+				);
 			}
 		}
 
-		$this->log('Store stored=' . $stored . ' errors=' . (int)$stats['num_store_errors']);
+		$itemStoreErrors = (int)$stats['num_store_errors'] - $storeErrorsBefore;
+		$this->log('Store stored=' . $stored . ' attempted=' . $attempted . ' errors=' . $itemStoreErrors);
+
+		if ($attempted > 0 && $stored === 0 && $lastError instanceof \Throwable) {
+			throw new \RuntimeException('Vector store upsert failed: ' . $lastError->getMessage(), 0, $lastError);
+		}
 
 		return $stored;
 	}
