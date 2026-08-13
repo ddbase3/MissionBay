@@ -182,8 +182,13 @@
 
 				<div data-role="formfeedback" class="embcfg-form-feedback" style="display:none"></div>
 
+				<div data-role="testresult" class="embcfg-test-result" style="display:none">
+					<div data-role="testmeta" class="embcfg-test-meta"></div>
+					<pre data-role="testpreview" class="embcfg-test-preview"></pre>
+				</div>
+
 				<div class="embcfg-actions">
-					<button type="submit" class="primary">Save embedding service</button>
+					<button type="submit" class="primary">Save embedding service</button><button type="button" data-role="test">Test embedding service</button>
 					<button type="button" data-role="delete" disabled>Delete embedding service</button>
 				</div>
 			</form>
@@ -474,6 +479,8 @@
 		grid-template-columns: 1fr;
 	}
 }
+
+.embcfg-test-result{margin-top:12px;border:1px solid #b9d3b9;background:#f8fff8;border-radius:6px;padding:10px 12px}.embcfg-test-result.failed{border-color:#d88;background:#fff5f5}.embcfg-test-meta{font-size:12px;color:#466846;margin-bottom:8px}.embcfg-test-result.failed .embcfg-test-meta{color:#8a3a3a}.embcfg-test-preview{margin:0;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;border:1px solid #d9e6d9;background:#fff;padding:10px;border-radius:4px;font-family:Consolas,monospace;font-size:12px;color:#333}
 </style>
 
 <script>
@@ -749,6 +756,7 @@
 		}
 
 		function resetForm() {
+			clearTestResult();
 			refs.form.reset();
 			refs.id.value = "";
 			refs.name.value = "";
@@ -770,6 +778,7 @@
 		}
 
 		function fillForm(embedding) {
+			clearTestResult();
 			if (!embedding) {
 				resetForm();
 				return;
@@ -953,6 +962,73 @@
 			}
 		}
 
+		function clearTestResult() {
+			const panel = root.querySelector("[data-role='testresult']");
+			if (!panel) return;
+			panel.style.display = "none";
+			panel.classList.remove("failed");
+			root.querySelector("[data-role='testmeta']").textContent = "";
+			root.querySelector("[data-role='testpreview']").textContent = "";
+		}
+
+		function renderTestResult(result) {
+			const panel = root.querySelector("[data-role='testresult']");
+			const meta = root.querySelector("[data-role='testmeta']");
+			const preview = root.querySelector("[data-role='testpreview']");
+			const details = result && result.details && typeof result.details === "object" ? result.details : {};
+			const parts = [
+				result && result.ok ? "Status: OK" : "Status: failed",
+				"Driver: " + (details.driver || "-"),
+				"Connection: " + (details.connectionId || "-"),
+				"Model: " + (details.model || details.resolvedModel || "-"),
+				"Duration: " + String(details.durationMs ?? "-") + " ms"
+			];
+			meta.textContent = parts.join(" | ");
+
+			const extra = Object.assign({}, details);
+			delete extra.preview;
+			const detailText = Object.keys(extra).length ? JSON.stringify(extra, null, 2) : "";
+			preview.textContent = [details.preview || (result ? result.message : ""), detailText].filter(Boolean).join("\n\n");
+			panel.classList.toggle("failed", !(result && result.ok));
+			panel.style.display = "block";
+		}
+
+		function buildTestRequest() {
+			const request = {action: "test"};
+			const formData = new FormData(refs.form);
+			formData.forEach((value, name) => { request[name] = String(value); });
+			refs.form.querySelectorAll("input[type='checkbox'][name]").forEach(input => {
+				request[input.name] = input.checked ? "1" : "0";
+			});
+			return request;
+		}
+
+		async function testCurrent() {
+			clearFeedback();
+			clearTestResult();
+			const testBtn = root.querySelector("[data-role='test']");
+			testBtn.disabled = true;
+			const originalLabel = testBtn.textContent;
+			testBtn.textContent = "Testing...";
+
+			try {
+				const json = await callApi(buildTestRequest());
+				if (!json) return;
+
+				const result = json.data && json.data.test ? json.data.test : null;
+				if (!result) {
+					showFeedback("Service test returned no result.", "error");
+					return;
+				}
+
+				renderTestResult(result);
+				showFeedback(result.message || (result.ok ? "Service test succeeded." : "Service test failed."), result.ok ? "success" : "error");
+			} finally {
+				testBtn.disabled = false;
+				testBtn.textContent = originalLabel;
+			}
+		}
+
 		async function saveCurrent() {
 			clearFeedback();
 
@@ -1063,6 +1139,7 @@
 			saveCurrent();
 		});
 
+		root.querySelector("[data-role='test']").addEventListener("click", testCurrent);
 		refs.newBtn.addEventListener("click", function() {
 			clearFeedback();
 			resetForm();

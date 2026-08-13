@@ -32,6 +32,13 @@ interface ITextToSpeechDriver extends IBase {
 		ServiceConfig $serviceConfig,
 		ConnectionConfig $connectionConfig,
 		string $secret,
+		TextToSpeechRequest $request
+	): TextToSpeechResult;
+
+	public function stream(
+		ServiceConfig $serviceConfig,
+		ConnectionConfig $connectionConfig,
+		string $secret,
 		TextToSpeechRequest $request,
 		ITextToSpeechStream $stream
 	): TextToSpeechResult;

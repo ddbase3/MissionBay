@@ -17,11 +17,31 @@
 
 namespace MissionBay\Display;
 
+use Base3\Api\IClassMap;
+use Base3\Api\IMvcView;
+use Base3\Api\IRequest;
+use Base3\LinkTarget\Api\ILinkTargetService;
+use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Api\IConfiguredParserServiceResolver;
+use MissionBay\Api\IParserServiceTestService;
+
 final class ParserServiceConfigDisplay extends AbstractServiceConfigDisplay {
 
 	private const SETTINGS_GROUP = 'service-parser';
 	private const CONNECTION_GROUP = 'connection';
 	private const SERVICE_TYPE = 'parser';
+
+	public function __construct(
+		IMvcView $view,
+		IRequest $request,
+		ILinkTargetService $linkTargetService,
+		ISettingsStore $settingsStore,
+		IClassMap $classMap,
+		private readonly IConfiguredParserServiceResolver $parserServiceResolver,
+		private readonly IParserServiceTestService $parserServiceTestService
+	) {
+		parent::__construct($view, $request, $linkTargetService, $settingsStore, $classMap);
+	}
 
 	public static function getName(): string {
 		return 'parserserviceconfigdisplay';
@@ -77,6 +97,30 @@ final class ParserServiceConfigDisplay extends AbstractServiceConfigDisplay {
 
 	protected function getMissingModelMessage(): string {
 		return 'Missing internal parser engine.';
+	}
+
+	protected function handleJson(): string {
+		$action = strtolower(trim((string)$this->request->request('action', '')));
+
+		if($action !== 'test') {
+			return parent::handleJson();
+		}
+
+		try {
+			$config = $this->buildServiceConfigFromRequest();
+			$service = $this->parserServiceResolver->resolveSettings(
+				$config->getId(),
+				$config->toSettings()
+			);
+
+			return $this->jsonSuccess([
+				'group' => $this->getSettingsGroup(),
+				'test' => $this->parserServiceTestService->test($service)
+			]);
+		}
+		catch(\Throwable $e) {
+			return $this->jsonError('Exception: ' . $e->getMessage());
+		}
 	}
 
 	protected function readSpecificOptions(array $options): array {

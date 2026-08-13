@@ -11,6 +11,8 @@ final class ImageConfigDisplayConnectionBoundaryTest extends TestCase {
 
 		$this->assertIsString($template);
 		$this->assertStringContainsString('name="connection"', $template);
+		$this->assertStringContainsString('name="timeoutSeconds"', $template);
+		$this->assertStringContainsString('name="connectTimeoutSeconds"', $template);
 		$this->assertStringNotContainsString('name="baseUrl"', $template);
 		$this->assertStringNotContainsString('name="authType"', $template);
 		$this->assertStringNotContainsString('name="apiKey"', $template);

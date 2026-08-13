@@ -18,6 +18,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Resource\ConfiguredChatModelAgentResource;
 use MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
 use MissionBay\Resource\ConfiguredVectorStoreAgentResource;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use MissionBay\Resource\EmbeddingCacheAgentResource;
 use MissionBay\Resource\RetrievalAgentTool;
 use MissionBay\Resource\RoutingChatModelAgentResource;
@@ -182,9 +183,10 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 		$classMap = $this->createMock(IClassMap::class);
 		$resolver = $this->resolver();
 
-		$chat = new ConfiguredChatModelAgentResource($resolver, $settingsStore, $classMap, 'chat');
-		$embedding = new ConfiguredEmbeddingModelAgentResource($resolver, $settingsStore, $classMap, 'embedding');
-		$vectorStore = new ConfiguredVectorStoreAgentResource($resolver, $settingsStore, $classMap, 'vector');
+		$runtimeResolver = new ConfiguredServiceRuntimeResolver($settingsStore, $classMap, $resolver);
+		$chat = new ConfiguredChatModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'chat');
+		$embedding = new ConfiguredEmbeddingModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'embedding');
+		$vectorStore = new ConfiguredVectorStoreAgentResource($resolver, $settingsStore, $runtimeResolver, 'vector');
 
 		$this->assertSame(['chat-main'], $chat->getSchema()['properties']['service']['enum']);
 		$this->assertSame(['embedding-main'], $embedding->getSchema()['properties']['service']['enum']);

@@ -17,17 +17,15 @@
 
 namespace MissionBay\Resource;
 
-use Base3\Api\IClassMap;
 use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Dto\AiSearchResult;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\ISearchService;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
 /**
@@ -42,7 +40,6 @@ use RuntimeException;
 class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgentResource implements ISearchService, IAgentTool, ISchemaProvider {
 
 	private const SEARCH_SETTINGS_GROUP = 'service-search';
-	private const CONNECTION_SETTINGS_GROUP = 'connection';
 	private const SERVICE_TYPE = 'search';
 	private const SERVICE_ALIAS = 'search';
 	private const TOOL_NAME = 'web_search';
@@ -54,7 +51,7 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 	public function __construct(
 		IAgentConfigValueResolver $resolver,
 		ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap,
+		private readonly ConfiguredServiceRuntimeResolver $runtimeResolver,
 		?string $id = null
 	) {
 		parent::__construct($resolver, $settingsStore, $id);
@@ -206,82 +203,25 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 		$serviceId = $this->resolveServiceId();
 
 		if($serviceId === '') {
-			throw new RuntimeException('ConfiguredSearchServiceAgentResource requires config key "service".');
+			throw new RuntimeException(static::class . ' requires config key "service".');
 		}
 
-		$serviceConfig = $this->loadServiceConfig(self::SEARCH_SETTINGS_GROUP, $serviceId, self::SERVICE_TYPE);
-		$connectionConfig = $this->loadConnectionConfig(self::CONNECTION_SETTINGS_GROUP, $serviceConfig->getConnectionId());
-
-		$serviceName = $this->resolveSearchServiceName($serviceConfig->getDriver());
-
-		if($serviceName === '') {
-			throw new RuntimeException(
-				'Search service config has no usable driver: ' . $serviceId . ' ' . $this->formatConfigDebug($serviceConfig->toSettings())
-			);
-		}
-
-		$service = $this->classMap->getInstanceByInterfaceName(ISearchService::class, $serviceName);
+		$service = $this->runtimeResolver->resolve(
+			self::SEARCH_SETTINGS_GROUP,
+			$serviceId,
+			self::SERVICE_TYPE,
+			self::SERVICE_ALIAS,
+			ISearchService::class,
+			$this->optionOverrides
+		);
 
 		if(!$service instanceof ISearchService) {
-			throw new RuntimeException(
-				'Unable to resolve search service "' . $serviceName . '" for driver "' . $serviceConfig->getDriver() . '".'
-			);
+			throw new RuntimeException('Configured search service could not be initialized.');
 		}
 
-		$this->resolvedOptions = $this->buildRuntimeOptions($serviceConfig, $connectionConfig);
-		$this->resolvedOptions = array_merge($this->resolvedOptions, $this->optionOverrides);
-
 		$this->service = $service;
-		$this->applyResolvedOptions();
+		$this->resolvedOptions = $service->getOptions();
 	}
-
-	private function resolveSearchServiceName(string $driver): string {
-		return $this->resolveServiceImplementationName(
-			$this->classMap,
-			$driver,
-			self::SERVICE_TYPE,
-			ISearchService::class
-		);
-	}
-
-	/**
-	 * @return array<string,mixed>
-	 */
-	private function buildRuntimeOptions(ServiceConfig $serviceConfig, ConnectionConfig $connectionConfig): array {
-		$options = $this->buildBaseRuntimeOptions($serviceConfig, $connectionConfig, self::SERVICE_ALIAS);
-		$serviceOptions = $serviceConfig->getOptions();
-
-		$options = $this->mergeServiceOptions($options, $serviceOptions, [
-			'search_id' => true,
-			'search_label' => true,
-			'service_type' => true,
-			'service_driver' => true,
-			'connection_id' => true,
-			'connection_label' => true,
-			'connection_type' => true,
-			'connection_driver' => true,
-			'auth_type' => true,
-			'auth_header_name' => true,
-			'model' => true,
-			'endpoint' => true,
-			'base_url' => true,
-			'apikey' => true,
-			'auth_secret' => true
-		]);
-
-		$this->mapOptionalNumber($options, $serviceOptions, 'maxResults', 'max_results', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'timeoutSeconds', 'timeout_seconds', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'connectTimeoutSeconds', 'connect_timeout_seconds', 'int');
-		$this->mapOptionalBool($options, $serviceOptions, 'externalWebAccess', 'external_web_access');
-		$this->mapOptionalString($options, $serviceOptions, 'searchContextSize', 'search_context_size');
-		$this->mapOptionalString($options, $serviceOptions, 'returnTokenBudget', 'return_token_budget');
-		$this->mapOptionalString($options, $serviceOptions, 'toolChoice', 'tool_choice');
-		$this->mapOptionalArray($options, $serviceOptions, 'allowedDomains', 'allowed_domains');
-		$this->mapOptionalArray($options, $serviceOptions, 'blockedDomains', 'blocked_domains');
-
-		return $options;
-	}
-
 	/**
 	 * @param array<string,mixed> $arguments
 	 * @return array<string,mixed>
@@ -512,53 +452,4 @@ class ConfiguredSearchServiceAgentResource extends AbstractConfiguredServiceAgen
 		return $out;
 	}
 
-	/**
-	 * @param array<string,mixed> $runtimeOptions
-	 * @param array<string,mixed> $sourceOptions
-	 */
-	private function mapOptionalString(array &$runtimeOptions, array $sourceOptions, string $sourceKey, string $targetKey): void {
-		if(!array_key_exists($sourceKey, $sourceOptions)) {
-			return;
-		}
-
-		$value = trim((string)$sourceOptions[$sourceKey]);
-
-		if($value === '') {
-			return;
-		}
-
-		$runtimeOptions[$targetKey] = $value;
-	}
-
-	/**
-	 * @param array<string,mixed> $runtimeOptions
-	 * @param array<string,mixed> $sourceOptions
-	 */
-	private function mapOptionalArray(array &$runtimeOptions, array $sourceOptions, string $sourceKey, string $targetKey): void {
-		if(!array_key_exists($sourceKey, $sourceOptions)) {
-			return;
-		}
-
-		$value = $sourceOptions[$sourceKey];
-
-		if(!is_array($value)) {
-			return;
-		}
-
-		$out = [];
-
-		foreach($value as $item) {
-			$item = trim((string)$item);
-
-			if($item !== '') {
-				$out[] = $item;
-			}
-		}
-
-		if($out === []) {
-			return;
-		}
-
-		$runtimeOptions[$targetKey] = array_values(array_unique($out));
-	}
 }

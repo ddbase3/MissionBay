@@ -101,7 +101,7 @@ final class ImageGenerationUsageTest extends TestCase {
 
 		$this->assertSame('/v1/chat/completions', $provider->path);
 		$this->assertSame('mistral-small-latest', $provider->payload['model']);
-		$this->assertSame('required', $provider->payload['tool_choice']);
+		$this->assertArrayNotHasKey('tool_choice', $provider->payload);
 		$this->assertSame([['type' => 'image_generation']], $provider->payload['tools']);
 		$this->assertSame('https://files.mistral.ai/generated/test-image.png', $result->getImages()[0]['url']);
 		$this->assertSame(21, $usage->getInputTokens());

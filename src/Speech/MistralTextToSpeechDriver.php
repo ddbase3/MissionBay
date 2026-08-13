@@ -20,6 +20,7 @@ namespace MissionBay\Speech;
 use AssistantFoundation\Api\ITextToSpeechStream;
 use AssistantFoundation\Dto\TextToSpeechRequest;
 use AssistantFoundation\Dto\TextToSpeechResult;
+use MediaFoundation\Model\AudioMedia;
 use MissionBay\Api\ITextToSpeechDriver;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Service\ServiceConfig;
@@ -47,13 +48,99 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 		ServiceConfig $serviceConfig,
 		ConnectionConfig $connectionConfig,
 		string $secret,
+		TextToSpeechRequest $request
+	): TextToSpeechResult {
+		$prepared = $this->prepareRequest($serviceConfig, $connectionConfig, $request);
+		$payload = $prepared['payload'];
+		$payload['stream'] = false;
+
+		$response = $this->postJson(
+			$prepared['url'],
+			$payload,
+			$secret,
+			$prepared['authHeaderName'],
+			$prepared['timeoutSeconds']
+		);
+
+		$encodedAudio = trim((string)($response['audio_data'] ?? ''));
+		$audio = base64_decode($encodedAudio, true);
+		if($encodedAudio === '' || $audio === false || $audio === '') {
+			throw new RuntimeException('Mistral text-to-speech response has no valid audio data.');
+		}
+
+		$metadata = $prepared['metadata'];
+		$metadata['audioBytes'] = strlen($audio);
+		$metadata['streaming'] = false;
+		if(is_array($response['usage'] ?? null)) {
+			$metadata['usage'] = $response['usage'];
+		}
+
+		return new TextToSpeechResult(
+			$prepared['mimeType'],
+			new AudioMedia($audio, $prepared['mimeType'], 0.0, 0),
+			$metadata,
+			$response
+		);
+	}
+
+	public function stream(
+		ServiceConfig $serviceConfig,
+		ConnectionConfig $connectionConfig,
+		string $secret,
 		TextToSpeechRequest $request,
 		ITextToSpeechStream $stream
 	): TextToSpeechResult {
+		$prepared = $this->prepareRequest($serviceConfig, $connectionConfig, $request);
+		$payload = $prepared['payload'];
+		$payload['stream'] = true;
+
+		$streamResult = $this->postJsonStream(
+			$prepared['url'],
+			$payload,
+			$secret,
+			$prepared['authHeaderName'],
+			$prepared['timeoutSeconds'],
+			$prepared['mimeType'],
+			$prepared['metadata'],
+			$stream
+		);
+
+		$metadata = $prepared['metadata'];
+		$metadata['audioBytes'] = $streamResult['audioBytes'];
+		$metadata['streaming'] = true;
+		$metadata['cancelled'] = $stream->isCancelled();
+		if($streamResult['usage'] !== []) {
+			$metadata['usage'] = $streamResult['usage'];
+		}
+
+		return new TextToSpeechResult(
+			$prepared['mimeType'],
+			null,
+			$metadata,
+			$streamResult['doneEvent']
+		);
+	}
+
+	/**
+	 * @return array{
+	 *     url:string,
+	 *     payload:array<string,mixed>,
+	 *     authHeaderName:string,
+	 *     timeoutSeconds:int,
+	 *     mimeType:string,
+	 *     metadata:array<string,mixed>
+	 * }
+	 */
+	private function prepareRequest(
+		ServiceConfig $serviceConfig,
+		ConnectionConfig $connectionConfig,
+		TextToSpeechRequest $request
+	): array {
 		$text = trim($request->getText());
 		if($text === '') {
 			throw new RuntimeException('Text-to-speech input is empty.');
 		}
+
 		$model = trim($serviceConfig->getModel());
 		if($model === '') {
 			throw new RuntimeException('Mistral text-to-speech model is missing.');
@@ -71,47 +158,106 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 		if($voiceId === '') {
 			throw new RuntimeException('Mistral text-to-speech voice ID is missing.');
 		}
+
 		$responseFormat = $this->normalizeResponseFormat(
 			(string)($requestOptions['responseFormat'] ?? $serviceOptions['responseFormat'] ?? 'mp3')
 		);
-		$payload = [
-			'model' => $model,
-			'input' => $text,
-			'response_format' => $responseFormat,
-			'stream' => true,
-			'voice_id' => $voiceId
-		];
-
 		$baseUrl = rtrim(trim($connectionConfig->getBaseUrl()), '/');
 		if($baseUrl === '') {
 			throw new RuntimeException('Mistral text-to-speech connection has no base URL.');
 		}
 
-		$mimeType = self::MIME_TYPES[$responseFormat];
-		$metadata = [
-			'provider' => 'mistral',
-			'model' => $model,
-			'voiceId' => $voiceId,
-			'responseFormat' => $responseFormat
+		$authHeaderName = trim($connectionConfig->getAuthHeaderName());
+		if($authHeaderName === '') {
+			$authHeaderName = 'Authorization';
+		}
+		if(preg_match('/^[A-Za-z0-9-]+$/', $authHeaderName) !== 1) {
+			throw new RuntimeException('Invalid authentication header name for Mistral text-to-speech.');
+		}
+
+		return [
+			'url' => $baseUrl . '/v1/audio/speech',
+			'payload' => [
+				'model' => $model,
+				'input' => $text,
+				'response_format' => $responseFormat,
+				'voice_id' => $voiceId
+			],
+			'authHeaderName' => $authHeaderName,
+			'timeoutSeconds' => $connectionConfig->getTimeoutSeconds(),
+			'mimeType' => self::MIME_TYPES[$responseFormat],
+			'metadata' => [
+				'provider' => 'mistral',
+				'model' => $model,
+				'voiceId' => $voiceId,
+				'responseFormat' => $responseFormat
+			]
 		];
+	}
 
-		$this->postJsonStream(
-			$baseUrl . '/v1/audio/speech',
-			$payload,
-			$secret,
-			$connectionConfig->getAuthHeaderName(),
-			$connectionConfig->getTimeoutSeconds(),
-			$mimeType,
-			$metadata,
-			$stream
-		);
+	/**
+	 * @param array<string,mixed> $payload
+	 * @return array<string,mixed>
+	 */
+	private function postJson(
+		string $url,
+		array $payload,
+		string $secret,
+		string $authHeaderName,
+		int $timeoutSeconds
+	): array {
+		if(!function_exists('curl_init')) {
+			throw new RuntimeException('PHP cURL extension is required for Mistral text-to-speech.');
+		}
 
-		return new TextToSpeechResult($mimeType, $metadata);
+		$body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		if($body === false) {
+			throw new RuntimeException('Unable to encode Mistral text-to-speech request.');
+		}
+
+		$curl = curl_init($url);
+		if($curl === false) {
+			throw new RuntimeException('Unable to initialize Mistral text-to-speech request.');
+		}
+
+		curl_setopt_array($curl, [
+			CURLOPT_POST => true,
+			CURLOPT_RETURNTRANSFER => true,
+			CURLOPT_TIMEOUT => $timeoutSeconds,
+			CURLOPT_HTTPHEADER => [
+				$authHeaderName . ': Bearer ' . $secret,
+				'Content-Type: application/json',
+				'Accept: application/json'
+			],
+			CURLOPT_POSTFIELDS => $body
+		]);
+
+		$result = curl_exec($curl);
+		$statusCode = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
+		$error = curl_error($curl);
+		curl_close($curl);
+
+		if($result === false) {
+			throw new RuntimeException('Mistral text-to-speech request failed: ' . $error);
+		}
+		if($statusCode < 200 || $statusCode >= 300) {
+			throw new RuntimeException(
+				'Mistral text-to-speech request failed: ' . $this->extractErrorMessage($result, $statusCode)
+			);
+		}
+
+		$response = json_decode($result, true);
+		if(!is_array($response)) {
+			throw new RuntimeException('Mistral text-to-speech returned invalid JSON.');
+		}
+
+		return $response;
 	}
 
 	/**
 	 * @param array<string,mixed> $payload
 	 * @param array<string,mixed> $metadata
+	 * @return array{audioBytes:int,usage:array<string,mixed>,doneEvent:?array<string,mixed>}
 	 */
 	private function postJsonStream(
 		string $url,
@@ -122,17 +268,9 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 		string $mimeType,
 		array $metadata,
 		ITextToSpeechStream $stream
-	): void {
+	): array {
 		if(!function_exists('curl_init')) {
 			throw new RuntimeException('PHP cURL extension is required for Mistral text-to-speech.');
-		}
-
-		$authHeaderName = trim($authHeaderName);
-		if($authHeaderName === '') {
-			$authHeaderName = 'Authorization';
-		}
-		if(preg_match('/^[A-Za-z0-9-]+$/', $authHeaderName) !== 1) {
-			throw new RuntimeException('Invalid authentication header name for Mistral text-to-speech.');
 		}
 
 		$body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -151,11 +289,15 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 		$streamStarted = false;
 		$audioBytes = 0;
 		$streamError = '';
+		$usage = [];
+		$doneEvent = null;
 
 		$consumeEvent = function(string $event) use (
 			&$streamStarted,
 			&$audioBytes,
 			&$streamError,
+			&$usage,
+			&$doneEvent,
 			$mimeType,
 			$metadata,
 			$stream
@@ -164,8 +306,13 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 				return;
 			}
 
+			$eventName = '';
 			$dataLines = [];
 			foreach(preg_split('/\r\n|\r|\n/', $event) ?: [] as $line) {
+				if(str_starts_with($line, 'event:')) {
+					$eventName = trim(substr($line, 6));
+					continue;
+				}
 				if(str_starts_with($line, 'data:')) {
 					$dataLines[] = ltrim(substr($line, 5));
 				}
@@ -182,10 +329,28 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 				return;
 			}
 
+			$type = trim((string)($decoded['type'] ?? $eventName));
+			if($type === 'speech.audio.done') {
+				$doneEvent = $decoded;
+				$usage = is_array($decoded['usage'] ?? null) ? $decoded['usage'] : [];
+				return;
+			}
+
+			if($type !== 'speech.audio.delta') {
+				$error = $decoded['error'] ?? null;
+				if(is_array($error)) {
+					$error = $error['message'] ?? null;
+				}
+				if(is_scalar($error) && trim((string)$error) !== '') {
+					$streamError = 'Mistral text-to-speech stream failed: ' . trim((string)$error);
+				}
+				return;
+			}
+
 			$encodedAudio = trim((string)($decoded['audio_data'] ?? ''));
 			$audio = base64_decode($encodedAudio, true);
 			if($encodedAudio === '' || $audio === false || $audio === '') {
-				$streamError = 'Mistral text-to-speech stream event has no valid audio data.';
+				$streamError = 'Mistral text-to-speech audio event has no valid audio data.';
 				return;
 			}
 
@@ -275,7 +440,11 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 		}
 		if($result === false) {
 			if($stream->isCancelled()) {
-				return;
+				return [
+					'audioBytes' => $audioBytes,
+					'usage' => $usage,
+					'doneEvent' => $doneEvent
+				];
 			}
 			throw new RuntimeException('Mistral text-to-speech request failed: ' . $error);
 		}
@@ -287,6 +456,12 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 		if($audioBytes === 0 && !$stream->isCancelled()) {
 			throw new RuntimeException('Mistral text-to-speech response is empty.');
 		}
+
+		return [
+			'audioBytes' => $audioBytes,
+			'usage' => $usage,
+			'doneEvent' => $doneEvent
+		];
 	}
 
 	private function extractErrorMessage(string $body, int $statusCode): string {
@@ -299,6 +474,13 @@ final class MistralTextToSpeechDriver implements ITextToSpeechDriver {
 		$message = $response['message'] ?? $response['error'] ?? null;
 		if(is_string($message) && trim($message) !== '') {
 			return trim($message);
+		}
+
+		if(is_array($message)) {
+			$message = $message['message'] ?? null;
+			if(is_scalar($message) && trim((string)$message) !== '') {
+				return trim((string)$message);
+			}
 		}
 
 		$detail = $response['detail'] ?? null;

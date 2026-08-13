@@ -17,6 +17,7 @@
 
 namespace MissionBay\Display;
 
+use AssistantFoundation\Api\IAiServiceTester;
 use AssistantFoundation\Api\IServiceDriverDefinition;
 use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
@@ -25,6 +26,7 @@ use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Connection\ConnectionConfig;
+use MissionBay\Service\ConfiguredServiceTestService;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
@@ -129,11 +131,15 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 					'group' => $this->getSettingsGroup(),
 					$this->getSingleDataKey() => $this->saveService()
 				]),
+				'test' => $this->jsonSuccess([
+					'group' => $this->getSettingsGroup(),
+					'test' => $this->testService()
+				]),
 				'remove' => $this->jsonSuccess([
 					'group' => $this->getSettingsGroup(),
 					'id' => $this->removeService()
 				]),
-				default => $this->jsonError("Unknown action '$action'. Use: list|save|remove"),
+				default => $this->jsonError("Unknown action '$action'. Use: list|save|test|remove"),
 			};
 		}
 		catch(\Throwable $e) {
@@ -285,6 +291,15 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 	 * @return array<string,mixed>
 	 */
 	protected function saveService(): array {
+		$config = $this->buildServiceConfigFromRequest();
+
+		$this->settingsStore->set($this->getSettingsGroup(), $config->getId(), $config->toSettings());
+		$this->settingsStore->save();
+
+		return $this->expandSpecificDisplayOptions($config->toDisplayArray());
+	}
+
+	protected function buildServiceConfigFromRequest(): ServiceConfig {
 		$id = $this->normalizeKey((string)$this->request->request('id', ''));
 		$name = trim((string)$this->request->request('name', ''));
 		$connection = $this->normalizeKey((string)$this->request->request('connection', ''));
@@ -336,7 +351,7 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 			throw new RuntimeException('Connection type "' . $connectionType . '" is not supported by driver "' . $driver . '".');
 		}
 
-		$config = new ServiceConfig(
+		return new ServiceConfig(
 			$id,
 			$name,
 			$this->getServiceType(),
@@ -346,11 +361,31 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 			$enabled,
 			$options
 		);
+	}
 
-		$this->settingsStore->set($this->getSettingsGroup(), $id, $config->toSettings());
-		$this->settingsStore->save();
+	/**
+	 * @return array<string,mixed>
+	 */
+	protected function testService(): array {
+		$config = $this->buildServiceConfigFromRequest();
+		$testers = $this->classMap->getInstancesByInterface(IAiServiceTester::class);
 
-		return $this->expandSpecificDisplayOptions($config->toDisplayArray());
+		foreach($testers as $tester) {
+			if(!$tester instanceof IAiServiceTester) {
+				continue;
+			}
+
+			if($tester::getType() !== ConfiguredServiceTestService::getType()) {
+				continue;
+			}
+
+			return $tester->test([
+				'id' => $config->getId(),
+				'settings' => $config->toSettings()
+			]);
+		}
+
+		throw new RuntimeException('Configured service tester is not available.');
 	}
 
 	protected function removeService(): string {

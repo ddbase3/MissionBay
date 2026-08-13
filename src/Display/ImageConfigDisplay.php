@@ -82,6 +82,18 @@ final class ImageConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function readSpecificOptions(array $options): array {
+		$options = $this->removeRuntimeOptionAliases($options);
+		$timeoutSeconds = $this->readOptionalInt('timeoutSeconds', 'Timeout seconds');
+		$connectTimeoutSeconds = $this->readOptionalInt('connectTimeoutSeconds', 'Connect timeout seconds');
+
+		if($timeoutSeconds !== null) {
+			$options['timeoutSeconds'] = $timeoutSeconds;
+		}
+
+		if($connectTimeoutSeconds !== null) {
+			$options['connectTimeoutSeconds'] = $connectTimeoutSeconds;
+		}
+
 		$driver = $this->normalizeKey((string)$this->request->request('driver', ''));
 		$drivers = $this->listDriverDefinitionsByDriver();
 		$definition = $drivers[$driver] ?? null;
@@ -117,7 +129,23 @@ final class ImageConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function expandSpecificDisplayOptions(array $row): array {
+		$options = is_array($row['options'] ?? null) ? $row['options'] : [];
+		$options = $this->removeRuntimeOptionAliases($options);
+
+		$row['options'] = $options;
+		$row['timeoutSeconds'] = $this->normalizeNullableNumber($options['timeoutSeconds'] ?? null);
+		$row['connectTimeoutSeconds'] = $this->normalizeNullableNumber($options['connectTimeoutSeconds'] ?? null);
+
 		return $row;
+	}
+
+	private function removeRuntimeOptionAliases(array $options): array {
+		unset(
+			$options['timeout_seconds'],
+			$options['connect_timeout_seconds']
+		);
+
+		return $options;
 	}
 
 	/**

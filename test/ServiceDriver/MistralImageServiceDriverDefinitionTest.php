@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 
 final class MistralImageServiceDriverDefinitionTest extends TestCase {
 
-	public function testDescribesTheMistralImageAdapterWithoutOpenAiOnlyOptions(): void {
+	public function testDescribesTheMistralImageAdapterWithoutUnsupportedGenerationOptions(): void {
 		$definition = new MistralImageServiceDriverDefinition();
 		$schema = $definition->getConfigSchema();
 		$properties = $schema['properties'];
@@ -21,11 +21,11 @@ final class MistralImageServiceDriverDefinitionTest extends TestCase {
 		$this->assertSame(IImageGenerationModel::class, $definition->getImplementationInterface());
 		$this->assertSame(MistralImageModel::getName(), $definition->getImplementationName());
 		$this->assertSame('mistral-small-latest', $properties['model']['default']);
-		$this->assertSame('tool_choice', $properties['toolChoice']['runtimeKey']);
-		$this->assertSame(['required', 'any', 'auto'], $properties['toolChoice']['enum']);
+		$this->assertArrayNotHasKey('toolChoice', $properties);
 		$this->assertArrayNotHasKey('size', $properties);
 		$this->assertArrayNotHasKey('quality', $properties);
 		$this->assertArrayNotHasKey('outputFormat', $properties);
 		$this->assertArrayNotHasKey('background', $properties);
+		$this->assertSame([], $definition->getDefaultConfig()['options']);
 	}
 }

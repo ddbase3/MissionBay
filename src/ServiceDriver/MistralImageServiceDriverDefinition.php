@@ -64,14 +64,6 @@ final class MistralImageServiceDriverDefinition implements IServiceDriverDefinit
 					'label' => 'Model',
 					'default' => 'mistral-small-latest',
 					'required' => true
-				],
-				'toolChoice' => [
-					'type' => 'string',
-					'label' => 'Tool choice',
-					'description' => 'Controls whether Mistral must execute the image_generation tool.',
-					'enum' => ['required', 'any', 'auto'],
-					'default' => 'required',
-					'runtimeKey' => 'tool_choice'
 				]
 			]
 		];
@@ -83,9 +75,7 @@ final class MistralImageServiceDriverDefinition implements IServiceDriverDefinit
 			'driver' => 'mistral-image',
 			'model' => 'mistral-small-latest',
 			'enabled' => true,
-			'options' => [
-				'toolChoice' => 'required'
-			]
+			'options' => []
 		];
 	}
 }

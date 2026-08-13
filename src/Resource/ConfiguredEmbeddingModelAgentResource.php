@@ -19,12 +19,10 @@ namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Dto\AiEmbeddingResult;
-use Base3\Api\IClassMap;
 use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use RuntimeException;
 
 /**
@@ -36,7 +34,6 @@ use RuntimeException;
 class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAgentResource implements IAiEmbeddingModel, ISchemaProvider {
 
 	private const EMBEDDING_SETTINGS_GROUP = 'service-embedding';
-	private const CONNECTION_SETTINGS_GROUP = 'connection';
 	private const SERVICE_TYPE = 'embedding';
 	private const SERVICE_ALIAS = 'embedding';
 
@@ -45,7 +42,7 @@ class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAge
 	public function __construct(
 		IAgentConfigValueResolver $resolver,
 		ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap,
+		private readonly ConfiguredServiceRuntimeResolver $runtimeResolver,
 		?string $id = null
 	) {
 		parent::__construct($resolver, $settingsStore, $id);
@@ -109,71 +106,23 @@ class ConfiguredEmbeddingModelAgentResource extends AbstractConfiguredServiceAge
 		$serviceId = $this->resolveServiceId();
 
 		if($serviceId === '') {
-			throw new RuntimeException('ConfiguredEmbeddingModelAgentResource requires config key "service".');
+			throw new RuntimeException(static::class . ' requires config key "service".');
 		}
 
-		$serviceConfig = $this->loadServiceConfig(self::EMBEDDING_SETTINGS_GROUP, $serviceId, self::SERVICE_TYPE);
-		$connectionConfig = $this->loadConnectionConfig(self::CONNECTION_SETTINGS_GROUP, $serviceConfig->getConnectionId());
-
-		$modelName = $this->resolveEmbeddingModelName($serviceConfig->getDriver());
-
-		if($modelName === '') {
-			throw new RuntimeException(
-				'Embedding service config has no usable driver: ' . $serviceId . ' ' . $this->formatConfigDebug($serviceConfig->toSettings())
-			);
-		}
-
-		$model = $this->classMap->getInstanceByInterfaceName(IAiEmbeddingModel::class, $modelName);
-
-		if(!$model instanceof IAiEmbeddingModel) {
-			throw new RuntimeException(
-				'Unable to resolve embedding model "' . $modelName . '" for driver "' . $serviceConfig->getDriver() . '".'
-			);
-		}
-
-		$this->resolvedOptions = $this->buildRuntimeOptions($serviceConfig, $connectionConfig);
-		$this->resolvedOptions = array_merge($this->resolvedOptions, $this->optionOverrides);
-
-		$this->model = $model;
-		$this->applyResolvedOptions();
-	}
-
-	private function resolveEmbeddingModelName(string $driver): string {
-		return $this->resolveServiceImplementationName(
-			$this->classMap,
-			$driver,
+		$service = $this->runtimeResolver->resolve(
+			self::EMBEDDING_SETTINGS_GROUP,
+			$serviceId,
 			self::SERVICE_TYPE,
-			IAiEmbeddingModel::class
+			self::SERVICE_ALIAS,
+			IAiEmbeddingModel::class,
+			$this->optionOverrides
 		);
-	}
 
-	/**
-	 * @return array<string,mixed>
-	 */
-	private function buildRuntimeOptions(ServiceConfig $serviceConfig, ConnectionConfig $connectionConfig): array {
-		$options = $this->buildBaseRuntimeOptions($serviceConfig, $connectionConfig, self::SERVICE_ALIAS);
-		$serviceOptions = $serviceConfig->getOptions();
+		if(!$service instanceof IAiEmbeddingModel) {
+			throw new RuntimeException('Configured embedding model could not be initialized.');
+		}
 
-		$options = $this->mergeServiceOptions($options, $serviceOptions, [
-			'embedding_id' => true,
-			'embedding_label' => true,
-			'service_type' => true,
-			'service_driver' => true,
-			'connection_id' => true,
-			'connection_label' => true,
-			'connection_type' => true,
-			'connection_driver' => true,
-			'model' => true,
-			'endpoint' => true,
-			'apikey' => true
-		]);
-
-		$this->mapOptionalNumber($options, $serviceOptions, 'dimensions', 'dimensions', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'batchSize', 'batch_size', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'timeoutSeconds', 'timeout_seconds', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'connectTimeoutSeconds', 'connect_timeout_seconds', 'int');
-		$this->mapOptionalBool($options, $serviceOptions, 'normalizeVectors', 'normalize_vectors');
-
-		return $options;
+		$this->model = $service;
+		$this->resolvedOptions = $service->getOptions();
 	}
 }

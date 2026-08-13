@@ -72,6 +72,8 @@ use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentMemoryRoleResolver;
 use MissionBay\Api\IAgentModelDecisionStrategyResolver;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Api\IConfiguredParserServiceResolver;
+use MissionBay\Api\IParserServiceTestService;
 use MissionBay\Api\IAgentContextFactory;
 use MissionBay\Api\IAgentFlowCompiler;
 use MissionBay\Api\IAgentFlowFactory;
@@ -130,6 +132,8 @@ use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
 use MissionBay\Orchestrator\Validation\JsonSchemaValidator;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
 use MissionBay\Policy\MutationApprovalAgentActionPolicy;
+use MissionBay\ParserService\ConfiguredParserServiceResolver;
+use MissionBay\ParserService\ParserServiceTestService;
 use MissionBay\Profile\AgentAssistantToolSetupFactory;
 use MissionBay\Profile\AgentContextProfileResolver;
 use MissionBay\Profile\AgentMemoryProfileResolver;
@@ -141,6 +145,7 @@ use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\RetrievalSearchService;
 use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use MissionBay\Speech\ConfiguredRealtimeSpeechToTextSessionService;
 use MissionBay\Speech\ConfiguredTextToSpeechService;
 use MissionBay\Tool\Profile\MissionBayAgentToolProfileProvider;
@@ -203,6 +208,18 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentNodeFactory::class, fn($c) => new AgentNodeFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentResourceFactory::class, fn($c) => new AgentResourceFactory($c->get(IClassMap::class)), IContainer::SHARED)
 			->set(IAgentConfigValueResolver::class, fn($c) => new AgentConfigValueResolver($c->get(IConfigValueResolver::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(ConfiguredServiceRuntimeResolver::class, fn($c) => new ConfiguredServiceRuntimeResolver(
+				$c->get(ISettingsStore::class),
+				$c->get(IClassMap::class),
+				$c->get(IAgentConfigValueResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IConfiguredParserServiceResolver::class, fn($c) => new ConfiguredParserServiceResolver(
+				$c->get(ConfiguredServiceRuntimeResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IParserServiceTestService::class, fn($c) => new ParserServiceTestService(
+				$c->get(ILogger::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+
 			->set(IMcpTransport::class, fn() => new McpStreamableHttpTransport(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(McpHmacRequestSigner::class, fn() => new McpHmacRequestSigner(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IMcpClientFactory::class, fn($c) => new McpClientFactory(
@@ -296,14 +313,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAiModelConfigurationProvider::class, fn($c) => $c->get(ConfiguredAiModelConfigurationProvider::class), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IRealtimeSpeechToTextSessionService::class, fn($c) => new ConfiguredRealtimeSpeechToTextSessionService(
-				$c->get(ISettingsStore::class),
-				$c->get(IClassMap::class),
-				$c->get(IAgentConfigValueResolver::class)
+				$c->get(ConfiguredServiceRuntimeResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(ITextToSpeechService::class, fn($c) => new ConfiguredTextToSpeechService(
-				$c->get(ISettingsStore::class),
-				$c->get(IClassMap::class),
-				$c->get(IAgentConfigValueResolver::class)
+				$c->get(ConfiguredServiceRuntimeResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentConfigFormService::class, fn($c) => new AgentConfigFormService(
 				$c->get(IRequest::class),

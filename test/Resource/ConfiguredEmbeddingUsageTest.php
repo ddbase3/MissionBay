@@ -13,6 +13,7 @@ use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\EmbeddingModel\OpenAiEmbeddingModel;
 use MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use MissionBay\ServiceDriver\OpenAiEmbeddingServiceDriverDefinition;
 use MissionBay\Transport\OpenAiTransport;
 use PHPUnit\Framework\TestCase;
@@ -51,21 +52,26 @@ final class ConfiguredEmbeddingUsageTest extends TestCase {
 		$classMap->method('getInstancesByInterface')
 			->with(IServiceDriverDefinition::class)
 			->willReturn([$driverDefinition]);
+		$classMap->method('getClassByInterfaceName')
+			->with(IAiEmbeddingModel::class, OpenAiEmbeddingModel::getName())
+			->willReturn(OpenAiEmbeddingModel::class);
+		$classMap->method('instantiate')
+			->with(OpenAiEmbeddingModel::class)
+			->willReturn($embeddingModel);
 		$classMap->method('getInstanceByInterfaceName')
-			->willReturnCallback(static function(string $interface, string $name) use ($embeddingModel, $provider) {
-				if($interface === IAiEmbeddingModel::class && $name === OpenAiEmbeddingModel::getName()) {
-					return $embeddingModel;
-				}
+			->willReturnCallback(static function(string $interface, string $name) use ($provider) {
 				if($interface === IAiProvider::class && $name === OpenAiTransport::getName()) {
 					return $provider;
 				}
 				return null;
 			});
 
+		$resolver = $this->resolver();
+		$settingsStore = $this->settingsStore();
 		$resource = new ConfiguredEmbeddingModelAgentResource(
-			$this->resolver(),
-			$this->settingsStore(),
-			$classMap,
+			$resolver,
+			$settingsStore,
+			new ConfiguredServiceRuntimeResolver($settingsStore, $classMap, $resolver),
 			'configured-embedding'
 		);
 		$resource->setConfig(['service' => 'embedding-main']);

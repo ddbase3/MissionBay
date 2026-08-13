@@ -53,7 +53,7 @@ class MistralImageModel extends AbstractImageGenerationModel {
 			throw new RuntimeException('Missing model name for Mistral image generation.');
 		}
 
-		$payload = [
+		return [
 			'model' => $model,
 			'messages' => [
 				[
@@ -65,11 +65,8 @@ class MistralImageModel extends AbstractImageGenerationModel {
 				[
 					'type' => 'image_generation'
 				]
-			],
-			'tool_choice' => $this->getToolChoice($runtimeOptions)
+			]
 		];
-
-		return $payload;
 	}
 
 	/**
@@ -126,17 +123,6 @@ class MistralImageModel extends AbstractImageGenerationModel {
 		}
 
 		return $images;
-	}
-
-	/**
-	 * @param array<string,mixed> $runtimeOptions
-	 */
-	private function getToolChoice(array $runtimeOptions): string {
-		$toolChoice = strtolower(trim((string)($runtimeOptions['tool_choice'] ?? 'required')));
-
-		return in_array($toolChoice, ['required', 'any', 'auto'], true)
-			? $toolChoice
-			: 'required';
 	}
 
 	/**

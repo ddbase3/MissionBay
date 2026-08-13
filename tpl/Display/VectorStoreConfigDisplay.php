@@ -97,8 +97,13 @@
 
 				<div data-role="formfeedback" class="vectorstorecfg-form-feedback" style="display:none"></div>
 
+				<div data-role="testresult" class="vectorstorecfg-test-result" style="display:none">
+					<div data-role="testmeta" class="vectorstorecfg-test-meta"></div>
+					<pre data-role="testpreview" class="vectorstorecfg-test-preview"></pre>
+				</div>
+
 				<div class="vectorstorecfg-actions">
-					<button type="submit" class="primary">Save vector store</button>
+					<button type="submit" class="primary">Save vector store</button><button type="button" data-role="test">Test vector store</button>
 					<button type="button" data-role="delete" disabled>Delete vector store</button>
 				</div>
 			</form>
@@ -108,6 +113,8 @@
 
 <style>
 .vectorstore-config-admin{background:#fff;border:1px solid #d6d6d6;padding:16px;border-radius:4px;max-width:100%;font-family:Arial,sans-serif;color:#333}.vectorstore-config-admin h3{margin-top:0;margin-bottom:12px;font-size:1.1em}.vectorstore-config-admin h4{margin-top:0;margin-bottom:10px;font-size:1em}.vectorstorecfg-meta{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:13px;color:#555}.mono{font-family:Consolas,monospace}.vectorstorecfg-loading{display:none;color:#666;font-style:italic}.vectorstorecfg-layout{display:grid;grid-template-columns:minmax(720px,1fr) minmax(380px,520px);gap:16px;align-items:start}.vectorstorecfg-listbox,.vectorstorecfg-formbox{border:1px solid #ddd;border-radius:4px;background:#fafafa;padding:12px}.vectorstorecfg-toolbar{display:flex;gap:8px;margin-bottom:10px}.vectorstorecfg-toolbar button,.vectorstorecfg-actions button{border:1px solid #c9c9c9;background:#f1f1f1;color:#333;border-radius:6px;padding:8px 12px;cursor:pointer}.vectorstorecfg-toolbar button:hover,.vectorstorecfg-actions button:hover{background:#e8e8e8}.vectorstorecfg-actions .primary{background:#eaf3ff;border-color:#aac6ea}.vectorstorecfg-actions .primary:hover{background:#dcecff}.vectorstorecfg-actions button[disabled]{opacity:.5;cursor:not-allowed}.vectorstorecfg-table{width:100%;border-collapse:collapse;background:#fff}.vectorstorecfg-table th,.vectorstorecfg-table td{padding:8px 10px;border-bottom:1px solid #e0e0e0;vertical-align:middle;text-align:left;font-size:13px}.vectorstorecfg-table th{background:#f5f5f5;font-weight:600;border-bottom:2px solid #cfcfcf}.vectorstorecfg-table tr.selected td{background:#eef5ff}.vectorstorecfg-table td.id-col,.vectorstorecfg-table td.connection-col,.vectorstorecfg-table td.driver-col,.vectorstorecfg-table td.option-col{font-family:Consolas,monospace;font-size:12px}.vectorstorecfg-edit-btn{border:1px solid #c9c9c9;background:#f1f1f1;border-radius:6px;padding:5px 8px;cursor:pointer;font-size:12px}.vectorstorecfg-edit-btn:hover{background:#e8e8e8}.badge{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #ccc;background:#f6f6f6;color:#333;font-size:12px;white-space:nowrap}.badge.ok{border-color:#8d8;background:#f6fff6;color:#2d6b2d}.badge.off{border-color:#d7c17a;background:#fff8df;color:#876c11}.badge.warn{border-color:#e0a56b;background:#fff4e8;color:#8a4f12}.vectorstorecfg-hint{margin-bottom:12px;font-size:12px;color:#666}.vectorstorecfg-inline-hint{margin-top:6px;margin-bottom:0}.vectorstorecfg-grid{display:grid;grid-template-columns:1fr;gap:12px}.vectorstorecfg-field label{display:block;font-weight:600;margin-bottom:6px;font-size:13px}.vectorstorecfg-field input[type=text],.vectorstorecfg-field select,.vectorstorecfg-field textarea{width:100%;box-sizing:border-box;border:1px solid #cfcfcf;border-radius:6px;padding:8px 10px;background:#fff;color:#333}.vectorstorecfg-field textarea{min-height:150px;font-family:Consolas,monospace;font-size:12px;resize:vertical}.vectorstorecfg-field input[readonly]{background:#f6f6f6;color:#666}.vectorstorecfg-field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vectorstorecfg-field-checkbox{padding-top:4px}.vectorstorecfg-checkbox{display:inline-flex;align-items:center;gap:8px;font-weight:600}.vectorstorecfg-form-feedback{margin-top:14px;border:1px solid #ddd;border-radius:6px;padding:9px 11px;font-size:13px;line-height:1.4}.vectorstorecfg-form-feedback.success{border-color:#8d8;background:#f6fff6;color:#2d6b2d}.vectorstorecfg-form-feedback.error{border-color:#d88;background:#fff5f5;color:#a33}.vectorstorecfg-actions{display:flex;gap:8px;margin-top:14px}@media (max-width:1200px){.vectorstorecfg-layout{grid-template-columns:1fr}}@media (max-width:620px){.vectorstorecfg-field-row{grid-template-columns:1fr}}
+
+.vectorstorecfg-test-result{margin-top:12px;border:1px solid #b9d3b9;background:#f8fff8;border-radius:6px;padding:10px 12px}.vectorstorecfg-test-result.failed{border-color:#d88;background:#fff5f5}.vectorstorecfg-test-meta{font-size:12px;color:#466846;margin-bottom:8px}.vectorstorecfg-test-result.failed .vectorstorecfg-test-meta{color:#8a3a3a}.vectorstorecfg-test-preview{margin:0;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;border:1px solid #d9e6d9;background:#fff;padding:10px;border-radius:4px;font-family:Consolas,monospace;font-size:12px;color:#333}
 </style>
 
 <script>
@@ -235,6 +242,7 @@
 		}
 
 		function resetForm() {
+			clearTestResult();
 			refs.form.reset();
 			refs.id.value = refs.name.value = refs.connection.value = refs.driver.value = "";
 			refs.model.value = "qdrant";
@@ -249,6 +257,7 @@
 		}
 
 		function fillForm(v) {
+			clearTestResult();
 			if (!v) {
 				resetForm();
 				return;
@@ -375,6 +384,73 @@
 			}
 		}
 
+		function clearTestResult() {
+			const panel = root.querySelector("[data-role='testresult']");
+			if (!panel) return;
+			panel.style.display = "none";
+			panel.classList.remove("failed");
+			root.querySelector("[data-role='testmeta']").textContent = "";
+			root.querySelector("[data-role='testpreview']").textContent = "";
+		}
+
+		function renderTestResult(result) {
+			const panel = root.querySelector("[data-role='testresult']");
+			const meta = root.querySelector("[data-role='testmeta']");
+			const preview = root.querySelector("[data-role='testpreview']");
+			const details = result && result.details && typeof result.details === "object" ? result.details : {};
+			const parts = [
+				result && result.ok ? "Status: OK" : "Status: failed",
+				"Driver: " + (details.driver || "-"),
+				"Connection: " + (details.connectionId || "-"),
+				"Model: " + (details.model || details.resolvedModel || "-"),
+				"Duration: " + String(details.durationMs ?? "-") + " ms"
+			];
+			meta.textContent = parts.join(" | ");
+
+			const extra = Object.assign({}, details);
+			delete extra.preview;
+			const detailText = Object.keys(extra).length ? JSON.stringify(extra, null, 2) : "";
+			preview.textContent = [details.preview || (result ? result.message : ""), detailText].filter(Boolean).join("\n\n");
+			panel.classList.toggle("failed", !(result && result.ok));
+			panel.style.display = "block";
+		}
+
+		function buildTestRequest() {
+			const request = {action: "test"};
+			const formData = new FormData(refs.form);
+			formData.forEach((value, name) => { request[name] = String(value); });
+			refs.form.querySelectorAll("input[type='checkbox'][name]").forEach(input => {
+				request[input.name] = input.checked ? "1" : "0";
+			});
+			return request;
+		}
+
+		async function testCurrent() {
+			clearFeedback();
+			clearTestResult();
+			const testBtn = root.querySelector("[data-role='test']");
+			testBtn.disabled = true;
+			const originalLabel = testBtn.textContent;
+			testBtn.textContent = "Testing...";
+
+			try {
+				const json = await callApi(buildTestRequest());
+				if (!json) return;
+
+				const result = json.data && json.data.test ? json.data.test : null;
+				if (!result) {
+					showFeedback("Service test returned no result.", "error");
+					return;
+				}
+
+				renderTestResult(result);
+				showFeedback(result.message || (result.ok ? "Service test succeeded." : "Service test failed."), result.ok ? "success" : "error");
+			} finally {
+				testBtn.disabled = false;
+				testBtn.textContent = originalLabel;
+			}
+		}
+
 		async function saveCurrent() {
 			clearFeedback();
 
@@ -436,6 +512,7 @@
 		}
 
 		refs.form.addEventListener("submit", e => { e.preventDefault(); saveCurrent(); });
+		root.querySelector("[data-role='test']").addEventListener("click", testCurrent);
 		refs.newBtn.addEventListener("click", () => { clearFeedback(); resetForm(); });
 		refs.reloadBtn.addEventListener("click", () => { clearFeedback(); loadList(state.selectedId || ""); });
 		refs.deleteBtn.addEventListener("click", removeCurrent);

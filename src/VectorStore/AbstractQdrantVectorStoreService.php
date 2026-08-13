@@ -17,6 +17,7 @@
 
 namespace MissionBay\VectorStore;
 
+use AssistantFoundation\Api\IAiServiceTester;
 use AssistantFoundation\Api\IRetrievalCollectionDefinition;
 use AssistantFoundation\Dto\RetrievalHit;
 use AssistantFoundation\Dto\RetrievalIndexItem;
@@ -24,7 +25,7 @@ use AssistantFoundation\Dto\RetrievalSearchRequest;
 use AssistantFoundation\Dto\RetrievalSearchResult;
 use MissionBay\Api\IVectorStoreService;
 
-abstract class AbstractQdrantVectorStoreService implements IVectorStoreService {
+abstract class AbstractQdrantVectorStoreService implements IVectorStoreService, IAiServiceTester {
 
 	/** @var array<string,mixed> */
 	protected array $options = [];
@@ -44,6 +45,10 @@ abstract class AbstractQdrantVectorStoreService implements IVectorStoreService {
 	) {}
 
 	abstract public static function getName(): string;
+
+	public static function getType(): string {
+		return 'qdrant';
+	}
 
 	abstract protected function buildUrl(string $path): string;
 
@@ -73,6 +78,36 @@ abstract class AbstractQdrantVectorStoreService implements IVectorStoreService {
 
 	public function getOptions(): array {
 		return $this->options;
+	}
+
+	public function test(array $config): array {
+		try {
+			if($config !== []) {
+				$this->setOptions($config);
+			}
+
+			$this->assertReady();
+			$r = $this->curlJson('GET', $this->buildUrl('/collections'), null);
+			$this->assertHttpSuccess($r, 'health test');
+
+			$data = $this->decodeResponse($r);
+			$collections = $data['result']['collections'] ?? [];
+
+			return [
+				'ok' => true,
+				'message' => 'Qdrant responded successfully.',
+				'details' => [
+					'collectionCount' => is_array($collections) ? count($collections) : 0
+				]
+			];
+		}
+		catch(\Throwable $e) {
+			return [
+				'ok' => false,
+				'message' => $e->getMessage(),
+				'details' => []
+			];
+		}
 	}
 
 	public function upsert(RetrievalIndexItem $item): void {

@@ -40,13 +40,20 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 					<label class="ttscfg-checkbox"><input type="checkbox" name="enabled" checked><span>Enabled</span></label>
 				</div>
 				<div data-role="formfeedback" class="ttscfg-feedback" hidden></div>
-				<div class="ttscfg-actions"><button type="submit" class="primary">Save service</button><button type="button" data-role="delete" disabled>Delete service</button></div>
+
+				<div data-role="testresult" class="ttscfg-test-result" style="display:none">
+					<div data-role="testmeta" class="ttscfg-test-meta"></div>
+					<pre data-role="testpreview" class="ttscfg-test-preview"></pre>
+				</div>
+				<div class="ttscfg-actions"><button type="submit" class="primary">Save service</button><button type="button" data-role="test">Test service</button><button type="button" data-role="delete" disabled>Delete service</button></div>
 			</form>
 		</section>
 	</div>
 </div>
 <style>
 .tts-config-admin{background:#fff;border:1px solid #d6d6d6;padding:16px;border-radius:4px;font-family:Arial,sans-serif;color:#333}.tts-config-admin h3,.tts-config-admin h4{margin-top:0}.ttscfg-meta,.ttscfg-toolbar,.ttscfg-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.ttscfg-meta{font-size:13px;color:#555;margin-bottom:10px}.ttscfg-loading{display:none}.ttscfg-hint,.ttscfg-grid small{font-size:12px;color:#666}.ttscfg-layout{display:grid;grid-template-columns:minmax(760px,1fr) minmax(360px,500px);gap:16px;align-items:start}.ttscfg-panel{border:1px solid #ddd;border-radius:4px;background:#fafafa;padding:12px}.ttscfg-toolbar{margin-bottom:10px}.ttscfg-table{width:100%;border-collapse:collapse;background:#fff}.ttscfg-table th,.ttscfg-table td{padding:8px;border-bottom:1px solid #e0e0e0;text-align:left;font-size:13px}.ttscfg-table th{background:#f5f5f5}.ttscfg-table tr.selected td{background:#eef5ff}.mono,.ttscfg-table .technical{font-family:Consolas,monospace;font-size:12px}.ttscfg-grid{display:grid;gap:12px}.ttscfg-grid label{display:grid;gap:6px;font-weight:600;font-size:13px}.ttscfg-grid input[type=text],.ttscfg-grid select,.ttscfg-grid textarea{width:100%;box-sizing:border-box;border:1px solid #cfcfcf;border-radius:6px;padding:8px 10px;background:#fff}.ttscfg-grid textarea{min-height:90px}.ttscfg-grid textarea[name=options]{font-family:Consolas,monospace}.ttscfg-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ttscfg-checkbox{display:flex!important;grid-template-columns:auto 1fr!important;align-items:center}.ttscfg-toolbar button,.ttscfg-actions button,.ttscfg-edit{border:1px solid #c9c9c9;background:#f1f1f1;border-radius:6px;padding:7px 10px;cursor:pointer}.ttscfg-actions{margin-top:14px}.ttscfg-actions .primary{background:#eaf3ff;border-color:#aac6ea}.ttscfg-feedback{margin-top:12px;padding:9px;border-radius:6px}.ttscfg-feedback.success{background:#f6fff6;color:#2d6b2d;border:1px solid #8d8}.ttscfg-feedback.error{background:#fff5f5;color:#a33;border:1px solid #d88}.badge{display:inline-block;padding:2px 7px;border-radius:999px;border:1px solid #ccc;font-size:12px}.badge.ok{background:#f6fff6;color:#2d6b2d;border-color:#8d8}.badge.off{background:#fff8df;color:#876c11;border-color:#d7c17a}.badge.warn{background:#fff4e8;color:#8a4f12;border-color:#e0a56b}@media(max-width:1280px){.ttscfg-layout{grid-template-columns:1fr}}@media(max-width:620px){.ttscfg-row{grid-template-columns:1fr}}
+
+.ttscfg-test-result{margin-top:12px;border:1px solid #b9d3b9;background:#f8fff8;border-radius:6px;padding:10px 12px}.ttscfg-test-result.failed{border-color:#d88;background:#fff5f5}.ttscfg-test-meta{font-size:12px;color:#466846;margin-bottom:8px}.ttscfg-test-result.failed .ttscfg-test-meta{color:#8a3a3a}.ttscfg-test-preview{margin:0;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-word;border:1px solid #d9e6d9;background:#fff;padding:10px;border-radius:4px;font-family:Consolas,monospace;font-size:12px;color:#333}
 </style>
 <script>
 (function() {
@@ -89,9 +96,11 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 		if(force) { refs.voice.value = options.voice ?? ''; refs.responseFormat.value = options.responseFormat ?? 'mp3'; refs.speed.value = options.speed ?? '1'; refs.instructions.value = options.instructions ?? ''; refs.options.value = formatOptions(options); }
 	}
 	function reset() {
+		clearTestResult();
 		refs.form.reset(); state.selectedId = ''; refs.id.readOnly = false; refs.legend.textContent = 'Create text-to-speech service'; refs.deleteBtn.disabled = true; refs.id.value = refs.name.value = refs.connection.value = refs.driver.value = refs.model.value = refs.voice.value = refs.speed.value = refs.instructions.value = ''; refs.responseFormat.value = 'mp3'; refs.options.value = '{\n}'; refs.enabled.checked = true; highlight();
 	}
 	function fill(row) {
+		clearTestResult();
 		if(!row) { reset(); return; }
 		state.selectedId = row.id || ''; refs.legend.textContent = 'Edit text-to-speech service'; refs.id.readOnly = true; refs.deleteBtn.disabled = false; refs.id.value = row.id || ''; refs.name.value = row.name || ''; refs.connection.value = row.connection || ''; refs.driver.value = row.driver || ''; refs.model.value = row.model || ''; refs.voice.value = row.voice || ''; refs.responseFormat.value = row.responseFormat || 'mp3'; refs.speed.value = row.speed || '1'; refs.instructions.value = row.instructions || ''; refs.options.value = formatOptions(row.options); refs.enabled.checked = !!row.enabled; highlight();
 	}
@@ -109,6 +118,73 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 		renderSelect(refs.connection, state.connections, refs.connection.value, 'Select connection', 'id', 'name'); renderSelect(refs.driver, state.drivers, refs.driver.value, 'Select driver', 'driver', 'label'); renderRows();
 		const selected = find(preselect || state.selectedId); if(selected) fill(selected); else if(!state.services.length) reset();
 	}
+	function clearTestResult() {
+		const panel = root.querySelector("[data-role='testresult']");
+		if (!panel) return;
+		panel.style.display = "none";
+		panel.classList.remove("failed");
+		root.querySelector("[data-role='testmeta']").textContent = "";
+		root.querySelector("[data-role='testpreview']").textContent = "";
+	}
+
+	function renderTestResult(result) {
+		const panel = root.querySelector("[data-role='testresult']");
+		const meta = root.querySelector("[data-role='testmeta']");
+		const preview = root.querySelector("[data-role='testpreview']");
+		const details = result && result.details && typeof result.details === "object" ? result.details : {};
+		const parts = [
+			result && result.ok ? "Status: OK" : "Status: failed",
+			"Driver: " + (details.driver || "-"),
+			"Connection: " + (details.connectionId || "-"),
+			"Model: " + (details.model || details.resolvedModel || "-"),
+			"Duration: " + String(details.durationMs ?? "-") + " ms"
+		];
+		meta.textContent = parts.join(" | ");
+
+		const extra = Object.assign({}, details);
+		delete extra.preview;
+		const detailText = Object.keys(extra).length ? JSON.stringify(extra, null, 2) : "";
+		preview.textContent = [details.preview || (result ? result.message : ""), detailText].filter(Boolean).join("\n\n");
+		panel.classList.toggle("failed", !(result && result.ok));
+		panel.style.display = "block";
+	}
+
+	function buildTestRequest() {
+		const request = {action: "test"};
+		const formData = new FormData(refs.form);
+		formData.forEach((value, name) => { request[name] = String(value); });
+		refs.form.querySelectorAll("input[type='checkbox'][name]").forEach(input => {
+			request[input.name] = input.checked ? "1" : "0";
+		});
+		return request;
+	}
+
+	async function testCurrent() {
+		clearFeedback();
+		clearTestResult();
+		const testBtn = root.querySelector("[data-role='test']");
+		testBtn.disabled = true;
+		const originalLabel = testBtn.textContent;
+		testBtn.textContent = "Testing...";
+
+		try {
+			const json = await api(buildTestRequest());
+			if (!json) return;
+
+			const result = json.data && json.data.test ? json.data.test : null;
+			if (!result) {
+				feedback("Service test returned no result.", "error");
+				return;
+			}
+
+			renderTestResult(result);
+			feedback(result.message || (result.ok ? "Service test succeeded." : "Service test failed."), result.ok ? "success" : "error");
+	} finally {
+			testBtn.disabled = false;
+			testBtn.textContent = originalLabel;
+	}
+	}
+
 	async function save() {
 		clearFeedback(); let advanced;
 		try { advanced = JSON.parse(refs.options.value.trim() || '{}'); if(!advanced || Array.isArray(advanced)) throw new Error(); } catch(error) { feedback('Advanced options must be a JSON object.', 'error'); return; }
@@ -120,7 +196,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 		const id = state.selectedId; if(!id || !window.confirm("Delete text-to-speech service '" + id + "'?")) return;
 		const json = await api({action:'remove',id}); if(!json) return; feedback('Text-to-speech service deleted.', 'success'); reset(); await load();
 	}
-	refs.form.addEventListener('submit', event => { event.preventDefault(); save(); }); refs.newBtn.addEventListener('click', () => { clearFeedback(); reset(); }); refs.reloadBtn.addEventListener('click', () => load(state.selectedId)); refs.deleteBtn.addEventListener('click', remove); refs.driver.addEventListener('change', () => applyDefaults(true)); refs.tbody.addEventListener('click', event => { const button = event.target.closest('[data-edit]'); if(button) fill(find(button.dataset.edit)); });
+	refs.form.addEventListener('submit', event => { event.preventDefault(); save(); }); q('[data-role="test"]').addEventListener('click', testCurrent); refs.newBtn.addEventListener('click', () => { clearFeedback(); reset(); }); refs.reloadBtn.addEventListener('click', () => load(state.selectedId)); refs.deleteBtn.addEventListener('click', remove); refs.driver.addEventListener('change', () => applyDefaults(true)); refs.tbody.addEventListener('click', event => { const button = event.target.closest('[data-edit]'); if(button) fill(find(button.dataset.edit)); });
 	load();
 })();
 </script>

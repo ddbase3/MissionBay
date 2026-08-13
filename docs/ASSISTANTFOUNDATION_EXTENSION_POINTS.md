@@ -1294,9 +1294,7 @@ Example implementation registration:
 $container->set(
     IRealtimeSpeechToTextSessionService::class,
     fn($c) => new ConfiguredRealtimeSpeechToTextSessionService(
-        $c->get(ISettingsStore::class),
-        $c->get(IClassMap::class),
-        $c->get(IAgentConfigValueResolver::class)
+        $c->get(ConfiguredServiceRuntimeResolver::class)
     ),
     IContainer::SHARED | IContainer::NOOVERWRITE
 );
@@ -1308,10 +1306,26 @@ implementation plugin.
 
 ### `ITextToSpeechService`
 
-Use this service when a consumer provides text and expects an audio payload plus
-its MIME type. Voice selection, model configuration, streaming transport, and
-provider-specific response data remain implementation concerns expressed through
-the request options and result metadata.
+Use this service when a consumer provides text and expects synthesized audio. A
+single configured service supports both execution styles:
+
+- `synthesize()` performs a complete request and returns a `TextToSpeechResult`
+  carrying the generated `MediaFoundation\Api\IAudioMedia`;
+- `stream()` delivers incremental audio through `ITextToSpeechStream` and returns
+  completion metadata without requiring the implementation to buffer the complete
+  audio payload again.
+
+Streaming is selected by the caller for each invocation. It is not a persisted
+service option and must not require a separate streaming service configuration.
+Voice, format, speed, instructions, and other synthesis controls remain normal
+service defaults that individual requests may override where the provider supports
+them. Provider-private response data belongs in result metadata or `raw`, not in
+the public service contract.
+
+Migration note: the former `synthesize(TextToSpeechRequest, ITextToSpeechStream)`
+signature was an unfinished streaming-only contract. Consumers must now call
+`synthesize(TextToSpeechRequest)` for complete audio or `stream(...)` when live
+audio delivery is required.
 
 These contracts are plugin-to-plugin slots because Chatbot, administrative
 configuration plugins, and alternative assistant runtimes must be able to

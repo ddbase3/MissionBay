@@ -9,6 +9,7 @@ use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\ImageModel\MistralImageModel;
 use MissionBay\Resource\ConfiguredImageModelAgentResource;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use MissionBay\ServiceDriver\MistralImageServiceDriverDefinition;
 use PHPUnit\Framework\TestCase;
 
@@ -29,6 +30,8 @@ final class ConfiguredImageModelAgentResourceTest extends TestCase {
 						'enabled' => true,
 						'options' => [
 							'toolChoice' => 'required',
+							'timeoutSeconds' => 180,
+							'connectTimeoutSeconds' => 25,
 							'endpoint' => 'https://duplicate.example.test',
 							'api_key' => 'duplicate-key',
 							'authType' => 'none'
@@ -84,11 +87,19 @@ final class ConfiguredImageModelAgentResourceTest extends TestCase {
 		$classMap->method('getInstancesByInterface')
 			->with(IServiceDriverDefinition::class)
 			->willReturn([$driverDefinition]);
-		$classMap->method('getInstanceByInterfaceName')
+		$classMap->method('getClassByInterfaceName')
 			->with(IImageGenerationModel::class, MistralImageModel::getName())
+			->willReturn(MistralImageModel::class);
+		$classMap->method('instantiate')
+			->with(MistralImageModel::class)
 			->willReturn($imageModel);
 
-		$resource = new ConfiguredImageModelAgentResource($resolver, $settingsStore, $classMap, 'course-image');
+		$resource = new ConfiguredImageModelAgentResource(
+			$resolver,
+			$settingsStore,
+			new ConfiguredServiceRuntimeResolver($settingsStore, $classMap, $resolver),
+			'course-image'
+		);
 		$resource->setConfig([
 			'service' => 'mistral_course_images'
 		]);
@@ -97,9 +108,9 @@ final class ConfiguredImageModelAgentResourceTest extends TestCase {
 		$this->assertSame('mistral-small-latest', $capturedOptions['model']);
 		$this->assertSame('https://api.mistral.ai', $capturedOptions['endpoint']);
 		$this->assertSame('mistral-test-key', $capturedOptions['apikey']);
-		$this->assertSame('required', $capturedOptions['tool_choice']);
-		$this->assertSame(120, $capturedOptions['timeout_seconds']);
-		$this->assertArrayNotHasKey('connect_timeout_seconds', $capturedOptions);
+		$this->assertArrayNotHasKey('tool_choice', $capturedOptions);
+		$this->assertSame(180, $capturedOptions['timeout_seconds']);
+		$this->assertSame(25, $capturedOptions['connect_timeout_seconds']);
 		$this->assertArrayNotHasKey('size', $capturedOptions);
 	}
 }

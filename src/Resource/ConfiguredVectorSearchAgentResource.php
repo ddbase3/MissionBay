@@ -19,12 +19,10 @@ namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IConfigurableVectorSearch;
 use AssistantFoundation\Api\IVectorSearch;
-use Base3\Api\IClassMap;
 use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use RuntimeException;
 
 /**
@@ -33,7 +31,6 @@ use RuntimeException;
 final class ConfiguredVectorSearchAgentResource extends AbstractConfiguredServiceAgentResource implements IVectorSearch, ISchemaProvider {
 
 	private const SETTINGS_GROUP = 'service-vectorsearch';
-	private const CONNECTION_SETTINGS_GROUP = 'connection';
 	private const SERVICE_TYPE = 'vectorsearch';
 	private const SERVICE_ALIAS = 'vectorsearch';
 
@@ -42,7 +39,7 @@ final class ConfiguredVectorSearchAgentResource extends AbstractConfiguredServic
 	public function __construct(
 		IAgentConfigValueResolver $resolver,
 		ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap,
+		private readonly ConfiguredServiceRuntimeResolver $runtimeResolver,
 		?string $id = null
 	) {
 		parent::__construct($resolver, $settingsStore, $id);
@@ -108,66 +105,23 @@ final class ConfiguredVectorSearchAgentResource extends AbstractConfiguredServic
 		$serviceId = $this->resolveServiceId();
 
 		if($serviceId === '') {
-			throw new RuntimeException('ConfiguredVectorSearchAgentResource requires config key "service".');
+			throw new RuntimeException(static::class . ' requires config key "service".');
 		}
 
-		$serviceConfig = $this->loadServiceConfig(self::SETTINGS_GROUP, $serviceId, self::SERVICE_TYPE);
-		$connectionConfig = $this->loadConnectionConfig(self::CONNECTION_SETTINGS_GROUP, $serviceConfig->getConnectionId());
-		$serviceName = $this->resolveServiceImplementationName(
-			$this->classMap,
-			$serviceConfig->getDriver(),
+		$service = $this->runtimeResolver->resolve(
+			self::SETTINGS_GROUP,
+			$serviceId,
 			self::SERVICE_TYPE,
-			IConfigurableVectorSearch::class
+			self::SERVICE_ALIAS,
+			IConfigurableVectorSearch::class,
+			$this->optionOverrides
 		);
 
-		if($serviceName === '') {
-			throw new RuntimeException(
-				'Vector-search config has no usable driver: ' . $serviceId . ' ' . $this->formatConfigDebug($serviceConfig->toSettings())
-			);
-		}
-
-		$service = $this->classMap->getInstanceByInterfaceName(IConfigurableVectorSearch::class, $serviceName);
-
 		if(!$service instanceof IConfigurableVectorSearch) {
-			throw new RuntimeException(
-				'Unable to resolve vector-search service "' . $serviceName . '" for driver "' . $serviceConfig->getDriver() . '".'
-			);
+			throw new RuntimeException('Configured vector-search service could not be initialized.');
 		}
 
-		$this->resolvedOptions = $this->buildRuntimeOptions($serviceConfig, $connectionConfig);
-		$this->resolvedOptions = array_merge($this->resolvedOptions, $this->optionOverrides);
 		$this->service = $service;
-		$this->applyResolvedOptions();
-	}
-
-	/**
-	 * @return array<string,mixed>
-	 */
-	private function buildRuntimeOptions(ServiceConfig $serviceConfig, ConnectionConfig $connectionConfig): array {
-		$options = $this->buildBaseRuntimeOptions($serviceConfig, $connectionConfig, self::SERVICE_ALIAS);
-		$serviceOptions = $serviceConfig->getOptions();
-
-		$options = $this->mergeServiceOptions($options, $serviceOptions, [
-			'vectorsearch_id' => true,
-			'vectorsearch_label' => true,
-			'service_type' => true,
-			'service_driver' => true,
-			'connection_id' => true,
-			'connection_label' => true,
-			'connection_type' => true,
-			'connection_driver' => true,
-			'auth_type' => true,
-			'auth_header_name' => true,
-			'model' => true,
-			'endpoint' => true,
-			'base_url' => true,
-			'apikey' => true,
-			'auth_secret' => true,
-			'timeout_seconds' => true,
-			'connect_timeout_seconds' => true
-		]);
-
-
-		return $options;
+		$this->resolvedOptions = $service->getOptions();
 	}
 }

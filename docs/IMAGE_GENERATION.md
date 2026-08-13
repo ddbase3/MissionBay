@@ -53,7 +53,7 @@ base URL
 authentication type
 authentication header
 API key / secret resolver
-connection timeout
+default request timeout
 connection-specific options
 ```
 
@@ -65,10 +65,13 @@ connection reference
 image driver
 model
 generation-specific options
+optional per-service request and connect timeouts
 enabled state
 ```
 
-`ImageConfigDisplay` does not edit or duplicate connection values. It only selects an existing connection. Connection-owned keys are rejected in advanced image options and removed from loaded service option records.
+`ImageConfigDisplay` does not edit or duplicate connection endpoint or authentication values. It only selects an existing connection. Connection-owned keys are rejected in advanced image options and removed from loaded service option records.
+
+The connection timeout is the default request timeout. An image service may override it with `timeoutSeconds` because image generation can have very different latency characteristics from other services using the same connection. `connectTimeoutSeconds` controls only connection establishment and defaults to 15 seconds when omitted.
 
 ## Mistral connection
 
@@ -117,7 +120,9 @@ $settingsStore->set('service-image', 'mistral_course_images', [
 	'model' => 'mistral-small-latest',
 	'enabled' => true,
 	'options' => [
-		'toolChoice' => 'required'
+		'toolChoice' => 'required',
+		'timeoutSeconds' => 90,
+		'connectTimeoutSeconds' => 15
 	]
 ]);
 

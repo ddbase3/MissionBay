@@ -19,12 +19,10 @@ namespace MissionBay\Resource;
 
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AiChatResult;
-use Base3\Api\IClassMap;
 use Base3\Api\ISchemaProvider;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use RuntimeException;
 
 /**
@@ -37,7 +35,6 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 
 
 	private const LLM_SETTINGS_GROUP = 'service-llm';
-	private const CONNECTION_SETTINGS_GROUP = 'connection';
 	private const SERVICE_TYPE = 'llm';
 	private const SERVICE_ALIAS = 'llm';
 
@@ -46,7 +43,7 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 	public function __construct(
 		IAgentConfigValueResolver $resolver,
 		ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap,
+		private readonly ConfiguredServiceRuntimeResolver $runtimeResolver,
 		?string $id = null
 	) {
 		parent::__construct($resolver, $settingsStore, $id);
@@ -127,76 +124,23 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 		$serviceId = $this->resolveServiceId();
 
 		if($serviceId === '') {
-			throw new RuntimeException('ConfiguredChatModelAgentResource requires config key "service".');
+			throw new RuntimeException(static::class . ' requires config key "service".');
 		}
 
-		$serviceConfig = $this->loadServiceConfig(self::LLM_SETTINGS_GROUP, $serviceId, self::SERVICE_TYPE);
-		$connectionConfig = $this->loadConnectionConfig(self::CONNECTION_SETTINGS_GROUP, $serviceConfig->getConnectionId());
-
-		$modelName = $this->resolveChatModelName($serviceConfig->getDriver());
-
-		if($modelName === '') {
-			throw new RuntimeException(
-				'LLM service config has no usable driver: ' . $serviceId . ' ' . $this->formatConfigDebug($serviceConfig->toSettings())
-			);
-		}
-
-		$model = $this->classMap->getInstanceByInterfaceName(IAiChatModel::class, $modelName);
-
-		if(!$model instanceof IAiChatModel) {
-			throw new RuntimeException(
-				'Unable to resolve chat model "' . $modelName . '" for driver "' . $serviceConfig->getDriver() . '".'
-			);
-		}
-
-		$this->resolvedOptions = $this->buildRuntimeOptions($serviceConfig, $connectionConfig);
-		$this->resolvedOptions = array_merge($this->resolvedOptions, $this->optionOverrides);
-
-		$this->model = $model;
-		$this->applyResolvedOptions();
-	}
-
-	private function resolveChatModelName(string $driver): string {
-		return $this->resolveServiceImplementationName(
-			$this->classMap,
-			$driver,
+		$service = $this->runtimeResolver->resolve(
+			self::LLM_SETTINGS_GROUP,
+			$serviceId,
 			self::SERVICE_TYPE,
-			IAiChatModel::class
+			self::SERVICE_ALIAS,
+			IAiChatModel::class,
+			$this->optionOverrides
 		);
-	}
 
-	/**
-	 * @return array<string,mixed>
-	 */
-	private function buildRuntimeOptions(ServiceConfig $serviceConfig, ConnectionConfig $connectionConfig): array {
-		$options = $this->buildBaseRuntimeOptions($serviceConfig, $connectionConfig, self::SERVICE_ALIAS);
-		$serviceOptions = $serviceConfig->getOptions();
+		if(!$service instanceof IAiChatModel) {
+			throw new RuntimeException('Configured chat model could not be initialized.');
+		}
 
-		$options = $this->mergeServiceOptions($options, $serviceOptions, [
-			'llm_id' => true,
-			'llm_label' => true,
-			'service_type' => true,
-			'service_driver' => true,
-			'connection_id' => true,
-			'connection_label' => true,
-			'connection_type' => true,
-			'connection_driver' => true,
-			'model' => true,
-			'endpoint' => true,
-			'apikey' => true,
-			'max_tokens' => true,
-			'top_p' => true,
-			'timeout_seconds' => true,
-			'connect_timeout_seconds' => true,
-			'maxtokens' => true
-		]);
-
-		$this->mapOptionalNumber($options, $serviceOptions, 'temperature', 'temperature', 'float');
-		$this->mapOptionalNumber($options, $serviceOptions, 'maxTokens', 'max_tokens', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'topP', 'top_p', 'float');
-		$this->mapOptionalNumber($options, $serviceOptions, 'timeoutSeconds', 'timeout_seconds', 'int');
-		$this->mapOptionalNumber($options, $serviceOptions, 'connectTimeoutSeconds', 'connect_timeout_seconds', 'int');
-
-		return $options;
+		$this->model = $service;
+		$this->resolvedOptions = $service->getOptions();
 	}
 }

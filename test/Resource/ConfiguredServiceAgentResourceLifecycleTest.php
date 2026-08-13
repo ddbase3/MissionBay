@@ -5,6 +5,7 @@ namespace MissionBay\Test\Resource;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Api\IConfiguredParserServiceResolver;
 use MissionBay\Resource\ConfiguredChatModelAgentResource;
 use MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
 use MissionBay\Resource\ConfiguredImageModelAgentResource;
@@ -12,6 +13,7 @@ use MissionBay\Resource\ConfiguredParserServiceAgentResource;
 use MissionBay\Resource\ConfiguredSearchServiceAgentResource;
 use MissionBay\Resource\ConfiguredVectorSearchAgentResource;
 use MissionBay\Resource\ConfiguredVectorStoreAgentResource;
+use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use PHPUnit\Framework\TestCase;
 
 final class ConfiguredServiceAgentResourceLifecycleTest extends TestCase {
@@ -26,16 +28,21 @@ final class ConfiguredServiceAgentResourceLifecycleTest extends TestCase {
 
 		$classMap = $this->createMock(IClassMap::class);
 		$classMap->expects($this->never())->method('getInstancesByInterface');
-		$classMap->expects($this->never())->method('getInstanceByInterfaceName');
+		$classMap->expects($this->never())->method('getClassByInterfaceName');
+		$classMap->expects($this->never())->method('instantiate');
+
+		$runtimeResolver = new ConfiguredServiceRuntimeResolver($settingsStore, $classMap, $resolver);
+		$parserResolver = $this->createMock(IConfiguredParserServiceResolver::class);
+		$parserResolver->expects($this->never())->method('resolve');
 
 		$resources = [
-			new ConfiguredChatModelAgentResource($resolver, $settingsStore, $classMap, 'chat'),
-			new ConfiguredEmbeddingModelAgentResource($resolver, $settingsStore, $classMap, 'embedding'),
-			new ConfiguredImageModelAgentResource($resolver, $settingsStore, $classMap, 'image'),
-			new ConfiguredParserServiceAgentResource($resolver, $settingsStore, $classMap, 'parser'),
-			new ConfiguredSearchServiceAgentResource($resolver, $settingsStore, $classMap, 'search'),
-			new ConfiguredVectorSearchAgentResource($resolver, $settingsStore, $classMap, 'vector-search'),
-			new ConfiguredVectorStoreAgentResource($resolver, $settingsStore, $classMap, 'vector-store')
+			new ConfiguredChatModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'chat'),
+			new ConfiguredEmbeddingModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'embedding'),
+			new ConfiguredImageModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'image'),
+			new ConfiguredParserServiceAgentResource($resolver, $settingsStore, $parserResolver, 'parser'),
+			new ConfiguredSearchServiceAgentResource($resolver, $settingsStore, $runtimeResolver, 'search'),
+			new ConfiguredVectorSearchAgentResource($resolver, $settingsStore, $runtimeResolver, 'vector-search'),
+			new ConfiguredVectorStoreAgentResource($resolver, $settingsStore, $runtimeResolver, 'vector-store')
 		];
 
 		foreach($resources as $resource) {
