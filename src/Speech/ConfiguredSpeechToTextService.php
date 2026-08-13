@@ -17,14 +17,14 @@
 
 namespace MissionBay\Speech;
 
-use AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
+use AssistantFoundation\Api\ISpeechToTextService;
+use AssistantFoundation\Dto\SpeechToTextRequest;
+use AssistantFoundation\Dto\SpeechToTextResult;
 use MissionBay\Api\ISpeechToTextDriver;
 use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use RuntimeException;
 
-final class ConfiguredRealtimeSpeechToTextSessionService implements IRealtimeSpeechToTextSessionService {
+final class ConfiguredSpeechToTextService implements ISpeechToTextService {
 
 	private const SERVICE_GROUP = 'service-stt';
 	private const SERVICE_TYPE = 'stt';
@@ -33,7 +33,7 @@ final class ConfiguredRealtimeSpeechToTextSessionService implements IRealtimeSpe
 		private readonly ConfiguredServiceRuntimeResolver $runtimeResolver
 	) {}
 
-	public function createSession(RealtimeSpeechToTextSessionRequest $request): RealtimeSpeechToTextSession {
+	public function transcribe(SpeechToTextRequest $request): SpeechToTextResult {
 		$serviceId = $this->normalizeKey($request->getServiceId());
 		if($serviceId === '') {
 			throw new RuntimeException('Missing speech-to-text service id.');
@@ -50,7 +50,7 @@ final class ConfiguredRealtimeSpeechToTextSessionService implements IRealtimeSpe
 
 		$connectionConfig = $this->runtimeResolver->loadConnectionConfig($serviceConfig->getConnectionId());
 		if($connectionConfig->getAuthType() !== 'bearer') {
-			throw new RuntimeException('Realtime speech-to-text requires bearer authentication.');
+			throw new RuntimeException('Speech-to-text requires bearer authentication.');
 		}
 
 		$secret = $this->runtimeResolver->resolveConnectionSecret($connectionConfig);
@@ -64,10 +64,10 @@ final class ConfiguredRealtimeSpeechToTextSessionService implements IRealtimeSpe
 			ISpeechToTextDriver::class
 		);
 		if(!$driver instanceof ISpeechToTextDriver) {
-			throw new RuntimeException('Realtime speech-to-text driver could not be initialized.');
+			throw new RuntimeException('Speech-to-text driver could not be initialized.');
 		}
 
-		return $driver->createSession($serviceConfig, $connectionConfig, $secret, $request);
+		return $driver->transcribe($serviceConfig, $connectionConfig, $secret, $request);
 	}
 
 	private function normalizeKey(string $value): string {

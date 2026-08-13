@@ -18,17 +18,17 @@
 namespace MissionBay\ServiceDriver;
 
 use AssistantFoundation\Api\IServiceDriverDefinition;
-use MissionBay\Api\IRealtimeSpeechToTextDriver;
-use MissionBay\Speech\MistralRealtimeSpeechToTextDriver;
+use MissionBay\Api\ISpeechToTextDriver;
+use MissionBay\Speech\OpenAiSpeechToTextDriver;
 
-final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDriverDefinition {
+final class OpenAiSpeechToTextDriverDefinition implements IServiceDriverDefinition {
 
 	public static function getName(): string {
-		return 'mistralrealtimespeechtotextdriverdefinition';
+		return 'openaispeechtotextdriverdefinition';
 	}
 
 	public function getDriver(): string {
-		return 'mistral-realtime-stt';
+		return 'openai-stt';
 	}
 
 	public function getServiceType(): string {
@@ -36,7 +36,7 @@ final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDrive
 	}
 
 	public function getLabel(): string {
-		return 'Mistral Realtime Speech-to-Text';
+		return 'OpenAI Speech-to-Text';
 	}
 
 	public function requiresConnection(): bool {
@@ -48,11 +48,11 @@ final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDrive
 	}
 
 	public function getImplementationInterface(): string {
-		return IRealtimeSpeechToTextDriver::class;
+		return ISpeechToTextDriver::class;
 	}
 
 	public function getImplementationName(): string {
-		return MistralRealtimeSpeechToTextDriver::getName();
+		return OpenAiSpeechToTextDriver::getName();
 	}
 
 	public function getConfigSchema(): array {
@@ -61,39 +61,47 @@ final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDrive
 			'properties' => [
 				'model' => [
 					'type' => 'string',
-					'label' => 'Model',
-					'default' => 'voxtral-mini-transcribe-realtime-2602',
+					'label' => 'Transcription model',
+					'default' => 'gpt-4o-mini-transcribe',
 					'required' => true
+				],
+				'realtimeModel' => [
+					'type' => 'string',
+					'label' => 'Realtime transcription model',
+					'default' => 'gpt-4o-mini-transcribe'
 				],
 				'language' => [
 					'type' => 'string',
 					'label' => 'Language',
 					'default' => 'de'
 				],
-				'sampleRate' => [
-					'type' => 'integer',
-					'label' => 'Sample rate',
-					'default' => 16000
+				'prompt' => [
+					'type' => 'string',
+					'label' => 'Prompt',
+					'default' => ''
 				],
-				'targetStreamingDelayMs' => [
+				'vadThreshold' => [
+					'type' => 'number',
+					'label' => 'VAD threshold',
+					'minimum' => 0,
+					'maximum' => 1,
+					'default' => 0.5
+				],
+				'prefixPaddingMs' => [
 					'type' => 'integer',
-					'label' => 'Target streaming delay (ms)',
-					'default' => 480
+					'label' => 'Prefix padding (ms)',
+					'default' => 300
 				],
 				'silenceDurationMs' => [
 					'type' => 'integer',
 					'label' => 'Silence before stop (ms)',
-					'default' => 1200
+					'default' => 800
 				],
-				'chunkDurationMs' => [
-					'type' => 'integer',
-					'label' => 'Audio chunk duration (ms)',
-					'default' => 480
-				],
-				'noSpeechTimeoutMs' => [
-					'type' => 'integer',
-					'label' => 'No-speech timeout (ms)',
-					'default' => 10000
+				'noiseReduction' => [
+					'type' => 'string',
+					'label' => 'Noise reduction',
+					'enum' => ['near_field', 'far_field', 'off'],
+					'default' => 'near_field'
 				]
 			]
 		];
@@ -102,19 +110,19 @@ final class MistralRealtimeSpeechToTextDriverDefinition implements IServiceDrive
 	public function getDefaultConfig(): array {
 		return [
 			'serviceType' => 'stt',
-			'driver' => 'mistral-realtime-stt',
-			'model' => 'voxtral-mini-transcribe-realtime-2602',
+			'driver' => 'openai-stt',
+			'model' => 'gpt-4o-mini-transcribe',
 			'enabled' => true,
 			'options' => [
-				'mode' => 'realtime',
+				'realtimeModel' => 'gpt-4o-mini-transcribe',
 				'language' => 'de',
-				'sampleRate' => 16000,
-				'targetStreamingDelayMs' => 480,
-				'silenceDurationMs' => 1200,
-				'chunkDurationMs' => 480,
-				'finalizationTimeoutMs' => 10000,
-				'noSpeechTimeoutMs' => 10000,
-				'interimResults' => true
+				'prompt' => '',
+				'vadThreshold' => 0.5,
+				'prefixPaddingMs' => 300,
+				'silenceDurationMs' => 800,
+				'noiseReduction' => 'near_field',
+				'chunkDurationMs' => 100,
+				'finalizationTimeoutMs' => 10000
 			]
 		];
 	}

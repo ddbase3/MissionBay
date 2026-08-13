@@ -6,7 +6,7 @@ use AssistantFoundation\Api\IServiceDriverDefinition;
 use MissionBay\ServiceDriver\DoclingParserServiceDriverDefinition;
 use MissionBay\ServiceDriver\MistralChatServiceDriverDefinition;
 use MissionBay\ServiceDriver\MistralImageServiceDriverDefinition;
-use MissionBay\ServiceDriver\MistralRealtimeSpeechToTextDriverDefinition;
+use MissionBay\ServiceDriver\MistralSpeechToTextDriverDefinition;
 use MissionBay\ServiceDriver\MistralTextToSpeechDriverDefinition;
 use MissionBay\ServiceDriver\MistralWebSearchServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiChatServiceDriverDefinition;
@@ -15,7 +15,7 @@ use MissionBay\ServiceDriver\OpenAiCompatibleEmbeddingServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiCompatibleImageServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiEmbeddingServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiImageServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiRealtimeSpeechToTextDriverDefinition;
+use MissionBay\ServiceDriver\OpenAiSpeechToTextDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiTextToSpeechDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiWebSearchServiceDriverDefinition;
 use MissionBay\ServiceDriver\QdrantVectorStoreServiceDriverDefinition;
@@ -32,7 +32,7 @@ final class ServiceDriverDefinitionContractTest extends TestCase {
 			'docling parser' => [DoclingParserServiceDriverDefinition::class],
 			'mistral chat' => [MistralChatServiceDriverDefinition::class],
 			'mistral image' => [MistralImageServiceDriverDefinition::class],
-			'mistral realtime speech-to-text' => [MistralRealtimeSpeechToTextDriverDefinition::class],
+			'mistral speech-to-text' => [MistralSpeechToTextDriverDefinition::class],
 			'mistral text-to-speech' => [MistralTextToSpeechDriverDefinition::class],
 			'mistral web search' => [MistralWebSearchServiceDriverDefinition::class],
 			'openai chat' => [OpenAiChatServiceDriverDefinition::class],
@@ -41,7 +41,7 @@ final class ServiceDriverDefinitionContractTest extends TestCase {
 			'openai compatible image' => [OpenAiCompatibleImageServiceDriverDefinition::class],
 			'openai embedding' => [OpenAiEmbeddingServiceDriverDefinition::class],
 			'openai image' => [OpenAiImageServiceDriverDefinition::class],
-			'openai realtime speech-to-text' => [OpenAiRealtimeSpeechToTextDriverDefinition::class],
+			'openai speech-to-text' => [OpenAiSpeechToTextDriverDefinition::class],
 			'openai text-to-speech' => [OpenAiTextToSpeechDriverDefinition::class],
 			'openai web search' => [OpenAiWebSearchServiceDriverDefinition::class],
 			'qdrant vector store' => [QdrantVectorStoreServiceDriverDefinition::class],

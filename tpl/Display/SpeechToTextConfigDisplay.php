@@ -9,7 +9,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
 		<div data-role="loading" class="sttcfg-loading">Please wait...</div>
 	</div>
-	<p class="sttcfg-hint">Realtime speech-to-text services stream microphone audio directly from the browser with a short-lived provider token. Permanent connection secrets remain on the server.</p>
+	<p class="sttcfg-hint">Speech-to-text services support complete transcription and, where the provider supports it, realtime microphone transcription through a short-lived browser session. Permanent connection secrets remain on the server.</p>
 	<div class="sttcfg-layout">
 		<section class="sttcfg-panel">
 			<div class="sttcfg-toolbar">
@@ -25,11 +25,12 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 			<form data-role="form">
 				<h4 data-role="legend">Create speech-to-text service</h4>
 				<div class="sttcfg-grid">
-					<label>Service id<input type="text" name="id" placeholder="mistral-realtime" autocomplete="off"></label>
+					<label>Service id<input type="text" name="id" placeholder="mistral-default" autocomplete="off"></label>
 					<label>Name<input type="text" name="name" placeholder="Mistral Realtime" autocomplete="off"></label>
 					<label>Connection<select name="connection"><option value="">Loading connections...</option></select></label>
 					<label>Driver<select name="driver"><option value="">Loading drivers...</option></select></label>
-					<label>Model<input type="text" name="model" placeholder="voxtral-mini-transcribe-realtime-2602" autocomplete="off"></label>
+					<label>Transcription model<input type="text" name="model" placeholder="voxtral-mini-latest" autocomplete="off"></label>
+					<label>Realtime model<input type="text" name="realtimeModel" placeholder="voxtral-mini-transcribe-realtime-2602" autocomplete="off"><small>Optional. Leave empty when the provider uses the same model for complete and realtime transcription.</small></label>
 					<label>Language<input type="text" name="language" placeholder="de" autocomplete="off"><small>Use an empty value for provider auto-detection.</small></label>
 					<div class="sttcfg-row">
 						<label>Sample rate<input type="text" name="sampleRate" placeholder="16000" inputmode="numeric"></label>
@@ -66,7 +67,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 
 	const q = selector => root.querySelector(selector);
 	const refs = {
-		loading:q('[data-role="loading"]'),lastupdate:q('[data-role="lastupdate"]'),tbody:q('[data-role="tbody"]'),form:q('[data-role="form"]'),legend:q('[data-role="legend"]'),feedback:q('[data-role="formfeedback"]'),newBtn:q('[data-role="new"]'),reloadBtn:q('[data-role="reload"]'),deleteBtn:q('[data-role="delete"]'),id:q('[name="id"]'),name:q('[name="name"]'),connection:q('[name="connection"]'),driver:q('[name="driver"]'),model:q('[name="model"]'),language:q('[name="language"]'),sampleRate:q('[name="sampleRate"]'),targetDelay:q('[name="targetStreamingDelayMs"]'),silence:q('[name="silenceDurationMs"]'),noSpeech:q('[name="noSpeechTimeoutMs"]'),options:q('[name="options"]'),enabled:q('[name="enabled"]')
+		loading:q('[data-role="loading"]'),lastupdate:q('[data-role="lastupdate"]'),tbody:q('[data-role="tbody"]'),form:q('[data-role="form"]'),legend:q('[data-role="legend"]'),feedback:q('[data-role="formfeedback"]'),newBtn:q('[data-role="new"]'),reloadBtn:q('[data-role="reload"]'),deleteBtn:q('[data-role="delete"]'),id:q('[name="id"]'),name:q('[name="name"]'),connection:q('[name="connection"]'),driver:q('[name="driver"]'),model:q('[name="model"]'),realtimeModel:q('[name="realtimeModel"]'),language:q('[name="language"]'),sampleRate:q('[name="sampleRate"]'),targetDelay:q('[name="targetStreamingDelayMs"]'),silence:q('[name="silenceDurationMs"]'),noSpeech:q('[name="noSpeechTimeoutMs"]'),options:q('[name="options"]'),enabled:q('[name="enabled"]')
 	};
 	const state = {services:[],connections:[],drivers:[],selectedId:''};
 	const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
@@ -94,16 +95,16 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 		const definition = driver(refs.driver.value); if(!definition) return;
 		const defaults = definition.defaultConfig || {}; const options = defaults.options || {};
 		if(force || !refs.model.value) refs.model.value = defaults.model || '';
-		if(force) { refs.language.value = options.language ?? ''; refs.sampleRate.value = options.sampleRate ?? ''; refs.targetDelay.value = options.targetStreamingDelayMs ?? ''; refs.silence.value = options.silenceDurationMs ?? ''; refs.noSpeech.value = options.noSpeechTimeoutMs ?? ''; refs.options.value = formatOptions(options); }
+		if(force) { refs.realtimeModel.value = options.realtimeModel ?? ''; refs.language.value = options.language ?? ''; refs.sampleRate.value = options.sampleRate ?? ''; refs.targetDelay.value = options.targetStreamingDelayMs ?? ''; refs.silence.value = options.silenceDurationMs ?? ''; refs.noSpeech.value = options.noSpeechTimeoutMs ?? ''; refs.options.value = formatOptions(options); }
 	}
 	function reset() {
 		clearTestResult();
-		refs.form.reset(); state.selectedId = ''; refs.id.readOnly = false; refs.legend.textContent = 'Create speech-to-text service'; refs.deleteBtn.disabled = true; refs.id.value = refs.name.value = refs.connection.value = refs.driver.value = refs.model.value = refs.language.value = refs.sampleRate.value = refs.targetDelay.value = refs.silence.value = refs.noSpeech.value = ''; refs.options.value = '{\n}'; refs.enabled.checked = true; highlight();
+		refs.form.reset(); state.selectedId = ''; refs.id.readOnly = false; refs.legend.textContent = 'Create speech-to-text service'; refs.deleteBtn.disabled = true; refs.id.value = refs.name.value = refs.connection.value = refs.driver.value = refs.model.value = refs.realtimeModel.value = refs.language.value = refs.sampleRate.value = refs.targetDelay.value = refs.silence.value = refs.noSpeech.value = ''; refs.options.value = '{\n}'; refs.enabled.checked = true; highlight();
 	}
 	function fill(row) {
 		clearTestResult();
 		if(!row) { reset(); return; }
-		state.selectedId = row.id || ''; refs.legend.textContent = 'Edit speech-to-text service'; refs.id.readOnly = true; refs.deleteBtn.disabled = false; refs.id.value = row.id || ''; refs.name.value = row.name || ''; refs.connection.value = row.connection || ''; refs.driver.value = row.driver || ''; refs.model.value = row.model || ''; refs.language.value = row.language || ''; refs.sampleRate.value = row.sampleRate || ''; refs.targetDelay.value = row.targetStreamingDelayMs || ''; refs.silence.value = row.silenceDurationMs || ''; refs.noSpeech.value = row.noSpeechTimeoutMs || ''; refs.options.value = formatOptions(row.options); refs.enabled.checked = !!row.enabled; highlight();
+		state.selectedId = row.id || ''; refs.legend.textContent = 'Edit speech-to-text service'; refs.id.readOnly = true; refs.deleteBtn.disabled = false; refs.id.value = row.id || ''; refs.name.value = row.name || ''; refs.connection.value = row.connection || ''; refs.driver.value = row.driver || ''; refs.model.value = row.model || ''; refs.realtimeModel.value = row.realtimeModel || ''; refs.language.value = row.language || ''; refs.sampleRate.value = row.sampleRate || ''; refs.targetDelay.value = row.targetStreamingDelayMs || ''; refs.silence.value = row.silenceDurationMs || ''; refs.noSpeech.value = row.noSpeechTimeoutMs || ''; refs.options.value = formatOptions(row.options); refs.enabled.checked = !!row.enabled; highlight();
 	}
 	async function api(params) {
 		setLoading(true);
@@ -137,7 +138,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 			result && result.ok ? "Status: OK" : "Status: failed",
 			"Driver: " + (details.driver || "-"),
 			"Connection: " + (details.connectionId || "-"),
-			"Model: " + (details.model || details.resolvedModel || "-"),
+			"Model: " + (details.realtimeModel || details.model || details.resolvedModel || "-"),
 			"Duration: " + String(details.durationMs ?? "-") + " ms"
 		];
 		meta.textContent = parts.join(" | ");
@@ -189,7 +190,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 	async function save() {
 		clearFeedback(); let advanced;
 		try { advanced = JSON.parse(refs.options.value.trim() || '{}'); if(!advanced || Array.isArray(advanced)) throw new Error(); } catch(error) { feedback('Advanced options must be a JSON object.', 'error'); return; }
-		const data = {action:'save',id:key(refs.id.value),name:refs.name.value.trim(),connection:key(refs.connection.value),driver:key(refs.driver.value),model:refs.model.value.trim(),language:refs.language.value.trim(),sampleRate:refs.sampleRate.value.trim(),targetStreamingDelayMs:refs.targetDelay.value.trim(),silenceDurationMs:refs.silence.value.trim(),noSpeechTimeoutMs:refs.noSpeech.value.trim(),options:JSON.stringify(advanced),enabled:refs.enabled.checked?'1':'0'};
+		const data = {action:'save',id:key(refs.id.value),name:refs.name.value.trim(),connection:key(refs.connection.value),driver:key(refs.driver.value),model:refs.model.value.trim(),realtimeModel:refs.realtimeModel.value.trim(),language:refs.language.value.trim(),sampleRate:refs.sampleRate.value.trim(),targetStreamingDelayMs:refs.targetDelay.value.trim(),silenceDurationMs:refs.silence.value.trim(),noSpeechTimeoutMs:refs.noSpeech.value.trim(),options:JSON.stringify(advanced),enabled:refs.enabled.checked?'1':'0'};
 		if(!data.id || !data.name || !data.connection || !data.driver || !data.model) { feedback('Id, name, connection, driver and model are required.', 'error'); return; }
 		const json = await api(data); if(!json) return; feedback('Speech-to-text service saved.', 'success'); await load(json.data?.speechToTextService?.id || data.id);
 	}

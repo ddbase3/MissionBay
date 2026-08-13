@@ -80,29 +80,50 @@ final class SpeechToTextConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function readSpecificOptions(array $options): array {
+		unset($options['mode'], $options['interimResults']);
+
+		$realtimeModel = trim((string)$this->request->request('realtimeModel', ''));
 		$language = trim((string)$this->request->request('language', ''));
 		$sampleRate = $this->readOptionalInt('sampleRate', 'Sample rate');
 		$targetStreamingDelayMs = $this->readOptionalInt('targetStreamingDelayMs', 'Target streaming delay');
 		$silenceDurationMs = $this->readOptionalInt('silenceDurationMs', 'Silence duration');
 		$noSpeechTimeoutMs = $this->readOptionalInt('noSpeechTimeoutMs', 'No-speech timeout');
 
-		$options['mode'] = 'realtime';
-		$options['interimResults'] = true;
-
+		if($realtimeModel !== '') {
+			$options['realtimeModel'] = $realtimeModel;
+		}
+		else {
+			unset($options['realtimeModel']);
+		}
 		if($language !== '') {
 			$options['language'] = $language;
+		}
+		else {
+			unset($options['language']);
 		}
 		if($sampleRate !== null) {
 			$options['sampleRate'] = $sampleRate;
 		}
+		else {
+			unset($options['sampleRate']);
+		}
 		if($targetStreamingDelayMs !== null) {
 			$options['targetStreamingDelayMs'] = $targetStreamingDelayMs;
+		}
+		else {
+			unset($options['targetStreamingDelayMs']);
 		}
 		if($silenceDurationMs !== null) {
 			$options['silenceDurationMs'] = $silenceDurationMs;
 		}
+		else {
+			unset($options['silenceDurationMs']);
+		}
 		if($noSpeechTimeoutMs !== null) {
 			$options['noSpeechTimeoutMs'] = $noSpeechTimeoutMs;
+		}
+		else {
+			unset($options['noSpeechTimeoutMs']);
 		}
 
 		return $options;
@@ -110,7 +131,7 @@ final class SpeechToTextConfigDisplay extends AbstractServiceConfigDisplay {
 
 	protected function expandSpecificDisplayOptions(array $row): array {
 		$options = is_array($row['options'] ?? null) ? $row['options'] : [];
-		$row['mode'] = 'realtime';
+		$row['realtimeModel'] = trim((string)($options['realtimeModel'] ?? ''));
 		$row['language'] = trim((string)($options['language'] ?? ''));
 		$row['sampleRate'] = $this->normalizeNullableNumber($options['sampleRate'] ?? null);
 		$row['targetStreamingDelayMs'] = $this->normalizeNullableNumber($options['targetStreamingDelayMs'] ?? null);

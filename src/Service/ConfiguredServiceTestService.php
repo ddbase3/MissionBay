@@ -25,7 +25,7 @@ use AssistantFoundation\Dto\AiResultMetadata;
 use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
 use AssistantFoundation\Dto\TextToSpeechRequest;
 use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IRealtimeSpeechToTextDriver;
+use MissionBay\Api\ISpeechToTextDriver;
 use MissionBay\Api\ISearchService;
 use MissionBay\Api\ITextToSpeechDriver;
 use MissionBay\Api\IVectorStoreService;
@@ -327,10 +327,10 @@ final class ConfiguredServiceTestService implements IAiServiceTester {
 		$driver = $this->runtimeResolver->resolveDriver(
 			$serviceConfig,
 			'stt',
-			IRealtimeSpeechToTextDriver::class
+			ISpeechToTextDriver::class
 		);
 
-		if(!$driver instanceof IRealtimeSpeechToTextDriver) {
+		if(!$driver instanceof ISpeechToTextDriver) {
 			throw new RuntimeException('Realtime speech-to-text driver could not be initialized.');
 		}
 
@@ -352,6 +352,7 @@ final class ConfiguredServiceTestService implements IAiServiceTester {
 			'details' => [
 				'provider' => $session->getProvider(),
 				'transport' => $session->getTransport(),
+				'realtimeModel' => $session->getModel(),
 				'audioEncoding' => $session->getAudioEncoding(),
 				'sampleRate' => $session->getSampleRate(),
 				'expiresAt' => $session->getExpiresAt(),
