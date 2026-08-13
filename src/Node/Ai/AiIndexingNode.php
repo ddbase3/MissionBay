@@ -499,8 +499,9 @@ final class AiIndexingNode extends AbstractAgentNode {
 				}
 			} catch (\Throwable $e) {
 				$stats['num_parser_errors']++;
-				$this->log('Parse supports ERROR ' . get_class($parser) . ' ' . $e->getMessage());
-				continue;
+				$msg = 'Parse supports ERROR ' . get_class($parser) . ': ' . $e->getMessage();
+				$this->log($msg);
+				throw new \RuntimeException($msg, 0, $e);
 			}
 
 			try {
@@ -531,8 +532,9 @@ final class AiIndexingNode extends AbstractAgentNode {
 				}
 			} catch (\Throwable $e) {
 				$stats['num_chunker_errors']++;
-				$this->log('Chunk supports ERROR ' . get_class($chunker) . ' ' . $e->getMessage());
-				continue;
+				$msg = 'Chunk supports ERROR ' . get_class($chunker) . ': ' . $e->getMessage();
+				$this->log($msg);
+				throw new \RuntimeException($msg, 0, $e);
 			}
 
 			try {

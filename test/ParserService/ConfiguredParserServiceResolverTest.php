@@ -3,6 +3,8 @@
 namespace MissionBay\Test\ParserService;
 
 use AssistantFoundation\Api\IServiceDriverDefinition;
+use AssistantFoundation\Dto\ParserFileRequest;
+use AssistantFoundation\Dto\ParserServiceResult;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
@@ -39,11 +41,38 @@ final class ConfiguredParserServiceResolverTest extends TestCase {
 		self::assertSame(['file'], $first->getOptions()['supported_types'] ?? null);
 	}
 
+	public function testMapsParserSpecificRuntimeOptions(): void {
+		$resolver = $this->createResolver();
+		$service = $resolver->resolve('docling_default');
+
+		self::assertSame('/v1/convert/file', $service->getOptions()['convert_path'] ?? null);
+		self::assertSame(['pdf', 'docx'], $service->getOptions()['supported_extensions'] ?? null);
+	}
+
 	public function testReturnsConfiguredParserPriorityWithoutRuntimeResolution(): void {
 		$resolver = $this->createResolver();
 
 		self::assertSame(35, $resolver->getPriority('unstructured_default'));
 		self::assertSame(45, $resolver->getPriority('docling_default'));
+	}
+
+	public function testDescribesConfiguredParserWithoutResolvingConnectionSecret(): void {
+		$resolver = $this->createResolver();
+		$definition = $resolver->describe('docling_default');
+
+		self::assertSame('docling_default', $definition->getId());
+		self::assertSame('fake-parser', $definition->getDriver());
+		self::assertSame(45, $definition->getPriority());
+		self::assertSame(['file'], $definition->getSupportedTypes());
+		self::assertSame(['pdf', 'docx'], $definition->getSupportedExtensions());
+	}
+
+	public function testDescriptionUsesDriverDefaultsForMissingCapabilities(): void {
+		$resolver = $this->createResolver();
+		$definition = $resolver->describe('unstructured_default');
+
+		self::assertSame(['file'], $definition->getSupportedTypes());
+		self::assertSame(['pdf'], $definition->getSupportedExtensions());
 	}
 
 	private function createResolver(): ConfiguredParserServiceResolver {
@@ -74,6 +103,8 @@ final class ConfiguredParserServiceResolverTest extends TestCase {
 					'options' => [
 						'priority' => 45,
 						'supportedTypes' => ['file'],
+						'supportedExtensions' => ['pdf', 'docx'],
+						'convertPath' => '/v1/convert/file',
 					]
 				],
 				'disabled_parser' => [
@@ -198,7 +229,13 @@ final class ResolverTestParserServiceDriverDefinition implements IServiceDriverD
 	}
 
 	public function getDefaultConfig(): array {
-		return [];
+		return [
+			'options' => [
+				'supportedTypes' => ['file'],
+				'supportedExtensions' => ['pdf'],
+				'priority' => 50,
+			]
+		];
 	}
 }
 
@@ -221,6 +258,14 @@ final class ResolverTestParserService implements IParserService {
 
 	public function getPriority(): int {
 		return (int)($this->options['priority'] ?? 50);
+	}
+
+	public function supportsFile(ParserFileRequest $request): bool {
+		return true;
+	}
+
+	public function parseFile(ParserFileRequest $request): ParserServiceResult {
+		return new ParserServiceResult('parsed');
 	}
 
 	public function supports(AgentContentItem $item): bool {

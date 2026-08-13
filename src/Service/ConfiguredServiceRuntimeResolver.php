@@ -415,7 +415,9 @@ final class ConfiguredServiceRuntimeResolver {
 				$this->mapOptionalNumber($runtimeOptions, $serviceOptions, 'maxBytes', 'max_bytes', 'int');
 				$this->mapOptionalString($runtimeOptions, $serviceOptions, 'contentType', 'content_type');
 				$this->mapOptionalString($runtimeOptions, $serviceOptions, 'fileField', 'file_field');
+				$this->mapOptionalString($runtimeOptions, $serviceOptions, 'convertPath', 'convert_path');
 				$this->mapOptionalArray($runtimeOptions, $serviceOptions, 'supportedTypes', 'supported_types', true);
+				$this->mapOptionalArray($runtimeOptions, $serviceOptions, 'supportedExtensions', 'supported_extensions', true);
 				break;
 		}
 

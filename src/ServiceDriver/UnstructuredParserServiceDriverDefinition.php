@@ -75,6 +75,11 @@ final class UnstructuredParserServiceDriverDefinition implements IServiceDriverD
 					'label' => 'Supported types',
 					'default' => ['file']
 				],
+				'supportedExtensions' => [
+					'type' => 'array',
+					'label' => 'Supported extensions',
+					'default' => ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'rtf', 'odt', 'ods', 'odp', 'epub']
+				],
 				'priority' => [
 					'type' => 'integer',
 					'label' => 'Priority',
@@ -98,6 +103,7 @@ final class UnstructuredParserServiceDriverDefinition implements IServiceDriverD
 			'options' => [
 				'contentType' => 'application/x-agent-content-json',
 				'supportedTypes' => ['file'],
+				'supportedExtensions' => ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'rtf', 'odt', 'ods', 'odp', 'epub'],
 				'priority' => 35,
 				'fileField' => 'files',
 				'timeoutSeconds' => 90,

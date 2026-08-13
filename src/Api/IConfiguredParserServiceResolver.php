@@ -17,6 +17,8 @@
 
 namespace MissionBay\Api;
 
+use AssistantFoundation\Dto\ParserServiceDefinition;
+
 interface IConfiguredParserServiceResolver {
 
 	/**
@@ -25,6 +27,8 @@ interface IConfiguredParserServiceResolver {
 	public function listServiceIds(): array;
 
 	public function getPriority(string $serviceId): int;
+
+	public function describe(string $serviceId): ParserServiceDefinition;
 
 	/**
 	 * @param array<string,mixed> $optionOverrides

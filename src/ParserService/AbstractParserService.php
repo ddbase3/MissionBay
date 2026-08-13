@@ -17,6 +17,8 @@
 
 namespace MissionBay\ParserService;
 
+use AssistantFoundation\Dto\ParserFileRequest;
+use AssistantFoundation\Dto\ParserServiceResult;
 use MissionBay\Api\IParserService;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Dto\AgentParsedContent;
@@ -52,7 +54,17 @@ abstract class AbstractParserService implements IParserService {
 	}
 
 	public function supports(AgentContentItem $item): bool {
-		return $this->detectInput($item) !== null;
+		$input = $this->detectInput($item);
+		if($input === null) {
+			return false;
+		}
+
+		if((string)$input['type'] !== 'file') {
+			return true;
+		}
+
+		$request = $this->createFileRequest($item, $input);
+		return $request !== null && $this->supportsFile($request);
 	}
 
 	public function parse(AgentContentItem $item): AgentParsedContent {
@@ -69,7 +81,7 @@ abstract class AbstractParserService implements IParserService {
 		}
 
 		if($type === 'file') {
-			return $this->parseFile($item, $input);
+			return $this->parseAgentFile($item, $input);
 		}
 
 		if($type === 'stream') {
@@ -77,6 +89,52 @@ abstract class AbstractParserService implements IParserService {
 		}
 
 		throw new RuntimeException($this->getParserName() . " parser: unsupported input type '{$type}'.");
+	}
+
+	public function supportsFile(ParserFileRequest $request): bool {
+		$path = trim($request->getPath());
+		if($path === '' || !is_file($path) || !is_readable($path)) {
+			return false;
+		}
+
+		$extensions = $this->getSupportedExtensions();
+		if($extensions === []) {
+			return true;
+		}
+
+		$extension = $request->getExtension();
+		return $extension !== '' && in_array($extension, $extensions, true);
+	}
+
+	public function parseFile(ParserFileRequest $request): ParserServiceResult {
+		if(!$this->supportsFile($request)) {
+			throw new RuntimeException($this->getParserName() . ' parser: unsupported file.');
+		}
+
+		$path = $request->getPath();
+		$this->assertReadableFile($path);
+
+		$maxBytes = $this->getIntOption('max_bytes', 0);
+		if($maxBytes > 0) {
+			$size = @filesize($path);
+
+			if(is_int($size) && $size > $maxBytes) {
+				throw new RuntimeException($this->getParserName() . ' parser: file exceeds max_bytes (' . $size . ' > ' . $maxBytes . ').');
+			}
+		}
+
+		$response = $this->callParserFile($path, $request->getFilename());
+		$text = $this->normalizeText($this->responseToText($response));
+		$metadata = $request->getMetadata();
+		$metadata['parser'] = $this->getParserName();
+
+		return new ParserServiceResult(
+			text: $text,
+			structured: $this->responseToStructured($response),
+			metadata: $metadata,
+			attachments: [],
+			raw: $response
+		);
 	}
 
 	/**
@@ -176,36 +234,18 @@ abstract class AbstractParserService implements IParserService {
 	/**
 	 * @param array<string,mixed> $input
 	 */
-	protected function parseFile(AgentContentItem $item, array $input): AgentParsedContent {
+	protected function parseAgentFile(AgentContentItem $item, array $input): AgentParsedContent {
 		$root = is_array($input['root'] ?? null) ? $input['root'] : [];
 		$payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
+		$request = $this->createFileRequest($item, $input);
 
-		$title = trim((string)($payload['title'] ?? ''));
-		$meta = $payload['meta'] ?? null;
-		$metaArr = (is_array($meta) || is_object($meta)) ? (array)$meta : [];
-
-		$fileName = trim((string)($metaArr['file_name'] ?? ''));
-		$path = trim((string)($metaArr['location'] ?? $metaArr['file_path'] ?? ''));
-
-		if($path === '') {
+		if($request === null) {
 			throw new RuntimeException($this->getParserName() . ' parser: missing meta.location or meta.file_path.');
 		}
 
-		$this->assertReadableFile($path);
-
-		$maxBytes = $this->getIntOption('max_bytes', 0);
-
-		if($maxBytes > 0) {
-			$size = @filesize($path);
-
-			if(is_int($size) && $size > $maxBytes) {
-				throw new RuntimeException($this->getParserName() . ' parser: file exceeds max_bytes (' . $size . ' > ' . $maxBytes . ').');
-			}
-		}
-
-		$effectiveName = $fileName !== '' ? $fileName : basename($path);
-		$response = $this->callParserFile($path, $effectiveName);
-		$text = $this->normalizeText($this->responseToText($response));
+		$result = $this->parseFile($request);
+		$title = trim((string)($payload['title'] ?? ''));
+		$text = $result->getText();
 
 		if($title !== '' && $text !== '') {
 			$text = $title . "\n\n" . $text;
@@ -214,25 +254,30 @@ abstract class AbstractParserService implements IParserService {
 			$text = $title;
 		}
 
+		$text = $this->normalizeText($text);
+		$meta = $payload['meta'] ?? null;
+		$metaArr = (is_array($meta) || is_object($meta)) ? (array)$meta : [];
 		$payload['content'] = $text;
 		$payload['meta'] = $metaArr;
 		$root['content'] = $payload;
 
 		$metadata = is_array($item->metadata) ? $item->metadata : [];
+		$metadata = array_merge($metadata, $result->getMetadata());
 		$metadata['type'] = 'file';
 		$metadata['parser'] = $this->getParserName();
 
+		$fileName = trim((string)($metaArr['file_name'] ?? ''));
 		if($fileName !== '') {
 			$metadata['file_name'] = $fileName;
 		}
 
-		$metadata['location'] = $path;
+		$metadata['location'] = $request->getPath();
 
 		return new AgentParsedContent(
 			text: trim($text),
 			metadata: $metadata,
 			structured: $root,
-			attachments: []
+			attachments: $result->getAttachments()
 		);
 	}
 
@@ -265,6 +310,11 @@ abstract class AbstractParserService implements IParserService {
 
 		try {
 			$itemForFile = new AgentContentItem(
+				action: 'upsert',
+				collectionKey: $item->collectionKey,
+				id: $item->id,
+				hash: $item->hash,
+				contentType: $this->getContentType(),
 				content: [
 					'content' => [
 						'type' => 'file',
@@ -275,11 +325,12 @@ abstract class AbstractParserService implements IParserService {
 						]
 					]
 				],
-				contentType: $this->getContentType(),
+				isBinary: true,
+				size: (int)(filesize($tmp) ?: 0),
 				metadata: is_array($item->metadata) ? $item->metadata : []
 			);
 
-			return $this->parseFile($itemForFile, [
+			return $this->parseAgentFile($itemForFile, [
 				'type' => 'file',
 				'root' => $itemForFile->content,
 				'payload' => $itemForFile->content['content']
@@ -288,6 +339,10 @@ abstract class AbstractParserService implements IParserService {
 		finally {
 			@unlink($tmp);
 		}
+	}
+
+	protected function responseToStructured(array $response): mixed {
+		return $response;
 	}
 
 	protected function assertReadableFile(string $path): void {
@@ -341,29 +396,14 @@ abstract class AbstractParserService implements IParserService {
 	 * @return array<int,string>
 	 */
 	protected function getSupportedTypes(): array {
-		$value = $this->options['supported_types'] ?? ['file'];
+		return $this->normalizeOptionList($this->options['supported_types'] ?? ['file'], ['file']);
+	}
 
-		if(is_string($value)) {
-			$value = preg_split('/[\r\n,]+/', $value) ?: [];
-		}
-
-		if(!is_array($value)) {
-			return ['file'];
-		}
-
-		$out = [];
-
-		foreach($value as $item) {
-			$item = strtolower(trim((string)$item));
-
-			if($item !== '') {
-				$out[] = $item;
-			}
-		}
-
-		$out = array_values(array_unique($out));
-
-		return $out !== [] ? $out : ['file'];
+	/**
+	 * @return array<int,string>
+	 */
+	protected function getSupportedExtensions(): array {
+		return $this->normalizeOptionList($this->options['supported_extensions'] ?? [], []);
 	}
 
 	protected function getStringOption(string $key, string $default): string {
@@ -432,8 +472,8 @@ abstract class AbstractParserService implements IParserService {
 	 * @param array<int,string> $headers
 	 * @return array<string,mixed>
 	 */
-	protected function callMultipartEndpoint(array $postFields, array $headers): array {
-		$endpoint = $this->getRequiredBaseUrl();
+	protected function callMultipartEndpoint(array $postFields, array $headers, string $path = ''): array {
+		$endpoint = $this->buildEndpoint($path);
 		$timeout = max(1, $this->getIntOption('timeout_seconds', 90));
 		$connectTimeout = max(1, $this->getIntOption('connect_timeout_seconds', min(20, $timeout)));
 
@@ -516,5 +556,67 @@ abstract class AbstractParserService implements IParserService {
 		$text = preg_replace('/[ \t]+/u', ' ', $text) ?? $text;
 
 		return trim($text);
+	}
+
+	/**
+	 * @param array<string,mixed> $input
+	 */
+	private function createFileRequest(AgentContentItem $item, array $input): ?ParserFileRequest {
+		$payload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
+		$meta = $payload['meta'] ?? null;
+		$metaArr = (is_array($meta) || is_object($meta)) ? (array)$meta : [];
+		$path = trim((string)($metaArr['location'] ?? $metaArr['file_path'] ?? ''));
+
+		if($path === '') {
+			return null;
+		}
+
+		$fileName = trim((string)($metaArr['file_name'] ?? ''));
+		$metadata = is_array($item->metadata) ? $item->metadata : [];
+
+		return new ParserFileRequest(
+			path: $path,
+			filename: $fileName !== '' ? $fileName : basename($path),
+			metadata: $metadata
+		);
+	}
+
+	private function buildEndpoint(string $path): string {
+		$baseUrl = rtrim($this->getRequiredBaseUrl(), '/');
+		$path = trim($path);
+
+		if($path === '') {
+			return $baseUrl;
+		}
+
+		return $baseUrl . '/' . ltrim($path, '/');
+	}
+
+	/**
+	 * @param mixed $value
+	 * @param array<int,string> $default
+	 * @return array<int,string>
+	 */
+	private function normalizeOptionList(mixed $value, array $default): array {
+		if(is_string($value)) {
+			$value = preg_split('/[\r\n,]+/', $value) ?: [];
+		}
+
+		if(!is_array($value)) {
+			return $default;
+		}
+
+		$out = [];
+
+		foreach($value as $item) {
+			$item = strtolower(ltrim(trim((string)$item), '.'));
+			if($item !== '') {
+				$out[] = $item;
+			}
+		}
+
+		$out = array_values(array_unique($out));
+
+		return $out !== [] ? $out : $default;
 	}
 }

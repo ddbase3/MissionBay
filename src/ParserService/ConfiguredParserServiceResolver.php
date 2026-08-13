@@ -17,6 +17,7 @@
 
 namespace MissionBay\ParserService;
 
+use AssistantFoundation\Dto\ParserServiceDefinition;
 use MissionBay\Api\IConfiguredParserServiceResolver;
 use MissionBay\Api\IParserService;
 use MissionBay\Service\ConfiguredServiceRuntimeResolver;
@@ -43,18 +44,32 @@ final class ConfiguredParserServiceResolver implements IConfiguredParserServiceR
 	}
 
 	public function getPriority(string $serviceId): int {
+		return $this->describe($serviceId)->getPriority();
+	}
+
+	public function describe(string $serviceId): ParserServiceDefinition {
 		$config = $this->runtimeResolver->loadServiceConfig(
 			self::PARSER_SETTINGS_GROUP,
 			$serviceId,
 			self::SERVICE_TYPE
 		);
-		$value = $config->getOptions()['priority'] ?? null;
+		$driverDefinition = $this->runtimeResolver->resolveDriverDefinition(
+			$config->getDriver(),
+			self::SERVICE_TYPE,
+			IParserService::class
+		);
+		$defaults = $driverDefinition->getDefaultConfig();
+		$defaultOptions = is_array($defaults['options'] ?? null) ? $defaults['options'] : [];
+		$options = array_merge($defaultOptions, $config->getOptions());
 
-		if($value === null || $value === '' || !is_numeric($value)) {
-			return 50;
-		}
-
-		return (int)$value;
+		return new ParserServiceDefinition(
+			id: $config->getId(),
+			name: $config->getName(),
+			driver: $config->getDriver(),
+			priority: $this->normalizePriority($options['priority'] ?? null),
+			supportedTypes: $this->normalizeList($options['supportedTypes'] ?? ['file']),
+			supportedExtensions: $this->normalizeList($options['supportedExtensions'] ?? [])
+		);
 	}
 
 	public function resolve(string $serviceId, array $optionOverrides = []): IParserService {
@@ -90,4 +105,36 @@ final class ConfiguredParserServiceResolver implements IConfiguredParserServiceR
 
 		return $service;
 	}
+
+	private function normalizePriority(mixed $value): int {
+		if($value === null || $value === '' || !is_numeric($value)) {
+			return 50;
+		}
+
+		return max(0, (int)$value);
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function normalizeList(mixed $value): array {
+		if(is_string($value)) {
+			$value = preg_split('/[\r\n,]+/', $value) ?: [];
+		}
+
+		if(!is_array($value)) {
+			return [];
+		}
+
+		$result = [];
+		foreach($value as $item) {
+			$item = strtolower(ltrim(trim((string)$item), '.'));
+			if($item !== '') {
+				$result[$item] = $item;
+			}
+		}
+
+		return array_values($result);
+	}
+
 }

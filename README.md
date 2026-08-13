@@ -507,37 +507,37 @@ credential and the exact chat-completions request URL. The same
 alternative runtimes receive the identical endpoint that MissionBay uses.
 
 
-## Realtime speech-to-text services
+## Speech-to-text services
 
-MissionBay implements the AssistantFoundation realtime speech session slot with
-configured `service-stt` records. `SpeechToTextConfigDisplay` is discoverable as
-`speechtotextconfigdisplay` and manages these records through the existing
-service/connection configuration model.
+MissionBay implements both AssistantFoundation speech-to-text slots with the same
+configured `service-stt` records. `ISpeechToTextService` handles complete audio
+transcription, while `IRealtimeSpeechToTextSessionService` creates short-lived
+browser sessions for live microphone transcription. `SpeechToTextConfigDisplay`
+is discoverable as `speechtotextconfigdisplay` and manages these records through
+the existing service/connection configuration model.
 
-The first driver is `mistral-realtime-stt`. It uses an enabled bearer-authenticated
-Mistral HTTP connection, requests a short-lived realtime client session, and
-returns only the ephemeral browser transport data through the shared foundation
-contract.
+Streaming is selected by the consumer and is not persisted as a service mode. A
+provider may use a separate `realtimeModel` option when its complete and realtime
+APIs require different models. The technical driver ids describe the complete provider capability and are `mistral-stt` and `openai-stt`.
 
 Example settings record:
 
 ```json
 {
-  "id": "mistral-realtime",
-  "name": "Mistral Realtime",
+  "id": "mistral-default",
+  "name": "Mistral Speech-to-Text",
   "serviceType": "stt",
   "connection": "mistral",
-  "driver": "mistral-realtime-stt",
-  "model": "voxtral-mini-transcribe-realtime-2602",
+  "driver": "mistral-stt",
+  "model": "voxtral-mini-latest",
   "enabled": true,
   "options": {
-    "mode": "realtime",
+    "realtimeModel": "voxtral-mini-transcribe-realtime-2602",
     "language": "de",
     "sampleRate": 16000,
     "targetStreamingDelayMs": 480,
-    "silenceDurationMs": 900,
-    "noSpeechTimeoutMs": 10000,
-    "interimResults": true
+    "silenceDurationMs": 1200,
+    "noSpeechTimeoutMs": 10000
   }
 }
 ```

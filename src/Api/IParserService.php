@@ -17,23 +17,11 @@
 
 namespace MissionBay\Api;
 
-use Base3\Api\IBase;
+use AssistantFoundation\Api\IFileParserService;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Dto\AgentParsedContent;
 
-interface IParserService extends IBase {
-
-	/**
-	 * @param array<string,mixed> $options
-	 */
-	public function setOptions(array $options): void;
-
-	/**
-	 * @return array<string,mixed>
-	 */
-	public function getOptions(): array;
-
-	public function getPriority(): int;
+interface IParserService extends IFileParserService {
 
 	public function supports(AgentContentItem $item): bool;
 

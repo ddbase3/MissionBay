@@ -28,7 +28,7 @@ final class DoclingParserServiceDriverDefinition implements IServiceDriverDefini
 	}
 
 	public function getDriver(): string {
-		return 'docling-parser';
+		return 'qualitus-docling-parser';
 	}
 
 	public function getServiceType(): string {
@@ -36,7 +36,7 @@ final class DoclingParserServiceDriverDefinition implements IServiceDriverDefini
 	}
 
 	public function getLabel(): string {
-		return 'Docling Parser';
+		return 'Qualitus Docling Parser';
 	}
 
 	public function requiresConnection(): bool {
@@ -65,6 +65,12 @@ final class DoclingParserServiceDriverDefinition implements IServiceDriverDefini
 					'default' => 'default',
 					'required' => true
 				],
+				'convertPath' => [
+					'type' => 'string',
+					'label' => 'Convert path',
+					'default' => '/v1/convert/file',
+					'runtimeKey' => 'convert_path'
+				],
 				'contentType' => [
 					'type' => 'string',
 					'label' => 'Content type',
@@ -74,6 +80,11 @@ final class DoclingParserServiceDriverDefinition implements IServiceDriverDefini
 					'type' => 'array',
 					'label' => 'Supported types',
 					'default' => ['file']
+				],
+				'supportedExtensions' => [
+					'type' => 'array',
+					'label' => 'Supported extensions',
+					'default' => ['pdf', 'docx', 'pptx', 'xlsx', 'txt']
 				],
 				'priority' => [
 					'type' => 'integer',
@@ -92,12 +103,14 @@ final class DoclingParserServiceDriverDefinition implements IServiceDriverDefini
 	public function getDefaultConfig(): array {
 		return [
 			'serviceType' => 'parser',
-			'driver' => 'docling-parser',
+			'driver' => 'qualitus-docling-parser',
 			'model' => 'default',
 			'enabled' => true,
 			'options' => [
+				'convertPath' => '/v1/convert/file',
 				'contentType' => 'application/x-agent-content-json',
 				'supportedTypes' => ['file'],
+				'supportedExtensions' => ['pdf', 'docx', 'pptx', 'xlsx', 'txt'],
 				'priority' => 45,
 				'fileField' => 'file',
 				'timeoutSeconds' => 90,

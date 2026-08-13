@@ -1274,6 +1274,26 @@ provider-neutral `SpeechToTextResult`. Implementations may use local engines,
 remote batch APIs, or another project-specific backend. Consumers depend only on
 the request/result DTOs and must not inspect provider-private response objects.
 
+MissionBay resolves the same configured speech-to-text service for complete and
+realtime use. The service configuration stores provider, driver, primary
+transcription model and provider-specific defaults; it does not store a runtime
+mode. Providers that require a different realtime model may expose that model as
+a normal driver option. The caller chooses the operation by using either
+`ISpeechToTextService::transcribe()` or
+`IRealtimeSpeechToTextSessionService::createSession()`.
+
+Example implementation registration:
+
+```php
+$container->set(
+    ISpeechToTextService::class,
+    fn($c) => new ConfiguredSpeechToTextService(
+        $c->get(ConfiguredServiceRuntimeResolver::class)
+    ),
+    IContainer::SHARED | IContainer::NOOVERWRITE
+);
+```
+
 ### `IRealtimeSpeechToTextSessionService`
 
 Use this service when a browser client should stream microphone audio directly

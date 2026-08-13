@@ -35,7 +35,8 @@ final class DoclingParserService extends AbstractParserService {
 			[
 				$fieldName => $cfile
 			],
-			$this->buildHeaders('X-Proxy-Token')
+			$this->buildHeaders('X-Proxy-Token'),
+			$this->getStringOption('convert_path', '/v1/convert/file')
 		);
 	}
 

@@ -69,6 +69,10 @@ final class UnstructuredParserService extends AbstractParserService {
 	 * @param array<string|int,mixed> $response
 	 * @return array<int,mixed>
 	 */
+	protected function responseToStructured(array $response): mixed {
+		return $this->normalizeElements($response);
+	}
+
 	private function normalizeElements(array $response): array {
 		if(array_is_list($response)) {
 			return $response;
