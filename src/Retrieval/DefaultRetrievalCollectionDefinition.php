@@ -19,6 +19,7 @@ namespace MissionBay\Retrieval;
 
 use AssistantFoundation\Api\IRetrievalCollectionDefinition;
 use AssistantFoundation\Dto\RetrievalIndexItem;
+use MissionBay\Api\IRetrievalCollectionConfigRepository;
 
 /**
  * Generic default retrieval collection definition.
@@ -28,15 +29,15 @@ use AssistantFoundation\Dto\RetrievalIndexItem;
  */
 final class DefaultRetrievalCollectionDefinition implements IRetrievalCollectionDefinition {
 
-	private const COLLECTION_KEY = 'default';
+	public function __construct(private readonly IRetrievalCollectionConfigRepository $collectionConfigRepository) {}
 
 	public function getCollectionKeys(): array {
-		return [self::COLLECTION_KEY];
+		return array_keys($this->collectionConfigRepository->getCollections());
 	}
 
 	public function getBackendCollectionName(string $collectionKey): string {
 		$this->assertCollectionKey($collectionKey);
-		return 'content_v2';
+		return $this->collectionConfigRepository->getBackendCollectionName($collectionKey);
 	}
 
 	public function getIndexSchema(string $collectionKey): array {
@@ -143,7 +144,7 @@ final class DefaultRetrievalCollectionDefinition implements IRetrievalCollection
 		$payload = [
 			'text' => trim($item->text),
 			'hash' => trim($item->hash),
-			'collection_key' => self::COLLECTION_KEY,
+			'collection_key' => $item->collectionKey,
 			'content_uuid' => trim((string)$item->metadata['content_uuid']),
 			'chunktoken' => $this->buildChunkToken($item->hash, $item->chunkIndex),
 			'chunk_index' => $item->chunkIndex
@@ -163,7 +164,7 @@ final class DefaultRetrievalCollectionDefinition implements IRetrievalCollection
 	}
 
 	private function assertCollectionKey(string $collectionKey): void {
-		if(trim($collectionKey) !== self::COLLECTION_KEY) {
+		if(!$this->collectionConfigRepository->hasCollection($collectionKey)) {
 			throw new \InvalidArgumentException("Unknown collectionKey '{$collectionKey}'.");
 		}
 	}

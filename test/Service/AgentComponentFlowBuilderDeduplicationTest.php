@@ -4,12 +4,13 @@ namespace MissionBay\Test\Service;
 
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Service\AgentComponentFlowBuilder;
+use MissionBay\Service\AgentComponentPresetFlowExpander;
 use PHPUnit\Framework\TestCase;
 
 final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 
 	public function testToolAndContextAttachmentsShareOnePresetResource(): void {
-		$builder = new AgentComponentFlowBuilder($this->repository());
+		$builder = $this->builder();
 		$flow = $builder->build($this->baseFlow(), [[
 			'preset' => 'user-prefs',
 			'attach_as' => ['tool', 'context']
@@ -39,7 +40,7 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 	}
 
 	public function testExplicitToolNamespaceStillOverridesPresetId(): void {
-		$builder = new AgentComponentFlowBuilder($this->repository());
+		$builder = $this->builder();
 		$flow = $builder->build($this->baseFlow(), [[
 			'preset' => 'user-prefs',
 			'attach_as' => ['tool'],
@@ -58,7 +59,7 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 	}
 
 	public function testConversationMemoryUsesDedicatedMemoryWrapperOnly(): void {
-		$builder = new AgentComponentFlowBuilder($this->repository());
+		$builder = $this->builder();
 		$flow = $builder->build($this->baseFlow(), [[
 			'preset' => 'session-main',
 			'attach_as' => ['memory']
@@ -76,7 +77,7 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 
 
 	public function testChatModelAttachmentMaterializesComposedRouterGraph(): void {
-		$builder = new AgentComponentFlowBuilder($this->repository());
+		$builder = $this->builder();
 		$flow = $builder->build($this->baseFlow(), [[
 			'preset' => 'chat-router',
 			'attach_as' => ['chatmodel']
@@ -100,7 +101,7 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 	}
 
 	public function testRetrievalPresetMaterializesEmbeddingVectorStoreAndFilterDocks(): void {
-		$builder = new AgentComponentFlowBuilder($this->repository());
+		$builder = $this->builder();
 		$flow = $builder->build($this->baseFlow(), [[
 			'preset' => 'retrieval-main',
 			'attach_as' => ['tool']
@@ -210,4 +211,9 @@ final class AgentComponentFlowBuilderDeduplicationTest extends TestCase {
 			public function removePreset(string $id): void { unset($this->presets[$id]); }
 		};
 	}
+	private function builder(): AgentComponentFlowBuilder {
+		$repository = $this->repository();
+		return new AgentComponentFlowBuilder($repository, new AgentComponentPresetFlowExpander($repository));
+	}
+
 }

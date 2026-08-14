@@ -4,6 +4,7 @@ namespace MissionBay\Test\VectorStore;
 
 use AssistantFoundation\Api\IRetrievalCollectionDefinition;
 use AssistantFoundation\Dto\RetrievalSearchRequest;
+use MissionBay\Api\IRetrievalCollectionConfigRepository;
 use MissionBay\Retrieval\DefaultRetrievalCollectionDefinition;
 use MissionBay\VectorStore\AbstractQdrantVectorStoreService;
 use PHPUnit\Framework\TestCase;
@@ -13,7 +14,7 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 	public function testSearchDoesNotCreateMissingCollection(): void {
 		$calls = [];
 		$service = $this->createService(
-			new DefaultRetrievalCollectionDefinition(),
+			$this->defaultDefinition(),
 			[[
 				'http' => 404,
 				'raw' => '{"status":{"error":"Not found"}}'
@@ -55,7 +56,7 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 	public function testHybridSearchUsesNamedDenseSparsePrefetchAndRrf(): void {
 		$calls = [];
 		$service = $this->createService(
-			new DefaultRetrievalCollectionDefinition(),
+			$this->defaultDefinition(),
 			[[
 				'http' => 200,
 				'raw' => '{"result":{"points":[]}}'
@@ -414,4 +415,16 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 			}
 		};
 	}
+	private function defaultDefinition(): DefaultRetrievalCollectionDefinition {
+		$repository = new class implements IRetrievalCollectionConfigRepository {
+			public function getCollections(): array { return ['default' => ['backend_collection' => 'content_v2']]; }
+			public function hasCollection(string $collectionKey): bool { return $collectionKey === 'default'; }
+			public function getBackendCollectionName(string $collectionKey): string { return 'content_v2'; }
+			public function saveCollection(string $collectionKey, string $backendCollection): void {}
+			public function removeCollection(string $collectionKey): void {}
+		};
+
+		return new DefaultRetrievalCollectionDefinition($repository);
+	}
+
 }

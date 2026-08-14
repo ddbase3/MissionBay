@@ -68,6 +68,8 @@ use MissionBay\Api\IAgentAssistantMessageFactory;
 use MissionBay\Api\IAgentAssistantToolSetupFactory;
 use MissionBay\Api\IAgentAssistantTurnService;
 use MissionBay\Api\IAgentComponentFlowBuilder;
+use MissionBay\Api\IAgentComponentPresetCatalog;
+use MissionBay\Api\IAgentComponentPresetFlowExpander;
 use MissionBay\Api\IAgentComponentPresetMaterializer;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentMemoryRoleResolver;
@@ -84,6 +86,8 @@ use MissionBay\Api\IAgentRouterFactory;
 use MissionBay\Api\IMcpClientFactory;
 use MissionBay\Api\IMcpTransport;
 use MissionBay\Api\IRetrievalSearchService;
+use MissionBay\Api\IEmbeddingOrchestratorConfigRepository;
+use MissionBay\Api\IRetrievalCollectionConfigRepository;
 use MissionBay\Listener\MissionBayAiUsageLogListener;
 use MissionBay\Listener\MissionBayToolEventDisplayListener;
 use MissionBay\Mcp\Client\McpClientFactory;
@@ -140,10 +144,14 @@ use MissionBay\Profile\AgentContextProfileResolver;
 use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 use MissionBay\Service\AgentComponentFlowBuilder;
+use MissionBay\Service\AgentComponentPresetCatalog;
+use MissionBay\Service\AgentComponentPresetFlowExpander;
 use MissionBay\Service\AgentComponentPresetMaterializer;
 use MissionBay\Service\AgentComponentPresetToolTestService;
 use MissionBay\Service\AgentComponentPresetRepository;
 use MissionBay\Service\RetrievalSearchService;
+use MissionBay\Service\EmbeddingOrchestratorConfigRepository;
+use MissionBay\Service\RetrievalCollectionConfigRepository;
 use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
 use MissionBay\Service\ConfiguredServiceRuntimeResolver;
@@ -241,13 +249,29 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(McpRemoteToolResultMapper::class, fn() => new McpRemoteToolResultMapper(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentFlowFactory::class, fn($c) => new AgentFlowFactory($c->get(IClassMap::class), $c->get(IAgentNodeFactory::class)), IContainer::SHARED)
 			->set(IAgentComponentPresetRepository::class, fn($c) => new AgentComponentPresetRepository($c->get(ISettingsStore::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentComponentPresetCatalog::class, fn($c) => new AgentComponentPresetCatalog(
+				$c->get(IAgentComponentPresetRepository::class),
+				$c->get(IClassMap::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentComponentPresetFlowExpander::class, fn($c) => new AgentComponentPresetFlowExpander(
+				$c->get(IAgentComponentPresetRepository::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IEmbeddingOrchestratorConfigRepository::class, fn($c) => new EmbeddingOrchestratorConfigRepository(
+				$c->get(ISettingsStore::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IRetrievalCollectionConfigRepository::class, fn($c) => new RetrievalCollectionConfigRepository(
+				$c->get(ISettingsStore::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentComponentPresetMaterializer::class, fn($c) => new AgentComponentPresetMaterializer(
 				$c->get(IAgentComponentPresetRepository::class),
 				$c->get(IAgentResourceFactory::class),
 				$c->get(IAgentContextFactory::class),
 				$c->get(ILogger::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IAgentComponentFlowBuilder::class, fn($c) => new AgentComponentFlowBuilder($c->get(IAgentComponentPresetRepository::class)), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentComponentFlowBuilder::class, fn($c) => new AgentComponentFlowBuilder(
+				$c->get(IAgentComponentPresetRepository::class),
+				$c->get(IAgentComponentPresetFlowExpander::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentOrchestratorProfileRepository::class, fn($c) => new AgentOrchestratorProfileRepository(
 				$c->get(ISettingsStore::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
@@ -334,7 +358,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentMemoryProfileResolver::class),
 				$c->get(AgentContextProfileResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(IRetrievalCollectionDefinition::class, fn() => new DefaultRetrievalCollectionDefinition(), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IRetrievalCollectionDefinition::class, fn($c) => new DefaultRetrievalCollectionDefinition(
+				$c->get(IRetrievalCollectionConfigRepository::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(PhoneticTextMaterializer::class, fn($c) => new PhoneticTextMaterializer(
 				$c->get(IClassMap::class),
 				$c->get(IRetrievalCollectionDefinition::class)

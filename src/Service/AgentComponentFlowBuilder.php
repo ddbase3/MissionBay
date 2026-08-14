@@ -18,6 +18,7 @@
 namespace MissionBay\Service;
 
 use MissionBay\Api\IAgentComponentFlowBuilder;
+use MissionBay\Api\IAgentComponentPresetFlowExpander;
 use MissionBay\Api\IAgentComponentPresetRepository;
 
 /**
@@ -37,17 +38,10 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 	 */
 	private array $warnings = [];
 
-	/**
-	 * @var array<string,string>
-	 */
-	private array $presetResourceIds = [];
-
-	/**
-	 * @var array<string,bool>
-	 */
-	private array $resolvingPresets = [];
-
-	public function __construct(private readonly IAgentComponentPresetRepository $presetRepository) {}
+	public function __construct(
+		private readonly IAgentComponentPresetRepository $presetRepository,
+		private readonly IAgentComponentPresetFlowExpander $presetFlowExpander
+	) {}
 
 	public static function getName(): string {
 		return 'agentcomponentflowbuilder';
@@ -55,8 +49,6 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
 	public function build(array $baseFlow, array $components, string $assistantNodeId = 'assistant'): array {
 		$this->warnings = [];
-		$this->presetResourceIds = [];
-		$this->resolvingPresets = [];
 
 		$flow = $this->normalizeFlow($baseFlow);
 		$assistantIndex = $this->findAssistantNodeIndex($flow, $assistantNodeId);
@@ -110,7 +102,7 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 			return;
 		}
 
-		$baseResourceId = $this->ensurePresetResource($flow, $presetId, $preset);
+		$baseResourceId = $this->ensurePresetResource($flow, $presetId);
 		$attachAs = $this->normalizeStringList($component['attach_as'] ?? ($preset['capabilities'] ?? []));
 
 		if (in_array('chatmodel', $attachAs, true)) {
@@ -132,98 +124,27 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 
 	/**
 	 * @param array<string,mixed> $flow
-	 * @param array<string,mixed> $preset
 	 */
-	private function ensurePresetResource(array &$flow, string $presetId, array $preset): string {
-		if (isset($this->presetResourceIds[$presetId])) {
-			return $this->presetResourceIds[$presetId];
+	private function ensurePresetResource(array &$flow, string $presetId): string {
+		$result = $this->presetFlowExpander->expand($flow, [$presetId]);
+		$flow = is_array($result['flow'] ?? null) ? $result['flow'] : $flow;
+
+		foreach((array)($result['warnings'] ?? []) as $warning) {
+			$warning = trim((string)$warning);
+			if($warning !== '') {
+				$this->warnings[] = $warning;
+			}
 		}
 
-		$resourceId = $this->buildResourceId('preset_', $presetId);
-		$this->presetResourceIds[$presetId] = $resourceId;
+		$resourceIds = is_array($result['resource_ids'] ?? null) ? $result['resource_ids'] : [];
+		$resourceId = trim((string)($resourceIds[$presetId] ?? ''));
 
-		if ($this->resourceExists($flow, $resourceId)) {
-			return $resourceId;
+		if($resourceId === '') {
+			$this->warnings[] = 'Component preset could not be expanded: ' . $presetId;
+			return $this->sanitizeId('preset_' . $presetId);
 		}
-
-		if (!empty($this->resolvingPresets[$presetId])) {
-			$this->warnings[] = 'Circular preset dock reference detected: ' . $presetId;
-			return $resourceId;
-		}
-
-		$type = trim((string)($preset['type'] ?? ''));
-
-		if ($type === '') {
-			$this->warnings[] = 'Component preset has no type: ' . $presetId;
-			return $resourceId;
-		}
-
-		$this->resolvingPresets[$presetId] = true;
-
-		$resource = [
-			'id' => $resourceId,
-			'type' => $type
-		];
-
-		if (!empty($preset['config']) && is_array($preset['config'])) {
-			$resource['config'] = $preset['config'];
-		}
-
-		$docks = $this->buildPresetResourceDocks($flow, $preset);
-
-		if ($docks !== []) {
-			$resource['docks'] = $docks;
-		}
-
-		$flow['resources'][] = $resource;
-
-		unset($this->resolvingPresets[$presetId]);
 
 		return $resourceId;
-	}
-
-	/**
-	 * @param array<string,mixed> $flow
-	 * @param array<string,mixed> $preset
-	 * @return array<string,array<int,string>>
-	 */
-	private function buildPresetResourceDocks(array &$flow, array $preset): array {
-		$docks = [];
-
-		if (empty($preset['docks']) || !is_array($preset['docks'])) {
-			return $docks;
-		}
-
-		foreach ($preset['docks'] as $dockName => $targets) {
-			if (!is_string($dockName)) {
-				continue;
-			}
-
-			$targetIds = [];
-
-			foreach ((array)$targets as $targetId) {
-				$targetId = trim((string)$targetId);
-
-				if ($targetId === '') {
-					continue;
-				}
-
-				$targetPreset = $this->presetRepository->getPreset($targetId, []);
-
-				if ($targetPreset !== []) {
-					$targetIds[] = $this->ensurePresetResource($flow, $targetId, $targetPreset);
-					continue;
-				}
-
-				$targetIds[] = $targetId;
-			}
-
-			if ($targetIds !== []) {
-				$docks[$dockName] = array_values(array_unique($targetIds));
-			}
-		}
-
-		return $docks;
 	}
 
 	/**
@@ -384,10 +305,6 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 		}
 
 		return $resourceId;
-	}
-
-	private function buildResourceId(string $prefix, string $id): string {
-		return $this->sanitizeId($prefix . $id);
 	}
 
 	private function sanitizeId(string $id): string {

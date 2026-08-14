@@ -15,6 +15,7 @@ use Base3\Api\IClassMap;
 use Base3\Logger\Api\ILogger;
 use Base3\Settings\Api\ISettingsStore;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Api\IRetrievalCollectionConfigRepository;
 use MissionBay\Resource\ConfiguredChatModelAgentResource;
 use MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
 use MissionBay\Resource\ConfiguredVectorStoreAgentResource;
@@ -30,7 +31,7 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 
 	public function testRetrievalPublishesConfigSchemaAndComposableDocks(): void {
 		$classMap = $this->createMock(IClassMap::class);
-		$definition = new DefaultRetrievalCollectionDefinition();
+		$definition = $this->defaultDefinition();
 		$resource = new RetrievalAgentTool(
 			$this->resolver(),
 			$definition,
@@ -65,7 +66,7 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 
 	public function testRetrievalToolDefinitionsMakeSearchModeAndContextReferenceExplicit(): void {
 		$classMap = $this->createMock(IClassMap::class);
-		$definition = new DefaultRetrievalCollectionDefinition();
+		$definition = $this->defaultDefinition();
 		$resource = new RetrievalAgentTool(
 			$this->resolver(),
 			$definition,
@@ -288,4 +289,16 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 
 		return $result;
 	}
+	private function defaultDefinition(): DefaultRetrievalCollectionDefinition {
+		$repository = new class implements IRetrievalCollectionConfigRepository {
+			public function getCollections(): array { return ['default' => ['backend_collection' => 'content_v2']]; }
+			public function hasCollection(string $collectionKey): bool { return $collectionKey === 'default'; }
+			public function getBackendCollectionName(string $collectionKey): string { return 'content_v2'; }
+			public function saveCollection(string $collectionKey, string $backendCollection): void {}
+			public function removeCollection(string $collectionKey): void {}
+		};
+
+		return new DefaultRetrievalCollectionDefinition($repository);
+	}
+
 }

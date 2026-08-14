@@ -11,6 +11,7 @@ use MissionBay\Api\IAgentFlowCompiler;
 use MissionBay\Api\IAgentFlowFactory;
 use MissionBay\Dto\AgentFlowCompilation;
 use MissionBay\Service\AgentComponentFlowBuilder;
+use MissionBay\Service\AgentComponentPresetFlowExpander;
 use MissionBay\Service\AgentExecutionService;
 use MissionBay\Service\AgentFlowCompiler;
 use PHPUnit\Framework\TestCase;
@@ -150,7 +151,8 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 	}
 
 	private function createCompiler(): AgentFlowCompiler {
-		return new AgentFlowCompiler(new AgentComponentFlowBuilder($this->componentPresetRepository()));
+		$repository = $this->componentPresetRepository();
+		return new AgentFlowCompiler(new AgentComponentFlowBuilder($repository, new AgentComponentPresetFlowExpander($repository)));
 	}
 
 	private function componentPresetRepository(): IAgentComponentPresetRepository {
