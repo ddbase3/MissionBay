@@ -17,10 +17,10 @@
 
 namespace MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentCapabilitySelector;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAiChatModel;
+use MissionBay\Capability\SemanticAgentCapabilitySelector;
 
 /**
  * Uses the active chat model to rerank a bounded capability candidate set.
@@ -29,7 +29,7 @@ use AssistantFoundation\Api\IAiChatModel;
 final class AgentAiCapabilitySelectionStage extends AbstractAgentCapabilitySelectionStage {
 
 	public function __construct(
-		IAgentCapabilitySelector $selector,
+		SemanticAgentCapabilitySelector $selector,
 		string $id = 'ai-capability-selection',
 		string $stageName = 'ai-capability-selection',
 		int $maxContextCharacters = 24000

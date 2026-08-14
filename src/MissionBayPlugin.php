@@ -564,8 +564,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentCapabilitySelectionStage::getName(),
 			arguments: [
 				'id' => 'capability-selection',
-				'stageName' => 'capability-selection',
-				'selector' => $this->container->get(ProfileAwareAgentCapabilitySelector::class)
+				'stageName' => 'capability-selection'
 			]
 		));
 
@@ -575,8 +574,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentAiCapabilitySelectionStage::getName(),
 			arguments: [
 				'id' => 'ai-capability-selection',
-				'stageName' => 'ai-capability-selection',
-				'selector' => $this->container->get(SemanticAgentCapabilitySelector::class)
+				'stageName' => 'ai-capability-selection'
 			]
 		));
 
@@ -586,8 +584,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentModelDecisionStage::getName(),
 			arguments: [
 				'id' => 'model-decision',
-				'stageName' => 'model-decision',
-				'strategyResolver' => $this->container->get(IAgentModelDecisionStrategyResolver::class)
+				'stageName' => 'model-decision'
 			]
 		));
 
@@ -608,13 +605,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentToolExecutionStage::getName(),
 			arguments: [
 				'id' => 'tool-execution',
-				'stageName' => 'tool-execution',
-				'toolResultCacheService' => $this->container->get(AgentToolResultCacheService::class),
-				'budgetGuardService' => $this->container->get(AgentBudgetGuardService::class),
-				'resultVerificationService' => $this->container->get(AgentResultVerificationService::class),
-				'mutationCommitGuardService' => $this->container->get(AgentMutationCommitGuardService::class),
-				'toolContractValidationService' => $this->container->get(AgentToolContractValidationService::class),
-				'capabilitySelectionGuardService' => $this->container->get(AgentCapabilitySelectionGuardService::class)
+				'stageName' => 'tool-execution'
 			]
 		));
 
@@ -627,8 +618,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				'stageName' => 'context-compaction',
 				'minToolResultBytes' => 12000,
 				'maxInputBytes' => 80000,
-				'targetSummaryCharacters' => 4000,
-				'contextAssessmentService' => $this->container->get(AgentContextAssessmentService::class)
+				'targetSummaryCharacters' => 4000
 			]
 		));
 
@@ -638,8 +628,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentToolObservationStage::getName(),
 			arguments: [
 				'id' => 'tool-observation',
-				'stageName' => 'tool-observation',
-				'batchResultService' => $this->container->get(AgentBatchResultService::class)
+				'stageName' => 'tool-observation'
 			]
 		));
 
@@ -649,9 +638,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			implementationName: AgentSemanticVerificationStage::getName(),
 			arguments: [
 				'id' => 'semantic-verification',
-				'stageName' => 'semantic-verification',
-				'verificationService' => $this->container->get(AgentSemanticVerificationService::class),
-				'continuationDecisionService' => $this->container->get(AgentContinuationDecisionService::class)
+				'stageName' => 'semantic-verification'
 			]
 		));
 
