@@ -7,9 +7,85 @@ use Base3\Api\IClassMap;
 use Base3\Event\EventManager;
 use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\ChatModel\MistralChatModel;
+use MissionBay\ChatModel\OpenAiChatModel;
+use MissionBay\ChatModel\OpenAiCompatibleChatModel;
 use PHPUnit\Framework\TestCase;
 
 final class AbstractChatCompletionModelStreamingToolsTest extends TestCase {
+
+	public function testMistralPayloadMergesSystemMessagesInOrder(): void {
+		$provider = new CapturingStreamingProvider(false);
+		$model = new MistralChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
+		$model->setOptions([
+			'model' => 'mistral-small-2603',
+			'endpoint' => 'https://example.test',
+			'apikey' => 'test-key'
+		]);
+
+		$model->raw([
+			['role' => 'system', 'content' => 'Base system'],
+			['role' => 'system', 'content' => 'Priority 20 context'],
+			['role' => 'system', 'content' => 'Priority 30 context'],
+			['role' => 'user', 'content' => 'Hello']
+		]);
+
+		$this->assertSame([
+			['role' => 'system', 'content' => "Base system\n\nPriority 20 context\n\nPriority 30 context"],
+			['role' => 'user', 'content' => 'Hello']
+		], $provider->payload['messages'] ?? null);
+	}
+
+	public function testOpenAiCompatiblePayloadMergesSystemMessagesInOrder(): void {
+		$provider = new CapturingStreamingProvider(false);
+		$model = new OpenAiCompatibleChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
+		$model->setOptions([
+			'model' => 'compatible-model',
+			'endpoint' => 'https://example.test',
+			'apikey' => 'test-key'
+		]);
+
+		$model->raw([
+			['role' => 'system', 'content' => 'Base system'],
+			['role' => 'system', 'content' => 'Context A'],
+			['role' => 'system', 'content' => 'Context B'],
+			['role' => 'user', 'content' => 'Hello']
+		]);
+
+		$this->assertSame([
+			['role' => 'system', 'content' => "Base system\n\nContext A\n\nContext B"],
+			['role' => 'user', 'content' => 'Hello']
+		], $provider->payload['messages'] ?? null);
+	}
+
+	public function testOpenAiPayloadKeepsSeparateSystemMessages(): void {
+		$provider = new CapturingStreamingProvider(false);
+		$model = new OpenAiChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
+		$model->setOptions([
+			'model' => 'gpt-test',
+			'endpoint' => 'https://example.test',
+			'apikey' => 'test-key'
+		]);
+
+		$messages = [
+			['role' => 'system', 'content' => 'Base system'],
+			['role' => 'system', 'content' => 'Context A'],
+			['role' => 'system', 'content' => 'Context B'],
+			['role' => 'user', 'content' => 'Hello']
+		];
+
+		$model->raw($messages);
+
+		$this->assertSame($messages, $provider->payload['messages'] ?? null);
+	}
 
 	public function testStreamingPayloadKeepsToolDefinitionsForConfiguredModels(): void {
 		$provider = new CapturingStreamingProvider();

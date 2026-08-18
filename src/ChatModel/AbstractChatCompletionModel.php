@@ -74,6 +74,10 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		return true;
 	}
 
+	protected function supportsMultipleSystemMessages(): bool {
+		return false;
+	}
+
 	public function setOptions(array $options): void {
 		$this->options = array_merge($this->options, $options);
 
@@ -307,6 +311,7 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 	 * @return array<int,array<string,mixed>>
 	 */
 	protected function normalizeMessages(array $messages): array {
+		$messages = $this->normalizeSystemMessages($messages);
 		$out = [];
 		$validToolCallIds = [];
 
@@ -369,6 +374,57 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 					];
 				}
 			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $messages
+	 * @return array<int,array<string,mixed>>
+	 */
+	protected function normalizeSystemMessages(array $messages): array {
+		if($this->supportsMultipleSystemMessages()) {
+			return $messages;
+		}
+
+		$firstSystemIndex = null;
+		$systemContents = [];
+
+		foreach($messages as $index => $message) {
+			if(!is_array($message) || (string)($message['role'] ?? '') !== 'system') {
+				continue;
+			}
+
+			if($firstSystemIndex === null) {
+				$firstSystemIndex = $index;
+			}
+
+			$content = $this->normalizeMessageContent($message['content'] ?? '');
+
+			if(trim($content) !== '') {
+				$systemContents[] = $content;
+			}
+		}
+
+		if($firstSystemIndex === null) {
+			return $messages;
+		}
+
+		$out = [];
+
+		foreach($messages as $index => $message) {
+			if(!is_array($message) || (string)($message['role'] ?? '') !== 'system') {
+				$out[] = $message;
+				continue;
+			}
+
+			if($index !== $firstSystemIndex) {
+				continue;
+			}
+
+			$message['content'] = implode("\n\n", $systemContents);
+			$out[] = $message;
 		}
 
 		return $out;

@@ -29,6 +29,10 @@ class OpenAiChatModel extends OpenAiCompatibleChatModel {
 		return OpenAiTransport::getName();
 	}
 
+	protected function supportsMultipleSystemMessages(): bool {
+		return true;
+	}
+
 	protected function getDefaultEndpoint(): string {
 		return 'https://api.openai.com';
 	}
