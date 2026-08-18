@@ -636,7 +636,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 		}
 
 		function renderDriverSelect(selected) {
-			refs.driver.innerHTML = "<option value=''><?php echo $mbTextEsc('select_driver_2', mbText('select_driver_2', 'Select driver...')); ?></option>";
+			refs.driver.innerHTML = "<option value=''><?php echo $mbTextEsc('select_driver_2', 'Select driver...'); ?></option>";
 
 			state.drivers.forEach(function(driver) {
 				const option = document.createElement("option");
@@ -654,7 +654,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 				? driver.supportedConnectionTypes
 				: [];
 
-			refs.connection.innerHTML = "<option value=''><?php echo $mbTextEsc('select_connection_2', mbText('select_connection_2', 'Select connection...')); ?></option>";
+			refs.connection.innerHTML = "<option value=''><?php echo $mbTextEsc('select_connection_2', 'Select connection...'); ?></option>";
 
 			state.connections.forEach(function(connection) {
 				if (supported.length > 0 && !supported.includes(connection.type)) {
@@ -758,7 +758,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 				return "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
 			}
 			if (!image.connectionEnabled) {
-				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', 'connection off'); ?></span>";
 			}
 			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
 		}
@@ -766,7 +766,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 		function renderRows() {
 			refs.tbody.innerHTML = "";
 			if (state.images.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('no_image_services_configured', mbText('no_image_services_configured', 'No image services configured.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('no_image_services_configured', 'No image services configured.'); ?></td></tr>";
 				return;
 			}
 
@@ -780,7 +780,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 					"<td class='driver-col'>" + esc(image.driverLabel || image.driver) + "</td>" +
 					"<td class='model-col'>" + esc(image.model) + "</td>" +
 					"<td>" + statusBadge(image) + "</td>" +
-					"<td><button type='button' class='imgcfg-edit-btn' data-action='edit' data-id='" + esc(image.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
+					"<td><button type='button' class='imgcfg-edit-btn' data-action='edit' data-id='" + esc(image.id) + "'><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td>";
 				refs.tbody.appendChild(tr);
 			});
 
@@ -835,7 +835,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 		async function loadList(preselectId) {
 			const json = await callApi({action: "list"});
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('image_services_could_not_be_loaded', mbText('image_services_could_not_be_loaded', 'Image services could not be loaded.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('image_services_could_not_be_loaded', 'Image services could not be loaded.'); ?></td></tr>";
 				return;
 			}
 

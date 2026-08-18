@@ -751,7 +751,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			refs.tbody.innerHTML = "";
 
 			if(state.connections.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_connections_configured_2', mbText('no_connections_configured_2', 'No connections configured.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_connections_configured_2', 'No connections configured.'); ?></td></tr>";
 				return;
 			}
 
@@ -772,7 +772,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 					"<td class='auth-col'><span>" + esc(connection.authType) + "</span><br><span class='ccad-subline'>" + esc(headerText) + "</span></td>" +
 					"<td class='secret-col' title='" + esc(secretSummary) + "'><span>" + esc(secretMode || "none") + "</span><br><span class='ccad-subline'>" + esc(secretSummary) + "</span></td>" +
 					"<td>" + statusBadge(!!connection.enabled) + "</td>" +
-					"<td><button type='button' class='ccad-edit-btn' data-action='edit' data-id='" + esc(connection.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
+					"<td><button type='button' class='ccad-edit-btn' data-action='edit' data-id='" + esc(connection.id) + "'><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td>";
 
 				refs.tbody.appendChild(tr);
 			}
@@ -853,7 +853,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 				var selected;
 
 				if(!json) {
-					refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('connections_could_not_be_loaded', mbText('connections_could_not_be_loaded', 'Connections could not be loaded.')); ?></td></tr>";
+					refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('connections_could_not_be_loaded', 'Connections could not be loaded.'); ?></td></tr>";
 					return;
 				}
 

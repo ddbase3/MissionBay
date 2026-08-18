@@ -347,14 +347,14 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
 		function statusBadge(row) {
 			if (!row.enabled) return "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
-			if (!row.connectionEnabled) return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+			if (!row.connectionEnabled) return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', 'connection off'); ?></span>";
 			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
 		}
 
 		function renderRows() {
 			refs.tbody.innerHTML = "";
 			if (!state.parsers.length) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_parsers_configured', mbText('no_parsers_configured', 'No parsers configured.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_parsers_configured', 'No parsers configured.'); ?></td></tr>";
 				return;
 			}
 
@@ -369,7 +369,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 					"<td class='option-col'>" + esc((parser.supportedTypes || []).join(", ")) + "</td>" +
 					"<td class='option-col'>" + esc(parser.priority || "") + "</td>" +
 					"<td>" + statusBadge(parser) + "</td>" +
-					"<td><button type='button' class='parsercfg-edit-btn' data-action='edit' data-id='" + esc(parser.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
+					"<td><button type='button' class='parsercfg-edit-btn' data-action='edit' data-id='" + esc(parser.id) + "'><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td>";
 				refs.tbody.appendChild(tr);
 			});
 
@@ -416,7 +416,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 		async function loadList(preselectId) {
 			const json = await callApi({action: "list"});
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('parsers_could_not_be_loaded', mbText('parsers_could_not_be_loaded', 'Parsers could not be loaded.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('parsers_could_not_be_loaded', 'Parsers could not be loaded.'); ?></td></tr>";
 				return;
 			}
 

@@ -829,7 +829,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			}
 
 			if (!embedding.connectionEnabled) {
-				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', 'connection off'); ?></span>";
 			}
 
 			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
@@ -840,7 +840,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			refs.tbody.innerHTML = "";
 
 			if (embeddings.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('no_embedding_services_configured', mbText('no_embedding_services_configured', 'No embedding services configured.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('no_embedding_services_configured', 'No embedding services configured.'); ?></td></tr>";
 				return;
 			}
 
@@ -859,7 +859,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 					"<td class='number-col'>" + esc(embedding.dimensions || "") + "</td>" +
 					"<td class='number-col'>" + esc(embedding.batchSize || "") + "</td>" +
 					"<td>" + statusBadge(embedding) + "</td>" +
-					"<td><button type='button' class='embcfg-edit-btn' data-action='edit' data-id='" + esc(embedding.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
+					"<td><button type='button' class='embcfg-edit-btn' data-action='edit' data-id='" + esc(embedding.id) + "'><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td>";
 
 				refs.tbody.appendChild(tr);
 			}
@@ -927,7 +927,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			});
 
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('embedding_services_could_not_be_loaded', mbText('embedding_services_could_not_be_loaded', 'Embedding services could not be loaded.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('embedding_services_could_not_be_loaded', 'Embedding services could not be loaded.'); ?></td></tr>";
 				return;
 			}
 

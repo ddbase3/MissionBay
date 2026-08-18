@@ -268,14 +268,14 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
 		function statusBadge(row) {
 			if (!row.enabled) return "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
-			if (!row.connectionEnabled) return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+			if (!row.connectionEnabled) return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', 'connection off'); ?></span>";
 			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
 		}
 
 		function renderRows() {
 			refs.tbody.innerHTML = "";
 			if (!state.vectorsearches.length) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('no_vector_searches_configured', mbText('no_vector_searches_configured', 'No vector searches configured.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('no_vector_searches_configured', 'No vector searches configured.'); ?></td></tr>";
 				return;
 			}
 
@@ -289,7 +289,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 					"<td class='driver-col'>" + esc(v.driverLabel || v.driver) + "</td>" +
 					"<td class='option-col'>" + esc(v.collection || "-") + "</td>" +
 					"<td>" + statusBadge(v) + "</td>" +
-					"<td><button type='button' class='vectorsearchcfg-edit-btn' data-action='edit' data-id='" + esc(v.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
+					"<td><button type='button' class='vectorsearchcfg-edit-btn' data-action='edit' data-id='" + esc(v.id) + "'><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td>";
 				refs.tbody.appendChild(tr);
 			});
 
@@ -336,7 +336,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 		async function loadList(preselectId) {
 			const json = await callApi({action: "list"});
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('vector_searches_could_not_be_loaded', mbText('vector_searches_could_not_be_loaded', 'Vector searches could not be loaded.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('vector_searches_could_not_be_loaded', 'Vector searches could not be loaded.'); ?></td></tr>";
 				return;
 			}
 

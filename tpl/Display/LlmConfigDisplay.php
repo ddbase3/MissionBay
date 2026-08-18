@@ -867,7 +867,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			}
 
 			if (!llm.connectionEnabled) {
-				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', 'connection off'); ?></span>";
 			}
 
 			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
@@ -878,7 +878,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			refs.tbody.innerHTML = "";
 
 			if (llms.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_llm_services_configured', mbText('no_llm_services_configured', 'No LLM services configured.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_llm_services_configured', 'No LLM services configured.'); ?></td></tr>";
 				return;
 			}
 
@@ -896,7 +896,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 					"<td class='model-col' title='" + esc(llm.model) + "'>" + esc(llm.model) + "</td>" +
 					"<td class='params-col' title='" + esc(JSON.stringify(llm.options || {})) + "'>" + esc(paramSummary(llm)) + "</td>" +
 					"<td>" + statusBadge(llm) + "</td>" +
-					"<td><button type='button' class='llmcfg-edit-btn' data-action='edit' data-id='" + esc(llm.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
+					"<td><button type='button' class='llmcfg-edit-btn' data-action='edit' data-id='" + esc(llm.id) + "'><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td>";
 
 				refs.tbody.appendChild(tr);
 			}
@@ -964,7 +964,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			});
 
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('llm_services_could_not_be_loaded', mbText('llm_services_could_not_be_loaded', 'LLM services could not be loaded.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('llm_services_could_not_be_loaded', 'LLM services could not be loaded.'); ?></td></tr>";
 				return;
 			}
 

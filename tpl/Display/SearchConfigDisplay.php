@@ -880,7 +880,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			}
 
 			if (!search.connectionEnabled) {
-				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', 'connection off'); ?></span>";
 			}
 
 			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
@@ -891,7 +891,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			refs.tbody.innerHTML = "";
 
 			if (searches.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('no_search_services_configured', mbText('no_search_services_configured', 'No search services configured.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('no_search_services_configured', 'No search services configured.'); ?></td></tr>";
 				return;
 			}
 
@@ -910,7 +910,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 					"<td class='option-col'>" + esc(search.searchContextSize || "") + "</td>" +
 					"<td class='option-col'>" + (search.externalWebAccess === false ? "cache" : "live") + "</td>" +
 					"<td>" + statusBadge(search) + "</td>" +
-					"<td><button type='button' class='searchcfg-edit-btn' data-action='edit' data-id='" + esc(search.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
+					"<td><button type='button' class='searchcfg-edit-btn' data-action='edit' data-id='" + esc(search.id) + "'><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td>";
 
 				refs.tbody.appendChild(tr);
 			}
@@ -978,7 +978,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 			});
 
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('search_services_could_not_be_loaded', mbText('search_services_could_not_be_loaded', 'Search services could not be loaded.')); ?></td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('search_services_could_not_be_loaded', 'Search services could not be loaded.'); ?></td></tr>";
 				return;
 			}
 

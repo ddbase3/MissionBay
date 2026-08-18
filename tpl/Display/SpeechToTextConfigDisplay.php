@@ -99,15 +99,15 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 	function feedback(message, type) { refs.feedback.hidden = false; refs.feedback.className = 'sttcfg-feedback ' + type; refs.feedback.textContent = message; }
 	function clearFeedback() { refs.feedback.hidden = true; refs.feedback.textContent = ''; }
 	function setLoading(value) { refs.loading.style.display = value ? 'block' : 'none'; }
-	function status(row) { if(!row.enabled) return '<span class="badge off"><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>'; if(!row.connectionEnabled) return '<span class="badge warn"><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>'; return '<span class="badge ok"><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>'; }
+	function status(row) { if(!row.enabled) return '<span class="badge off"><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>'; if(!row.connectionEnabled) return '<span class="badge warn"><?php echo $mbTextEsc('connection_off', 'connection off'); ?></span>'; return '<span class="badge ok"><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>'; }
 	function renderSelect(select, rows, selected, label, valueKey, labelKey) {
 		select.innerHTML = '<option value="">' + esc(rows.length ? label : mbText('no_entries_available', 'No entries available')) + '</option>';
 		for(const row of rows) { const option = document.createElement('option'); option.value = row[valueKey] || ''; option.textContent = row[labelKey] || row[valueKey] || ''; if(row.enabled === false) option.textContent += ' [disabled]'; select.appendChild(option); }
 		select.value = selected || '';
 	}
 	function renderRows() {
-		if(!state.services.length) { refs.tbody.innerHTML = '<tr><td colspan="8" class="mono"><?php echo $mbTextEsc('no_speech_to_text_services_configured', mbText('no_speech_to_text_services_configured', 'No speech-to-text services configured.')); ?></td></tr>'; return; }
-		refs.tbody.innerHTML = state.services.map(row => '<tr data-id="' + esc(row.id) + '"><td class="technical">' + esc(row.id) + '</td><td>' + esc(row.name) + '</td><td class="technical">' + esc(row.connection) + '</td><td class="technical">' + esc(row.driverLabel || row.driver) + '</td><td class="technical">' + esc(row.model) + '</td><td>' + esc(row.language) + '</td><td>' + status(row) + '</td><td><button type="button" class="sttcfg-edit" data-edit="' + esc(row.id) + '"><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td></tr>').join('');
+		if(!state.services.length) { refs.tbody.innerHTML = '<tr><td colspan="8" class="mono"><?php echo $mbTextEsc('no_speech_to_text_services_configured', 'No speech-to-text services configured.'); ?></td></tr>'; return; }
+		refs.tbody.innerHTML = state.services.map(row => '<tr data-id="' + esc(row.id) + '"><td class="technical">' + esc(row.id) + '</td><td>' + esc(row.name) + '</td><td class="technical">' + esc(row.connection) + '</td><td class="technical">' + esc(row.driverLabel || row.driver) + '</td><td class="technical">' + esc(row.model) + '</td><td>' + esc(row.language) + '</td><td>' + status(row) + '</td><td><button type="button" class="sttcfg-edit" data-edit="' + esc(row.id) + '"><?php echo $mbTextEsc('edit', 'Edit'); ?></button></td></tr>').join('');
 		highlight();
 	}
 	function highlight() { root.querySelectorAll('tr[data-id]').forEach(row => row.classList.toggle('selected', row.dataset.id === state.selectedId)); }
