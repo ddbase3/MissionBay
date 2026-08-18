@@ -177,7 +177,7 @@ should render `action.name` and `action.input` separately under technical
 details instead of using raw JSON as the main confirmation text.
 
 Tool-development rules and examples are documented in
-[AGENT_TOOL_DEVELOPMENT.md](AGENT_TOOL_DEVELOPMENT.md).
+[agent-tool-development.md](agent-tool-development.md).
 
 ## Exact review binding
 
@@ -196,10 +196,10 @@ Both are suspension outcomes, not failures. Denial becomes a normalized tool obs
 
 ## Durable resume
 
-The default repository uses `IStateStore`, a 15-minute suspension TTL, a short claim lease, one-time consumption, and a replay marker. Details are documented in [AGENT_DURABLE_SUSPENSIONS.md](AGENT_DURABLE_SUSPENSIONS.md).
+The default repository uses `IStateStore`, a 15-minute suspension TTL, a short claim lease, one-time consumption, and a replay marker. Details are documented in [agent-durable-suspensions.md](agent-durable-suspensions.md).
 
 ## Mutation commit guard
 
 Approval is followed by a final execution-boundary check. Mutation tools can capture authorization and resource-version state before review and validate it immediately before `callTool()`. Stale or no-longer-authorized writes are returned as blocked tool results without invoking the tool.
 
-See [AGENT_MUTATION_COMMIT_GUARD.md](AGENT_MUTATION_COMMIT_GUARD.md).
+See [agent-mutation-commit-guard.md](agent-mutation-commit-guard.md).

@@ -13,9 +13,9 @@ This file is the frozen completion ledger, not a backlog.
 
 ## Completed repairs
 
-### M-02 — Conversation history and Knowledge tool
+### M-02 - Conversation history and Knowledge tool
 
-Completed in patches 16–17:
+Completed in patches 16-17:
 
 - removed phrase-specific regular expressions and phrase classifiers from assistant-turn routing;
 - supplied recent visible conversation history to model input and capability selection;
@@ -27,7 +27,7 @@ Completed in patches 16–17:
 - removed approval/commit-guard requirements from internal Knowledge writes;
 - introduced the mandatory regex inventory/control script.
 
-### M-01 — Memory/context UI and runtime separation
+### M-01 - Memory/context UI and runtime separation
 
 Completed in patch 18:
 
@@ -39,7 +39,7 @@ Completed in patch 18:
 - runtime docks are separated into `memory` and `contextcontributors`;
 - one configured base resource is shared when a preset exposes tool and context facets.
 
-## H-01 — Ownership, documentation, and freeze
+## H-01 - Ownership, documentation, and freeze
 
 Completed in patch 19:
 
@@ -54,7 +54,7 @@ Completed in patch 19:
 The normative extension guide is:
 
 ```text
-MissionBay/docs/ASSISTANTFOUNDATION_EXTENSION_POINTS.md
+MissionBay/docs/extension-points.md
 ```
 
 ## Foundation ownership rule

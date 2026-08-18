@@ -152,4 +152,4 @@ A project may provide another selector implementation for either explicit stage 
 
 The catalog may receive tool functions from directly docked tools, explicitly configured tool components, configured capability providers, and activated modules. The source list is stored under `capability_sources` and is a hard per-agent allow-list. Discovery does not enumerate and grant every globally configured component.
 
-Resource providers, prompt providers, module instructions, and module stage mounts are retained in the run-local discovery result even though only callable tool functions enter the model-facing catalog. See [AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md](AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md).
+Resource providers, prompt providers, module instructions, and module stage mounts are retained in the run-local discovery result even though only callable tool functions enter the model-facing catalog. See [agent-capability-providers-and-modules.md](agent-capability-providers-and-modules.md).

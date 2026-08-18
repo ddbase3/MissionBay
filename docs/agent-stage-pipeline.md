@@ -96,7 +96,7 @@ Its default is defined in `MissionBay/src/Node/Ai/AbstractAiAssistantNode.php` a
 
 `AgentOrchestratorProfile` never stores an arbitrary ordered stage array. It stores mode, limits, and optional-stage booleans. `getStageIds()` reconstructs the canonical sequence. The administration UI mirrors this with checkboxes and a read-only pipeline preview rather than drag-and-drop ordering.
 
-See [AGENT_ORCHESTRATOR_AND_TOOL_PROFILES.md](AGENT_ORCHESTRATOR_AND_TOOL_PROFILES.md).
+See [agent-orchestrator-and-tool-profiles.md](agent-orchestrator-and-tool-profiles.md).
 
 ## Criteria for future stages
 
@@ -114,7 +114,7 @@ Use a service, adapter, decorator, or checkpoint for infrastructure mechanics th
 
 The high-level agent configuration selects configured tool, provider, module, resource-provider, and prompt-provider component IDs. `AgentCapabilityDiscoveryService` resolves and activates them before the core pipeline is constructed. The visible `capability-discovery` stage validates and emits the resulting run-local composition, while `capability-selection` remains responsible only for the context-dependent model-facing reduction.
 
-Module-provided stages are mounted run-locally through semantic slots. They are never registered globally. See [AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md](AGENT_CAPABILITY_PROVIDERS_AND_MODULES.md).
+Module-provided stages are mounted run-locally through semantic slots. They are never registered globally. See [agent-capability-providers-and-modules.md](agent-capability-providers-and-modules.md).
 
 ## Compatibility
 
@@ -122,16 +122,16 @@ The previous small guard/cache/verification stage classes remain in the source t
 
 ## Durable suspension boundary
 
-The action-policy stage may stop the pipeline with an opaque `resume_handle`. The complete suspension stays server-side and is restored by the orchestrator entry checkpoint. See [AGENT_DURABLE_SUSPENSIONS.md](AGENT_DURABLE_SUSPENSIONS.md).
+The action-policy stage may stop the pipeline with an opaque `resume_handle`. The complete suspension stays server-side and is restored by the orchestrator entry checkpoint. See [agent-durable-suspensions.md](agent-durable-suspensions.md).
 
 ## Mutation commit boundary
 
-Approved mutations carry a server-owned commit snapshot into `tool-execution`. `AgentMutationCommitGuardService` rechecks the exact action fingerprint and delegates authorization/version validation to `IAgentMutationGuardedTool`. Mutation calls never use the tool-result cache. See [AGENT_MUTATION_COMMIT_GUARD.md](AGENT_MUTATION_COMMIT_GUARD.md).
+Approved mutations carry a server-owned commit snapshot into `tool-execution`. `AgentMutationCommitGuardService` rechecks the exact action fingerprint and delegates authorization/version validation to `IAgentMutationGuardedTool`. Mutation calls never use the tool-result cache. See [agent-mutation-commit-guard.md](agent-mutation-commit-guard.md).
 
 ## Tool contract boundary
 
-Model-generated arguments are validated before policy evaluation. Successful runtime or cached output is validated before it becomes an observation or cache entry. Contract mechanics remain services inside `action-policy` and `tool-execution`; no additional default stage is introduced. See [AGENT_TOOL_CONTRACT_VALIDATION.md](AGENT_TOOL_CONTRACT_VALIDATION.md).
+Model-generated arguments are validated before policy evaluation. Successful runtime or cached output is validated before it becomes an observation or cache entry. Contract mechanics remain services inside `action-policy` and `tool-execution`; no additional default stage is introduced. See [agent-tool-contract-validation.md](agent-tool-contract-validation.md).
 
 ## Capability selection boundary
 
-The run-local catalog contains all functions assigned to the agent after profile filtering. `capability-selection` exposes only a bounded subset to each model call, and later stages reject calls outside that exact subset. See [AGENT_CAPABILITY_CATALOG_AND_SELECTION.md](AGENT_CAPABILITY_CATALOG_AND_SELECTION.md).
+The run-local catalog contains all functions assigned to the agent after profile filtering. `capability-selection` exposes only a bounded subset to each model call, and later stages reject calls outside that exact subset. See [agent-capability-catalog-and-selection.md](agent-capability-catalog-and-selection.md).

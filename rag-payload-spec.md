@@ -115,3 +115,20 @@ IRetrievalCollectionDefinition::getContextSchema()
 * mandatory access filters are independent from agent-controlled filters
 * retrieval results are projected before they leave the retrieval layer
 * domain plugins may evolve their schema without introducing domain assumptions into MissionBay
+
+
+## Current collection addressing
+
+Retrieval payload processing must use the active `IRetrievalCollectionDefinition` and a logical collection key.
+
+MissionBay stores logical-to-physical mappings in the `retrieval-collection` settings group. Generic code must not assume a fixed backend collection name. Host integrations may provide their own collection definition and schema.
+
+The active embedding composition refers to the same logical collection through `embedding-orchestrator/default.collection_key`.
+
+This keeps indexing, inspection and retrieval on one collection identity boundary while allowing the physical backend name to change without rewriting agent or flow definitions.
+
+## Agent-visible projection
+
+Stored vector payload and agent context are intentionally different surfaces. The collection definition decides which fields may be used as agent filters and which fields are projected into model-visible context.
+
+Mandatory authorization filters supplied by server-side filter providers are additive. Agent arguments may narrow the result set but must not relax server-owned restrictions.

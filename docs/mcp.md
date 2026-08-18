@@ -2,7 +2,7 @@
 
 MissionBay provides a profile-based inbound MCP server for exposing selected agent tools, resources and prompts to MCP clients.
 
-This document covers the inbound server endpoint. The outbound remote MCP client resource is documented in [MCP_CLIENT_AGENT_RESOURCE.md](MCP_CLIENT_AGENT_RESOURCE.md).
+This document covers the inbound server endpoint. The outbound remote MCP client resource is documented in [mcp-client-agent-resource.md](mcp-client-agent-resource.md).
 
 This document describes the v1 boundary. OAuth, additional domain-specific resources/tools and native SSE-based elicitation are intentionally outside this MCP server completion step.
 

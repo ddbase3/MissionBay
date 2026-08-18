@@ -445,10 +445,10 @@ Base3IliasLab\MissionBay\Tools\IliasWebDavAdministrationAgentTool
 
 See also:
 
-- [AGENT_ACTION_APPROVAL_AND_RESUME.md](AGENT_ACTION_APPROVAL_AND_RESUME.md)
-- [AGENT_MUTATION_COMMIT_GUARD.md](AGENT_MUTATION_COMMIT_GUARD.md)
-- [AGENT_TOOL_CONTRACT_VALIDATION.md](AGENT_TOOL_CONTRACT_VALIDATION.md)
-- [MCP_CLIENT_AGENT_RESOURCE.md](MCP_CLIENT_AGENT_RESOURCE.md) for remote MCP tools, preset-owned naming, and conservative mapping of untrusted remote safety annotations.
+- [agent-action-approval-and-resume.md](agent-action-approval-and-resume.md)
+- [agent-mutation-commit-guard.md](agent-mutation-commit-guard.md)
+- [agent-tool-contract-validation.md](agent-tool-contract-validation.md)
+- [mcp-client-agent-resource.md](mcp-client-agent-resource.md) for remote MCP tools, preset-owned naming, and conservative mapping of untrusted remote safety annotations.
 
 
 ## Shared runtime export

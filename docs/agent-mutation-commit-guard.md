@@ -169,4 +169,4 @@ Read-only functions from the same configured tool remain direct calls. Mutation 
 
 A complete implementation guide with definition examples, review rules, wrapper
 requirements, and a testing checklist is available in
-[AGENT_TOOL_DEVELOPMENT.md](AGENT_TOOL_DEVELOPMENT.md).
+[agent-tool-development.md](agent-tool-development.md).

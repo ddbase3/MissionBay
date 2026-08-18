@@ -82,7 +82,7 @@ Every interface remaining in `AssistantFoundation/src/Api` has a concrete plugin
 The normative ownership audit, implementation examples, and registration instructions are in:
 
 ```text
-ASSISTANTFOUNDATION_EXTENSION_POINTS.md
+extension-points.md
 ```
 
 MissionBay-only contracts remain in `MissionBay/Api`.
