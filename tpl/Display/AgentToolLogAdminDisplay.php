@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 
 $modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
@@ -482,10 +488,10 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 </style>
 
 <div class="agent-tool-log-shell">
-	<h1>Agent tool log</h1>
+	<h1><?php echo $mbTextEsc('agent_tool_log', 'Agent tool log'); ?></h1>
 	<p>
-		Server-side ModularGrid view over <code>base3_missionbay_tooluse</code>.
-		Use search, filters, grouping and clipboard actions to inspect, copy and share tool-call traces.
+		<?php echo $mbTextEsc('server_side_modulargrid_view_over', 'Server-side ModularGrid view over'); ?> <code>base3_missionbay_tooluse</code>.
+		<?php echo $mbTextEsc('use_search_filters_grouping_and_clipboard_actions_to_inspect_copy_and_share_tool_call_traces', 'Use search, filters, grouping and clipboard actions to inspect, copy and share tool-call traces.'); ?>
 	</p>
 
 	<div class="agent-tool-log-grid">
@@ -495,6 +501,20 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 </div>
 
 <script type="module">
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const modularGridModule = await import(new URL(<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
 
 	const {
@@ -543,7 +563,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	const STATUS_OPTIONS = <?php echo json_encode($this->_['statusOptions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const GROUP_FIELD_OPTIONS = <?php echo json_encode($this->_['groupOptions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const BATCH_SIZE = 50;
-	const JSON_DETAIL_LABELS = new Set(['Arguments JSON', 'Result JSON', 'Meta JSON']);
+	const JSON_DETAIL_LABELS = new Set(['Arguments JSON', 'Result JSON', mbText('meta_json', 'Meta JSON')]);
 	const GROUP_METRIC_SORT_KEYS = new Set([
 		'group_count',
 		'group_last_created',
@@ -570,7 +590,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	const FILTER_FIELDS = [
 		{
 			key: 'tool_name',
-			label: 'Tool',
+			label: mbText('tool', 'Tool'),
 			type: 'select',
 			defaultValue: '',
 			visibility: 'always',
@@ -578,16 +598,16 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		},
 		{
 			key: 'user',
-			label: 'User',
+			label: mbText('user', 'User'),
 			type: 'text',
 			defaultValue: '',
 			visibility: 'always',
-			placeholder: 'User id or login',
+			placeholder: mbText('user_id_or_login', 'User id or login'),
 			width: 160
 		},
 		{
 			key: 'status',
-			label: 'Status',
+			label: mbText('status', 'Status'),
 			type: 'select',
 			defaultValue: '',
 			visibility: 'optional',
@@ -595,43 +615,43 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		},
 		{
 			key: 'turn_id',
-			label: 'Turn',
+			label: mbText('turn', 'Turn'),
 			type: 'text',
 			defaultValue: '',
 			visibility: 'optional',
-			placeholder: 'Turn id',
+			placeholder: mbText('turn_id', 'Turn id'),
 			width: 190
 		},
 		{
 			key: 'chatbot_key',
-			label: 'Chatbot',
+			label: mbText('chatbot', 'Chatbot'),
 			type: 'text',
 			defaultValue: '',
 			visibility: 'optional',
-			placeholder: 'Chatbot key',
+			placeholder: mbText('chatbot_key', 'Chatbot key'),
 			width: 190
 		},
 		{
 			key: 'config_name',
-			label: 'Config',
+			label: mbText('config', 'Config'),
 			type: 'text',
 			defaultValue: '',
 			visibility: 'optional',
-			placeholder: 'Config name',
+			placeholder: mbText('config_name', 'Config name'),
 			width: 180
 		},
 		{
 			key: 'node_id',
-			label: 'Node',
+			label: mbText('node', 'Node'),
 			type: 'text',
 			defaultValue: '',
 			visibility: 'optional',
-			placeholder: 'Node id',
+			placeholder: mbText('node_id', 'Node id'),
 			width: 140
 		},
 		{
 			key: 'created_from',
-			label: 'Created from',
+			label: mbText('created_from', 'Created from'),
 			type: 'custom',
 			defaultValue: '',
 			visibility: 'optional',
@@ -641,7 +661,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		},
 		{
 			key: 'created_to',
-			label: 'Created to',
+			label: mbText('created_to', 'Created to'),
 			type: 'custom',
 			defaultValue: '',
 			visibility: 'optional',
@@ -719,7 +739,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		logElement.replaceChildren();
 
 		const label = document.createElement('strong');
-		label.textContent = 'Last action:';
+		label.textContent = mbText('last_action', 'Last action:');
 
 		logElement.appendChild(label);
 		logElement.appendChild(document.createTextNode(' ' + getText(message, 'None')));
@@ -987,7 +1007,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		const sub = document.createElement('div');
 		sub.className = 'agent-tool-log-cell-sub';
-		sub.textContent = 'Finished ' + getText(formatDateTime(row.finished_at)) + ' · ' + formatDuration(row.duration_seconds);
+		sub.textContent = mbText('finished_at_duration', 'Finished {finished} | {duration}', {finished:getText(formatDateTime(row.finished_at)),duration:formatDuration(row.duration_seconds)});
 
 		wrapper.appendChild(main);
 		wrapper.appendChild(sub);
@@ -1020,7 +1040,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		const sub = document.createElement('div');
 		sub.className = 'agent-tool-log-cell-sub';
-		sub.textContent = 'Call #' + getText(row.call_index, '0') + ' · ID ' + getText(row.id, '0');
+		sub.textContent = mbText('call', 'Call #') + getText(row.call_index, '0') + ' · ID ' + getText(row.id, '0');
 
 		wrapper.appendChild(main);
 		wrapper.appendChild(sub);
@@ -1090,7 +1110,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		const iteration = document.createElement('span');
 		iteration.className = 'agent-tool-log-pill';
-		iteration.textContent = 'Iteration ' + getText(row.iteration, '0');
+		iteration.textContent = mbText('iteration_value', 'Iteration {iteration}', {iteration:getText(row.iteration, '0')});
 
 		wrapper.appendChild(status);
 		wrapper.appendChild(iteration);
@@ -1134,11 +1154,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		if (row.is_group_row === true) {
 			const main = document.createElement('div');
 			main.className = 'agent-tool-log-cell-main';
-			main.textContent = 'Group';
+			main.textContent = mbText('group', 'Group');
 
 			const sub = document.createElement('div');
 			sub.className = 'agent-tool-log-cell-sub';
-			sub.textContent = 'Anchor row #' + getText(row.group_anchor_id, '0');
+			sub.textContent = mbText('anchor_row', 'Anchor row #') + getText(row.group_anchor_id, '0');
 
 			wrapper.appendChild(main);
 			wrapper.appendChild(sub);
@@ -1242,11 +1262,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		wrapper.className = 'agent-tool-log-detail-status';
 
 		if (row && row.is_group_row === true) {
-			wrapper.textContent = 'Loading grouped entries for ' + getText(row.group_title, row.id) + '...';
+			wrapper.textContent = mbText('loading_grouped_entries', 'Loading grouped entries for {group}...', {group:getText(row.group_title, row.id)});
 			return wrapper;
 		}
 
-		wrapper.textContent = 'Loading detail for log entry #' + getText(getLogEntryId(context)) + '...';
+		wrapper.textContent = mbText('loading_detail_for_log_entry', 'Loading detail for log entry #') + getText(getLogEntryId(context)) + '...';
 
 		return wrapper;
 	}
@@ -1257,11 +1277,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		wrapper.className = 'agent-tool-log-detail-status agent-tool-log-detail-status-error';
 
 		if (row && row.is_group_row === true) {
-			wrapper.textContent = 'Failed to load grouped entries for ' + getText(row.group_title, row.id) + ': ' + getText(error, 'Unknown error');
+			wrapper.textContent = mbText('failed_to_load_grouped_entries', 'Failed to load grouped entries for {group}: {error}', {group:getText(row.group_title, row.id),error:getText(error, mbText('unknown_error', 'Unknown error'))});
 			return wrapper;
 		}
 
-		wrapper.textContent = 'Failed to load detail for log entry #' + getText(getLogEntryId(context)) + ': ' + getText(error, 'Unknown error');
+		wrapper.textContent = mbText('failed_to_load_detail_for_log_entry', 'Failed to load detail for log entry #') + getText(getLogEntryId(context)) + ': ' + getText(error, 'Unknown error');
 
 		return wrapper;
 	}
@@ -1336,6 +1356,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		if (typeof row.value === 'string' && typeof JsonLens.canParse === 'function' && JsonLens.canParse(row.value)) {
 			try {
 				const element = JsonLens.createElement({
+					strings: mbStringSet('cs_json_'),
 					value: row.value,
 					mode: 'tree',
 					indent: 2,
@@ -1358,7 +1379,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				}
 			} catch (error) {
 				const fallback = createElement('agent-tool-log-detail-status agent-tool-log-detail-status-error');
-				fallback.textContent = 'Could not render JSON: ' + getText(error && error.message, String(error));
+				fallback.textContent = mbText('could_not_render_json', 'Could not render JSON: {error}', {error:getText(error && error.message, String(error))});
 				return fallback;
 			}
 		}
@@ -1434,7 +1455,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const target = getFullscreenTarget(source);
 
 		if (!target) {
-			setLog('Fullscreen target not found.');
+			setLog(mbText('fullscreen_target_not_found', 'Fullscreen target not found.'));
 			return;
 		}
 
@@ -1450,13 +1471,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 			if (typeof target.requestFullscreen === 'function') {
 				await target.requestFullscreen();
-				setLog('Opened log detail in fullscreen.');
+				setLog(mbText('opened_log_detail_in_fullscreen', 'Opened log detail in fullscreen.'));
 				return;
 			}
 
-			setLog('Fullscreen API is not supported by this browser.');
+			setLog(mbText('fullscreen_api_is_not_supported_by_this_browser', 'Fullscreen API is not supported by this browser.'));
 		} catch (error) {
-			setLog('Could not open fullscreen: ' + getText(error && error.message, String(error)));
+			setLog(mbText('could_not_open_fullscreen_prefix', 'Could not open fullscreen: ') + getText(error && error.message, String(error)));
 		}
 	}
 
@@ -1503,7 +1524,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		headerActions.appendChild(createButton('Copy record', () => copySingleLogEntry(payload.record || context.row)));
-		headerActions.appendChild(createButton('Fullscreen', (button) => toggleDetailFullscreen(button)));
+		headerActions.appendChild(createButton(mbText('fullscreen', 'Fullscreen'), (button) => toggleDetailFullscreen(button)));
 		header.appendChild(headerText);
 		header.appendChild(headerActions);
 		leftColumn.appendChild(header);
@@ -1603,7 +1624,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			const emptyCell = document.createElement('td');
 			emptyCell.colSpan = Math.max((payload.columns || []).length, 1);
 			emptyCell.className = 'agent-tool-log-child-table-empty';
-			emptyCell.textContent = 'No rows found for this group.';
+			emptyCell.textContent = mbText('no_rows_found_for_this_group', 'No rows found for this group.');
 			emptyRow.appendChild(emptyCell);
 			tbody.appendChild(emptyRow);
 		} else {
@@ -1711,7 +1732,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	async function copySingleLogEntry(row) {
 		if (!row) {
-			setLog('No log entry available for clipboard copy.');
+			setLog(mbText('no_log_entry_available_for_clipboard_copy', 'No log entry available for clipboard copy.'));
 			return;
 		}
 
@@ -1721,28 +1742,28 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		try {
-			setLog('Copying log entry #' + getText(row && row.id) + '...');
+			setLog(mbText('copying_log_entry', 'Copying log entry #') + getText(row && row.id) + '...');
 			const record = row.arguments_json !== undefined ? row : await loadRemoteRecord(row.id);
 			await copyPayloadToClipboard(record);
-			setLog('Copied log entry #' + getText(row && row.id) + ' to clipboard.');
+			setLog(mbText('copied_log_entry', 'Copied log entry #') + getText(row && row.id) + ' to clipboard.');
 		} catch (error) {
 			try {
 				await copyPayloadToClipboard(createFallbackClipboardRecord(row));
-				setLog('Copied visible data for log entry #' + getText(row && row.id) + ' to clipboard. Record lookup failed: ' + getText(error && error.message, String(error)));
+				setLog(mbText('copied_visible_data_for_log_entry', 'Copied visible data for log entry #') + getText(row && row.id) + ' to clipboard. Record lookup failed: ' + getText(error && error.message, String(error)));
 			} catch (clipboardError) {
-				setLog('Failed to copy log entry #' + getText(row && row.id) + ': ' + getText(clipboardError && clipboardError.message, String(clipboardError)));
+				setLog(mbText('failed_to_copy_log_entry', 'Failed to copy log entry #') + getText(row && row.id) + ': ' + getText(clipboardError && clipboardError.message, String(clipboardError)));
 			}
 		}
 	}
 
 	async function copyGroupLogEntries(row) {
 		if (!row || row.is_group_row !== true) {
-			setLog('Selected row is not a group.');
+			setLog(mbText('selected_row_is_not_a_group', 'Selected row is not a group.'));
 			return;
 		}
 
 		try {
-			setLog('Copying group "' + getText(row.group_title, row.id) + '"...');
+			setLog(mbText('copying_group', 'Copying group "') + getText(row.group_title, row.id) + '"...');
 			const records = await loadRemoteGroupRecords(row);
 			await copyPayloadToClipboard({
 				group: {
@@ -1752,9 +1773,9 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				records
 			});
-			setLog('Copied group "' + getText(row.group_title, row.id) + '" with ' + String(records.length) + ' log entries to clipboard.');
+			setLog(mbText('copied_group', 'Copied group "') + getText(row.group_title, row.id) + '" with ' + String(records.length) + ' log entries to clipboard.');
 		} catch (error) {
-			setLog('Failed to copy group: ' + getText(error && error.message, String(error)));
+			setLog(mbText('failed_to_copy_group_prefix', 'Failed to copy group: ') + getText(error && error.message, String(error)));
 		}
 	}
 
@@ -1764,11 +1785,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			: [];
 
 		if (ids.length === 0) {
-			setLog('No single log entries selected. Use the row action "Copy group" for grouped rows.');
+			setLog(mbText('no_single_log_entries_selected_use_the_row_action_copy_group_for_grouped_rows', 'No single log entries selected. Use the row action "Copy group" for grouped rows.'));
 			return;
 		}
 
-		setLog('Copying ' + String(ids.length) + ' selected log entries...');
+		setLog(mbText('copying_prefix', 'Copying ') + String(ids.length) + ' selected log entries...');
 
 		const records = [];
 		const failedIds = [];
@@ -1782,7 +1803,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		if (records.length === 0) {
-			setLog('Could not load any selected log entries for clipboard copy.');
+			setLog(mbText('could_not_load_any_selected_log_entries_for_clipboard_copy', 'Could not load any selected log entries for clipboard copy.'));
 			return;
 		}
 
@@ -1796,7 +1817,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 			setLog(message);
 		} catch (error) {
-			setLog('Failed to copy selected log entries: ' + getText(error && error.message, String(error)));
+			setLog(mbText('failed_to_copy_selected_log_entries_prefix', 'Failed to copy selected log entries: ') + getText(error && error.message, String(error)));
 		}
 	}
 
@@ -1929,6 +1950,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		const picker = new ChronoPicker(input, {
+			strings: mbStringSet('cs_chrono_'),
 			mode: 'datetime',
 			displayMode: 'popover',
 			value: input.value || '',
@@ -2029,6 +2051,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 
 		grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 			layout,
 			adapter,
 			dataMode: 'server',
@@ -2063,8 +2086,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				search: {
 					zone: 'topLine1',
 					order: 10,
-					label: 'Search',
-					placeholder: 'Search id, turn, user, chatbot, call id, tool, label, status, error'
+					label: mbText('search', 'Search'),
+					placeholder: mbText('search_id_turn_user_chatbot_call_id_tool_label_status_error', 'Search id, turn, user, chatbot, call id, tool, label, status, error')
 				},
 				compactFilters: {
 					zone: 'topLine2',
@@ -2073,8 +2096,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					visibilityStateKey: 'filterVisibility',
 					showClearButton: true,
 					clearLabel: 'Clear filters',
-					addLabel: 'Add filter',
-					addPlaceholder: 'Select optional filter',
+					addLabel: mbText('add_filter', 'Add filter'),
+					addPlaceholder: mbText('select_optional_filter', 'Select optional filter'),
 					removeLabel: 'Remove this filter',
 					fields: FILTER_FIELDS
 				},
@@ -2124,14 +2147,14 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					items: [
 						{
 							key: 'copy-selected-clipboard',
-							label: 'Copy selected entries',
+							label: mbText('copy_selected_entries', 'Copy selected entries'),
 							onClick(context) {
 								copySelectedLogEntries(context.selectedRowIds || []);
 							}
 						},
 						{
 							key: 'clear-selection',
-							label: 'Clear selection',
+							label: mbText('clear_selection', 'Clear selection'),
 							command: 'clearSelection'
 						}
 					]
@@ -2142,7 +2165,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				reset: {
 					zone: 'topLine1',
 					order: 40,
-					label: 'Reset',
+					label: mbText('reset', 'Reset'),
 					sections: ['query', 'filters', 'filterVisibility', 'columns', 'selection', 'detailView', 'toolLogGrouping']
 				},
 				sessionStorage: {
@@ -2161,7 +2184,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						items: [
 							{
 								type: 'columnVisibility',
-								label: 'Columns',
+								label: mbText('columns', 'Columns'),
 								showReset: true,
 								resetLabel: 'Reset columns'
 							}
@@ -2170,7 +2193,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					items: [
 						{
 							key: 'copy-clipboard',
-							label: 'Copy to clipboard',
+							label: mbText('copy_to_clipboard', 'Copy to clipboard'),
 							onClick(context) {
 								copySingleLogEntry(context.row);
 							}
@@ -2204,18 +2227,18 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			columns: [
 				{
 					key: 'created_at',
-					label: 'Created',
+					label: mbText('created', 'Created'),
 					width: 230,
 					headerMenu: {
 						defaultSortKey: 'created_at',
 						defaultSortDirection: 'desc',
 						sortOptions: [
-							{ key: 'created_at', label: 'Created' },
-							{ key: 'finished_at', label: 'Finished' },
-							{ key: 'duration_seconds', label: 'Duration' },
-							{ key: 'group_last_created', label: 'Group last created' },
-							{ key: 'group_last_changed', label: 'Group last changed' },
-							{ key: 'group_count', label: 'Group count' }
+							{ key: 'created_at', label: mbText('created', 'Created') },
+							{ key: 'finished_at', label: mbText('finished', 'Finished') },
+							{ key: 'duration_seconds', label: mbText('duration', 'Duration') },
+							{ key: 'group_last_created', label: mbText('group_last_created', 'Group last created') },
+							{ key: 'group_last_changed', label: mbText('group_last_changed', 'Group last changed') },
+							{ key: 'group_count', label: mbText('group_count', 'Group count') }
 						]
 					},
 					render(value, row) {
@@ -2224,17 +2247,17 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'turn_id',
-					label: 'Turn',
+					label: mbText('turn', 'Turn'),
 					width: 280,
 					headerMenu: {
 						defaultSortKey: 'turn_id',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'turn_id', label: 'Turn' },
-							{ key: 'call_index', label: 'Call index' },
-							{ key: 'id', label: 'ID' },
-							{ key: 'created_at', label: 'Created' },
-							{ key: 'group_count', label: 'Group count' }
+							{ key: 'turn_id', label: mbText('turn', 'Turn') },
+							{ key: 'call_index', label: mbText('call_index', 'Call index') },
+							{ key: 'id', label: mbText('id', 'ID') },
+							{ key: 'created_at', label: mbText('created', 'Created') },
+							{ key: 'group_count', label: mbText('group_count', 'Group count') }
 						]
 					},
 					render(value, row) {
@@ -2243,16 +2266,16 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'tool_name',
-					label: 'Tool',
+					label: mbText('tool', 'Tool'),
 					width: 260,
 					headerMenu: {
 						defaultSortKey: 'tool_name',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'tool_name', label: 'Tool' },
-							{ key: 'label', label: 'Label' },
-							{ key: 'created_at', label: 'Created' },
-							{ key: 'group_tools_preview', label: 'Group tools' }
+							{ key: 'tool_name', label: mbText('tool', 'Tool') },
+							{ key: 'label', label: mbText('label', 'Label') },
+							{ key: 'created_at', label: mbText('created', 'Created') },
+							{ key: 'group_tools_preview', label: mbText('group_tools', 'Group tools') }
 						]
 					},
 					render(value, row) {
@@ -2261,17 +2284,17 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'status',
-					label: 'Status',
+					label: mbText('status', 'Status'),
 					width: 220,
 					headerMenu: {
 						defaultSortKey: 'status',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'status', label: 'Status' },
-							{ key: 'iteration', label: 'Iteration' },
-							{ key: 'created_at', label: 'Created' },
-							{ key: 'group_error_count', label: 'Group errors' },
-							{ key: 'group_finished_count', label: 'Group finished' }
+							{ key: 'status', label: mbText('status', 'Status') },
+							{ key: 'iteration', label: mbText('iteration', 'Iteration') },
+							{ key: 'created_at', label: mbText('created', 'Created') },
+							{ key: 'group_error_count', label: mbText('group_errors', 'Group errors') },
+							{ key: 'group_finished_count', label: mbText('group_finished', 'Group finished') }
 						]
 					},
 					render(value, row) {
@@ -2280,18 +2303,18 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'chatbot_key',
-					label: 'Chatbot / User',
+					label: mbText('chatbot_user', 'Chatbot / User'),
 					width: 320,
 					headerMenu: {
 						defaultSortKey: 'chatbot_key',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'chatbot_key', label: 'Chatbot' },
-							{ key: 'config_name', label: 'Config' },
-							{ key: 'user_login', label: 'User login' },
-							{ key: 'user_id', label: 'User ID' },
-							{ key: 'created_at', label: 'Created' },
-							{ key: 'group_users_preview', label: 'Group users' }
+							{ key: 'chatbot_key', label: mbText('chatbot', 'Chatbot') },
+							{ key: 'config_name', label: mbText('config', 'Config') },
+							{ key: 'user_login', label: mbText('user_login', 'User login') },
+							{ key: 'user_id', label: mbText('user_id', 'User ID') },
+							{ key: 'created_at', label: mbText('created', 'Created') },
+							{ key: 'group_users_preview', label: mbText('group_users', 'Group users') }
 						]
 					},
 					render(value, row) {
@@ -2300,7 +2323,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'node_id',
-					label: 'Node / Call',
+					label: mbText('node_call', 'Node / Call'),
 					width: 380,
 					textDisplay: {
 						strategy: 'clamp',
@@ -2311,10 +2334,10 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortKey: 'node_id',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'node_id', label: 'Node' },
-							{ key: 'call_id', label: 'Call ID' },
-							{ key: 'created_at', label: 'Created' },
-							{ key: 'group_anchor_id', label: 'Group anchor' }
+							{ key: 'node_id', label: mbText('node', 'Node') },
+							{ key: 'call_id', label: mbText('call_id', 'Call ID') },
+							{ key: 'created_at', label: mbText('created', 'Created') },
+							{ key: 'group_anchor_id', label: mbText('group_anchor', 'Group anchor') }
 						]
 					},
 					render(value, row) {
@@ -2323,20 +2346,20 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'id',
-					label: 'ID',
+					label: mbText('id', 'ID'),
 					width: 90,
 					visible: false,
 					headerMenu: {
 						defaultSortKey: 'id',
 						defaultSortDirection: 'desc',
 						sortOptions: [
-							{ key: 'id', label: 'ID' }
+							{ key: 'id', label: mbText('id', 'ID') }
 						]
 					}
 				},
 				{
 					key: 'call_id',
-					label: 'Call ID',
+					label: mbText('call_id', 'Call ID'),
 					width: 360,
 					visible: false,
 					textDisplay: {
@@ -2348,26 +2371,26 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortKey: 'call_id',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'call_id', label: 'Call ID' }
+							{ key: 'call_id', label: mbText('call_id', 'Call ID') }
 						]
 					}
 				},
 				{
 					key: 'label',
-					label: 'Label',
+					label: mbText('label', 'Label'),
 					width: 240,
 					visible: false,
 					headerMenu: {
 						defaultSortKey: 'label',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'label', label: 'Label' }
+							{ key: 'label', label: mbText('label', 'Label') }
 						]
 					}
 				},
 				{
 					key: 'config_name',
-					label: 'Config name',
+					label: mbText('config_name', 'Config name'),
 					width: 280,
 					visible: false,
 					textDisplay: {
@@ -2379,28 +2402,28 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortKey: 'config_name',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'config_name', label: 'Config name' },
-							{ key: 'config_group', label: 'Config group' }
+							{ key: 'config_name', label: mbText('config_name', 'Config name') },
+							{ key: 'config_group', label: mbText('config_group', 'Config group') }
 						]
 					}
 				},
 				{
 					key: 'user_login',
-					label: 'User',
+					label: mbText('user', 'User'),
 					width: 220,
 					visible: false,
 					headerMenu: {
 						defaultSortKey: 'user_login',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'user_login', label: 'User login' },
-							{ key: 'user_id', label: 'User ID' }
+							{ key: 'user_login', label: mbText('user_login', 'User login') },
+							{ key: 'user_id', label: mbText('user_id', 'User ID') }
 						]
 					}
 				},
 				{
 					key: 'prompt_text',
-					label: 'Prompt',
+					label: mbText('prompt', 'Prompt'),
 					width: 360,
 					visible: false,
 					textDisplay: {
@@ -2413,11 +2436,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 
 		grid.on('bulkAction:run', ({ selectedRowIds }) => {
-			setLog('Bulk action on IDs: ' + (selectedRowIds.join(', ') || 'none'));
+			setLog(mbText('bulk_action_on_ids_prefix', 'Bulk action on IDs: ') + (selectedRowIds.join(', ') || 'none'));
 		});
 
 		grid.on('data:appended', ({ appendedCount, totalLoaded }) => {
-			setLog('Loaded ' + String(appendedCount) + ' more log entries. ' + String(totalLoaded) + ' log entries are currently loaded.');
+			setLog(mbText('loaded_prefix', 'Loaded ') + String(appendedCount) + ' more log entries. ' + String(totalLoaded) + ' log entries are currently loaded.');
 		});
 
 		grid.on('grouping:changed', ({ fields }) => {
@@ -2436,21 +2459,21 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			const payload = event && typeof event === 'object' ? event.payload : null;
 
 			if (row && row.is_group_row === true && payload && payload.kind === 'grouped-child-table') {
-				setLog('Loaded grouped child table for ' + getText(row.group_title, detailRowId) + ' with ' + String(payload.rows ? payload.rows.length : 0) + ' child rows.');
+				setLog(mbText('loaded_grouped_child_table_for_prefix', 'Loaded grouped child table for ') + getText(row.group_title, detailRowId) + ' with ' + String(payload.rows ? payload.rows.length : 0) + ' child rows.');
 				return;
 			}
 
-			setLog('Loaded detail for log entry #' + getText(detailRowId));
+			setLog(mbText('loaded_detail_for_log_entry', 'Loaded detail for log entry #') + getText(detailRowId));
 		});
 
 		grid.on('detail:error', (event) => {
 			const detailRowId = event && typeof event === 'object' ? event.rowId : null;
 			const detailError = event && typeof event === 'object' ? event.error : null;
 
-			setLog('Failed to load detail for log entry #' + getText(detailRowId) + ': ' + getText(detailError));
+			setLog(mbText('failed_to_load_detail_for_log_entry', 'Failed to load detail for log entry #') + getText(detailRowId) + ': ' + getText(detailError));
 		});
 
 		await grid.init();
-		setLog('Initial batch loaded. Use grouping by Turn for request-level debugging.');
+		setLog(mbText('initial_batch_loaded_use_grouping_by_turn_for_request_level_debugging', 'Initial batch loaded. Use grouping by Turn for request-level debugging.'));
 	})();
 </script>

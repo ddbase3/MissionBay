@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 
 $modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
@@ -689,7 +695,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 </style>
 
 <div class="knowledge-agent-memory-shell">
-	<h1>Knowledge / skills</h1>
+	<h1><?php echo $mbTextEsc('knowledge_skills', 'Knowledge / skills'); ?></h1>
 	<p>
 		Manage task state, remembered cases, stable knowledge, and procedural skills. The normal view keeps the common filters and actions visible; technical metadata remains available in entry details.
 	</p>
@@ -705,55 +711,69 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		<input type="hidden" name="id" />
 		<div class="knowledge-agent-memory-editor-header">
 			<div>
-				<h2>Edit knowledge / skill</h2>
+				<h2><?php echo $mbTextEsc('edit_knowledge_skill', 'Edit knowledge / skill'); ?></h2>
 				<div class="knowledge-agent-memory-editor-message" data-editor-message></div>
 			</div>
-			<button type="button" class="knowledge-agent-memory-detail-button" data-editor-close>Close</button>
+			<button type="button" class="knowledge-agent-memory-detail-button" data-editor-close><?php echo $mbTextEsc('close', 'Close'); ?></button>
 		</div>
 		<div class="knowledge-agent-memory-editor-grid">
 			<div class="knowledge-agent-memory-editor-field">
-				<label for="knowledge-editor-type">Type</label>
+				<label for="knowledge-editor-type"><?php echo $mbTextEsc('type', 'Type'); ?></label>
 				<select id="knowledge-editor-type" name="memory_type" required>
-					<option value="task">Task</option>
-					<option value="episodic">Episodic</option>
-					<option value="semantic">Semantic knowledge</option>
-					<option value="procedural">Procedural skill</option>
+					<option value="task"><?php echo $mbTextEsc('task', 'Task'); ?></option>
+					<option value="episodic"><?php echo $mbTextEsc('episodic', 'Episodic'); ?></option>
+					<option value="semantic"><?php echo $mbTextEsc('semantic_knowledge', 'Semantic knowledge'); ?></option>
+					<option value="procedural"><?php echo $mbTextEsc('procedural_skill', 'Procedural skill'); ?></option>
 				</select>
 			</div>
 			<div class="knowledge-agent-memory-editor-field">
-				<label for="knowledge-editor-status">Status</label>
+				<label for="knowledge-editor-status"><?php echo $mbTextEsc('status', 'Status'); ?></label>
 				<input id="knowledge-editor-status" name="status" list="knowledge-editor-statuses" required />
 				<datalist id="knowledge-editor-statuses"></datalist>
 			</div>
 			<div class="knowledge-agent-memory-editor-field knowledge-agent-memory-editor-field--wide">
-				<label for="knowledge-editor-title">Title</label>
+				<label for="knowledge-editor-title"><?php echo $mbTextEsc('title', 'Title'); ?></label>
 				<input id="knowledge-editor-title" name="title" maxlength="255" required />
 			</div>
 			<div class="knowledge-agent-memory-editor-field">
-				<label for="knowledge-editor-key">Key (optional)</label>
+				<label for="knowledge-editor-key"><?php echo $mbTextEsc('key_optional', 'Key (optional)'); ?></label>
 				<input id="knowledge-editor-key" name="memory_key" maxlength="255" />
 			</div>
 			<div class="knowledge-agent-memory-editor-field">
-				<label for="knowledge-editor-tags">Tags</label>
-				<input id="knowledge-editor-tags" name="tags" placeholder="search, workflow, support" />
+				<label for="knowledge-editor-tags"><?php echo $mbTextEsc('tags', 'Tags'); ?></label>
+				<input id="knowledge-editor-tags" name="tags" placeholder="<?php echo $mbTextEsc('tags_placeholder', 'search, workflow, support'); ?>" />
 			</div>
 			<div class="knowledge-agent-memory-editor-field knowledge-agent-memory-editor-field--wide">
-				<label for="knowledge-editor-summary">Summary</label>
+				<label for="knowledge-editor-summary"><?php echo $mbTextEsc('summary', 'Summary'); ?></label>
 				<textarea id="knowledge-editor-summary" name="summary"></textarea>
 			</div>
 			<div class="knowledge-agent-memory-editor-field knowledge-agent-memory-editor-field--wide">
-				<label for="knowledge-editor-content">Content / procedure</label>
+				<label for="knowledge-editor-content"><?php echo $mbTextEsc('content_procedure', 'Content / procedure'); ?></label>
 				<textarea id="knowledge-editor-content" name="content" data-editor-content></textarea>
 			</div>
 		</div>
 		<div class="knowledge-agent-memory-editor-actions">
-			<button type="button" class="knowledge-agent-memory-detail-button" data-editor-cancel>Cancel</button>
-			<button type="submit" class="knowledge-agent-memory-detail-button" data-editor-save>Save</button>
+			<button type="button" class="knowledge-agent-memory-detail-button" data-editor-cancel><?php echo $mbTextEsc('cancel', 'Cancel'); ?></button>
+			<button type="submit" class="knowledge-agent-memory-detail-button" data-editor-save><?php echo $mbTextEsc('save', 'Save'); ?></button>
 		</div>
 	</form>
 </dialog>
 
 <script type="module">
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const modularGridModule = await import(new URL(<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>, document.baseURI).href);
 
 	const {                AjaxAdapter,
@@ -797,18 +817,18 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	const SOURCE_OPTIONS = <?php echo json_encode($this->_['sourceOptions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const SCOPE_OPTIONS = <?php echo json_encode($this->_['scopeOptions'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const BATCH_SIZE = 50;
-	const JSON_DETAIL_LABELS = new Set(['Meta JSON']);
+	const JSON_DETAIL_LABELS = new Set([mbText('meta_json', 'Meta JSON')]);
 	const CHRONO_FILTER_FIELDS = [
-		{ key: 'created_from', label: 'Created from' },
-		{ key: 'created_to', label: 'Created to' },
-		{ key: 'updated_from', label: 'Updated from' },
-		{ key: 'updated_to', label: 'Updated to' }
+		{ key: 'created_from', label: mbText('created_from', 'Created from') },
+		{ key: 'created_to', label: mbText('created_to', 'Created to') },
+		{ key: 'updated_from', label: mbText('updated_from', 'Updated from') },
+		{ key: 'updated_to', label: mbText('updated_to', 'Updated to') }
 	];
 	const FILTER_FIELDS = [
-		{ key: 'memory_type', label: 'Type', defaultValue: '', alwaysVisible: true },
-		{ key: 'status', label: 'Status', defaultValue: '' },
-		{ key: 'deleted', label: 'Deleted', defaultValue: 'active', alwaysVisible: true },
-		{ key: 'tag', label: 'Tag', defaultValue: '' }
+		{ key: 'memory_type', label: mbText('type', 'Type'), defaultValue: '', alwaysVisible: true },
+		{ key: 'status', label: mbText('status', 'Status'), defaultValue: '' },
+		{ key: 'deleted', label: mbText('deleted', 'Deleted'), defaultValue: 'active', alwaysVisible: true },
+		{ key: 'tag', label: mbText('tag', 'Tag'), defaultValue: '' }
 	];
 	const OPTIONAL_FILTER_FIELDS = FILTER_FIELDS.filter((field) => !field.alwaysVisible);
 	const FILTER_DEFAULTS = FILTER_FIELDS.reduce((carry, field) => {
@@ -880,7 +900,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		logElement.replaceChildren();
 
 		const label = document.createElement('strong');
-		label.textContent = 'Last action:';
+		label.textContent = mbText('last_action', 'Last action:');
 
 		logElement.appendChild(label);
 		logElement.appendChild(document.createTextNode(' ' + getText(message, 'None')));
@@ -1041,13 +1061,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			const button = document.createElement('button');
 			button.type = 'button';
 			button.className = 'knowledge-agent-memory-summary-toggle';
-			button.textContent = 'More';
+			button.textContent = mbText('more', 'More');
 			button.addEventListener('click', (event) => {
 				event.preventDefault();
 				event.stopPropagation();
 
 				const expanded = wrapper.classList.toggle('knowledge-agent-memory-summary-cell-expanded');
-				button.textContent = expanded ? 'Less' : 'More';
+				button.textContent = expanded ? 'Less' : mbText('more', 'More');
 			});
 
 			wrapper.appendChild(button);
@@ -1076,8 +1096,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	function renderTagsRefs(value, row) {
 		const wrapper = createElement('knowledge-agent-memory-cell-stack');
 
-		appendLabeledPillGroup(wrapper, 'Tags', row.tags || [], 4);
-		appendLabeledPillGroup(wrapper, 'Entity refs', row.entity_refs || [], 3);
+		appendLabeledPillGroup(wrapper, mbText('tags', 'Tags'), row.tags || [], 4);
+		appendLabeledPillGroup(wrapper, mbText('entity_refs', 'Entity refs'), row.entity_refs || [], 3);
 
 		return wrapper;
 	}
@@ -1212,14 +1232,14 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	function createDetailLoadingPlaceholder(context) {
 		const wrapper = createElement('knowledge-agent-memory-detail-status');
-		wrapper.textContent = 'Loading detail for knowledge entry #' + getText(getMemoryEntryId(context)) + '...';
+		wrapper.textContent = mbText('loading_detail_for_knowledge_entry', 'Loading detail for knowledge entry #') + getText(getMemoryEntryId(context)) + '...';
 
 		return wrapper;
 	}
 
 	function createDetailErrorPlaceholder(context, error) {
 		const wrapper = createElement('knowledge-agent-memory-detail-status knowledge-agent-memory-detail-status-error');
-		wrapper.textContent = 'Failed to load detail for knowledge entry #' + getText(getMemoryEntryId(context)) + ': ' + getText(error, 'Unknown error');
+		wrapper.textContent = mbText('failed_to_load_detail_for_knowledge_entry', 'Failed to load detail for knowledge entry #') + getText(getMemoryEntryId(context)) + ': ' + getText(error, 'Unknown error');
 
 		return wrapper;
 	}
@@ -1283,6 +1303,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		if (typeof row.value === 'string' && typeof JsonLens.canParse === 'function' && JsonLens.canParse(row.value)) {
 			try {
 				const element = JsonLens.createElement({
+					strings: mbStringSet('cs_json_'),
 					value: row.value,
 					mode: 'tree',
 					indent: 2,
@@ -1305,7 +1326,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				}
 			} catch (error) {
 				const fallback = createElement('knowledge-agent-memory-detail-status knowledge-agent-memory-detail-status-error');
-				fallback.textContent = 'Could not render JSON: ' + getText(error && error.message, String(error));
+				fallback.textContent = mbText('could_not_render_json', 'Could not render JSON: {error}', {error:getText(error && error.message, String(error))});
 				return fallback;
 			}
 		}
@@ -1381,7 +1402,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const target = getFullscreenTarget(source);
 
 		if (!target) {
-			setLog('Fullscreen target not found.');
+			setLog(mbText('fullscreen_target_not_found', 'Fullscreen target not found.'));
 			return;
 		}
 
@@ -1397,13 +1418,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 			if (typeof target.requestFullscreen === 'function') {
 				await target.requestFullscreen();
-				setLog('Opened knowledge entry detail in fullscreen.');
+				setLog(mbText('opened_knowledge_entry_detail_in_fullscreen', 'Opened knowledge entry detail in fullscreen.'));
 				return;
 			}
 
-			setLog('Fullscreen API is not supported by this browser.');
+			setLog(mbText('fullscreen_api_is_not_supported_by_this_browser', 'Fullscreen API is not supported by this browser.'));
 		} catch (error) {
-			setLog('Could not open fullscreen: ' + getText(error && error.message, String(error)));
+			setLog(mbText('could_not_open_fullscreen_prefix', 'Could not open fullscreen: ') + getText(error && error.message, String(error)));
 		}
 	}
 
@@ -1412,7 +1433,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		button.type = 'button';
 		button.className = 'knowledge-agent-memory-detail-button';
-		button.textContent = 'Fullscreen';
+		button.textContent = mbText('fullscreen', 'Fullscreen');
 		button.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -1427,13 +1448,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		button.type = 'button';
 		button.className = 'knowledge-agent-memory-detail-button';
-		button.textContent = 'Copy record';
+		button.textContent = mbText('copy_record', 'Copy record');
 		button.addEventListener('click', async(event) => {
 			event.preventDefault();
 			event.stopPropagation();
 
 			if (!payload || !payload.id) {
-				setLog('Cannot copy detail without entry id.');
+				setLog(mbText('cannot_copy_detail_without_entry_id', 'Cannot copy detail without entry id.'));
 				return;
 			}
 
@@ -1465,8 +1486,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	function renderDetailMetadata(payload) {
 		const wrapper = createElement('knowledge-agent-memory-detail-meta');
 
-		wrapper.appendChild(createDetailMetaGroup('Tags', payload.tags || []));
-		wrapper.appendChild(createDetailMetaGroup('Entity refs', payload.entity_refs || []));
+		wrapper.appendChild(createDetailMetaGroup(mbText('tags', 'Tags'), payload.tags || []));
+		wrapper.appendChild(createDetailMetaGroup(mbText('entity_refs', 'Entity refs'), payload.entity_refs || []));
 
 		return wrapper;
 	}
@@ -1481,7 +1502,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		editButton.type = 'button';
 		editButton.className = 'knowledge-agent-memory-detail-button';
-		editButton.textContent = 'Edit';
+		editButton.textContent = mbText('edit', 'Edit');
 		editButton.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -1526,7 +1547,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const editDetailButton = document.createElement('button');
 		editDetailButton.type = 'button';
 		editDetailButton.className = 'knowledge-agent-memory-detail-button';
-		editDetailButton.textContent = 'Edit';
+		editDetailButton.textContent = mbText('edit', 'Edit');
 		editDetailButton.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -1664,7 +1685,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const { dialog, form } = editorElements();
 
 		if (!dialog || !form || numericId <= 0) {
-			setLog('Cannot edit knowledge entry without a valid id.');
+			setLog(mbText('cannot_edit_knowledge_entry_without_a_valid_id', 'Cannot edit knowledge entry without a valid id.'));
 			return;
 		}
 
@@ -1733,7 +1754,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			}
 
 			closeKnowledgeEditor();
-			setLog('Updated knowledge entry #' + String(id) + '.');
+			setLog(mbText('updated_knowledge_entry', 'Updated knowledge entry #') + String(id) + '.');
 			await refreshGrid();
 		} catch (error) {
 			setEditorMessage(getText(error && error.message, 'Could not save entry.'), true);
@@ -1798,16 +1819,16 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	async function copySingleMemoryEntry(row) {
 		try {
-			setLog('Copying knowledge entry #' + getText(row && row.id) + '...');
+			setLog(mbText('copying_knowledge_entry', 'Copying knowledge entry #') + getText(row && row.id) + '...');
 			const record = await loadRemoteRecord(row.id);
 			await copyPayloadToClipboard(record);
-			setLog('Copied knowledge entry #' + getText(row && row.id) + ' to clipboard.');
+			setLog(mbText('copied_knowledge_entry', 'Copied knowledge entry #') + getText(row && row.id) + ' to clipboard.');
 		} catch (error) {
 			try {
 				await copyPayloadToClipboard(createFallbackClipboardRecord(row));
-				setLog('Copied visible data for knowledge entry #' + getText(row && row.id) + ' to clipboard. Record lookup failed: ' + getText(error && error.message, String(error)));
+				setLog(mbText('copied_visible_data_for_knowledge_entry', 'Copied visible data for knowledge entry #') + getText(row && row.id) + ' to clipboard. Record lookup failed: ' + getText(error && error.message, String(error)));
 			} catch (clipboardError) {
-				setLog('Failed to copy knowledge entry #' + getText(row && row.id) + ': ' + getText(clipboardError && clipboardError.message, String(clipboardError)));
+				setLog(mbText('failed_to_copy_knowledge_entry', 'Failed to copy knowledge entry #') + getText(row && row.id) + ': ' + getText(clipboardError && clipboardError.message, String(clipboardError)));
 			}
 		}
 	}
@@ -1818,11 +1839,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			: [];
 
 		if (ids.length === 0) {
-			setLog('No knowledge entries selected.');
+			setLog(mbText('no_knowledge_entries_selected', 'No knowledge entries selected.'));
 			return;
 		}
 
-		setLog('Copying ' + String(ids.length) + ' selected knowledge entries...');
+		setLog(mbText('copying_prefix', 'Copying ') + String(ids.length) + ' selected knowledge entries...');
 
 		const records = [];
 		const failedIds = [];
@@ -1836,7 +1857,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		}
 
 		if (records.length === 0) {
-			setLog('Could not load any selected knowledge entries for clipboard copy.');
+			setLog(mbText('could_not_load_any_selected_knowledge_entries_for_clipboard_copy', 'Could not load any selected knowledge entries for clipboard copy.'));
 			return;
 		}
 
@@ -1850,7 +1871,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 			setLog(message);
 		} catch (error) {
-			setLog('Failed to copy selected knowledge entries: ' + getText(error && error.message, String(error)));
+			setLog(mbText('failed_to_copy_selected_knowledge_entries_prefix', 'Failed to copy selected knowledge entries: ') + getText(error && error.message, String(error)));
 		}
 	}
 
@@ -1896,7 +1917,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const id = row && row.id ? row.id : null;
 
 		if (!id) {
-			setLog('Missing knowledge entry id.');
+			setLog(mbText('missing_knowledge_entry_id', 'Missing knowledge entry id.'));
 			return false;
 		}
 
@@ -1914,11 +1935,11 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				throw new Error(getText(response && (response.error || response.details), 'Unknown update error'));
 			}
 
-			setLog('Knowledge entry #' + getText(id) + ' ' + getText(response.action, mode) + '.');
+			setLog(mbText('knowledge_entry', 'Knowledge entry #') + getText(id) + ' ' + getText(response.action, mode) + '.');
 			await refreshGrid();
 			return true;
 		} catch (error) {
-			setLog('Failed to update knowledge entry #' + getText(id) + ': ' + getText(error && error.message, String(error)));
+			setLog(mbText('failed_to_update_knowledge_entry', 'Failed to update knowledge entry #') + getText(id) + ': ' + getText(error && error.message, String(error)));
 			return false;
 		}
 	}
@@ -1929,7 +1950,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			: [];
 
 		if (ids.length === 0) {
-			setLog('No knowledge entries selected.');
+			setLog(mbText('no_knowledge_entries_selected', 'No knowledge entries selected.'));
 			return;
 		}
 
@@ -2113,6 +2134,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		};
 
 		const picker = new ChronoPicker(input, {
+			strings: mbStringSet('cs_chrono_'),
 			mode: 'datetime',
 			displayMode: 'popover',
 			value: input.value || '',
@@ -2263,7 +2285,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		const label = document.createElement('span');
 		label.className = 'mg-label';
-		label.textContent = 'Add filter';
+		label.textContent = mbText('add_filter', 'Add filter');
 
 		const select = document.createElement('select');
 		select.className = 'mg-select';
@@ -2308,7 +2330,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		const placeholder = document.createElement('option');
 		placeholder.value = '';
-		placeholder.textContent = 'Select optional filter';
+		placeholder.textContent = mbText('select_optional_filter', 'Select optional filter');
 		select.appendChild(placeholder);
 
 		optionKeys.forEach((key) => {
@@ -2336,7 +2358,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const button = document.createElement('button');
 		button.type = 'button';
 		button.className = 'knowledge-agent-memory-optional-filter-remove';
-		button.title = 'Remove this filter';
+		button.title = mbText('remove_this_filter', 'Remove this filter');
 		button.textContent = '×';
 		button.addEventListener('click', (event) => {
 			event.preventDefault();
@@ -2477,6 +2499,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 
 		grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 			layout,
 			adapter,
 			dataMode: 'server',
@@ -2510,8 +2533,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				search: {
 					zone: 'topLine1',
 					order: 10,
-					label: 'Search',
-					placeholder: 'Search title, summary, content, or tags'
+					label: mbText('search', 'Search'),
+					placeholder: mbText('search_title_summary_content_or_tags', 'Search title, summary, content, or tags')
 				},
 				filters: {
 					zone: 'topLine2',
@@ -2522,31 +2545,31 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					fields: [
 						{
 							key: 'memory_type',
-							label: 'Type',
+							label: mbText('type', 'Type'),
 							type: 'select',
 							options: MEMORY_TYPE_OPTIONS
 						},
 						{
 							key: 'status',
-							label: 'Status',
+							label: mbText('status', 'Status'),
 							type: 'select',
 							options: STATUS_OPTIONS
 						},
 						{
 							key: 'deleted',
-							label: 'Deleted',
+							label: mbText('deleted', 'Deleted'),
 							type: 'select',
 							options: [
-								{ value: 'active', label: 'Active only' },
-								{ value: 'deleted', label: 'Deleted only' },
-								{ value: 'all', label: 'All entries' }
+								{ value: 'active', label: mbText('active_only', 'Active only') },
+								{ value: 'deleted', label: mbText('deleted_only', 'Deleted only') },
+								{ value: 'all', label: mbText('all_entries', 'All entries') }
 							]
 						},
 						{
 							key: 'tag',
-							label: 'Tag',
+							label: mbText('tag', 'Tag'),
 							type: 'text',
-							placeholder: 'Tag',
+							placeholder: mbText('tag', 'Tag'),
 							width: 140
 						}
 					]
@@ -2566,14 +2589,14 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					items: [
 						{
 							key: 'copy-selected-clipboard',
-							label: 'Copy to clipboard',
+							label: mbText('copy_to_clipboard', 'Copy to clipboard'),
 							onClick(context) {
 								copySelectedMemoryEntries(context.selectedRowIds || []);
 							}
 						},
 						{
 							key: 'soft-delete-selected',
-							label: 'Soft delete selected',
+							label: mbText('soft_delete_selected', 'Soft delete selected'),
 							onClick(context) {
 								performBulkMemoryAction('soft_delete', context.selectedRowIds || [], {
 									confirmMessage: 'Soft delete {count} selected knowledge entries?'
@@ -2582,14 +2605,14 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						},
 						{
 							key: 'restore-selected',
-							label: 'Restore selected',
+							label: mbText('restore_selected', 'Restore selected'),
 							onClick(context) {
 								performBulkMemoryAction('restore', context.selectedRowIds || []);
 							}
 						},
 						{
 							key: 'clear-selection',
-							label: 'Clear selection',
+							label: mbText('clear_selection', 'Clear selection'),
 							command: 'clearSelection'
 						}
 					]
@@ -2600,7 +2623,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				reset: {
 					zone: 'topLine1',
 					order: 30,
-					label: 'Reset',
+					label: mbText('reset', 'Reset'),
 					sections: ['query', 'filters', 'columns', 'selection', 'detailView']
 				},
 				sessionStorage: {
@@ -2619,7 +2642,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						items: [
 							{
 								type: 'columnVisibility',
-								label: 'Columns',
+								label: mbText('columns', 'Columns'),
 								showReset: true,
 								resetLabel: 'Reset columns'
 							}
@@ -2628,35 +2651,35 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					items: [
 						{
 							key: 'edit',
-							label: 'Edit',
+							label: mbText('edit', 'Edit'),
 							onClick(context) {
 								openKnowledgeEditor(context.row && context.row.id);
 							}
 						},
 						{
 							key: 'copy-clipboard',
-							label: 'Copy to clipboard',
+							label: mbText('copy_to_clipboard', 'Copy to clipboard'),
 							onClick(context) {
 								copySingleMemoryEntry(context.row);
 							}
 						},
 						{
 							key: 'lock',
-							label: 'Lock',
+							label: mbText('lock', 'Lock'),
 							onClick(context) {
 								performMemoryAction('lock', context.row);
 							}
 						},
 						{
 							key: 'unlock',
-							label: 'Unlock',
+							label: mbText('unlock', 'Unlock'),
 							onClick(context) {
 								performMemoryAction('unlock', context.row);
 							}
 						},
 						{
 							key: 'soft-delete',
-							label: 'Soft delete',
+							label: mbText('soft_delete', 'Soft delete'),
 							onClick(context) {
 								performMemoryAction('soft_delete', context.row, {
 									confirmMessage: 'Soft delete knowledge entry #' + getText(context.row && context.row.id) + '?'
@@ -2665,7 +2688,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						},
 						{
 							key: 'restore',
-							label: 'Restore',
+							label: mbText('restore', 'Restore'),
 							onClick(context) {
 								performMemoryAction('restore', context.row);
 							}
@@ -2699,14 +2722,14 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			columns: [
 				{
 					key: 'title',
-					label: 'Memory',
+					label: mbText('memory', 'Memory'),
 					width: 330,
 					headerMenu: {
 						defaultSortKey: 'title',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'title', label: 'Title' },
-							{ key: 'memory_key', label: 'Memory key' }
+							{ key: 'title', label: mbText('title', 'Title') },
+							{ key: 'memory_key', label: mbText('memory_key', 'Memory key') }
 						]
 					},
 					render(value, row) {
@@ -2715,13 +2738,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'summary',
-					label: 'Summary',
+					label: mbText('summary', 'Summary'),
 					width: 380,
 					headerMenu: {
 						defaultSortKey: 'summary',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'summary', label: 'Summary' }
+							{ key: 'summary', label: mbText('summary', 'Summary') }
 						]
 					},
 					render(value, row) {
@@ -2730,7 +2753,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'tags_text',
-					label: 'Tags / Entity refs',
+					label: mbText('tags_entity_refs', 'Tags / Entity refs'),
 					width: 320,
 					sortable: false,
 					render(value, row) {
@@ -2739,15 +2762,15 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'memory_type',
-					label: 'Type / Status',
+					label: mbText('type_status', 'Type / Status'),
 					width: 240,
 					headerMenu: {
 						defaultSortKey: 'memory_type',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'memory_type', label: 'Type' },
-							{ key: 'memory_subtype', label: 'Subtype' },
-							{ key: 'status', label: 'Status' }
+							{ key: 'memory_type', label: mbText('type', 'Type') },
+							{ key: 'memory_subtype', label: mbText('subtype', 'Subtype') },
+							{ key: 'status', label: mbText('status', 'Status') }
 						]
 					},
 					render(value, row) {
@@ -2756,16 +2779,16 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'scope',
-					label: 'Scope / Identity',
+					label: mbText('scope_identity', 'Scope / Identity'),
 					width: 290,
 					headerMenu: {
 						defaultSortKey: 'scope',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'scope', label: 'Scope' },
-							{ key: 'scope_ref', label: 'Scope ref' },
-							{ key: 'ident', label: 'Ident' },
-							{ key: 'userid', label: 'User' }
+							{ key: 'scope', label: mbText('scope', 'Scope') },
+							{ key: 'scope_ref', label: mbText('scope_ref', 'Scope ref') },
+							{ key: 'ident', label: mbText('ident', 'Ident') },
+							{ key: 'userid', label: mbText('user', 'User') }
 						]
 					},
 					render(value, row) {
@@ -2774,14 +2797,14 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'priority',
-					label: 'Priority',
+					label: mbText('priority', 'Priority'),
 					width: 140,
 					headerMenu: {
 						defaultSortKey: 'priority',
 						defaultSortDirection: 'desc',
 						sortOptions: [
-							{ key: 'priority', label: 'Priority' },
-							{ key: 'confidence', label: 'Confidence' }
+							{ key: 'priority', label: mbText('priority', 'Priority') },
+							{ key: 'confidence', label: mbText('confidence', 'Confidence') }
 						]
 					},
 					render(value, row) {
@@ -2790,7 +2813,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'flags',
-					label: 'Flags',
+					label: mbText('flags', 'Flags'),
 					width: 240,
 					sortable: false,
 					render(value, row) {
@@ -2799,15 +2822,15 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'updated_at',
-					label: 'Dates',
+					label: mbText('dates', 'Dates'),
 					width: 260,
 					headerMenu: {
 						defaultSortKey: 'updated_at',
 						defaultSortDirection: 'desc',
 						sortOptions: [
-							{ key: 'updated_at', label: 'Updated' },
-							{ key: 'created_at', label: 'Created' },
-							{ key: 'expires_at', label: 'Expires' }
+							{ key: 'updated_at', label: mbText('updated', 'Updated') },
+							{ key: 'created_at', label: mbText('created', 'Created') },
+							{ key: 'expires_at', label: mbText('expires', 'Expires') }
 						]
 					},
 					render(value, row) {
@@ -2816,46 +2839,46 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'id',
-					label: 'ID',
+					label: mbText('id', 'ID'),
 					width: 90,
 					visible: false,
 					headerMenu: {
 						defaultSortKey: 'id',
 						defaultSortDirection: 'desc',
 						sortOptions: [
-							{ key: 'id', label: 'ID' }
+							{ key: 'id', label: mbText('id', 'ID') }
 						]
 					}
 				},
 				{
 					key: 'memory_key',
-					label: 'Memory key',
+					label: mbText('memory_key', 'Memory key'),
 					width: 320,
 					visible: false,
 					headerMenu: {
 						defaultSortKey: 'memory_key',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'memory_key', label: 'Memory key' }
+							{ key: 'memory_key', label: mbText('memory_key', 'Memory key') }
 						]
 					}
 				},
 				{
 					key: 'source',
-					label: 'Source',
+					label: mbText('source', 'Source'),
 					width: 130,
 					visible: false,
 					headerMenu: {
 						defaultSortKey: 'source',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'source', label: 'Source' }
+							{ key: 'source', label: mbText('source', 'Source') }
 						]
 					}
 				},
 				{
 					key: 'entity_refs_text',
-					label: 'Entity refs',
+					label: mbText('entity_refs', 'Entity refs'),
 					width: 300,
 					visible: false,
 					sortable: false
@@ -2864,30 +2887,30 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 
 		grid.on('bulkAction:run', ({ selectedRowIds }) => {
-			setLog('Bulk action on IDs: ' + (selectedRowIds.join(', ') || 'none'));
+			setLog(mbText('bulk_action_on_ids_prefix', 'Bulk action on IDs: ') + (selectedRowIds.join(', ') || 'none'));
 		});
 
 		grid.on('data:appended', ({ appendedCount, totalLoaded }) => {
-			setLog('Loaded ' + String(appendedCount) + ' more knowledge entries. ' + String(totalLoaded) + ' entries are currently loaded.');
+			setLog(mbText('loaded_prefix', 'Loaded ') + String(appendedCount) + ' more knowledge entries. ' + String(totalLoaded) + ' entries are currently loaded.');
 		});
 
 		grid.on('detail:loaded', (event) => {
 			const detailRowId = event && typeof event === 'object' ? event.rowId : null;
 
-			setLog('Loaded detail for knowledge entry #' + getText(detailRowId));
+			setLog(mbText('loaded_detail_for_knowledge_entry', 'Loaded detail for knowledge entry #') + getText(detailRowId));
 		});
 
 		grid.on('detail:error', (event) => {
 			const detailRowId = event && typeof event === 'object' ? event.rowId : null;
 			const detailError = event && typeof event === 'object' ? event.error : null;
 
-			setLog('Failed to load detail for knowledge entry #' + getText(detailRowId) + ': ' + getText(detailError));
+			setLog(mbText('failed_to_load_detail_for_knowledge_entry', 'Failed to load detail for knowledge entry #') + getText(detailRowId) + ': ' + getText(detailError));
 		});
 
 		await grid.init();
 		watchChronoPickerFilters(root);
 		watchOptionalFilterControls(root);
 		watchNativeMoreLessCleanup(root);
-		setLog('Initial batch loaded. Scroll to append the next ' + String(BATCH_SIZE) + ' knowledge entries automatically.');
+		setLog(mbText('initial_batch_loaded_scroll_to_append_the_next_prefix', 'Initial batch loaded. Scroll to append the next ') + String(BATCH_SIZE) + ' knowledge entries automatically.');
 	})();
 </script>

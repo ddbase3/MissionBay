@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $service = (string)$this->_['service'];
 $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 ?>
@@ -6,68 +12,68 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 <div id="<?php echo htmlspecialchars($instanceId, ENT_QUOTES); ?>" class="retrieval-search-admin">
 	<div class="retrieval-search-header">
 		<div>
-			<h1>Retrieval Search</h1>
-			<p>Interactive workbench for configured MissionBay retrieval tools. Searches use the materialized preset including its configured resources and mandatory filters.</p>
+			<h1><?php echo $mbTextEsc('retrieval_search', 'Retrieval Search'); ?></h1>
+			<p><?php echo $mbTextEsc('interactive_workbench_for_configured_missionbay_retrieval_tools_searches_use_the_materialized_preset_including', 'Interactive workbench for configured MissionBay retrieval tools. Searches use the materialized preset including its configured resources and mandatory filters.'); ?></p>
 		</div>
-		<div class="retrieval-search-status" data-role="status">Loading…</div>
+		<div class="retrieval-search-status" data-role="status"><?php echo $mbTextEsc('loading', 'Loading...'); ?></div>
 	</div>
 
 	<div class="retrieval-search-card retrieval-search-form-card">
 		<div class="retrieval-search-grid retrieval-search-grid-main">
 			<label class="retrieval-search-field retrieval-search-field-wide">
-				<span>Retrieval preset</span>
+				<span><?php echo $mbTextEsc('retrieval_preset', 'Retrieval preset'); ?></span>
 				<select data-role="preset"></select>
 			</label>
 
 			<label class="retrieval-search-field retrieval-search-field-wide">
-				<span>Query</span>
-				<input data-role="query" type="search" autocomplete="off" placeholder="Search query…" />
+				<span><?php echo $mbTextEsc('query', 'Query'); ?></span>
+				<input data-role="query" type="search" autocomplete="off" placeholder="<?php echo $mbTextEsc('search_query', 'Search query…'); ?>" />
 			</label>
 
 			<label class="retrieval-search-field">
-				<span>Mode</span>
+				<span><?php echo $mbTextEsc('mode', 'Mode'); ?></span>
 				<select data-role="mode"></select>
 			</label>
 
 			<label class="retrieval-search-field">
-				<span>Top K</span>
+				<span><?php echo $mbTextEsc('top_k', 'Top K'); ?></span>
 				<input data-role="top-k" type="number" min="1" value="5" />
 			</label>
 		</div>
 
 		<details class="retrieval-search-advanced">
-			<summary>Advanced search options</summary>
+			<summary><?php echo $mbTextEsc('advanced_search_options', 'Advanced search options'); ?></summary>
 			<div class="retrieval-search-grid">
 				<label class="retrieval-search-field retrieval-search-field-wide" data-option="phrases">
-					<span>Phrases <small>one per line</small></span>
-					<textarea data-role="phrases" rows="3" placeholder="exact or phonetic phrase"></textarea>
+					<span><?php echo $mbTextEsc('phrases', 'Phrases'); ?> <small><?php echo $mbTextEsc('one_per_line', 'one per line'); ?></small></span>
+					<textarea data-role="phrases" rows="3" placeholder="<?php echo $mbTextEsc('exact_or_phonetic_phrase', 'exact or phonetic phrase'); ?>"></textarea>
 				</label>
 
 				<label class="retrieval-search-field" data-option="required_terms">
-					<span>Required terms <small>one per line</small></span>
+					<span><?php echo $mbTextEsc('required_terms', 'Required terms'); ?> <small><?php echo $mbTextEsc('one_per_line', 'one per line'); ?></small></span>
 					<textarea data-role="required-terms" rows="3"></textarea>
 				</label>
 
 				<label class="retrieval-search-field" data-option="excluded_terms">
-					<span>Excluded terms <small>one per line</small></span>
+					<span><?php echo $mbTextEsc('excluded_terms', 'Excluded terms'); ?> <small><?php echo $mbTextEsc('one_per_line', 'one per line'); ?></small></span>
 					<textarea data-role="excluded-terms" rows="3"></textarea>
 				</label>
 
 				<label class="retrieval-search-field retrieval-search-field-wide" data-option="filters">
-					<span>Filters <small>JSON, according to the selected tool schema</small></span>
+					<span><?php echo $mbTextEsc('filters', 'Filters'); ?> <small><?php echo $mbTextEsc('json_according_to_the_selected_tool_schema', 'JSON, according to the selected tool schema'); ?></small></span>
 					<textarea data-role="filters" rows="5" spellcheck="false" placeholder="[]"></textarea>
 				</label>
 			</div>
 
 			<details class="retrieval-search-schema">
-				<summary>Selected search function schema</summary>
+				<summary><?php echo $mbTextEsc('selected_search_function_schema', 'Selected search function schema'); ?></summary>
 				<pre data-role="schema"></pre>
 			</details>
 		</details>
 
 		<div class="retrieval-search-actions">
-			<button type="button" data-role="search">Search</button>
-			<button type="button" class="retrieval-search-secondary" data-role="clear">Clear</button>
+			<button type="button" data-role="search"><?php echo $mbTextEsc('search', 'Search'); ?></button>
+			<button type="button" class="retrieval-search-secondary" data-role="clear"><?php echo $mbTextEsc('clear', 'Clear'); ?></button>
 		</div>
 	</div>
 
@@ -75,9 +81,9 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 	<div class="retrieval-search-results" data-role="results"></div>
 
 	<details class="retrieval-search-raw" data-role="raw-holder" style="display:none">
-		<summary>Raw execution response</summary>
+		<summary><?php echo $mbTextEsc('raw_execution_response', 'Raw execution response'); ?></summary>
 		<div class="retrieval-search-raw-actions">
-			<button type="button" class="retrieval-search-secondary" data-role="copy-raw">Copy</button>
+			<button type="button" class="retrieval-search-secondary" data-role="copy-raw"><?php echo $mbTextEsc('copy', 'Copy'); ?></button>
 		</div>
 		<pre data-role="raw"></pre>
 	</details>
@@ -407,6 +413,20 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const root = document.getElementById(<?php echo json_encode($instanceId); ?>);
 	if (!root) return;
 
@@ -435,7 +455,7 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 	const searchButton = el('search');
 
 	function setStatus(text, error) {
-		status.textContent = text || '–';
+		status.textContent = text || '-';
 		status.classList.toggle('is-error', !!error);
 	}
 
@@ -599,7 +619,7 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 
 	function resultCard(item, index) {
 		const context = item && typeof item.context === 'object' && item.context !== null ? item.context : {};
-		const title = context.title || ('Result ' + (index + 1));
+		const title = context.title || mbText('result_number', 'Result {index}', { index: index + 1 });
 		const ref = String(item.retrieval_ref || '');
 		const score = item.score === undefined || item.score === null ? '' : String(item.score);
 		const card = document.createElement('div');
@@ -615,16 +635,16 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 					'<div class="retrieval-search-result-title">' + escapeHtml(title) + '</div>' +
 					'<div class="retrieval-search-result-sub">' + escapeHtml(ref) + '</div>' +
 				'</div>' +
-				(score ? '<div class="retrieval-search-score">score ' + escapeHtml(score) + '</div>' : '') +
+				(score ? '<div class="retrieval-search-score">' + escapeHtml(mbText('score', 'Score')) + ' ' + escapeHtml(score) + '</div>' : '') +
 			'</div>' +
 			(pills ? '<div class="retrieval-search-meta">' + pills + '</div>' : '') +
 			(context.text ? '<div class="retrieval-search-text">' + escapeHtml(context.text) + '</div>' : '') +
 			'<div class="retrieval-search-result-actions">' +
-				'<button type="button" class="retrieval-search-secondary" data-action="copy">Copy</button>' +
+				'<button type="button" class="retrieval-search-secondary" data-action="copy">' + escapeHtml(mbText('copy', 'Copy')) + '</button>' +
 				(state.preset && state.preset.has_context && ref
-					? '<span>before</span><input class="retrieval-search-neighbor-count" data-role-local="before" type="number" min="0" max="20" value="1" />' +
-					  '<span>after</span><input class="retrieval-search-neighbor-count" data-role-local="after" type="number" min="0" max="20" value="1" />' +
-					  '<button type="button" data-action="context">Load context</button>'
+					? '<span>' + escapeHtml(mbText('before', 'before')) + '</span><input class="retrieval-search-neighbor-count" data-role-local="before" type="number" min="0" max="20" value="1" />' +
+					  '<span>' + escapeHtml(mbText('after', 'after')) + '</span><input class="retrieval-search-neighbor-count" data-role-local="after" type="number" min="0" max="20" value="1" />' +
+					  '<button type="button" data-action="context">' + escapeHtml(mbText('load_context', 'Load context')) + '</button>'
 					: '') +
 			'</div>' +
 			'<div class="retrieval-search-context" data-role-local="context" style="display:none"></div>';
@@ -638,7 +658,7 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 			};
 			await navigator.clipboard.writeText(pretty(data));
 			const original = copyButton.textContent;
-			copyButton.textContent = 'Copied';
+			copyButton.textContent = mbText('copied', 'Copied');
 			setTimeout(() => { copyButton.textContent = original; }, 900);
 		});
 
@@ -650,7 +670,7 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 				const after = Math.max(0, Number.parseInt(card.querySelector('[data-role-local="after"]').value || '1', 10) || 0);
 				contextButton.disabled = true;
 				holder.style.display = '';
-				holder.innerHTML = '<div class="retrieval-search-empty">Loading context…</div>';
+				holder.innerHTML = '<div class="retrieval-search-empty">' + escapeHtml(mbText('loading_context', 'Loading context...')) + '</div>';
 
 				try {
 					const response = await request({
@@ -665,10 +685,10 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 					const output = outputFromResponse(response);
 					const contextResults = Array.isArray(output.chunks) ? output.chunks : [];
 					if (!response.ok) {
-						holder.innerHTML = '<div class="retrieval-search-error">' + escapeHtml(response.error || 'Context lookup failed.') + '</div>';
+						holder.innerHTML = '<div class="retrieval-search-error">' + escapeHtml(response.error || mbText('context_lookup_failed', 'Context lookup failed.')) + '</div>';
 					}
 					else if (!contextResults.length) {
-						holder.innerHTML = '<div class="retrieval-search-empty">No context chunks.</div>';
+						holder.innerHTML = '<div class="retrieval-search-empty">' + escapeHtml(mbText('no_context_chunks', 'No context chunks.')) + '</div>';
 					}
 					else {
 						holder.innerHTML = '';
@@ -720,7 +740,7 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 		}
 
 		if (!items.length) {
-			results.innerHTML = '<div class="retrieval-search-empty">No results.</div>';
+			results.innerHTML = '<div class="retrieval-search-empty">' + escapeHtml(mbText('no_results', 'No results.')) + '</div>';
 			return;
 		}
 
@@ -735,7 +755,7 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 		}
 
 		searchButton.disabled = true;
-		setStatus('Searching…', false);
+		setStatus(mbText('searching', 'Searching…'), false);
 
 		try {
 			const response = await request({
@@ -744,11 +764,11 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 				arguments: buildArguments()
 			});
 			renderSearch(response);
-			setStatus(response.ok ? 'Ready' : 'Search failed', !response.ok);
+			setStatus(response.ok ? mbText('ready', 'Ready') : mbText('search_failed', 'Search failed'), !response.ok);
 		}
 		catch (error) {
 			results.innerHTML = '<div class="retrieval-search-error">' + escapeHtml(error.message) + '</div>';
-			setStatus('Search failed', true);
+			setStatus(mbText('search_failed', 'Search failed'), true);
 		}
 		finally {
 			searchButton.disabled = false;
@@ -769,7 +789,7 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 	}
 
 	async function bootstrap() {
-		setStatus('Loading…', false);
+		setStatus(mbText('loading', 'Loading...'), false);
 		try {
 			const response = await request({ action: 'bootstrap' });
 			state.presets = Array.isArray(response.presets) ? response.presets : [];
@@ -783,17 +803,17 @@ $instanceId = 'retrieval_search_' . str_replace('.', '_', uniqid('', true));
 			}
 
 			if (!state.presets.length) {
-				setStatus('No retrieval preset found', true);
+				setStatus(mbText('no_retrieval_preset_found', 'No retrieval preset found'), true);
 				searchButton.disabled = true;
-				results.innerHTML = '<div class="retrieval-search-empty">No configured tool preset exposing retrieval_search was found.</div>';
+				results.innerHTML = '<div class="retrieval-search-empty">' + escapeHtml(mbText('no_retrieval_tool_preset_found', 'No configured tool preset exposing retrieval_search was found.')) + '</div>';
 				return;
 			}
 
 			updatePresetUi();
-			setStatus('Ready', false);
+			setStatus(mbText('ready', 'Ready'), false);
 		}
 		catch (error) {
-			setStatus('Initialization failed', true);
+			setStatus(mbText('initialization_failed_2', 'Initialization failed'), true);
 			results.innerHTML = '<div class="retrieval-search-error">' + escapeHtml(error.message) + '</div>';
 		}
 	}

@@ -1,11 +1,17 @@
+<?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 <div id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>" class="vectorsearch-config-admin">
-	<h3>Vector Search Services</h3>
+	<h3><?php echo $mbTextEsc('vector_search_services', 'Vector Search Services'); ?></h3>
 
 	<div class="vectorsearchcfg-meta">
-		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Connection group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
-		<div data-role="loading" class="vectorsearchcfg-loading">Please wait...</div>
+		<div><strong><?php echo $mbTextEsc('settings_group', 'Settings group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('connection_group', 'Connection group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('last_update', 'Last update:'); ?></strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="vectorsearchcfg-loading"><?php echo $mbTextEsc('please_wait', 'Please wait...'); ?></div>
 	</div>
 
 	<div class="vectorsearchcfg-hint">
@@ -15,31 +21,31 @@
 	<div class="vectorsearchcfg-layout">
 		<div class="vectorsearchcfg-listbox">
 			<div class="vectorsearchcfg-toolbar">
-				<button type="button" data-role="new">New vector search</button>
-				<button type="button" data-role="reload">Reload</button>
+				<button type="button" data-role="new"><?php echo $mbTextEsc('new_vector_search', 'New vector search'); ?></button>
+				<button type="button" data-role="reload"><?php echo $mbTextEsc('reload', 'Reload'); ?></button>
 			</div>
 
 			<table class="vectorsearchcfg-table">
 				<thead>
 					<tr>
-						<th>ID</th>
-						<th>Name</th>
-						<th>Connection</th>
-						<th>Driver</th>
-						<th>Collection</th>
-						<th>Status</th>
+						<th><?php echo $mbTextEsc('id', 'ID'); ?></th>
+						<th><?php echo $mbTextEsc('name', 'Name'); ?></th>
+						<th><?php echo $mbTextEsc('connection', 'Connection'); ?></th>
+						<th><?php echo $mbTextEsc('driver', 'Driver'); ?></th>
+						<th><?php echo $mbTextEsc('collection', 'Collection'); ?></th>
+						<th><?php echo $mbTextEsc('status', 'Status'); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="7" class="mono">Loading...</td></tr>
+					<tr><td colspan="7" class="mono"><?php echo $mbTextEsc('loading', 'Loading...'); ?></td></tr>
 				</tbody>
 			</table>
 		</div>
 
 		<div class="vectorsearchcfg-formbox">
 			<form data-role="form">
-				<h4 data-role="legend">Create vector search</h4>
+				<h4 data-role="legend"><?php echo $mbTextEsc('create_vector_search', 'Create vector search'); ?></h4>
 
 				<div class="vectorsearchcfg-hint" data-role="idhint">
 					Technical vector-search id. Agent resources use this id to resolve the configured vector search.
@@ -47,50 +53,50 @@
 
 				<div class="vectorsearchcfg-grid">
 					<div class="vectorsearchcfg-field">
-						<label>Vector-search id</label>
+						<label><?php echo $mbTextEsc('vector_search_id', 'Vector-search id'); ?></label>
 						<input type="text" name="id" placeholder="qualitus_qdrant" autocomplete="off">
 					</div>
 
 					<div class="vectorsearchcfg-field">
-						<label>Name</label>
+						<label><?php echo $mbTextEsc('name', 'Name'); ?></label>
 						<input type="text" name="name" placeholder="Qualitus Qdrant Search" autocomplete="off">
 					</div>
 
 					<div class="vectorsearchcfg-field">
-						<label>Connection</label>
-						<select name="connection"><option value="">Loading connections...</option></select>
-						<div class="vectorsearchcfg-hint vectorsearchcfg-inline-hint">Endpoint and credentials are configured in the selected connection.</div>
+						<label><?php echo $mbTextEsc('connection', 'Connection'); ?></label>
+						<select name="connection"><option value=""><?php echo $mbTextEsc('loading_connections', 'Loading connections...'); ?></option></select>
+						<div class="vectorsearchcfg-hint vectorsearchcfg-inline-hint"><?php echo $mbTextEsc('endpoint_and_credentials_are_configured_in_the_selected_connection', 'Endpoint and credentials are configured in the selected connection.'); ?></div>
 					</div>
 
 					<div class="vectorsearchcfg-field">
-						<label>Driver</label>
-						<select name="driver"><option value="">Loading drivers...</option></select>
+						<label><?php echo $mbTextEsc('driver', 'Driver'); ?></label>
+						<select name="driver"><option value=""><?php echo $mbTextEsc('loading_drivers', 'Loading drivers...'); ?></option></select>
 					</div>
 
 					<input type="hidden" name="model" value="qdrant">
 
 					<div class="vectorsearchcfg-field">
-						<label>Collection</label>
+						<label><?php echo $mbTextEsc('collection', 'Collection'); ?></label>
 						<input type="text" name="collection" placeholder="courses" autocomplete="off">
 					</div>
 
 
 					<div class="vectorsearchcfg-field">
-						<label>Advanced options JSON</label>
+						<label><?php echo $mbTextEsc('advanced_options_json', 'Advanced options JSON'); ?></label>
 						<textarea name="options" spellcheck="false" placeholder="{&#10;}"></textarea>
-						<div class="vectorsearchcfg-hint vectorsearchcfg-inline-hint">Endpoint, secret and authentication header belong exclusively to the selected connection.</div>
+						<div class="vectorsearchcfg-hint vectorsearchcfg-inline-hint"><?php echo $mbTextEsc('endpoint_secret_and_authentication_header_belong_exclusively_to_the_selected_connection', 'Endpoint, secret and authentication header belong exclusively to the selected connection.'); ?></div>
 					</div>
 
 					<div class="vectorsearchcfg-field vectorsearchcfg-field-checkbox">
-						<label class="vectorsearchcfg-checkbox"><input type="checkbox" name="enabled" checked><span>Enabled</span></label>
+						<label class="vectorsearchcfg-checkbox"><input type="checkbox" name="enabled" checked><span><?php echo $mbTextEsc('enabled', 'Enabled'); ?></span></label>
 					</div>
 				</div>
 
 				<div data-role="formfeedback" class="vectorsearchcfg-form-feedback" style="display:none"></div>
 
 				<div class="vectorsearchcfg-actions">
-					<button type="submit" class="primary">Save vector search</button>
-					<button type="button" data-role="delete" disabled>Delete vector search</button>
+					<button type="submit" class="primary"><?php echo $mbTextEsc('save_vector_search', 'Save vector search'); ?></button>
+					<button type="button" data-role="delete" disabled><?php echo $mbTextEsc('delete_vector_search', 'Delete vector search'); ?></button>
 				</div>
 			</form>
 		</div>
@@ -103,6 +109,20 @@
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
 
@@ -158,7 +178,7 @@
 		function setEditMode(editing) {
 			refs.id.readOnly = editing;
 			refs.deleteBtn.disabled = !editing;
-			refs.legend.textContent = editing ? "Edit vector search" : "Create vector search";
+			refs.legend.textContent = editing ? "Edit vector search" : mbText('create_vector_search', 'Create vector search');
 			refs.idhint.textContent = editing ? "Technical vector-search id is fixed for existing entries. Create a new entry if you need another key." : "Technical vector-search id. Agent resources use this id to resolve the configured vector search.";
 		}
 
@@ -167,7 +187,7 @@
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = state.connections.length > 0 ? "Select connection" : "No connections configured";
+			empty.textContent = state.connections.length > 0 ? mbText('select_connection', 'Select connection') : mbText('no_connections_configured', 'No connections configured');
 			refs.connection.appendChild(empty);
 
 			for (const connection of state.connections) {
@@ -186,7 +206,7 @@
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = state.drivers.length > 0 ? "Select driver" : "No vector-search drivers available";
+			empty.textContent = state.drivers.length > 0 ? mbText('select_driver', 'Select driver') : "No vector-search drivers available";
 			refs.driver.appendChild(empty);
 
 			for (const driver of state.drivers) {
@@ -247,15 +267,15 @@
 		}
 
 		function statusBadge(row) {
-			if (!row.enabled) return "<span class='badge off'>disabled</span>";
-			if (!row.connectionEnabled) return "<span class='badge warn'>connection off</span>";
-			return "<span class='badge ok'>enabled</span>";
+			if (!row.enabled) return "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
+			if (!row.connectionEnabled) return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
 		}
 
 		function renderRows() {
 			refs.tbody.innerHTML = "";
 			if (!state.vectorsearches.length) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'>No vector searches configured.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('no_vector_searches_configured', mbText('no_vector_searches_configured', 'No vector searches configured.')); ?></td></tr>";
 				return;
 			}
 
@@ -269,7 +289,7 @@
 					"<td class='driver-col'>" + esc(v.driverLabel || v.driver) + "</td>" +
 					"<td class='option-col'>" + esc(v.collection || "-") + "</td>" +
 					"<td>" + statusBadge(v) + "</td>" +
-					"<td><button type='button' class='vectorsearchcfg-edit-btn' data-action='edit' data-id='" + esc(v.id) + "'>Edit</button></td>";
+					"<td><button type='button' class='vectorsearchcfg-edit-btn' data-action='edit' data-id='" + esc(v.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
 				refs.tbody.appendChild(tr);
 			});
 
@@ -293,7 +313,7 @@
 				try {
 					json = JSON.parse(text);
 				} catch (e) {
-					showFeedback("The server response could not be read.", "error");
+					showFeedback(mbText('the_server_response_could_not_be_read', 'The server response could not be read.'), "error");
 					return null;
 				}
 
@@ -306,7 +326,7 @@
 
 				return json;
 			} catch (e) {
-				showFeedback("The request failed. Please try again.", "error");
+				showFeedback(mbText('the_request_failed_please_try_again', 'The request failed. Please try again.'), "error");
 				return null;
 			} finally {
 				setLoading(false);
@@ -316,7 +336,7 @@
 		async function loadList(preselectId) {
 			const json = await callApi({action: "list"});
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'>Vector searches could not be loaded.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('vector_searches_could_not_be_loaded', mbText('vector_searches_could_not_be_loaded', 'Vector searches could not be loaded.')); ?></td></tr>";
 				return;
 			}
 
@@ -340,12 +360,12 @@
 			try {
 				const parsed = JSON.parse(raw);
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					showFeedback("Advanced options must be a JSON object.", "error");
+					showFeedback(mbText('advanced_options_must_be_a_json_object', 'Advanced options must be a JSON object.'), "error");
 					return null;
 				}
 				return JSON.stringify(parsed);
 			} catch (e) {
-				showFeedback("Advanced options must be valid JSON.", "error");
+				showFeedback(mbText('advanced_options_must_be_valid_json', 'Advanced options must be valid JSON.'), "error");
 				return null;
 			}
 		}
@@ -366,7 +386,7 @@
 			refs.model.value = model;
 
 			if (!id || !name || !connection || !driver) {
-				showFeedback("Vector-search id, name, connection and driver are required.", "error");
+				showFeedback(mbText('vector_search_id_name_connection_and_driver_are_required', 'Vector-search id, name, connection and driver are required.'), "error");
 				return;
 			}
 
@@ -385,7 +405,7 @@
 			if (!json) return;
 
 			const vectorsearch = json.data && json.data.vectorsearch ? json.data.vectorsearch : null;
-			showFeedback("Vector search saved.", "success");
+			showFeedback(mbText('vector_search_saved', 'Vector search saved.'), "success");
 			await loadList(vectorsearch && vectorsearch.id ? vectorsearch.id : id);
 		}
 
@@ -394,16 +414,16 @@
 
 			const id = String(state.selectedId || refs.id.value || "").trim();
 			if (!id) {
-				showFeedback("No vector search selected.", "error");
+				showFeedback(mbText('no_vector_search_selected', 'No vector search selected.'), "error");
 				return;
 			}
 
-			if (!window.confirm("Delete vector search '" + id + "'?")) return;
+			if (!window.confirm(mbText('delete_vector_search_confirm', "Delete vector search '{id}'?", {id}))) return;
 
 			const json = await callApi({action:"remove", id});
 			if (!json) return;
 
-			showFeedback("Vector search deleted.", "success");
+			showFeedback(mbText('vector_search_deleted', 'Vector search deleted.'), "success");
 			resetForm();
 			await loadList();
 		}

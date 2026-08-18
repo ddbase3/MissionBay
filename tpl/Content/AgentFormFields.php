@@ -12,6 +12,9 @@
                 $currentPolicy = (string)($policyOptions[0]['id'] ?? '');
         }
 
+        $this->loadBricks('AgentConfigForm');
+        $translations = is_array($this->_['bricks']['missionbay_agent_config'] ?? null) ? $this->_['bricks']['missionbay_agent_config'] : [];
+        $t = static fn(string $key, string $fallback): string => trim((string)($translations[$key] ?? '')) !== '' ? (string)$translations[$key] : $fallback;
         $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $checked = static fn($value): string => !empty($value) ? ' checked="checked"' : '';
         $selected = static fn($current, $value): string => (string)$current === (string)$value ? ' selected="selected"' : '';
@@ -175,47 +178,47 @@
         <input type="hidden" name="agent_config_name" value="<?php echo $e($name); ?>" />
 
         <div class="base3-agent-section">
-                <h3>Agent</h3>
+                <h3><?php echo $e($t('agent_section', 'Agent')); ?></h3>
 
                 <div class="base3-agent-row">
-                        <div class="base3-agent-label">Active</div>
+                        <div class="base3-agent-label"><?php echo $e($t('active_label', 'Active')); ?></div>
                         <div>
                                 <label class="base3-agent-checkbox-row">
                                         <input type="checkbox" name="enabled" value="1"<?php echo $checked($values['enabled'] ?? true); ?> />
-                                        Run this configured agent when the timing policy allows it.
+                                        <?php echo $e($t('active_help', 'Run this configured agent when the timing policy allows it.')); ?>
                                 </label>
                         </div>
                 </div>
 
                 <div class="base3-agent-row">
-                        <label for="<?php echo $e($formId); ?>_label" class="base3-agent-label">Label</label>
+                        <label for="<?php echo $e($formId); ?>_label" class="base3-agent-label"><?php echo $e($t('label_label', 'Label')); ?></label>
                         <div>
                                 <input id="<?php echo $e($formId); ?>_label" type="text" name="label" class="form-control" value="<?php echo $e($values['label'] ?? ''); ?>" />
                                 <p class="base3-agent-help">
-                                        Human-readable title shown in administration lists.
+                                        <?php echo $e($t('label_help', 'Human-readable title shown in administration lists.')); ?>
                                 </p>
                         </div>
                 </div>
 
                 <div class="base3-agent-row">
-                        <label for="<?php echo $e($formId); ?>_user_prompt" class="base3-agent-label">User prompt</label>
+                        <label for="<?php echo $e($formId); ?>_user_prompt" class="base3-agent-label"><?php echo $e($t('user_prompt_label', 'User prompt')); ?></label>
                         <div>
                                 <textarea id="<?php echo $e($formId); ?>_user_prompt" name="user_prompt" class="form-control base3-agent-user-prompt"><?php echo $e($values['user_prompt'] ?? ''); ?></textarea>
                                 <p class="base3-agent-help">
-                                        Prompt sent as the user message when this agent is executed.
+                                        <?php echo $e($t('user_prompt_help', 'Prompt sent as the user message when this agent is executed.')); ?>
                                 </p>
                         </div>
                 </div>
         </div>
 
         <div class="base3-agent-section">
-                <h3>Timing</h3>
+                <h3><?php echo $e($t('timing_section', 'Timing')); ?></h3>
 
                 <div class="base3-agent-row">
-                        <label for="<?php echo $e($formId); ?>_policy" class="base3-agent-label">Policy</label>
+                        <label for="<?php echo $e($formId); ?>_policy" class="base3-agent-label"><?php echo $e($t('policy_label', 'Policy')); ?></label>
                         <div>
                                 <select id="<?php echo $e($formId); ?>_policy" name="policy" class="form-control" data-base3-agent-policy-select="1">
-                                        <option value="">Select timing policy</option>
+                                        <option value=""><?php echo $e($t('select_timing_policy', 'Select timing policy')); ?></option>
 <?php foreach ($policyOptions as $policyOption) {
         $policyId = (string)($policyOption['id'] ?? '');
         $policyLabel = trim((string)($policyOption['label'] ?? ''));
@@ -230,7 +233,7 @@
 <?php } ?>
                                 </select>
                                 <p class="base3-agent-help">
-                                        Policy configuration is generated from the policy schema.
+                                        <?php echo $e($t('policy_help', 'Policy configuration is generated from the policy schema.')); ?>
                                 </p>
                                 <input type="hidden" name="policy_data_json" data-base3-agent-policy-data-json="1" value="{}" />
                                 <input type="hidden" name="policy_data_b64" data-base3-agent-policy-data-b64="1" value="" />
@@ -248,6 +251,9 @@
 
 <script>
 (function() {
+        var i18n = {
+                policyNoFields: <?php echo json_encode($t('policy_no_fields', 'This policy does not expose configurable fields.'), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
+        };
         var root = document.getElementById(<?php echo json_encode($rootId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>);
 
         if (!root || root.getAttribute('data-base3-agent-ready') === '1') {
@@ -517,7 +523,7 @@
                 var keys = Object.keys(properties);
 
                 if (keys.length === 0) {
-                        policyFields.appendChild(createElement('base3-agent-policy-empty', 'This policy does not expose configurable fields.'));
+                        policyFields.appendChild(createElement('base3-agent-policy-empty', i18n.policyNoFields));
                         syncPolicyDataJson();
                         return;
                 }

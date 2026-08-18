@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 
 $serviceUrl = (string) ($this->_['service'] ?? '');
@@ -506,19 +512,19 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 </style>
 
 <div class="agent-component-preset-step5-shell">
-	<h1>Agent Component Preset Admin</h1>
+	<h1><?php echo $mbTextEsc('agent_component_preset_admin', 'Agent Component Preset Admin'); ?></h1>
 	<p>
 		Manage reusable presets for dockable MissionBay agent components. Resource types and meta fields are edited through controlled fields. Capabilities are derived from the selected resource implementation. Resource configuration and docks are generated from resource schemas and dock definitions.
 	</p>
 
 	<div class="agent-component-preset-step5-grid">
 		<div id="agent-component-preset-step5-grid" class="agent-component-preset-step5-grid-shell">
-			<div class="agent-component-preset-step5-startup">Loading Agent Component Preset Admin display...</div>
+			<div class="agent-component-preset-step5-startup"><?php echo $mbTextEsc('loading_agent_component_preset_admin_display', 'Loading Agent Component Preset Admin display...'); ?></div>
 		</div>
-		<div id="agent-component-preset-step5-output" class="agent-component-preset-step5-status"><strong>Last action:</strong> Waiting for initialization.</div>
+		<div id="agent-component-preset-step5-output" class="agent-component-preset-step5-status"><strong><?php echo $mbTextEsc('last_action', 'Last action:'); ?></strong> <?php echo $mbTextEsc('waiting_for_initialization', 'Waiting for initialization.'); ?></div>
 		<details class="agent-component-preset-step5-log-details">
-			<summary>Debug log</summary>
-			<pre id="agent-component-preset-step5-log" class="agent-component-preset-step5-log">Status log will appear here.</pre>
+			<summary><?php echo $mbTextEsc('debug_log', 'Debug log'); ?></summary>
+			<pre id="agent-component-preset-step5-log" class="agent-component-preset-step5-log"><?php echo $mbTextEsc('status_log_will_appear_here', 'Status log will appear here.'); ?></pre>
 		</details>
 	</div>
 </div>
@@ -529,19 +535,19 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 			<input type="hidden" name="old_id" />
 
 			<div>
-			<label class="agent-component-preset-step5-label">Preset ID</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('preset_id', 'Preset ID'); ?></label>
 			<input type="text" name="id" class="agent-component-preset-step5-input" />
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Label</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('label', 'Label'); ?></label>
 			<input type="text" name="label" class="agent-component-preset-step5-input" />
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Resource type</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('resource_type', 'Resource type'); ?></label>
 			<select name="type" class="agent-component-preset-step5-select">
-				<option value="">Select resource type</option>
+				<option value=""><?php echo $mbTextEsc('select_resource_type', 'Select resource type'); ?></option>
 <?php foreach($resourceOptions as $resourceOption): ?>
 <?php
 	$resourceId = is_array($resourceOption) ? (string)($resourceOption['id'] ?? '') : (string)$resourceOption;
@@ -553,23 +559,23 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 				<option value="<?php echo $e($resourceId); ?>" title="<?php echo $e($resourceClass); ?>"><?php echo $e($resourceId); ?></option>
 <?php endforeach; ?>
 			</select>
-			<div id="agent-component-preset-step5-resource-info" class="agent-component-preset-step5-resource-info">No resource type selected.</div>
+			<div id="agent-component-preset-step5-resource-info" class="agent-component-preset-step5-resource-info"><?php echo $mbTextEsc('no_resource_type_selected', 'No resource type selected.'); ?></div>
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Enabled</label>
-			<label class="agent-component-preset-step5-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('enabled', 'Enabled'); ?></label>
+			<label class="agent-component-preset-step5-checkbox-row"><input type="checkbox" name="enabled" value="1" /> <?php echo $mbTextEsc('enabled', 'Enabled'); ?></label>
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Capabilities</label>
-			<div id="agent-component-preset-step5-capability-info" class="agent-component-preset-step5-resource-info">No resource type selected.</div>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('capabilities', 'Capabilities'); ?></label>
+			<div id="agent-component-preset-step5-capability-info" class="agent-component-preset-step5-resource-info"><?php echo $mbTextEsc('no_resource_type_selected', 'No resource type selected.'); ?></div>
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Category</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('category', 'Category'); ?></label>
 			<select name="category" class="agent-component-preset-step5-select">
-				<option value="">Select category</option>
+				<option value=""><?php echo $mbTextEsc('select_category', 'Select category'); ?></option>
 <?php foreach($categoryOptions as $categoryOption): ?>
 				<option value="<?php echo $e($categoryOption); ?>"><?php echo $e($categoryOption); ?></option>
 <?php endforeach; ?>
@@ -577,9 +583,9 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Status</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('status', 'Status'); ?></label>
 			<select name="status" class="agent-component-preset-step5-select">
-				<option value="">Select status</option>
+				<option value=""><?php echo $mbTextEsc('select_status', 'Select status'); ?></option>
 <?php foreach($statusOptions as $statusOption): ?>
 				<option value="<?php echo $e($statusOption); ?>"><?php echo $e($statusOption); ?></option>
 <?php endforeach; ?>
@@ -587,9 +593,9 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Risk</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('risk', 'Risk'); ?></label>
 			<select name="risk" class="agent-component-preset-step5-select">
-				<option value="">Select risk</option>
+				<option value=""><?php echo $mbTextEsc('select_risk', 'Select risk'); ?></option>
 <?php foreach($riskOptions as $riskOption): ?>
 				<option value="<?php echo $e($riskOption); ?>"><?php echo $e($riskOption); ?></option>
 <?php endforeach; ?>
@@ -597,29 +603,29 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 			</div>
 
 			<div>
-			<label class="agent-component-preset-step5-label">Version</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('version', 'Version'); ?></label>
 			<input type="text" name="version" class="agent-component-preset-step5-input" />
 			</div>
 
 			<div class="agent-component-preset-step5-field-full">
-			<label class="agent-component-preset-step5-label">Description</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('description', 'Description'); ?></label>
 			<textarea name="description" class="agent-component-preset-step5-textarea"></textarea>
 			</div>
 
 			<div class="agent-component-preset-step5-field-full">
-			<label class="agent-component-preset-step5-label">Configuration</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('configuration', 'Configuration'); ?></label>
 			<div id="agent-component-preset-step5-config-fields" class="agent-component-preset-step5-definition-fields"></div>
 			<textarea name="config_json" class="agent-component-preset-step5-hidden-contract-field" hidden></textarea>
 			</div>
 
 			<div class="agent-component-preset-step5-field-full">
-			<label class="agent-component-preset-step5-label">Docks</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('docks', 'Docks'); ?></label>
 			<div id="agent-component-preset-step5-dock-fields" class="agent-component-preset-step5-definition-fields"></div>
 			<textarea name="docks_json" class="agent-component-preset-step5-hidden-contract-field" hidden></textarea>
 			</div>
 
 			<div class="agent-component-preset-step5-field-full">
-			<label class="agent-component-preset-step5-label">Meta JSON</label>
+			<label class="agent-component-preset-step5-label"><?php echo $mbTextEsc('meta_json', 'Meta JSON'); ?></label>
 			<textarea name="meta_json" class="agent-component-preset-step5-textarea"></textarea>
 			</div>
 		</form>
@@ -629,6 +635,20 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 
 <script>
 	(function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 console.log('[AgentComponentPresetAdmin] script entered');
 
 const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -639,27 +659,27 @@ const SECRET_VALUE_MARKER = <?php echo json_encode($secretValueMarker, JSON_UNES
 const PRESET_OPTIONS = <?php echo json_encode($presetOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const OPEN_PRESET_ID = <?php echo json_encode($openPresetId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const RESOURCE_TYPE_FILTER_OPTIONS = [
-	{ value: '', label: 'All resource types' },
+	{ value: '', label: mbText('all_resource_types', 'All resource types') },
 	...RESOURCE_OPTIONS
 		.map((entry) => ({ value: String(entry && entry.id ? entry.id : ''), label: String(entry && entry.id ? entry.id : '') }))
 		.filter((entry) => entry.value !== '')
 ];
 const CATEGORY_FILTER_OPTIONS = [
-	{ value: '', label: 'All categories' },
+	{ value: '', label: mbText('all_categories', 'All categories') },
 	...<?php echo json_encode($categoryOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>.map((value) => ({ value, label: value }))
 ];
 const STATUS_FILTER_OPTIONS = [
-	{ value: '', label: 'All statuses' },
+	{ value: '', label: mbText('all_statuses', 'All statuses') },
 	...<?php echo json_encode($statusOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>.map((value) => ({ value, label: value }))
 ];
 const CAPABILITY_FILTER_OPTIONS = [
-	{ value: '', label: 'All capabilities' },
+	{ value: '', label: mbText('all_capabilities', 'All capabilities') },
 	...<?php echo json_encode($capabilityOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>.map((value) => ({ value, label: value }))
 ];
 const ENABLED_FILTER_OPTIONS = [
-	{ value: '', label: 'All states' },
-	{ value: '1', label: 'Enabled' },
-	{ value: '0', label: 'Disabled' }
+	{ value: '', label: mbText('all_states', 'All states') },
+	{ value: '1', label: mbText('enabled', 'Enabled') },
+	{ value: '0', label: mbText('disabled', 'Disabled') }
 ];
 const GRID_SELECTOR = '#agent-component-preset-step5-grid';
 const LOG_SELECTOR = '#agent-component-preset-step5-log';
@@ -714,7 +734,7 @@ function log(label, value = undefined) {
 	console.log('[AgentComponentPresetAdminStep5]', label, value === undefined ? '' : value);
 
 	if (logElement) {
-		logElement.textContent = (logElement.textContent === 'Status log will appear here.' ? '' : logElement.textContent + '\n') + message;
+		logElement.textContent = (logElement.textContent === mbText('status_log_will_appear_here', 'Status log will appear here.') ? '' : logElement.textContent + '\n') + message;
 	}
 }
 
@@ -727,7 +747,7 @@ function setLog(message) {
 
 	output.innerHTML = '';
 	const label = document.createElement('strong');
-	label.textContent = 'Last action:';
+	label.textContent = mbText('last_action', 'Last action:');
 	output.appendChild(label);
 	output.appendChild(document.createTextNode(' ' + message));
 }
@@ -837,7 +857,7 @@ function renderResourceInfo(form) {
 	const resource = getCurrentResource(form);
 
 	if (!resource) {
-		info.textContent = 'No resource type selected.';
+		info.textContent = mbText('no_resource_type_selected', 'No resource type selected.');
 		renderCapabilityInfo(form);
 		return;
 	}
@@ -849,7 +869,7 @@ function renderResourceInfo(form) {
 	const capabilities = Array.isArray(resource.capabilities) ? resource.capabilities : [];
 
 	info.innerHTML = '';
-	info.appendChild(document.createTextNode('Class: '));
+	info.appendChild(document.createTextNode(mbText('class_prefix', 'Class: ')));
 
 	const classCode = document.createElement('code');
 	classCode.textContent = getText(resource.class);
@@ -861,11 +881,11 @@ function renderResourceInfo(form) {
 	}
 
 	info.appendChild(document.createElement('br'));
-	info.appendChild(document.createTextNode('Capabilities: ' + (capabilities.length > 0 ? capabilities.join(', ') : '-')));
+	info.appendChild(document.createTextNode(mbText('capabilities_prefix', 'Capabilities: ') + (capabilities.length > 0 ? capabilities.join(', ') : '-')));
 	info.appendChild(document.createElement('br'));
-	info.appendChild(document.createTextNode('Config fields: ' + String(schemaProperties)));
+	info.appendChild(document.createTextNode(mbText('config_fields_prefix', 'Config fields: ') + String(schemaProperties)));
 	info.appendChild(document.createElement('br'));
-	info.appendChild(document.createTextNode('Dock definitions: ' + String(dockCount)));
+	info.appendChild(document.createTextNode(mbText('dock_definitions_prefix', 'Dock definitions: ') + String(dockCount)));
 
 	if (dockCount > 0) {
 		const dockNames = resource.docks
@@ -874,7 +894,7 @@ function renderResourceInfo(form) {
 
 		if (dockNames.length > 0) {
 			info.appendChild(document.createElement('br'));
-			info.appendChild(document.createTextNode('Docks: ' + dockNames.join(', ')));
+			info.appendChild(document.createTextNode(mbText('docks_prefix', 'Docks: ') + dockNames.join(', ')));
 		}
 	}
 
@@ -1063,7 +1083,7 @@ function createConfigControl(key, schema, value, mode, required = false, secretC
 		if (required || value === null || value === undefined || value === '') {
 			const empty = document.createElement('option');
 			empty.value = '';
-			empty.textContent = 'Select...';
+			empty.textContent = mbText('select', 'Select...');
 			control.appendChild(empty);
 		}
 		schema.enum.forEach((item) => {
@@ -1302,7 +1322,7 @@ function renderDockControls(form, docks, currentPresetId = '') {
 		if (!isMultiple) {
 			const empty = document.createElement('option');
 			empty.value = '';
-			empty.textContent = dock.required ? 'Select required dock target' : 'No dock target';
+			empty.textContent = dock.required ? mbText('select_required_dock_target', 'Select required dock target') : mbText('no_dock_target', 'No dock target');
 			select.appendChild(empty);
 		}
 
@@ -1318,7 +1338,7 @@ function renderDockControls(form, docks, currentPresetId = '') {
 			if (!Array.from(select.options).some((option) => option.value === value)) {
 				const option = document.createElement('option');
 				option.value = value;
-				option.textContent = 'Current value: ' + value;
+				option.textContent = mbText('current_value', 'Current value: {value}', {value});
 				option.dataset.generated = '1';
 				select.appendChild(option);
 			}
@@ -1466,7 +1486,7 @@ async function postJson(payload) {
 
 async function refreshGrid() {
 	if (!grid) {
-		setLog('Grid is not initialized; refresh skipped.');
+		setLog(mbText('grid_is_not_initialized_refresh_skipped', 'Grid is not initialized; refresh skipped.'));
 		return;
 	}
 
@@ -1498,7 +1518,7 @@ async function refreshGrid() {
 		}
 	}
 
-	setLog('Grid refresh is not available. Please refresh the page manually.');
+	setLog(mbText('grid_refresh_is_not_available_please_refresh_the_page_manually', 'Grid refresh is not available. Please refresh the page manually.'));
 }
 
 function renderPreset(value, row) {
@@ -1624,16 +1644,16 @@ function renderPresetDetail(context) {
 	const pre = document.createElement('pre');
 
 	left.appendChild(createElement('agent-component-preset-step5-detail-title', getText(record.label || record.preset_id)));
-	left.appendChild(createDetailRow('ID', record.preset_id || record.id));
-	left.appendChild(createDetailRow('Type', record.type));
-	left.appendChild(createDetailRow('Enabled', record.enabled ? 'yes' : 'no'));
-	left.appendChild(createDetailRow('Capabilities', record.capability_text));
-	left.appendChild(createDetailRow('Interfaces', getDisplayInterfaceText(record)));
-	left.appendChild(createDetailRow('Category', record.category));
-	left.appendChild(createDetailRow('Status', record.status));
-	left.appendChild(createDetailRow('Risk', record.risk));
-	left.appendChild(createDetailRow('Version', record.version));
-	left.appendChild(createDetailRow('Description', record.description));
+	left.appendChild(createDetailRow(mbText('id', 'ID'), record.preset_id || record.id));
+	left.appendChild(createDetailRow(mbText('type', 'Type'), record.type));
+	left.appendChild(createDetailRow(mbText('enabled', 'Enabled'), record.enabled ? 'yes' : 'no'));
+	left.appendChild(createDetailRow(mbText('capabilities', 'Capabilities'), record.capability_text));
+	left.appendChild(createDetailRow(mbText('interfaces', 'Interfaces'), getDisplayInterfaceText(record)));
+	left.appendChild(createDetailRow(mbText('category', 'Category'), record.category));
+	left.appendChild(createDetailRow(mbText('status', 'Status'), record.status));
+	left.appendChild(createDetailRow(mbText('risk', 'Risk'), record.risk));
+	left.appendChild(createDetailRow(mbText('version', 'Version'), record.version));
+	left.appendChild(createDetailRow(mbText('description', 'Description'), record.description));
 
 	right.appendChild(createElement('agent-component-preset-step5-detail-title', 'Record JSON'));
 	pre.className = 'agent-component-preset-step5-json';
@@ -1743,7 +1763,7 @@ function getCapabilityValues(form) {
 }
 
 function buildMetaJsonFromForm(form) {
-	const meta = parseEditorJsonField(form, 'meta_json', 'Meta JSON', true);
+	const meta = parseEditorJsonField(form, 'meta_json', mbText('meta_json', 'Meta JSON'), true);
 	const versionRaw = getFormFieldValue(form, 'version');
 
 	meta.description = getFormFieldValue(form, 'description');
@@ -1766,14 +1786,14 @@ function buildEditorButtons(isExisting = false) {
 	const buttons = [
 		{
 			key: 'copy-payload',
-			label: 'Copy payload',
+			label: mbText('copy_payload', 'Copy payload'),
 			async action() {
 				await copyEditorPayload();
 			}
 		},
 		{
 			key: 'save',
-			label: 'Save',
+			label: mbText('save', 'Save'),
 			primary: true,
 			busyLabel: 'Saving...',
 			async action() {
@@ -1785,7 +1805,7 @@ function buildEditorButtons(isExisting = false) {
 	if (isExisting) {
 		buttons.unshift({
 			key: 'delete-current-preset',
-			label: 'Delete',
+			label: mbText('delete', 'Delete'),
 			danger: true,
 			busyLabel: 'Deleting...',
 			async action() {
@@ -1809,15 +1829,16 @@ function initEditorDialog(modularDialogModule) {
 	const content = createEditorContent();
 
 	editorDialog = modularDialogModule.createStandardDialog({
+			strings: mbStringSet('cs_dialog_'),
 		id: 'agent-component-preset-step5-editor-dialog',
 		className: 'agent-component-preset-step5-dialog',
 		surfaceClassName: 'agent-component-preset-step5-dialog-surface',
 		size: 'large',
-		title: 'Preset editor',
+		title: mbText('preset_editor', 'Preset editor'),
 		content,
 		status: 'Save is enabled.',
 		closeButtonPlugin: {
-			label: 'Close'
+			label: mbText('close', 'Close')
 		},
 		statusPlugin: {
 			renderEmpty: false
@@ -1827,7 +1848,7 @@ function initEditorDialog(modularDialogModule) {
 
 	editorDialog.on('afterClose', () => {
 		currentEditorPresetId = '';
-		setLog('Closed editor.');
+		setLog(mbText('closed_editor', 'Closed editor.'));
 	});
 
 	editorDialog.init();
@@ -1839,7 +1860,7 @@ function openPresetEditor(record) {
 	const elements = getEditorElements();
 
 	if (!editorDialog || !elements.form) {
-		setLog('Preset editor is not available.');
+		setLog(mbText('preset_editor_is_not_available', 'Preset editor is not available.'));
 		return;
 	}
 
@@ -1861,7 +1882,7 @@ function openPresetEditor(record) {
 	setFormValue(form, 'description', record.description || '');
 	setFormValue(form, 'config_json', normalizeJsonObjectString(Object.prototype.hasOwnProperty.call(record, 'config') ? record.config : record.config_json, 'Config JSON'));
 	setFormValue(form, 'docks_json', normalizeJsonObjectString(Object.prototype.hasOwnProperty.call(record, 'docks') ? record.docks : record.docks_json, 'Docks JSON'));
-	setFormValue(form, 'meta_json', normalizeJsonObjectString(Object.prototype.hasOwnProperty.call(record, 'meta') ? record.meta : record.meta_json, 'Meta JSON'));
+	setFormValue(form, 'meta_json', normalizeJsonObjectString(Object.prototype.hasOwnProperty.call(record, 'meta') ? record.meta : record.meta_json, mbText('meta_json', 'Meta JSON')));
 
 	const enabled = form.elements.namedItem('enabled');
 	if (enabled) {
@@ -1887,10 +1908,10 @@ function openPresetEditor(record) {
 		}
 
 		setEditorStatus(getText(error && error.message, String(error)), 'error');
-		setLog('Editor render failed: ' + getText(error && error.message, String(error)));
+		setLog(mbText('editor_render_failed_prefix', 'Editor render failed: ') + getText(error && error.message, String(error)));
 	}
 
-	editorDialog.execute('setTitle', record.preset_id || record.id ? 'Edit preset' : 'Add preset');
+	editorDialog.execute('setTitle', record.preset_id || record.id ? mbText('edit_preset', 'Edit preset') : mbText('add_preset', 'Add preset'));
 	editorDialog.execute('setButtons', buildEditorButtons(currentEditorPresetId !== ''));
 
 	if (renderError) {
@@ -1915,7 +1936,7 @@ function openPresetEditor(record) {
 		}
 	}, 0);
 
-	setLog('Opened editor for ' + getText(record.preset_id || record.id, 'new preset'));
+	setLog(mbText('opened_editor_for_prefix', 'Opened editor for ') + getText(record.preset_id || record.id, 'new preset'));
 }
 
 function openNewPresetEditor() {
@@ -2057,7 +2078,7 @@ function buildEditorPayload(options = {}) {
 	if (settings.syncMeta) {
 		syncVisibleMetaFields(form);
 	} else {
-		parseEditorJsonField(form, 'meta_json', 'Meta JSON', true);
+		parseEditorJsonField(form, 'meta_json', mbText('meta_json', 'Meta JSON'), true);
 	}
 
 	if (settings.validateRequired) {
@@ -2088,7 +2109,7 @@ async function copyEditorPayload() {
 		const payload = buildEditorPayload({ validateRequired: false, syncMeta: true });
 		await copyText(stringifyJson(payload));
 		setEditorStatus('Payload copied. Visible meta fields were synchronized.', 'ok');
-		setLog('Copied editor payload for ' + getText(payload.id, 'new preset'));
+		setLog(mbText('copied_editor_payload_for_prefix', 'Copied editor payload for ') + getText(payload.id, 'new preset'));
 	} catch (error) {
 		setEditorStatus(error && error.message ? error.message : String(error), 'error');
 	}
@@ -2099,7 +2120,7 @@ async function saveEditorPayload() {
 		const payload = buildEditorPayload({ validateRequired: true, syncMeta: true });
 
 		setEditorStatus('Saving preset...', '');
-		setLog('Saving preset ' + getText(payload.id, 'new preset'));
+		setLog(mbText('saving_preset_prefix', 'Saving preset ') + getText(payload.id, 'new preset'));
 
 		const response = await postJson(payload);
 
@@ -2112,10 +2133,10 @@ async function saveEditorPayload() {
 		await refreshGrid();
 
 		const record = response.record || payload;
-		setLog('Saved preset ' + getText(record.preset_id || record.id || payload.id, payload.id) + '.');
+		setLog(mbText('saved_preset_prefix', 'Saved preset ') + getText(record.preset_id || record.id || payload.id, payload.id) + '.');
 	} catch (error) {
 		setEditorStatus(error && error.message ? error.message : String(error), 'error');
-		setLog('Save failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('save_failed_prefix', 'Save failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -2143,7 +2164,7 @@ async function deleteCurrentPresetFromEditor() {
 	const form = elements.form;
 
 	if (!form) {
-		setLog('Delete failed: preset editor form not found.');
+		setLog(mbText('delete_failed_preset_editor_form_not_found', 'Delete failed: preset editor form not found.'));
 		return;
 	}
 
@@ -2154,23 +2175,23 @@ async function deleteCurrentPresetFromEditor() {
 		return;
 	}
 
-	if (!window.confirm('Delete preset "' + id + '"?')) {
-		setLog('Delete cancelled for ' + id);
+	if (!window.confirm(mbText('delete_preset_confirm', 'Delete preset \"{id}\"?', {id}))) {
+		setLog(mbText('delete_cancelled_for_prefix', 'Delete cancelled for ') + id);
 		return;
 	}
 
 	try {
 		setEditorStatus('Deleting preset...', '');
-		setLog('Deleting preset ' + id);
+		setLog(mbText('deleting_preset_prefix', 'Deleting preset ') + id);
 
 		const response = await deletePresetById(id);
 
 		closePresetEditor();
 		await refreshGrid();
-		setLog('Deleted preset ' + getText(response.id || id, id) + '.');
+		setLog(mbText('deleted_preset_prefix', 'Deleted preset ') + getText(response.id || id, id) + '.');
 	} catch (error) {
 		setEditorStatus(error && error.message ? error.message : String(error), 'error');
-		setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('delete_failed_prefix', 'Delete failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -2182,30 +2203,30 @@ async function deletePresetFromRow(row) {
 			throw new Error('Missing preset id.');
 		}
 
-		if (!window.confirm('Delete preset "' + id + '"?')) {
-			setLog('Delete cancelled for ' + id);
+		if (!window.confirm(mbText('delete_preset_confirm', 'Delete preset \"{id}\"?', {id}))) {
+			setLog(mbText('delete_cancelled_for_prefix', 'Delete cancelled for ') + id);
 			return;
 		}
 
-		setLog('Deleting preset ' + id);
+		setLog(mbText('deleting_preset_prefix', 'Deleting preset ') + id);
 		const response = await deletePresetById(id);
-		setLog('Deleted preset ' + getText(response.id || id, id) + '. Updating grid...');
+		setLog(mbText('deleted_preset_prefix', 'Deleted preset ') + getText(response.id || id, id) + '. Updating grid...');
 		await refreshGrid();
-		setLog('Deleted preset ' + getText(response.id || id, id) + '.');
+		setLog(mbText('deleted_preset_prefix', 'Deleted preset ') + getText(response.id || id, id) + '.');
 	} catch (error) {
-		setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('delete_failed_prefix', 'Delete failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
 async function reloadPresetDefaults() {
 	try {
-		if (!window.confirm('Reload preset defaults from SettingsStore?')) {
-			setLog('Reload defaults cancelled.');
+		if (!window.confirm(mbText('reload_preset_defaults_from_settingsstore', 'Reload preset defaults from SettingsStore?'))) {
+			setLog(mbText('reload_defaults_cancelled', 'Reload defaults cancelled.'));
 			return;
 		}
 
-		setLog('Reloading preset defaults.');
-		setLog('Available resource options', RESOURCE_OPTIONS);
+		setLog(mbText('reloading_preset_defaults', 'Reloading preset defaults.'));
+		setLog(mbText('available_resource_options', 'Available resource options'), RESOURCE_OPTIONS);
 
 		const response = await postJson({
 			mode: 'reload'
@@ -2215,14 +2236,14 @@ async function reloadPresetDefaults() {
 			throw new Error(response && response.error ? response.error : 'Reload failed.');
 		}
 
-		setLog('Preset defaults reloaded.');
-		setLog('Reload response', response);
+		setLog(mbText('preset_defaults_reloaded', 'Preset defaults reloaded.'));
+		setLog(mbText('reload_response', 'Reload response'), response);
 
 		window.setTimeout(() => {
 			window.location.reload();
 		}, 500);
 	} catch (error) {
-		setLog('Reload defaults failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('reload_defaults_failed_prefix', 'Reload defaults failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -2233,35 +2254,35 @@ async function openEditorById(id) {
 	}
 
 	try {
-		setLog('Loading preset from direct link: ' + id);
+		setLog(mbText('loading_preset_from_direct_link_prefix', 'Loading preset from direct link: ') + id);
 		const record = await loadRemoteRecord({ preset_id: id });
 		openPresetEditor(record);
 	} catch (error) {
-		setLog('Could not open linked preset: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('could_not_open_linked_preset_prefix', 'Could not open linked preset: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
 async function openEditorFromRow(row) {
 	try {
-		setLog('Loading record for editor: ' + getText(getPresetIdFromRow(row)));
+		setLog(mbText('loading_record_for_editor_prefix', 'Loading record for editor: ') + getText(getPresetIdFromRow(row)));
 		const record = await loadRemoteRecord(row);
 		openPresetEditor(record);
 	} catch (error) {
-		setLog('Could not open editor: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('could_not_open_editor_prefix', 'Could not open editor: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
 async function openDuplicateEditorFromRow(row) {
 	try {
-		setLog('Loading record for duplicate: ' + getText(getPresetIdFromRow(row)));
+		setLog(mbText('loading_record_for_duplicate_prefix', 'Loading record for duplicate: ') + getText(getPresetIdFromRow(row)));
 		const record = await loadRemoteRecord(row);
 		const duplicate = createDuplicatePresetRecord(record);
 
 		openPresetEditor(duplicate);
 		setEditorStatus('Duplicate opened. Review the preset id, then save as a new preset.', 'ok');
-		setLog('Opened duplicate editor for ' + getText(record.preset_id || record.id));
+		setLog(mbText('opened_duplicate_editor_for_prefix', 'Opened duplicate editor for ') + getText(record.preset_id || record.id));
 	} catch (error) {
-		setLog('Could not duplicate preset: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('could_not_duplicate_preset_prefix', 'Could not duplicate preset: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -2306,13 +2327,13 @@ function createPresetActionsPlugin() {
 						const addButton = document.createElement('button');
 						addButton.type = 'button';
 						addButton.className = 'agent-component-preset-step5-button agent-component-preset-step5-button-primary';
-						addButton.textContent = 'Add preset';
+						addButton.textContent = mbText('add_preset', 'Add preset');
 						addButton.addEventListener('click', () => openNewPresetEditor());
 
 						const reloadButton = document.createElement('button');
 						reloadButton.type = 'button';
 						reloadButton.className = 'agent-component-preset-step5-button';
-						reloadButton.textContent = 'Reload defaults';
+						reloadButton.textContent = mbText('reload_defaults', 'Reload defaults');
 						reloadButton.addEventListener('click', () => reloadPresetDefaults());
 
 						wrapper.appendChild(addButton);
@@ -2407,6 +2428,7 @@ async function initGrid(modularGridModule) {
 	log('adapter created');
 
 	grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 		layout,
 		adapter,
 		dataMode: 'server',
@@ -2438,8 +2460,8 @@ async function initGrid(modularGridModule) {
 			search: {
 				zone: 'topLine',
 				order: 10,
-				label: 'Search',
-				placeholder: 'Search preset id, label or type'
+				label: mbText('search', 'Search'),
+				placeholder: mbText('search_preset_id_label_or_type', 'Search preset id, label or type')
 			},
 			filters: {
 				zone: 'topLine2',
@@ -2450,31 +2472,31 @@ async function initGrid(modularGridModule) {
 				fields: [
 					{
 						key: 'type',
-						label: 'Type',
+						label: mbText('type', 'Type'),
 						type: 'select',
 						options: RESOURCE_TYPE_FILTER_OPTIONS
 					},
 					{
 						key: 'capability',
-						label: 'Capability',
+						label: mbText('capability', 'Capability'),
 						type: 'select',
 						options: CAPABILITY_FILTER_OPTIONS
 					},
 					{
 						key: 'category',
-						label: 'Category',
+						label: mbText('category', 'Category'),
 						type: 'select',
 						options: CATEGORY_FILTER_OPTIONS
 					},
 					{
 						key: 'status',
-						label: 'Status',
+						label: mbText('status', 'Status'),
 						type: 'select',
 						options: STATUS_FILTER_OPTIONS
 					},
 					{
 						key: 'enabled',
-						label: 'State',
+						label: mbText('state', 'State'),
 						type: 'select',
 						options: ENABLED_FILTER_OPTIONS
 					}
@@ -2491,7 +2513,7 @@ async function initGrid(modularGridModule) {
 			reset: {
 				zone: 'topLine',
 				order: 20,
-				label: 'Reset',
+				label: mbText('reset', 'Reset'),
 				sections: ['query', 'filters', 'columns', 'detailView']
 			},
 			info: {
@@ -2506,7 +2528,7 @@ async function initGrid(modularGridModule) {
 					items: [
 						{
 							type: 'columnVisibility',
-							label: 'Columns',
+							label: mbText('columns', 'Columns'),
 							showReset: true,
 							resetLabel: 'Reset columns'
 						}
@@ -2515,21 +2537,21 @@ async function initGrid(modularGridModule) {
 				items: [
 					{
 						key: 'edit-preset',
-						label: 'Edit preset',
+						label: mbText('edit_preset', 'Edit preset'),
 						onClick(context) {
 							openEditorFromRow(context && context.row ? context.row : null);
 						}
 					},
 					{
 						key: 'duplicate-preset',
-						label: 'Duplicate preset',
+						label: mbText('duplicate_preset', 'Duplicate preset'),
 						onClick(context) {
 							openDuplicateEditorFromRow(context && context.row ? context.row : null);
 						}
 					},
 					{
 						key: 'delete-preset',
-						label: 'Delete preset',
+						label: mbText('delete_preset', 'Delete preset'),
 						onClick(context) {
 							deletePresetFromRow(context && context.row ? context.row : null);
 						}
@@ -2565,14 +2587,14 @@ async function initGrid(modularGridModule) {
 		columns: [
 			{
 				key: 'preset_id',
-				label: 'Preset',
+				label: mbText('preset', 'Preset'),
 				width: 300,
 				headerMenu: {
 					defaultSortKey: 'preset_id',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'preset_id', label: 'Preset ID' },
-						{ key: 'label', label: 'Label' }
+						{ key: 'preset_id', label: mbText('preset_id', 'Preset ID') },
+						{ key: 'label', label: mbText('label', 'Label') }
 					]
 				},
 				render(value, row) {
@@ -2581,14 +2603,14 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'type',
-				label: 'Type',
+				label: mbText('type', 'Type'),
 				width: 300,
 				headerMenu: {
 					defaultSortKey: 'type',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'type', label: 'Type' },
-						{ key: 'category', label: 'Category' }
+						{ key: 'type', label: mbText('type', 'Type') },
+						{ key: 'category', label: mbText('category', 'Category') }
 					]
 				},
 				render(value, row) {
@@ -2597,14 +2619,14 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'capability_text',
-				label: 'Capabilities',
+				label: mbText('capabilities', 'Capabilities'),
 				width: 240,
 				headerMenu: {
 					defaultSortKey: 'capability_text',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'capability_text', label: 'Capabilities' },
-						{ key: 'interface_text', label: 'Interfaces' }
+						{ key: 'capability_text', label: mbText('capabilities', 'Capabilities') },
+						{ key: 'interface_text', label: mbText('interfaces', 'Interfaces') }
 					]
 				},
 				render(value, row) {
@@ -2613,7 +2635,7 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'enabled_label',
-				label: 'Enabled',
+				label: mbText('enabled', 'Enabled'),
 				width: 120,
 				visible: true,
 				render(value) {
@@ -2622,25 +2644,25 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'status',
-				label: 'Status',
+				label: mbText('status', 'Status'),
 				width: 160,
 				headerMenu: {
 					defaultSortKey: 'status',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'status', label: 'Status' }
+						{ key: 'status', label: mbText('status', 'Status') }
 					]
 				}
 			},
 			{
 				key: 'category',
-				label: 'Category',
+				label: mbText('category', 'Category'),
 				width: 160,
 				visible: false
 			},
 			{
 				key: 'risk',
-				label: 'Risk',
+				label: mbText('risk', 'Risk'),
 				width: 220,
 				visible: false,
 				textDisplay: {
@@ -2651,7 +2673,7 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'description',
-				label: 'Description',
+				label: mbText('description', 'Description'),
 				width: 380,
 				visible: false,
 				textDisplay: {
@@ -2662,13 +2684,13 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'config_count',
-				label: 'Config',
+				label: mbText('config', 'Config'),
 				width: 110,
 				visible: false
 			},
 			{
 				key: 'dock_count',
-				label: 'Docks',
+				label: mbText('docks', 'Docks'),
 				width: 110,
 				visible: false
 			}
@@ -2687,12 +2709,12 @@ async function initGrid(modularGridModule) {
 
 	grid.on('detail:loaded', (event) => {
 		log('event detail:loaded', event);
-		setLog('Loaded detail for ' + getText(event && event.rowId));
+		setLog(mbText('loaded_detail_for_prefix', 'Loaded detail for ') + getText(event && event.rowId));
 	});
 
 	grid.on('detail:error', (event) => {
 		log('event detail:error', event);
-		setLog('Failed to load detail: ' + getText(event && event.error));
+		setLog(mbText('failed_to_load_detail_prefix', 'Failed to load detail: ') + getText(event && event.error));
 	});
 
 	log('grid.init start');
@@ -2703,7 +2725,7 @@ async function initGrid(modularGridModule) {
 		return;
 	}
 
-	setLog('Agent Component Preset Admin loaded. Column visibility and infinite scroll are enabled.');
+	setLog(mbText('agent_component_preset_admin_loaded_column_visibility_and_infinite_scroll_are_enabled', 'Agent Component Preset Admin loaded. Column visibility and infinite scroll are enabled.'));
 	if (OPEN_PRESET_ID !== '') {
 		await openEditorById(OPEN_PRESET_ID);
 	}
@@ -2725,16 +2747,16 @@ async function initGrid(modularGridModule) {
 	}
 
 	root.dataset.initialized = '1';
-	setStartupStatus('Loading ModularGrid module.');
+	setStartupStatus(mbText('loading_modulargrid_module', 'Loading ModularGrid module.'));
 
 	try {
 		const modularGridModule = await importFirst(MODULARGRID_URL, 'ModularGrid');
-		setStartupStatus('Initializing preset grid.');
+		setStartupStatus(mbText('initializing_preset_grid', 'Initializing preset grid.'));
 		await initGrid(modularGridModule);
 	} catch (error) {
 		const message = error && error.message ? error.message : String(error);
-		setStartupStatus('Agent Component Preset Admin could not be initialized.', message, true);
-		setLog('Initialization failed: ' + message);
+		setStartupStatus(mbText('agent_component_preset_admin_could_not_be_initialized', 'Agent Component Preset Admin could not be initialized.'), message, true);
+		setLog(mbText('initialization_failed_prefix', 'Initialization failed: ') + message);
 		console.error(error);
 	}
 })();

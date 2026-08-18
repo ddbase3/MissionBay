@@ -1,38 +1,44 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $service = (string)$this->_['service'];
 $instanceId = 'embedding_orchestrator_' . str_replace('.', '_', uniqid('', true));
 ?>
 
 <div id="<?php echo htmlspecialchars($instanceId, ENT_QUOTES); ?>" class="embedding-orchestrator-config">
-	<h3>Embedding Orchestrator</h3>
-	<p class="eoc-description">Select the reusable MissionBay resources used by the indexing flow. Collection names are managed separately through the Collections tab.</p>
+	<h3><?php echo $mbTextEsc('embedding_orchestrator', 'Embedding Orchestrator'); ?></h3>
+	<p class="eoc-description"><?php echo $mbTextEsc('select_the_reusable_missionbay_resources_used_by_the_indexing_flow_collection_names_are_managed_separately_thr', 'Select the reusable MissionBay resources used by the indexing flow. Collection names are managed separately through the Collections tab.'); ?></p>
 
-	<div class="eoc-status" data-role="status">Loading…</div>
+	<div class="eoc-status" data-role="status"><?php echo $mbTextEsc('loading', 'Loading...'); ?></div>
 
 	<div class="eoc-form">
 		<label>
-			<span>Embedding resource preset</span>
+			<span><?php echo $mbTextEsc('embedding_resource_preset', 'Embedding resource preset'); ?></span>
 			<select data-role="embedding-preset"></select>
 		</label>
 
 		<label>
-			<span>Vector-store resource preset</span>
+			<span><?php echo $mbTextEsc('vector_store_resource_preset', 'Vector-store resource preset'); ?></span>
 			<select data-role="vector-preset"></select>
 		</label>
 
 		<label>
-			<span>Collection key</span>
+			<span><?php echo $mbTextEsc('collection_key', 'Collection key'); ?></span>
 			<select data-role="collection-key"></select>
 		</label>
 
 		<div class="eoc-readonly">
-			<span>Backend collection</span>
-			<strong data-role="backend-collection">–</strong>
+			<span><?php echo $mbTextEsc('backend_collection', 'Backend collection'); ?></span>
+			<strong data-role="backend-collection">-</strong>
 		</div>
 	</div>
 
 	<div class="eoc-actions">
-		<button type="button" data-role="save">Save</button>
+		<button type="button" data-role="save"><?php echo $mbTextEsc('save', 'Save'); ?></button>
 	</div>
 </div>
 
@@ -63,6 +69,20 @@ $instanceId = 'embedding_orchestrator_' . str_replace('.', '_', uniqid('', true)
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const root = document.getElementById(<?php echo json_encode($instanceId); ?>);
 	const endpoint = <?php echo json_encode($service); ?>;
 	let collections = [];
@@ -90,7 +110,7 @@ $instanceId = 'embedding_orchestrator_' . str_replace('.', '_', uniqid('', true)
 	function updateBackend() {
 		const key = node('collection-key').value;
 		const row = collections.find((item) => item.key === key);
-		node('backend-collection').textContent = row ? row.backend_collection : '–';
+		node('backend-collection').textContent = row ? row.backend_collection : '-';
 	}
 	async function post(payload) {
 		const response = await fetch(endpoint, {
@@ -102,7 +122,7 @@ $instanceId = 'embedding_orchestrator_' . str_replace('.', '_', uniqid('', true)
 		return response.json();
 	}
 	async function load() {
-		status('Loading…');
+		status(mbText('loading', 'Loading...'));
 		try {
 			const data = await post({ action: 'bootstrap' });
 			if (!data.ok) throw new Error(data.error || 'Unable to load configuration.');
@@ -112,14 +132,14 @@ $instanceId = 'embedding_orchestrator_' . str_replace('.', '_', uniqid('', true)
 			fillSelect(node('vector-preset'), data.vector_store_presets || [], config.vector_store_preset || '', 'Select vector-store preset…');
 			fillSelect(node('collection-key'), collections, config.collection_key || '', collections.length ? 'Select collection…' : 'Configure a collection first…');
 			updateBackend();
-			status(config.embedding_preset && config.vector_store_preset && config.collection_key ? 'Configuration loaded.' : 'Not configured yet. Select all three values and save.');
+			status(config.embedding_preset && config.vector_store_preset && config.collection_key ? mbText('configuration_loaded', 'Configuration loaded.') : mbText('not_configured_yet_select_all_three_values_and_save', 'Not configured yet. Select all three values and save.'));
 		}
 		catch (error) {
 			status(error.message || String(error), 'error');
 		}
 	}
 	async function save() {
-		status('Saving…');
+		status(mbText('saving', 'Saving…'));
 		try {
 			const data = await post({
 				action: 'save',
@@ -128,7 +148,7 @@ $instanceId = 'embedding_orchestrator_' . str_replace('.', '_', uniqid('', true)
 				collection_key: node('collection-key').value
 			});
 			if (!data.ok) throw new Error(data.error || 'Unable to save configuration.');
-			status(data.message || 'Saved.', 'success');
+			status(data.message || mbText('saved', 'Saved.'), 'success');
 			updateBackend();
 		}
 		catch (error) {

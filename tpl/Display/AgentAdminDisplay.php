@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
         $resolve = $this->_['resolve'];
         $serviceUrl = (string)($this->_['service'] ?? '');
         $settingsGroup = (string)($this->_['settings_group'] ?? 'agent');
@@ -445,20 +451,20 @@
 </style>
 
 <div class="agent-admin-shell">
-        <h1>Agent Admin</h1>
+        <h1><?php echo $mbTextEsc('agent_admin', 'Agent Admin'); ?></h1>
         <p>
-                Manage configured agents and select their execution runtime. Worker timing policies use the same stored runtime selection. The editor stores records in SettingsStore group <code><?php echo $e($settingsGroup); ?></code>.
+                <?php echo $mbTextEsc('manage_configured_agents_and_select_their_execution_runtime_worker_timing_policies_use_the_same_stored_runtime', 'Manage configured agents and select their execution runtime. Worker timing policies use the same stored runtime selection. The editor stores records in SettingsStore group'); ?> <code><?php echo $e($settingsGroup); ?></code>.
         </p>
 
 
         <div class="agent-admin-grid">
                 <div id="agent-admin-grid" class="agent-admin-grid-shell">
-                        <div class="agent-admin-startup">Loading Agent Admin display...</div>
+                        <div class="agent-admin-startup"><?php echo $mbTextEsc('loading_agent_admin_display', 'Loading Agent Admin display...'); ?></div>
                 </div>
-                <div id="agent-admin-output" class="agent-admin-status"><strong>Last action:</strong> Waiting for initialization.</div>
+                <div id="agent-admin-output" class="agent-admin-status"><strong><?php echo $mbTextEsc('last_action', 'Last action:'); ?></strong> <?php echo $mbTextEsc('waiting_for_initialization', 'Waiting for initialization.'); ?></div>
                 <details class="agent-admin-log-details">
-                        <summary>Debug log</summary>
-                        <pre id="agent-admin-log" class="agent-admin-log">Status log will appear here.</pre>
+                        <summary><?php echo $mbTextEsc('debug_log', 'Debug log'); ?></summary>
+                        <pre id="agent-admin-log" class="agent-admin-log"><?php echo $mbTextEsc('status_log_will_appear_here', 'Status log will appear here.'); ?></pre>
                 </details>
         </div>
 </div>
@@ -469,9 +475,9 @@
                 <input type="hidden" name="old_id" />
                 <div class="agent-admin-form-header">
                         <div>
-                                <label class="agent-admin-label">Agent ID</label>
+                                <label class="agent-admin-label"><?php echo $mbTextEsc('agent_id', 'Agent ID'); ?></label>
                                 <input type="text" name="agent_id" class="agent-admin-input" />
-                                <p class="agent-admin-help">SettingsStore name inside the fixed group <code><?php echo $e($settingsGroup); ?></code>. Existing records keep their ID while editing.</p>
+                                <p class="agent-admin-help"><?php echo $mbTextEsc('settingsstore_name_inside_the_fixed_group', 'SettingsStore name inside the fixed group'); ?> <code><?php echo $e($settingsGroup); ?></code>. Existing records keep their ID while editing.</p>
                         </div>
                 </div>
 <?php include DIR_PLUGIN . 'MissionBay/tpl/Content/AgentFormFields.php'; ?>
@@ -480,18 +486,32 @@
 
 <div id="agent-admin-runner-content" class="agent-admin-runner-content" hidden>
         <input type="hidden" id="agent-admin-runner-id" />
-        <label class="agent-admin-label" for="agent-admin-runner-prompt">User prompt</label>
+        <label class="agent-admin-label" for="agent-admin-runner-prompt"><?php echo $mbTextEsc('user_prompt', 'User prompt'); ?></label>
         <textarea id="agent-admin-runner-prompt" class="agent-admin-run-prompt"></textarea>
-        <p class="agent-admin-help">The configured user prompt is loaded here and can be adjusted for this manual run.</p>
-        <pre id="agent-admin-runner-result" class="agent-admin-run-result">Result will appear here.</pre>
+        <p class="agent-admin-help"><?php echo $mbTextEsc('the_configured_user_prompt_is_loaded_here_and_can_be_adjusted_for_this_manual_run', 'The configured user prompt is loaded here and can be adjusted for this manual run.'); ?></p>
+        <pre id="agent-admin-runner-result" class="agent-admin-run-result"><?php echo $mbTextEsc('result_will_appear_here', 'Result will appear here.'); ?></pre>
         <details class="agent-admin-run-details">
-                <summary>Raw flow output</summary>
-                <pre id="agent-admin-runner-output" class="agent-admin-run-result">Raw output will appear here.</pre>
+                <summary><?php echo $mbTextEsc('raw_flow_output', 'Raw flow output'); ?></summary>
+                <pre id="agent-admin-runner-output" class="agent-admin-run-result"><?php echo $mbTextEsc('raw_output_will_appear_here', 'Raw output will appear here.'); ?></pre>
         </details>
 </div>
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
         const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
         const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
         const MODULAR_DIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -521,12 +541,12 @@
         let currentEditorAgentId = '';
 
         const ENABLED_FILTER_OPTIONS = [
-                { value: '', label: 'All states' },
-                { value: '1', label: 'Enabled' },
-                { value: '0', label: 'Disabled' }
+                { value: '', label: mbText('all_states', 'All states') },
+                { value: '1', label: mbText('enabled', 'Enabled') },
+                { value: '0', label: mbText('disabled', 'Disabled') }
         ];
 
-        const POLICY_FILTER_OPTIONS = [{ value: '', label: 'All policies' }].concat(
+        const POLICY_FILTER_OPTIONS = [{ value: '', label: mbText('all_policies', 'All policies') }].concat(
                 (POLICY_OPTIONS || []).map((option) => ({
                         value: String(option.id || ''),
                         label: String(option.label || option.id || '')
@@ -567,7 +587,7 @@
                 console.log('[AgentAdmin]', label, value === undefined ? '' : value);
 
                 if (logElement) {
-                        logElement.textContent = (logElement.textContent === 'Status log will appear here.' ? '' : logElement.textContent + '\n') + message;
+                        logElement.textContent = (logElement.textContent === mbText('status_log_will_appear_here', 'Status log will appear here.') ? '' : logElement.textContent + '\n') + message;
                 }
         }
 
@@ -580,7 +600,7 @@
 
                 output.innerHTML = '';
                 const label = document.createElement('strong');
-                label.textContent = 'Last action:';
+                label.textContent = mbText('last_action', 'Last action:');
                 output.appendChild(label);
                 output.appendChild(document.createTextNode(' ' + message));
         }
@@ -671,7 +691,7 @@
 
         async function refreshGrid() {
                 if (!grid) {
-                        setLog('Grid is not initialized; refresh skipped.');
+                        setLog(mbText('grid_is_not_initialized_refresh_skipped', 'Grid is not initialized; refresh skipped.'));
                         return;
                 }
 
@@ -703,7 +723,7 @@
                         }
                 }
 
-                setLog('Grid refresh is not available. Please refresh the page manually.');
+                setLog(mbText('grid_refresh_is_not_available_please_refresh_the_page_manually', 'Grid refresh is not available. Please refresh the page manually.'));
         }
 
         function createPill(text) {
@@ -831,20 +851,20 @@
                 const pre = document.createElement('pre');
 
                 left.appendChild(createElement('agent-admin-detail-title', getText(record.label || record.agent_id || record.id)));
-                left.appendChild(createDetailRow('ID', record.agent_id || record.id));
-                left.appendChild(createDetailRow('Label', record.label));
-                left.appendChild(createDetailRow('Enabled', record.enabled ? 'yes' : 'no'));
-                left.appendChild(createDetailRow('Policy', record.policy_label || record.policy));
-                left.appendChild(createDetailRow('Policy data', record.policy_data_text));
-                left.appendChild(createDetailRow('Agent runtime', record.agent_runtime));
-                left.appendChild(createDetailRow('Provider', record.agent_provider));
-                left.appendChild(createDetailRow('Model', record.agent_model));
-                left.appendChild(createDetailRow('Orchestrator profile', record.orchestrator_profile));
-                left.appendChild(createDetailRow('Tool profiles', record.tool_profile_text || 'none'));
-                left.appendChild(createDetailRow('Memory profile', record.memory_profile || 'none'));
-				left.appendChild(createDetailRow('Context profile', record.context_profile || 'none'));
-                left.appendChild(createDetailRow('Direct components', record.component_count));
-                left.appendChild(createDetailRow('User prompt', record.user_prompt_preview));
+                left.appendChild(createDetailRow(mbText('id', 'ID'), record.agent_id || record.id));
+                left.appendChild(createDetailRow(mbText('label', 'Label'), record.label));
+                left.appendChild(createDetailRow(mbText('enabled', 'Enabled'), record.enabled ? 'yes' : 'no'));
+                left.appendChild(createDetailRow(mbText('policy', 'Policy'), record.policy_label || record.policy));
+                left.appendChild(createDetailRow(mbText('policy_data', 'Policy data'), record.policy_data_text));
+                left.appendChild(createDetailRow(mbText('agent_runtime', 'Agent runtime'), record.agent_runtime));
+                left.appendChild(createDetailRow(mbText('provider', 'Provider'), record.agent_provider));
+                left.appendChild(createDetailRow(mbText('model', 'Model'), record.agent_model));
+                left.appendChild(createDetailRow(mbText('orchestrator_profile', 'Orchestrator profile'), record.orchestrator_profile));
+                left.appendChild(createDetailRow(mbText('tool_profiles', 'Tool profiles'), record.tool_profile_text || 'none'));
+                left.appendChild(createDetailRow(mbText('memory_profile', 'Memory profile'), record.memory_profile || 'none'));
+				left.appendChild(createDetailRow(mbText('context_profile', 'Context profile'), record.context_profile || 'none'));
+                left.appendChild(createDetailRow(mbText('direct_components', 'Direct components'), record.component_count));
+                left.appendChild(createDetailRow(mbText('user_prompt', 'User prompt'), record.user_prompt_preview));
 
                 right.appendChild(createElement('agent-admin-detail-title', 'Settings JSON'));
                 pre.className = 'agent-admin-json';
@@ -1255,7 +1275,7 @@
                 if (isExisting) {
                         buttons.push({
                                 key: 'delete-agent-current',
-                                label: 'Delete',
+                                label: mbText('delete', 'Delete'),
                                 danger: true,
                                 async action() {
                                         await deleteCurrentAgentFromEditor();
@@ -1266,19 +1286,19 @@
                 buttons.push(
                         {
                                 key: 'copy-payload',
-                                label: 'Copy payload',
+                                label: mbText('copy_payload', 'Copy payload'),
                                 async action() {
                                         await copyEditorPayload();
                                 }
                         },
                         {
                                 key: 'cancel',
-                                label: 'Cancel',
+                                label: mbText('cancel', 'Cancel'),
                                 action: 'close'
                         },
                         {
                                 key: 'save-agent',
-                                label: 'Save',
+                                label: mbText('save', 'Save'),
                                 primary: true,
                                 busyLabel: 'Saving...',
                                 async action() {
@@ -1308,15 +1328,16 @@
                 content.hidden = false;
 
                 editorDialog = modularDialogModule.createStandardDialog({
+			strings: mbStringSet('cs_dialog_'),
                         id: 'agent-admin-editor-dialog',
                         className: 'agent-admin-editor-dialog',
                         surfaceClassName: 'agent-admin-dialog-surface',
                         size: 'large',
-                        title: 'Agent editor',
+                        title: mbText('agent_editor', 'Agent editor'),
                         content,
                         status: '',
                         closeButtonPlugin: {
-                                label: 'Close'
+                                label: mbText('close', 'Close')
                         },
                         statusPlugin: {
                                 renderEmpty: true
@@ -1338,7 +1359,7 @@
                 const elements = getEditorElements();
 
                 if (!editorDialog || !elements.content || !elements.form) {
-                        setLog('Agent editor elements not found.');
+                        setLog(mbText('agent_editor_elements_not_found', 'Agent editor elements not found.'));
                         return;
                 }
 
@@ -1378,11 +1399,11 @@
 
                 updateAgentFormFallback(form, values);
 
-                editorDialog.execute('setTitle', oldId === '' ? 'Add agent' : 'Edit agent');
+                editorDialog.execute('setTitle', oldId === '' ? 'Add agent' : mbText('edit_agent', 'Edit agent'));
                 editorDialog.execute('setButtons', buildEditorButtons(oldId !== ''));
                 setEditorStatus(oldId === '' ? 'New agent. Enter an ID, then save.' : 'Editor opened. Save is enabled.', 'ok');
                 editorDialog.open({ source: 'agentEditor', agentId: currentId });
-                setLog('Opened editor for ' + getText(currentId, 'new agent'));
+                setLog(mbText('opened_editor_for_prefix', 'Opened editor for ') + getText(currentId, 'new agent'));
         }
 
         function openNewEditor() {
@@ -1403,16 +1424,16 @@
                 }
 
                 editorDialog.close({ source: 'agentEditor' });
-                setLog('Closed editor.');
+                setLog(mbText('closed_editor', 'Closed editor.'));
         }
 
         async function openEditorFromRow(row) {
                 try {
-                        setLog('Loading record for editor: ' + getText(getAgentIdFromRow(row)));
+                        setLog(mbText('loading_record_for_editor_prefix', 'Loading record for editor: ') + getText(getAgentIdFromRow(row)));
                         const record = await loadRemoteRecord(row);
                         updateEditorForm(record);
                 } catch (error) {
-                        setLog('Could not open editor: ' + getText(error && error.message ? error.message : error));
+                        setLog(mbText('could_not_open_editor_prefix', 'Could not open editor: ') + getText(error && error.message ? error.message : error));
                 }
         }
 
@@ -1446,15 +1467,16 @@
                 content.hidden = false;
 
                 runnerDialog = modularDialogModule.createStandardDialog({
+			strings: mbStringSet('cs_dialog_'),
                         id: 'agent-admin-runner-dialog',
                         className: 'agent-admin-runner-dialog',
                         surfaceClassName: 'agent-admin-runner-dialog-surface',
                         size: 'large',
-                        title: 'Run agent',
+                        title: mbText('run_agent', 'Run agent'),
                         content,
                         status: 'Ready.',
                         closeButtonPlugin: {
-                                label: 'Close'
+                                label: mbText('close', 'Close')
                         },
                         statusPlugin: {
                                 renderEmpty: true
@@ -1462,14 +1484,14 @@
                         buttons: [
                                 {
                                         key: 'close-runner',
-                                        label: 'Close',
+                                        label: mbText('close', 'Close'),
                                         action: 'close'
                                 },
                                 {
                                         key: 'run-agent',
-                                        label: 'Run agent',
+                                        label: mbText('run_agent', 'Run agent'),
                                         primary: true,
-                                        busyLabel: 'Running...',
+                                        busyLabel: mbText('running', 'Running...'),
                                         async action() {
                                                 await runAgentFromDialog();
                                         }
@@ -1487,7 +1509,7 @@
                 record = record && typeof record === 'object' ? record : {};
 
                 if (!runnerDialog || !elements.content || !elements.id || !elements.prompt || !elements.result) {
-                        setLog('Agent runner elements not found.');
+                        setLog(mbText('agent_runner_elements_not_found', 'Agent runner elements not found.'));
                         return;
                 }
 
@@ -1496,25 +1518,25 @@
 
                 elements.id.value = id;
                 elements.prompt.value = String(record.user_prompt || '');
-                elements.result.textContent = 'Result will appear here.';
+                elements.result.textContent = mbText('result_will_appear_here', 'Result will appear here.');
 
                 if (elements.output) {
-                        elements.output.textContent = 'Raw output will appear here.';
+                        elements.output.textContent = mbText('raw_output_will_appear_here', 'Raw output will appear here.');
                 }
 
                 runnerDialog.execute('setTitle', 'Run agent: ' + getText(label));
                 setRunnerStatus('Ready.', 'ok');
                 runnerDialog.open({ source: 'agentRunner', agentId: id });
-                setLog('Opened runner for ' + getText(id));
+                setLog(mbText('opened_runner_for_prefix', 'Opened runner for ') + getText(id));
         }
 
         async function openRunnerFromRow(row) {
                 try {
-                        setLog('Loading record for runner: ' + getText(getAgentIdFromRow(row)));
+                        setLog(mbText('loading_record_for_runner_prefix', 'Loading record for runner: ') + getText(getAgentIdFromRow(row)));
                         const record = await loadRemoteRecord(row);
                         updateRunnerForm(record);
                 } catch (error) {
-                        setLog('Could not open runner: ' + getText(error && error.message ? error.message : error));
+                        setLog(mbText('could_not_open_runner_prefix', 'Could not open runner: ') + getText(error && error.message ? error.message : error));
                 }
         }
 
@@ -1524,14 +1546,14 @@
                 }
 
                 runnerDialog.close({ source: 'agentRunner' });
-                setLog('Closed runner.');
+                setLog(mbText('closed_runner', 'Closed runner.'));
         }
 
         async function runAgentFromDialog() {
                 const elements = getRunnerElements();
 
                 if (!elements.id || !elements.prompt || !elements.result) {
-                        setLog('Run failed: agent runner elements not found.');
+                        setLog(mbText('run_failed_agent_runner_elements_not_found', 'Run failed: agent runner elements not found.'));
                         return;
                 }
 
@@ -1542,9 +1564,9 @@
                         return;
                 }
 
-                elements.result.textContent = 'Running...';
+                elements.result.textContent = mbText('running', 'Running...');
                 setRunnerStatus('Running agent...', '');
-                setLog('Running agent ' + id);
+                setLog(mbText('running_agent_prefix', 'Running agent ') + id);
 
                 try {
                         const response = await postJson({
@@ -1561,12 +1583,12 @@
                         if (!response.ok) {
                                 const message = String(response.result_text || response.flow_error || response.error || 'Run failed.');
                                 setRunnerStatus(message, 'error');
-                                setLog('Run failed for ' + id + ': ' + message);
+                                setLog(mbText('run_failed_for_prefix', 'Run failed for ') + id + ': ' + message);
                                 return;
                         }
 
                         setRunnerStatus('Agent response received.', 'ok');
-                        setLog('Agent response received for ' + id + '.');
+                        setLog(mbText('agent_response_received_for_prefix', 'Agent response received for ') + id + '.');
                 } catch (error) {
                         const message = getText(error && error.message ? error.message : error);
                         elements.result.textContent = message;
@@ -1576,7 +1598,7 @@
                         }
 
                         setRunnerStatus(message, 'error');
-                        setLog('Run failed: ' + message);
+                        setLog(mbText('run_failed_prefix', 'Run failed: ') + message);
                 }
         }
 
@@ -1700,7 +1722,7 @@
                         const payload = buildEditorPayloadPreview();
                         await copyText(stringifyJson(payload));
                         setEditorStatus('Payload copied.', 'ok');
-                        setLog('Copied editor payload for ' + getText(payload.agent_id, 'new agent'));
+                        setLog(mbText('copied_editor_payload_for_prefix', 'Copied editor payload for ') + getText(payload.agent_id, 'new agent'));
                 } catch (error) {
                         setEditorStatus(error && error.message ? error.message : String(error), 'error');
                 }
@@ -1724,7 +1746,7 @@
                         const formData = prepareConfigFormData(elements.form);
 
                         setEditorStatus('Saving agent...', '');
-                        setLog('Saving agent ' + id);
+                        setLog(mbText('saving_agent_prefix', 'Saving agent ') + id);
 
                         const response = await fetch(ENDPOINT_URL, {
                                 method: 'POST',
@@ -1749,10 +1771,10 @@
                         setEditorStatus('Agent saved. Updating grid...', 'ok');
                         closeEditor();
                         await refreshGrid();
-                        setLog('Saved agent ' + id + '.');
+                        setLog(mbText('saved_agent_prefix', 'Saved agent ') + id + '.');
                 } catch (error) {
                         setEditorStatus(error && error.message ? error.message : String(error), 'error');
-                        setLog('Save failed: ' + getText(error && error.message ? error.message : error));
+                        setLog(mbText('save_failed_prefix', 'Save failed: ') + getText(error && error.message ? error.message : error));
                 }
         }
 
@@ -1783,18 +1805,18 @@
                                 throw new Error('Missing agent id.');
                         }
 
-                        if (!window.confirm('Delete agent "' + id + '"?')) {
-                                setLog('Delete cancelled for ' + id);
+                        if (!window.confirm(mbText('delete_agent_confirm', 'Delete agent \"{id}\"?', {id}))) {
+                                setLog(mbText('delete_cancelled_for_prefix', 'Delete cancelled for ') + id);
                                 return;
                         }
 
-                        setLog('Deleting agent ' + id);
+                        setLog(mbText('deleting_agent_prefix', 'Deleting agent ') + id);
                         const response = await deleteAgentById(id);
-                        setLog('Deleted agent ' + getText(response.id || id, id) + '. Updating grid...');
+                        setLog(mbText('deleted_agent_prefix', 'Deleted agent ') + getText(response.id || id, id) + '. Updating grid...');
                         await refreshGrid();
-                        setLog('Deleted agent ' + getText(response.id || id, id) + '.');
+                        setLog(mbText('deleted_agent_prefix', 'Deleted agent ') + getText(response.id || id, id) + '.');
                 } catch (error) {
-                        setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
+                        setLog(mbText('delete_failed_prefix', 'Delete failed: ') + getText(error && error.message ? error.message : error));
                 }
         }
 
@@ -1807,7 +1829,7 @@
                         return;
                 }
 
-                if (!window.confirm('Delete agent "' + id + '"?')) {
+                if (!window.confirm(mbText('delete_agent_confirm', 'Delete agent \"{id}\"?', {id}))) {
                         setEditorStatus('Delete cancelled.', '');
                         return;
                 }
@@ -1817,7 +1839,7 @@
                         const response = await deleteAgentById(id);
                         closeEditor();
                         await refreshGrid();
-                        setLog('Deleted agent ' + getText(response.id || id, id) + '.');
+                        setLog(mbText('deleted_agent_prefix', 'Deleted agent ') + getText(response.id || id, id) + '.');
                 } catch (error) {
                         setEditorStatus(getText(error && error.message ? error.message : error), 'error');
                 }
@@ -1825,7 +1847,7 @@
 
         async function reloadStore() {
                 try {
-                        setLog('Reloading agent store.');
+                        setLog(mbText('reloading_agent_store', 'Reloading agent store.'));
                         const response = await postJson({
                                 mode: 'reload'
                         });
@@ -1835,9 +1857,9 @@
                         }
 
                         await refreshGrid();
-                        setLog('Agent store reloaded.');
+                        setLog(mbText('agent_store_reloaded', 'Agent store reloaded.'));
                 } catch (error) {
-                        setLog('Reload failed: ' + getText(error && error.message ? error.message : error));
+                        setLog(mbText('reload_failed_prefix', 'Reload failed: ') + getText(error && error.message ? error.message : error));
                 }
         }
 
@@ -1855,7 +1877,7 @@
                         if (policySelect) {
                                 policySelect.addEventListener('change', () => {
                                         renderAdminPolicyFields(elements.form, policySelect.value, {});
-                                        setLog('Timing policy form rendered for ' + getText(policySelect.value));
+                                        setLog(mbText('timing_policy_form_rendered_for_prefix', 'Timing policy form rendered for ') + getText(policySelect.value));
                                 });
                         }
                 }
@@ -1883,7 +1905,7 @@
 
                                                         const reloadButton = createButton(
                                                                 'agent-admin-button',
-                                                                'Reload'
+                                                                mbText('reload', 'Reload')
                                                         );
 
                                                         addButton.addEventListener('click', (event) => {
@@ -1979,6 +2001,7 @@
                 log('adapter created');
 
                 grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
                         layout,
                         adapter,
                         dataMode: 'server',
@@ -2010,8 +2033,8 @@
                                 search: {
                                         zone: 'topLine1',
                                         order: 10,
-                                        label: 'Search',
-                                        placeholder: 'Search agent id, policy or prompt'
+                                        label: mbText('search', 'Search'),
+                                        placeholder: mbText('search_agent_id_policy_or_prompt', 'Search agent id, policy or prompt')
                                 },
                                 filters: {
                                         zone: 'topLine2',
@@ -2022,21 +2045,21 @@
                                         fields: [
                                                 {
                                                         key: 'enabled',
-                                                        label: 'State',
+                                                        label: mbText('state', 'State'),
                                                         type: 'select',
                                                         options: ENABLED_FILTER_OPTIONS
                                                 },
                                                 {
                                                         key: 'policy',
-                                                        label: 'Policy',
+                                                        label: mbText('policy', 'Policy'),
                                                         type: 'select',
                                                         options: POLICY_FILTER_OPTIONS
                                                 },
                                                 {
                                                         key: 'model',
-                                                        label: 'Provider / model',
+                                                        label: mbText('provider_model', 'Provider / model'),
                                                         type: 'text',
-                                                        placeholder: 'Provider or model',
+                                                        placeholder: mbText('provider_or_model', 'Provider or model'),
                                                         width: 220
                                                 }
                                         ]
@@ -2052,7 +2075,7 @@
                                 reset: {
                                         zone: 'topLine1',
                                         order: 20,
-                                        label: 'Reset',
+                                        label: mbText('reset', 'Reset'),
                                         sections: ['query', 'filters', 'columns', 'detailView']
                                 },
                                 info: {
@@ -2067,7 +2090,7 @@
                                                 items: [
                                                         {
                                                                 type: 'columnVisibility',
-                                                                label: 'Columns',
+                                                                label: mbText('columns', 'Columns'),
                                                                 showReset: true,
                                                                 resetLabel: 'Reset columns'
                                                         }
@@ -2076,21 +2099,21 @@
                                         items: [
                                                 {
                                                         key: 'run-agent',
-                                                        label: 'Run agent',
+                                                        label: mbText('run_agent', 'Run agent'),
                                                         onClick(context) {
                                                                 openRunnerFromRow(context && context.row ? context.row : null);
                                                         }
                                                 },
                                                 {
                                                         key: 'edit-agent',
-                                                        label: 'Edit agent',
+                                                        label: mbText('edit_agent', 'Edit agent'),
                                                         onClick(context) {
                                                                 openEditorFromRow(context && context.row ? context.row : null);
                                                         }
                                                 },
                                                 {
                                                         key: 'delete-agent',
-                                                        label: 'Delete agent',
+                                                        label: mbText('delete_agent', 'Delete agent'),
                                                         onClick(context) {
                                                                 deleteAgentFromRow(context && context.row ? context.row : null);
                                                         }
@@ -2125,14 +2148,14 @@
                         columns: [
                                 {
                                         key: 'agent_id',
-                                        label: 'Agent',
+                                        label: mbText('agent', 'Agent'),
                                         width: 300,
                                         headerMenu: {
                                                 defaultSortKey: 'label',
                                                 defaultSortDirection: 'asc',
                                                 sortOptions: [
-                                                        { key: 'label', label: 'Label' },
-                                                        { key: 'agent_id', label: 'Agent ID' }
+                                                        { key: 'label', label: mbText('label', 'Label') },
+                                                        { key: 'agent_id', label: mbText('agent_id', 'Agent ID') }
                                                 ]
                                         },
                                         render(value, row) {
@@ -2141,7 +2164,7 @@
                                 },
                                 {
                                         key: 'policy_label',
-                                        label: 'Timing policy',
+                                        label: mbText('timing_policy', 'Timing policy'),
                                         width: 300,
                                         headerMenu: {
                                                 defaultSortKey: 'policy_label',
@@ -2153,7 +2176,7 @@
                                 },
                                 {
                                         key: 'agent_runtime',
-                                        label: 'Runtime',
+                                        label: mbText('runtime', 'Runtime'),
                                         width: 150,
                                         headerMenu: {
                                                 defaultSortKey: 'agent_runtime',
@@ -2165,7 +2188,7 @@
                                 },
                                 {
                                         key: 'agent_model',
-                                        label: 'Model',
+                                        label: mbText('model', 'Model'),
                                         width: 180,
                                         render(value) {
                                                 return renderPills(value);
@@ -2173,7 +2196,7 @@
                                 },
                                 {
                                         key: 'tool_profile_count',
-                                        label: 'Profiles',
+                                        label: mbText('profiles', 'Profiles'),
                                         width: 280,
                                         headerMenu: {
                                                 defaultSortKey: 'tool_profile_count',
@@ -2185,7 +2208,7 @@
                                 },
                                 {
                                         key: 'user_prompt_preview',
-                                        label: 'User prompt',
+                                        label: mbText('user_prompt', 'User prompt'),
                                         width: 420,
                                         render(value) {
                                                 return createElement('agent-admin-cell-sub', getText(value));
@@ -2207,19 +2230,19 @@
 
                         grid.on('detail:loaded', (event) => {
                                 log('event detail:loaded', event);
-                                setLog('Loaded detail for ' + getText(event && event.rowId));
+                                setLog(mbText('loaded_detail_for_prefix', 'Loaded detail for ') + getText(event && event.rowId));
                         });
 
                         grid.on('detail:error', (event) => {
                                 log('event detail:error', event);
-                                setLog('Failed to load detail: ' + getText(event && event.error));
+                                setLog(mbText('failed_to_load_detail_prefix', 'Failed to load detail: ') + getText(event && event.error));
                         });
                 }
 
                 log('grid.init start');
                 await grid.init();
                 log('grid.init finished');
-                setLog('Agent Admin loaded.');
+                setLog(mbText('agent_admin_loaded', 'Agent Admin loaded.'));
         }
 
         async function importFirst(url, moduleLabel) {
@@ -2272,7 +2295,7 @@
                 }
 
                 root.dataset.initialized = '1';
-                setStartupStatus('Loading ModularGrid module.');
+                setStartupStatus(mbText('loading_modulargrid_module', 'Loading ModularGrid module.'));
 
                 try {
                         if (!ENDPOINT_URL) {
@@ -2281,12 +2304,12 @@
 
                         const modularGridModule = await importFirst(MODULARGRID_URL, 'ModularGrid');
                         const modularDialogModule = await importFirst(MODULAR_DIALOG_URL, 'ModularDialog');
-                        setStartupStatus('Initializing agent grid.');
+                        setStartupStatus(mbText('initializing_agent_grid', 'Initializing agent grid.'));
                         await initGrid(modularGridModule, modularDialogModule);
                 } catch (error) {
                         const message = error && error.message ? error.message : String(error);
-                        setStartupStatus('Agent Admin could not be initialized.', message, true);
-                        setLog('Initialization failed: ' + message);
+                        setStartupStatus(mbText('agent_admin_could_not_be_initialized', 'Agent Admin could not be initialized.'), message, true);
+                        setLog(mbText('initialization_failed_prefix', 'Initialization failed: ') + message);
                         console.error(error);
                 }
         })();

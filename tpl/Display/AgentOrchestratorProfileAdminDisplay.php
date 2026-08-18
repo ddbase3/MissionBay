@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 $serviceUrl = (string)($this->_['service'] ?? '');
 $modeOptions = is_array($this->_['mode_options'] ?? null) ? $this->_['mode_options'] : [];
@@ -67,16 +73,16 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 </style>
 
 <div class="orchestrator-profile-shell">
-	<h1>Orchestrator Profiles</h1>
+	<h1><?php echo $mbTextEsc('orchestrator_profiles', 'Orchestrator Profiles'); ?></h1>
 	<p>
 		Configure safe orchestration modes, limits and optional stages. The core stage order is fixed by MissionBay and cannot be reordered in this UI.
 	</p>
 	<div class="orchestrator-profile-actions">
-		<button type="button" id="orchestrator-profile-add" class="orchestrator-profile-button orchestrator-profile-button-primary">Add custom profile</button>
-		<button type="button" id="orchestrator-profile-reload" class="orchestrator-profile-button">Reload</button>
+		<button type="button" id="orchestrator-profile-add" class="orchestrator-profile-button orchestrator-profile-button-primary"><?php echo $mbTextEsc('add_custom_profile', 'Add custom profile'); ?></button>
+		<button type="button" id="orchestrator-profile-reload" class="orchestrator-profile-button"><?php echo $mbTextEsc('reload', 'Reload'); ?></button>
 	</div>
-	<div id="orchestrator-profile-grid" class="orchestrator-profile-grid"><div class="orchestrator-profile-panel">Loading profiles...</div></div>
-	<div id="orchestrator-profile-status" class="orchestrator-profile-status"><strong>Last action:</strong> Waiting for initialization.</div>
+	<div id="orchestrator-profile-grid" class="orchestrator-profile-grid"><div class="orchestrator-profile-panel"><?php echo $mbTextEsc('loading_profiles', 'Loading profiles...'); ?></div></div>
+	<div id="orchestrator-profile-status" class="orchestrator-profile-status"><strong><?php echo $mbTextEsc('last_action', 'Last action:'); ?></strong> <?php echo $mbTextEsc('waiting_for_initialization', 'Waiting for initialization.'); ?></div>
 </div>
 
 <template id="orchestrator-profile-editor-template">
@@ -84,36 +90,36 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		<form id="orchestrator-profile-form" class="orchestrator-profile-form">
 			<input type="hidden" name="old_id" />
 			<div>
-				<label class="orchestrator-profile-label">Profile ID</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('profile_id', 'Profile ID'); ?></label>
 				<input type="text" name="id" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Label</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('label', 'Label'); ?></label>
 				<input type="text" name="label" class="orchestrator-profile-input" />
 			</div>
 			<div class="orchestrator-profile-field-full">
-				<label class="orchestrator-profile-label">Description</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('description', 'Description'); ?></label>
 				<textarea name="description" class="orchestrator-profile-input"></textarea>
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Mode</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('mode', 'Mode'); ?></label>
 				<select name="profile_mode" class="orchestrator-profile-select">
 <?php foreach($modeOptions as $option): ?>
 					<option value="<?php echo $e($option['id'] ?? ''); ?>"><?php echo $e($option['label'] ?? $option['id'] ?? ''); ?></option>
 <?php endforeach; ?>
 				</select>
-				<button type="button" class="orchestrator-profile-button" data-action="apply-mode-defaults" style="margin-top:6px">Apply mode defaults</button>
+				<button type="button" class="orchestrator-profile-button" data-action="apply-mode-defaults" style="margin-top:6px"><?php echo $mbTextEsc('apply_mode_defaults', 'Apply mode defaults'); ?></button>
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">State</label>
-				<label class="orchestrator-profile-check"><input type="checkbox" name="enabled" value="1" /><span><strong>Enabled</strong><span>Agents may select this profile.</span></span></label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('state', 'State'); ?></label>
+				<label class="orchestrator-profile-check"><input type="checkbox" name="enabled" value="1" /><span><strong><?php echo $mbTextEsc('enabled', 'Enabled'); ?></strong><span><?php echo $mbTextEsc('agents_may_select_this_profile', 'Agents may select this profile.'); ?></span></span></label>
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Maximum tool loops</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('maximum_tool_loops', 'Maximum tool loops'); ?></label>
 				<input type="number" name="max_tool_loops" min="1" max="100" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Model decision strategy</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('model_decision_strategy', 'Model decision strategy'); ?></label>
 				<select name="model_decision_strategy" class="orchestrator-profile-select">
 <?php foreach($modelDecisionStrategyOptions as $option): ?>
 					<option value="<?php echo $e($option['id'] ?? ''); ?>"><?php echo $e($option['label'] ?? $option['id'] ?? ''); ?></option>
@@ -122,54 +128,54 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				<div class="orchestrator-profile-hint" data-model-decision-hint></div>
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Decision confidence threshold</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('decision_confidence_threshold', 'Decision confidence threshold'); ?></label>
 				<input type="number" name="model_decision_confidence_threshold" min="0" max="1" step="0.05" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Deterministic candidate strategy</label>
-				<select name="selection_strategy" class="orchestrator-profile-select"><option value="hybrid">Hybrid ranking</option><option value="all">All allowed tools</option></select>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('deterministic_candidate_strategy', 'Deterministic candidate strategy'); ?></label>
+				<select name="selection_strategy" class="orchestrator-profile-select"><option value="hybrid"><?php echo $mbTextEsc('hybrid_ranking', 'Hybrid ranking'); ?></option><option value="all"><?php echo $mbTextEsc('all_allowed_tools', 'All allowed tools'); ?></option></select>
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">AI selection unit</label>
-				<select name="selection_unit" class="orchestrator-profile-select"><option value="function">Individual functions</option><option value="source">Complete tool sources</option></select>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('ai_selection_unit', 'AI selection unit'); ?></label>
+				<select name="selection_unit" class="orchestrator-profile-select"><option value="function"><?php echo $mbTextEsc('individual_functions', 'Individual functions'); ?></option><option value="source"><?php echo $mbTextEsc('complete_tool_sources', 'Complete tool sources'); ?></option></select>
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Maximum tools per model call</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('maximum_tools_per_model_call', 'Maximum tools per model call'); ?></label>
 				<input type="number" name="max_tools" min="1" max="512" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Maximum selected sources</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('maximum_selected_sources', 'Maximum selected sources'); ?></label>
 				<input type="number" name="max_sources" min="1" max="128" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Select-all threshold</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('select_all_threshold', 'Select-all threshold'); ?></label>
 				<input type="number" name="select_all_threshold" min="0" max="512" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Semantic candidate tools</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('semantic_candidate_tools', 'Semantic candidate tools'); ?></label>
 				<input type="number" name="semantic_candidate_tools" min="1" max="512" class="orchestrator-profile-input" />
 			</div>
 			<div>
-				<label class="orchestrator-profile-label">Semantic prompt character limit</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('semantic_prompt_character_limit', 'Semantic prompt character limit'); ?></label>
 				<input type="number" name="semantic_max_prompt_characters" min="8000" max="200000" class="orchestrator-profile-input" />
 			</div>
 			<div class="orchestrator-profile-field-full">
-				<label class="orchestrator-profile-label">Optional behavior and stages</label>
+				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('optional_behavior_and_stages', 'Optional behavior and stages'); ?></label>
 				<div class="orchestrator-profile-checks">
-					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_discovery" /><span><strong>Capability discovery</strong><span>Build the allowed run-specific capability pool from configured profiles and providers.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_selection" /><span><strong>Capability selection</strong><span>Preselect tools through deterministic filters and ranking without an additional AI call.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="ai_capability_selection" /><span><strong>AI capability selection</strong><span>Use the active chat model to rerank a bounded deterministic candidate pool. Mutually exclusive with Capability selection.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="context_compaction" /><span><strong>Context compaction</strong><span>Compact large contexts before the next tool observation/model step.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="semantic_verification" /><span><strong>Semantic verification</strong><span>Check whether enough information exists before producing the final answer.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="deliberate_planning" /><span><strong>Deliberate planning</strong><span>Build a concise typed execution plan from the normalized task without an extra model call or a separate planning stage.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="model_decision_repair_enabled" /><span><strong>Decision repair</strong><span>Allow one guarded AI retry when the first model decision emits neither a real tool call nor a reliable terminal decision.</span></span></label>
-					<label class="orchestrator-profile-check"><input type="checkbox" name="sticky" /><span><strong>Sticky selection</strong><span>Keep recently selected or used tools stable across adjacent loops.</span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_discovery" /><span><strong><?php echo $mbTextEsc('capability_discovery', 'Capability discovery'); ?></strong><span><?php echo $mbTextEsc('build_the_allowed_run_specific_capability_pool_from_configured_profiles_and_providers', 'Build the allowed run-specific capability pool from configured profiles and providers.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="capability_selection" /><span><strong><?php echo $mbTextEsc('capability_selection', 'Capability selection'); ?></strong><span><?php echo $mbTextEsc('preselect_tools_through_deterministic_filters_and_ranking_without_an_additional_ai_call', 'Preselect tools through deterministic filters and ranking without an additional AI call.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="ai_capability_selection" /><span><strong><?php echo $mbTextEsc('ai_capability_selection', 'AI capability selection'); ?></strong><span><?php echo $mbTextEsc('use_the_active_chat_model_to_rerank_a_bounded_deterministic_candidate_pool_mutually_exclusive_with_capability_', 'Use the active chat model to rerank a bounded deterministic candidate pool. Mutually exclusive with Capability selection.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="context_compaction" /><span><strong><?php echo $mbTextEsc('context_compaction', 'Context compaction'); ?></strong><span><?php echo $mbTextEsc('compact_large_contexts_before_the_next_tool_observation_model_step', 'Compact large contexts before the next tool observation/model step.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="semantic_verification" /><span><strong><?php echo $mbTextEsc('semantic_verification', 'Semantic verification'); ?></strong><span><?php echo $mbTextEsc('check_whether_enough_information_exists_before_producing_the_final_answer', 'Check whether enough information exists before producing the final answer.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="deliberate_planning" /><span><strong><?php echo $mbTextEsc('deliberate_planning', 'Deliberate planning'); ?></strong><span><?php echo $mbTextEsc('build_a_concise_typed_execution_plan_from_the_normalized_task_without_an_extra_model_call_or_a_separate_planni', 'Build a concise typed execution plan from the normalized task without an extra model call or a separate planning stage.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="model_decision_repair_enabled" /><span><strong><?php echo $mbTextEsc('decision_repair', 'Decision repair'); ?></strong><span><?php echo $mbTextEsc('allow_one_guarded_ai_retry_when_the_first_model_decision_emits_neither_a_real_tool_call_nor_a_reliable_termina', 'Allow one guarded AI retry when the first model decision emits neither a real tool call nor a reliable terminal decision.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="sticky" /><span><strong><?php echo $mbTextEsc('sticky_selection', 'Sticky selection'); ?></strong><span><?php echo $mbTextEsc('keep_recently_selected_or_used_tools_stable_across_adjacent_loops', 'Keep recently selected or used tools stable across adjacent loops.'); ?></span></span></label>
 				</div>
 			</div>
 			<div class="orchestrator-profile-field-full orchestrator-profile-core">
-				<div class="orchestrator-profile-core-title">Effective fixed pipeline</div>
+				<div class="orchestrator-profile-core-title"><?php echo $mbTextEsc('effective_fixed_pipeline', 'Effective fixed pipeline'); ?></div>
 				<div class="orchestrator-profile-pipeline" data-pipeline-preview></div>
-				<div class="orchestrator-profile-hint">Required stages are always active and ordered: model-decision → action-policy → tool-execution → tool-observation. Optional stages are inserted only at their canonical positions. Capability selection and AI capability selection are alternatives. Deliberate planning is a profile behavior inside the existing model-decision flow, not another model call or stage.</div>
+				<div class="orchestrator-profile-hint"><?php echo $mbTextEsc('required_stages_are_always_active_and_ordered_model_decision_action_policy_tool_execution_tool_observation_opt', 'Required stages are always active and ordered: model-decision → action-policy → tool-execution → tool-observation. Optional stages are inserted only at their canonical positions. Capability selection and AI capability selection are alternatives. Deliberate planning is a profile behavior inside the existing model-decision flow, not another model call or stage.'); ?></div>
 			</div>
 		</form>
 	</div>
@@ -177,6 +183,20 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const ENDPOINT = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const GRID_JS = <?php echo json_encode($gridJs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const DIALOG_JS = <?php echo json_encode($dialogJs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -196,7 +216,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	function text(value, fallback = '-') { return value === null || value === undefined || value === '' ? fallback : String(value); }
 	function setStatus(message) {
 		const node = document.querySelector('#orchestrator-profile-status');
-		if (node) node.innerHTML = '<strong>Last action:</strong> ' + text(message, '');
+		if (!node) return;
+		node.innerHTML = '';
+		const strong = document.createElement('strong');
+		strong.textContent = mbText('last_action', 'Last action:');
+		node.appendChild(strong);
+		node.appendChild(document.createTextNode(' ' + text(message, '')));
 	}
 	function element(className = '', value = '') {
 		const node = document.createElement('div');
@@ -377,24 +402,24 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			if (!response.ok) throw new Error(response.error || 'Save failed.');
 			dialog.close();
 			await refreshGrid();
-			setStatus('Saved ' + payload.id + '.');
+			setStatus(mbText('saved_prefix', 'Saved ') + payload.id + '.');
 		} catch (error) { setDialogStatus(error.message || String(error), 'error'); }
 	}
 	async function deleteRecord(id) {
-		if (!id || !window.confirm('Delete orchestrator profile "' + id + '"?')) return;
+		if (!id || !window.confirm(mbText('delete_orchestrator_profile_confirm', 'Delete orchestrator profile \"{id}\"?', {id}))) return;
 		const response = await postJson({ mode: 'delete', id });
 		if (!response.ok) throw new Error(response.error || 'Delete failed.');
 		await refreshGrid();
-		setStatus('Deleted ' + id + '.');
+		setStatus(mbText('deleted_prefix', 'Deleted ') + id + '.');
 	}
 	function dialogButtons(record) {
 		const buttons = [];
 		if (record && record.builtin) {
-			buttons.push({ key: 'duplicate', label: 'Duplicate as custom profile', primary: true, action() { openEditor(duplicateRecord(record)); } });
+			buttons.push({ key: 'duplicate', label: mbText('duplicate_as_custom_profile', 'Duplicate as custom profile'), primary: true, action() { openEditor(duplicateRecord(record)); } });
 			return buttons;
 		}
-		if (record && record.profile_id) buttons.push({ key: 'delete', label: 'Delete', danger: true, async action() { await deleteRecord(record.profile_id); dialog.close(); } });
-		buttons.push({ key: 'save', label: 'Save', primary: true, busyLabel: 'Saving...', async action() { await saveEditor(); } });
+		if (record && record.profile_id) buttons.push({ key: 'delete', label: mbText('delete', 'Delete'), danger: true, async action() { await deleteRecord(record.profile_id); dialog.close(); } });
+		buttons.push({ key: 'save', label: mbText('save', 'Save'), primary: true, busyLabel: 'Saving...', async action() { await saveEditor(); } });
 		return buttons;
 	}
 	function duplicateRecord(record) {
@@ -458,7 +483,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const wrapper = element('orchestrator-profile-detail');
 		const left = element('orchestrator-profile-card');
 		const right = element('orchestrator-profile-card');
-		[['ID', record.profile_id], ['Mode', record.mode], ['Model decision', record.model_decision_strategy], ['Decision repair', record.model_decision_repair_enabled ? 'yes' : 'no'], ['Decision threshold', record.model_decision_confidence_threshold], ['Kind', record.builtin_label], ['Enabled', record.enabled ? 'yes' : 'no'], ['Max loops', record.max_tool_loops], ['Pipeline', record.stage_text]].forEach(([key, value]) => {
+		[['ID', record.profile_id], [mbText('mode', 'Mode'), record.mode], [mbText('model_decision', 'Model decision'), record.model_decision_strategy], [mbText('decision_repair', 'Decision repair'), record.model_decision_repair_enabled ? 'yes' : 'no'], ['Decision threshold', record.model_decision_confidence_threshold], ['Kind', record.builtin_label], ['Enabled', record.enabled ? 'yes' : 'no'], ['Max loops', record.max_tool_loops], ['Pipeline', record.stage_text]].forEach(([key, value]) => {
 			const row = element('orchestrator-profile-detail-row'); row.appendChild(element('', key)); row.appendChild(element('', text(value))); left.appendChild(row);
 		});
 		const pre = document.createElement('pre'); pre.className = 'orchestrator-profile-json'; pre.textContent = record.profile_json || JSON.stringify(record, null, 2); right.appendChild(pre);
@@ -469,7 +494,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			const [gridModule, dialogModule] = await Promise.all([importModule(GRID_JS), importModule(DIALOG_JS)]);
 			const { AjaxAdapter, FiltersPlugin, HeaderMenuPlugin, InfoPlugin, InfiniteScrollPlugin, ModularGrid, ResetPlugin, RowActionsPlugin, RowDetailPlugin, SearchPlugin } = gridModule;
 			if (!AjaxAdapter || !ModularGrid || !dialogModule.createStandardDialog) throw new Error('Required ClientStack exports are missing.');
-			dialog = dialogModule.createStandardDialog({ id: 'orchestrator-profile-dialog', className: 'orchestrator-profile-dialog', surfaceClassName: 'orchestrator-profile-dialog-surface', size: 'large', title: 'Orchestrator profile', content: getEditorContent(), status: '', closeButtonPlugin: { label: 'Close' }, statusPlugin: { renderEmpty: false }, buttons: [] });
+			dialog = dialogModule.createStandardDialog({ strings: mbStringSet('cs_dialog_'), id: 'orchestrator-profile-dialog', className: 'orchestrator-profile-dialog', surfaceClassName: 'orchestrator-profile-dialog-surface', size: 'large', title: mbText('orchestrator_profile', 'Orchestrator profile'), content: getEditorContent(), status: '', closeButtonPlugin: { label: mbText('close', 'Close') }, statusPlugin: { renderEmpty: false }, buttons: [] });
 			dialog.init();
 			const form = getEditorForm();
 			form.addEventListener('change', (event) => {
@@ -485,41 +510,42 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				return { mode: 'page', page: request.page || 1, pageSize: request.pageSize || BATCH_SIZE, search: request.search || '', sort: [{ key: request.sortKey || 'profile_id', dir: request.sortDirection || 'asc' }], filters: state.filters || {} };
 			} });
 			grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 				layout: { type: 'stack', children: [{ type: 'zone', key: 'topLine', className: 'orchestrator-profile-panel' }, { type: 'zone', key: 'filterLine', className: 'orchestrator-profile-panel' }, { type: 'view', key: 'main', className: 'orchestrator-profile-main' }, { type: 'zone', key: 'status', className: 'orchestrator-profile-panel' }] },
 				adapter, dataMode: 'server', server: { searchDebounceMs: 220, watchStateKeys: ['query', 'filters'] }, features: { paging: false }, pageSize: BATCH_SIZE, sort: { key: 'profile_id', direction: 'asc' },
 				plugins: [SearchPlugin, FiltersPlugin, HeaderMenuPlugin, InfoPlugin, ResetPlugin, RowActionsPlugin, RowDetailPlugin, InfiniteScrollPlugin].filter(Boolean),
 				pluginOptions: {
-					search: { zone: 'topLine', order: 10, label: 'Search', placeholder: 'Search profiles and stages' },
+					search: { zone: 'topLine', order: 10, label: mbText('search', 'Search'), placeholder: mbText('search_profiles_and_stages', 'Search profiles and stages') },
 					filters: { zone: 'filterLine', order: 10, stateKey: 'filters', showClearButton: true, fields: [
-						{ key: 'mode', label: 'Mode', type: 'select', options: [{ value: '', label: 'All modes' }, { value: 'simple', label: 'Simple' }, { value: 'standard', label: 'Standard' }, { value: 'governed', label: 'Governed' }] },
-						{ key: 'enabled', label: 'State', type: 'select', options: [{ value: '', label: 'All states' }, { value: '1', label: 'Enabled' }, { value: '0', label: 'Disabled' }] }
+						{ key: 'mode', label: mbText('mode', 'Mode'), type: 'select', options: [{ value: '', label: mbText('all_modes', 'All modes') }, { value: 'simple', label: mbText('simple', 'Simple') }, { value: 'standard', label: mbText('standard', 'Standard') }, { value: 'governed', label: mbText('governed', 'Governed') }] },
+						{ key: 'enabled', label: mbText('state', 'State'), type: 'select', options: [{ value: '', label: mbText('all_states', 'All states') }, { value: '1', label: mbText('enabled', 'Enabled') }, { value: '0', label: mbText('disabled', 'Disabled') }] }
 					] },
-					reset: { zone: 'topLine', order: 20, label: 'Reset', sections: ['query', 'filters', 'detailView'] }, info: { zone: 'status', order: 10, displayMode: 'loaded' },
+					reset: { zone: 'topLine', order: 20, label: mbText('reset', 'Reset'), sections: ['query', 'filters', 'detailView'] }, info: { zone: 'status', order: 10, displayMode: 'loaded' },
 					rowActions: { items: [
-						{ key: 'edit', label: 'Open profile', onClick(context) { openRow(context.row).catch((error) => setStatus(error.message)); } },
-						{ key: 'duplicate', label: 'Duplicate profile', onClick(context) { loadRowRecord(context.row).then((record) => openEditor(duplicateRecord(record))).catch((error) => setStatus(error.message)); } },
-						{ key: 'delete', label: 'Delete custom profile', onClick(context) { deleteRecord(context.row.profile_id).catch((error) => setStatus(error.message)); } }
+						{ key: 'edit', label: mbText('open_profile', 'Open profile'), onClick(context) { openRow(context.row).catch((error) => setStatus(error.message)); } },
+						{ key: 'duplicate', label: mbText('duplicate_profile', 'Duplicate profile'), onClick(context) { loadRowRecord(context.row).then((record) => openEditor(duplicateRecord(record))).catch((error) => setStatus(error.message)); } },
+						{ key: 'delete', label: mbText('delete_custom_profile', 'Delete custom profile'), onClick(context) { deleteRecord(context.row.profile_id).catch((error) => setStatus(error.message)); } }
 					] },
 					rowDetail: { rowIdKey: 'profile_id', clearOnDataReload: true, asyncDetail: { load(context) { return postJson({ mode: 'record', id: context.row.profile_id }).then((response) => { if (!response.ok) throw new Error(response.error); return response.record; }); }, renderLoading() { return element('orchestrator-profile-panel', 'Loading profile...'); }, renderError(context) { return element('orchestrator-profile-panel orchestrator-profile-startup-error', text(context.error)); }, render(context) { return renderDetail(context); } } },
 					infiniteScroll: { threshold: 180, pageSize: BATCH_SIZE, containerSelector: '.mg-table-scroll' }
 				},
 				columns: [
-					{ key: 'profile_id', label: 'Profile', width: 290, render: renderProfile },
-					{ key: 'mode', label: 'Mode / state', width: 320, render: renderMode },
-					{ key: 'stage_text', label: 'Fixed pipeline', width: 610, render: renderPipeline },
-					{ key: 'max_tool_loops', label: 'Loops', width: 90 },
-					{ key: 'model_decision_strategy', label: 'Model decision', width: 250, render: renderModelDecision },
-					{ key: 'selection_strategy', label: 'Tool selection', width: 230, render: renderSelection }
+					{ key: 'profile_id', label: mbText('profile', 'Profile'), width: 290, render: renderProfile },
+					{ key: 'mode', label: mbText('mode_state', 'Mode / state'), width: 320, render: renderMode },
+					{ key: 'stage_text', label: mbText('fixed_pipeline', 'Fixed pipeline'), width: 610, render: renderPipeline },
+					{ key: 'max_tool_loops', label: mbText('loops', 'Loops'), width: 90 },
+					{ key: 'model_decision_strategy', label: mbText('model_decision', 'Model decision'), width: 250, render: renderModelDecision },
+					{ key: 'selection_strategy', label: mbText('tool_selection', 'Tool selection'), width: 230, render: renderSelection }
 				]
 			});
 			grid.init();
 			document.querySelector('#orchestrator-profile-add').addEventListener('click', () => { const record = { mode: 'standard', enabled: true }; openEditor(record); applyModeDefaults(getEditorForm()); });
-			document.querySelector('#orchestrator-profile-reload').addEventListener('click', async () => { const response = await postJson({ mode: 'reload' }); if (!response.ok) throw new Error(response.error); await refreshGrid(); setStatus('Profile store reloaded.'); });
-			setStatus('Initialized.');
+			document.querySelector('#orchestrator-profile-reload').addEventListener('click', async () => { const response = await postJson({ mode: 'reload' }); if (!response.ok) throw new Error(response.error); await refreshGrid(); setStatus(mbText('profile_store_reloaded', 'Profile store reloaded.')); });
+			setStatus(mbText('initialized', 'Initialized.'));
 		} catch (error) {
 			const root = document.querySelector(GRID_SELECTOR);
 			root.replaceChildren(element('orchestrator-profile-panel orchestrator-profile-startup-error', error.message || String(error)));
-			setStatus('Initialization failed.');
+			setStatus(mbText('initialization_failed', 'Initialization failed.'));
 		}
 	}
 	init();

@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 
 $modularGridCssUrl = (string) $resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
@@ -450,20 +456,34 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 </style>
 
 <div class="agent-info-topic-shell">
-	<h1>Agent info topic provider test</h1>
+	<h1><?php echo $mbTextEsc('agent_info_topic_provider_test', 'Agent info topic provider test'); ?></h1>
 	<p>
-		Registered <code>IAgentInfoTopicProvider</code> instances are listed below. Open a row to inspect metadata and call the selected provider directly with an <code>AgentInfoRequest</code>.
+		<?php echo $mbTextEsc('registered', 'Registered'); ?> <code>IAgentInfoTopicProvider</code> <?php echo $mbTextEsc('instances_are_listed_below_open_a_row_to_inspect_metadata_and_call_the_selected_provider_directly_with_an', 'instances are listed below. Open a row to inspect metadata and call the selected provider directly with an'); ?> <code>AgentInfoRequest</code>.
 	</p>
 
 	<div class="agent-info-topic-grid">
 		<div id="agent-info-topic-provider-test-grid">
-			<div class="agent-info-topic-startup">Loading Agent Info Topic Provider Test display...</div>
+			<div class="agent-info-topic-startup"><?php echo $mbTextEsc('loading_agent_info_topic_provider_test_display', 'Loading Agent Info Topic Provider Test display...'); ?></div>
 		</div>
-		<div id="agent-info-topic-provider-test-output" class="agent-info-topic-output"><strong>Last action:</strong> Waiting for initialization.</div>
+		<div id="agent-info-topic-provider-test-output" class="agent-info-topic-output"><strong><?php echo $mbTextEsc('last_action', 'Last action:'); ?></strong> <?php echo $mbTextEsc('waiting_for_initialization', 'Waiting for initialization.'); ?></div>
 	</div>
 </div>
 
 <script type="module">
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const ENDPOINT_URL = <?php echo json_encode((string) $this->_['service'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const MODULARGRID_URLS = [<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>];
 	const JSONLENS_URLS = [<?php echo json_encode($jsonLensJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>];
@@ -536,7 +556,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		logElement.innerHTML = '';
 		const label = document.createElement('strong');
-		label.textContent = 'Last action:';
+		label.textContent = mbText('last_action', 'Last action:');
 		logElement.appendChild(label);
 		logElement.appendChild(document.createTextNode(' ' + message));
 	}
@@ -578,7 +598,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 	async function loadJsonLensModule() {
 		if (!jsonLensModulePromise) {
 			jsonLensModulePromise = importFirst(JSONLENS_URLS, 'JsonLens').catch((error) => {
-				setLog('JsonLens could not be loaded. Falling back to plain JSON: ' + error.message);
+				setLog(mbText('jsonlens_could_not_be_loaded_falling_back_to_plain_json_prefix', 'JsonLens could not be loaded. Falling back to plain JSON: ') + error.message);
 				return null;
 			});
 		}
@@ -624,6 +644,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			].filter(Boolean);
 
 			const lens = module.JsonLens.createElement({
+					strings: mbStringSet('cs_json_'),
 				value,
 				mode: 'tree',
 				collapsedDepth: 2,
@@ -674,7 +695,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 	async function copySingleProvider(row) {
 		await copyText(stringifyJson(row || {}));
-		setLog('Copied provider row ' + getText(row && (row.id || row.provider_key || row.name)));
+		setLog(mbText('copied_provider_row_prefix', 'Copied provider row ') + getText(row && (row.id || row.provider_key || row.name)));
 	}
 
 	function getFullscreenTarget(source) {
@@ -689,7 +710,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const target = getFullscreenTarget(source);
 
 		if (!target) {
-			setLog('Fullscreen target not found.');
+			setLog(mbText('fullscreen_target_not_found', 'Fullscreen target not found.'));
 			return;
 		}
 
@@ -705,13 +726,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 			if (typeof target.requestFullscreen === 'function') {
 				await target.requestFullscreen();
-				setLog('Opened provider detail in fullscreen.');
+				setLog(mbText('opened_provider_detail_in_fullscreen', 'Opened provider detail in fullscreen.'));
 				return;
 			}
 
-			setLog('Fullscreen API is not supported by this browser.');
+			setLog(mbText('fullscreen_api_is_not_supported_by_this_browser', 'Fullscreen API is not supported by this browser.'));
 		} catch (error) {
-			setLog('Could not open fullscreen: ' + getText(error && error.message, String(error)));
+			setLog(mbText('could_not_open_fullscreen_prefix', 'Could not open fullscreen: ') + getText(error && error.message, String(error)));
 		}
 	}
 
@@ -720,7 +741,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		button.type = 'button';
 		button.className = 'agent-info-topic-button';
-		button.textContent = 'Fullscreen';
+		button.textContent = mbText('fullscreen', 'Fullscreen');
 		button.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -862,10 +883,10 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		const copyButton = document.createElement('button');
 		copyButton.type = 'button';
 		copyButton.className = 'agent-info-topic-button';
-		copyButton.textContent = 'Copy metadata';
+		copyButton.textContent = mbText('copy_metadata', 'Copy metadata');
 		copyButton.addEventListener('click', async () => {
 			await copyText(stringifyJson(payload.provider_meta || {}));
-			setLog('Copied provider metadata for ' + getText(payload.provider_key));
+			setLog(mbText('copied_provider_metadata_for_prefix', 'Copied provider metadata for ') + getText(payload.provider_key));
 		});
 		actions.appendChild(copyButton);
 
@@ -937,13 +958,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			const submit = document.createElement('button');
 			submit.type = 'submit';
 			submit.className = 'agent-info-topic-form-button agent-info-topic-form-button-primary';
-			submit.textContent = 'Run provider';
+			submit.textContent = mbText('run_provider', 'Run provider');
 			actions.appendChild(submit);
 
 			const copy = document.createElement('button');
 			copy.type = 'button';
 			copy.className = 'agent-info-topic-form-button';
-			copy.textContent = 'Copy request';
+			copy.textContent = mbText('copy_request', 'Copy request');
 			copy.addEventListener('click', () => this.copyRequest());
 			actions.appendChild(copy);
 
@@ -972,18 +993,18 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			strong.textContent = getText(this.payload.topic);
 			wrapper.appendChild(strong);
 			wrapper.appendChild(document.createElement('br'));
-			wrapper.appendChild(document.createTextNode('The call below invokes this provider directly through handle(new AgentInfoRequest(...)).'));
+			wrapper.appendChild(document.createTextNode(mbText('the_call_below_invokes_this_provider_directly_through_handle_new_agentinforequest', 'The call below invokes this provider directly through handle(new AgentInfoRequest(...)).')));
 
 			return wrapper;
 		}
 
 		createFields() {
 			const wrapper = createElement('agent-info-topic-form-fields');
-			wrapper.appendChild(this.createInputField('topic', 'Topic', this.payload.topic || '', 'Defaults to the provider topic. You may enter an alias to verify supports().'));
+			wrapper.appendChild(this.createInputField('topic', mbText('topic', 'Topic'), this.payload.topic || '', 'Defaults to the provider topic. You may enter an alias to verify supports().'));
 			wrapper.appendChild(this.createScopeField());
-			wrapper.appendChild(this.createInputField('limit', 'Limit', '5', 'Allowed range: 1-25.', 'number'));
+			wrapper.appendChild(this.createInputField('limit', mbText('limit', 'Limit'), '5', 'Allowed range: 1-25.', 'number'));
 			wrapper.appendChild(this.createInputField('offset', 'Offset', '0', 'Pagination offset for list-like responses.', 'number'));
-			wrapper.appendChild(this.createInputField('query', 'Query', '', 'Free text, id, ref_id, obj_id, login, email or provider-specific test input.', 'textarea'));
+			wrapper.appendChild(this.createInputField('query', mbText('query', 'Query'), '', 'Free text, id, ref_id, obj_id, login, email or provider-specific test input.', 'textarea'));
 
 			return wrapper;
 		}
@@ -1039,7 +1060,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			const label = document.createElement('label');
 			label.className = 'agent-info-topic-form-label';
 			label.htmlFor = id;
-			label.textContent = 'Scope';
+			label.textContent = mbText('scope', 'Scope');
 			const select = document.createElement('select');
 			select.id = id;
 			select.name = 'scope';
@@ -1125,7 +1146,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		async copyRequest() {
 			try {
 				await copyText(stringifyJson(this.readRequest()));
-				this.setStatus('Request copied.', 'ok');
+				this.setStatus(mbText('request_copied', 'Request copied.'), 'ok');
 			} catch (error) {
 				this.setStatus(error && error.message ? error.message : String(error), 'error');
 			}
@@ -1135,8 +1156,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			const request = this.readRequest();
 
 			this.setBusy(true);
-			this.setStatus('Running provider...', '');
-			setLog('Running ' + getText(this.payload.provider_key) + ' with scope ' + request.scope);
+			this.setStatus(mbText('running_provider', 'Running provider...'), '');
+			setLog(mbText('running_prefix', 'Running ') + getText(this.payload.provider_key) + ' with scope ' + request.scope);
 
 			try {
 				const response = await postJson({
@@ -1153,8 +1174,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					this.resultRoot.replaceChildren(createJsonValue(response));
 				}
 
-				this.setStatus(response && response.ok ? 'Provider executed.' : 'Provider returned an error result.', response && response.ok ? 'ok' : 'error');
-				setLog('Executed ' + getText(this.payload.provider_key) + ' with scope ' + request.scope);
+				this.setStatus(response && response.ok ? mbText('provider_executed', 'Provider executed.') : mbText('provider_returned_an_error_result', 'Provider returned an error result.'), response && response.ok ? 'ok' : 'error');
+				setLog(mbText('executed_prefix', 'Executed ') + getText(this.payload.provider_key) + ' with scope ' + request.scope);
 			} catch (error) {
 				const result = {
 					ok: false,
@@ -1166,7 +1187,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				}
 
 				this.setStatus(result.error, 'error');
-				setLog('Failed to execute ' + getText(this.payload.provider_key) + ': ' + result.error);
+				setLog(mbText('failed_to_execute_prefix', 'Failed to execute ') + getText(this.payload.provider_key) + ': ' + result.error);
 			} finally {
 				this.setBusy(false);
 			}
@@ -1219,6 +1240,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 
 		const grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 			layout,
 			adapter,
 			dataMode: 'server',
@@ -1248,8 +1270,8 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				search: {
 					zone: 'topLine',
 					order: 10,
-					label: 'Search',
-					placeholder: 'Search topic, provider, alias or class'
+					label: mbText('search', 'Search'),
+					placeholder: mbText('search_topic_provider_alias_or_class', 'Search topic, provider, alias or class')
 				},
 				headerMenu: {
 					showSortActions: true,
@@ -1262,7 +1284,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				reset: {
 					zone: 'topLine',
 					order: 20,
-					label: 'Reset',
+					label: mbText('reset', 'Reset'),
 					sections: ['query', 'columns', 'detailView']
 				},
 				info: {
@@ -1277,7 +1299,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						items: [
 							{
 								type: 'columnVisibility',
-								label: 'Columns',
+								label: mbText('columns', 'Columns'),
 								showReset: true,
 								resetLabel: 'Reset columns'
 							}
@@ -1286,7 +1308,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 					items: [
 						{
 							key: 'copy-provider-row',
-							label: 'Copy to clipboard',
+							label: mbText('copy_to_clipboard', 'Copy to clipboard'),
 							onClick(context) {
 								copySingleProvider(context && context.row ? context.row : null);
 							}
@@ -1320,16 +1342,16 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 			columns: [
 				{
 					key: 'title',
-					label: 'Provider',
+					label: mbText('provider', 'Provider'),
 					width: 320,
 					headerMenu: {
 						defaultSortKey: 'title',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'title', label: 'Provider title' },
-							{ key: 'name', label: 'Provider name' },
-							{ key: 'topic', label: 'Topic' },
-							{ key: 'priority', label: 'Priority' }
+							{ key: 'title', label: mbText('provider_title', 'Provider title') },
+							{ key: 'name', label: mbText('provider_name', 'Provider name') },
+							{ key: 'topic', label: mbText('topic', 'Topic') },
+							{ key: 'priority', label: mbText('priority', 'Priority') }
 						]
 					},
 					render(value, row) {
@@ -1338,13 +1360,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'topic',
-					label: 'Topic',
+					label: mbText('topic', 'Topic'),
 					width: 220,
 					headerMenu: {
 						defaultSortKey: 'topic',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'topic', label: 'Topic' }
+							{ key: 'topic', label: mbText('topic', 'Topic') }
 						]
 					},
 					render(value, row) {
@@ -1353,13 +1375,13 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'priority',
-					label: 'Priority',
+					label: mbText('priority', 'Priority'),
 					width: 120,
 					headerMenu: {
 						defaultSortKey: 'priority',
 						defaultSortDirection: 'desc',
 						sortOptions: [
-							{ key: 'priority', label: 'Priority' }
+							{ key: 'priority', label: mbText('priority', 'Priority') }
 						]
 					},
 					render(value) {
@@ -1368,15 +1390,15 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'aliases',
-					label: 'Aliases',
+					label: mbText('aliases', 'Aliases'),
 					width: 320,
 					visible: true,
 					headerMenu: {
 						defaultSortKey: 'aliases',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'aliases', label: 'Aliases' },
-							{ key: 'alias_count', label: 'Alias count' }
+							{ key: 'aliases', label: mbText('aliases', 'Aliases') },
+							{ key: 'alias_count', label: mbText('alias_count', 'Alias count') }
 						]
 					},
 					render(value) {
@@ -1385,7 +1407,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'class',
-					label: 'Class',
+					label: mbText('class', 'Class'),
 					width: 520,
 					textDisplay: {
 						strategy: 'clamp',
@@ -1396,7 +1418,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortKey: 'class',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'class', label: 'Class' }
+							{ key: 'class', label: mbText('class', 'Class') }
 						]
 					},
 					render(value, row) {
@@ -1405,7 +1427,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 				},
 				{
 					key: 'description',
-					label: 'Description',
+					label: mbText('description', 'Description'),
 					width: 440,
 					visible: false,
 					textDisplay: {
@@ -1417,7 +1439,7 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 						defaultSortKey: 'description',
 						defaultSortDirection: 'asc',
 						sortOptions: [
-							{ key: 'description', label: 'Description' }
+							{ key: 'description', label: mbText('description', 'Description') }
 						]
 					}
 				}
@@ -1425,24 +1447,24 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 		});
 
 		grid.on('data:appended', ({ appendedCount, totalLoaded }) => {
-			setLog('Loaded ' + String(appendedCount) + ' more providers. ' + String(totalLoaded) + ' providers are currently loaded.');
+			setLog(mbText('loaded_prefix', 'Loaded ') + String(appendedCount) + ' more providers. ' + String(totalLoaded) + ' providers are currently loaded.');
 		});
 
 		grid.on('detail:loaded', (event) => {
 			const detailRowId = event && typeof event === 'object' ? event.rowId : null;
 
-			setLog('Loaded detail for ' + getText(detailRowId));
+			setLog(mbText('loaded_detail_for_prefix', 'Loaded detail for ') + getText(detailRowId));
 		});
 
 		grid.on('detail:error', (event) => {
 			const detailRowId = event && typeof event === 'object' ? event.rowId : null;
 			const detailError = event && typeof event === 'object' ? event.error : null;
 
-			setLog('Failed to load detail for ' + getText(detailRowId) + ': ' + getText(detailError));
+			setLog(mbText('failed_to_load_detail_for_prefix', 'Failed to load detail for ') + getText(detailRowId) + ': ' + getText(detailError));
 		});
 
 		await grid.init();
-		setLog('Initial batch loaded. Open a row to test a topic provider.');
+		setLog(mbText('initial_batch_loaded_open_a_row_to_test_a_topic_provider', 'Initial batch loaded. Open a row to test a topic provider.'));
 	}
 
 	(async function() {
@@ -1457,12 +1479,12 @@ $jsonLensJsUrl = (string) $resolve('plugin/ClientStack/assets/jsonlens/index.js'
 
 		try {
 			const modularGridModule = await importFirst(MODULARGRID_URLS, 'ModularGrid');
-			setStartupStatus('Initializing grid...');
+			setStartupStatus(mbText('initializing_grid', 'Initializing grid...'));
 			await initGrid(modularGridModule);
 		} catch (error) {
 			const message = error && error.message ? error.message : String(error);
-			setStartupStatus('Agent Info Topic Provider Test display could not be initialized.', message, true);
-			setLog('Initialization failed: ' + message);
+			setStartupStatus(mbText('agent_info_topic_provider_test_display_could_not_be_initialized', 'Agent Info Topic Provider Test display could not be initialized.'), message, true);
+			setLog(mbText('initialization_failed_prefix', 'Initialization failed: ') + message);
 			console.error(error);
 		}
 	})();

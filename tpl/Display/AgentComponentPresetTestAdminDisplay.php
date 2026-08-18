@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 $modularGridCssUrl = (string)$resolve('plugin/ClientStack/assets/modulargrid/styles/modulargrid.css');
 $modularGridJsUrl = (string)$resolve('plugin/ClientStack/assets/modulargrid/index.js');
@@ -624,20 +630,34 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 </style>
 
 <div class="agent-preset-test-shell">
-	<h1>Agent Component Preset Tests</h1>
+	<h1><?php echo $mbTextEsc('agent_component_preset_tests', 'Agent Component Preset Tests'); ?></h1>
 	<p>
 		Stored component presets are materialized with their configured resource type and recursive dock dependencies. Tool calls use the normal approval, resume, mutation commit-guard, audit, and contract-validation path. Context contributors and conversation memories can be tested from the same preset detail.
 	</p>
 
 	<div class="agent-preset-grid">
 		<div id="agent-component-preset-test-grid">
-			<div class="agent-preset-startup">Loading Agent Component Preset Tests...</div>
+			<div class="agent-preset-startup"><?php echo $mbTextEsc('loading_agent_component_preset_tests', 'Loading Agent Component Preset Tests...'); ?></div>
 		</div>
-		<div id="agent-component-preset-test-output" class="agent-preset-output"><strong>Last action:</strong> Waiting for initialization.</div>
+		<div id="agent-component-preset-test-output" class="agent-preset-output"><strong><?php echo $mbTextEsc('last_action', 'Last action:'); ?></strong> <?php echo $mbTextEsc('waiting_for_initialization', 'Waiting for initialization.'); ?></div>
 	</div>
 </div>
 
 <script type="module">
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const ENDPOINT_URL = <?php echo json_encode((string)$this->_['service'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const MEMORY_TEST_NODE_PREFIX = <?php echo json_encode((string)$this->_['memory_test_node_prefix']); ?>;
 	const MODULARGRID_URLS = [<?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>];
@@ -689,7 +709,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		if (!target) return;
 		target.replaceChildren();
 		const label = document.createElement('strong');
-		label.textContent = 'Last action:';
+		label.textContent = mbText('last_action', 'Last action:');
 		target.appendChild(label);
 		target.appendChild(document.createTextNode(' ' + message));
 	}
@@ -772,6 +792,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 					? JSON.parse(value)
 					: value;
 				const lens = module.JsonLens.createElement({
+					strings: mbStringSet('cs_json_'),
 					value: parsed,
 					mode: 'tree',
 					collapsedDepth: 3,
@@ -833,7 +854,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		const target = getFullscreenTarget(source);
 
 		if (!target) {
-			setLog('Fullscreen target not found.');
+			setLog(mbText('fullscreen_target_not_found', 'Fullscreen target not found.'));
 			return;
 		}
 
@@ -849,18 +870,18 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 
 			if (typeof target.requestFullscreen === 'function') {
 				await target.requestFullscreen();
-				setLog('Opened preset test detail in fullscreen.');
+				setLog(mbText('opened_preset_test_detail_in_fullscreen', 'Opened preset test detail in fullscreen.'));
 				return;
 			}
 
-			setLog('Fullscreen API is not supported by this browser.');
+			setLog(mbText('fullscreen_api_is_not_supported_by_this_browser', 'Fullscreen API is not supported by this browser.'));
 		} catch (error) {
-			setLog('Could not open fullscreen: ' + getText(error && error.message, String(error)));
+			setLog(mbText('could_not_open_fullscreen_prefix', 'Could not open fullscreen: ') + getText(error && error.message, String(error)));
 		}
 	}
 
 	function createFullscreenButton() {
-		const button = createButton('Fullscreen');
+		const button = createButton(mbText('fullscreen', 'Fullscreen'));
 		button.addEventListener('click', (event) => {
 			event.preventDefault();
 			event.stopPropagation();
@@ -1127,7 +1148,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 			control.type = 'checkbox';
 			control.checked = Boolean(value);
 			wrapper.appendChild(control);
-			wrapper.appendChild(document.createTextNode('Enabled'));
+			wrapper.appendChild(document.createTextNode(mbText('enabled', 'Enabled')));
 			field.appendChild(wrapper);
 			readValue = () => control.checked;
 			writeValue = (next) => { control.checked = Boolean(next); };
@@ -1427,7 +1448,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		const advanced = document.createElement('details');
 		advanced.className = 'agent-preset-advanced';
 		const advancedSummary = document.createElement('summary');
-		advancedSummary.textContent = 'Advanced arguments JSON';
+		advancedSummary.textContent = mbText('advanced_arguments_json', 'Advanced arguments JSON');
 		advanced.appendChild(advancedSummary);
 		const advancedBody = createElement('agent-preset-advanced-body');
 		advancedBody.appendChild(createField('Arguments JSON', argsEditor, true, 'The generated form synchronizes into this object. Manual edits are used for execution; click “Apply JSON to form” to update the visible fields.'));
@@ -1454,7 +1475,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 			try {
 				const args = parseObjectJson(argsEditor.value, 'Arguments');
 				if (argumentController) argumentController.apply(args);
-				status.textContent = 'JSON arguments applied to the generated form.';
+				status.textContent = mbText('json_arguments_applied_to_the_generated_form', 'JSON arguments applied to the generated form.');
 				status.className = 'agent-preset-status agent-preset-status-ok';
 			} catch (error) {
 				status.textContent = getText(error && error.message ? error.message : error);
@@ -1465,7 +1486,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		formatJson.addEventListener('click', () => {
 			try {
 				argsEditor.value = stringifyJson(parseObjectJson(argsEditor.value, 'Arguments'));
-				status.textContent = 'Arguments JSON formatted.';
+				status.textContent = mbText('arguments_json_formatted', 'Arguments JSON formatted.');
 				status.className = 'agent-preset-status agent-preset-status-ok';
 			} catch (error) {
 				status.textContent = getText(error && error.message ? error.message : error);
@@ -1476,13 +1497,13 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		reset.addEventListener('click', () => {
 			if (argumentController) argumentController.reset();
 			else argsEditor.value = '{}';
-			status.textContent = 'Arguments reset from the input schema.';
+			status.textContent = mbText('arguments_reset_from_the_input_schema', 'Arguments reset from the input schema.');
 			status.className = 'agent-preset-status agent-preset-status-ok';
 		});
 
 		copy.addEventListener('click', async () => {
 			await copyText(argsEditor.value);
-			status.textContent = 'Arguments copied.';
+			status.textContent = mbText('arguments_copied', 'Arguments copied.');
 			status.className = 'agent-preset-status agent-preset-status-ok';
 		});
 
@@ -1494,7 +1515,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 				if (argumentController) argumentController.validate(args);
 				const contextVars = parseObjectJson(contextEditor.value, 'Context variables');
 				run.disabled = true;
-				status.textContent = 'Running through action policy...';
+				status.textContent = mbText('running_through_action_policy', 'Running through action policy...');
 				status.className = 'agent-preset-status';
 				const response = await postJson({
 					mode: 'call_tool',
@@ -1526,16 +1547,16 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		if (!response || response.requires_confirmation !== true) {
 			status.textContent = response && response.ok ? 'Tool executed.' : 'Tool was blocked or failed.';
 			status.className = 'agent-preset-status ' + (response && response.ok ? 'agent-preset-status-ok' : 'agent-preset-status-error');
-			setLog('Tool test completed for ' + payload.preset_id + '.');
+			setLog(mbText('tool_test_completed_for_prefix', 'Tool test completed for ') + payload.preset_id + '.');
 			return;
 		}
 
 		const request = Array.isArray(response.interaction_requests) ? response.interaction_requests[0] : null;
 		if (!request) throw new Error('Confirmation response does not contain an interaction request.');
-		status.textContent = 'Explicit confirmation required.';
+		status.textContent = mbText('explicit_confirmation_required', 'Explicit confirmation required.');
 		status.className = 'agent-preset-status agent-preset-status-error';
 		resultRoot.replaceChildren(renderConfirmation(response, request, payload, contextVars, resultRoot, status));
-		setLog('Approval required for ' + getText(request.action && request.action.name, payload.preset_id) + '.');
+		setLog(mbText('approval_required_for_prefix', 'Approval required for ') + getText(request.action && request.action.name, payload.preset_id) + '.');
 	}
 
 	function renderInteractionSummary(summary) {
@@ -1566,7 +1587,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		const details = document.createElement('details');
 		details.className = 'agent-preset-confirmation-details';
 		const summary = document.createElement('summary');
-		summary.textContent = 'Technical details';
+		summary.textContent = mbText('technical_details', 'Technical details');
 		details.appendChild(summary);
 		details.appendChild(createJsonValue({
 			tool: getText(action && action.name, ''),
@@ -1577,7 +1598,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 
 	function formatInteractionValue(value) {
 		if (value === null || value === undefined || value === '') return '-';
-		if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+		if (typeof value === 'boolean') return value ? mbText('yes_label', 'Yes') : mbText('no_label', 'No');
 		if (typeof value === 'object') return stringifyJson(value);
 		return String(value);
 	}
@@ -1617,7 +1638,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 					? 'Action declined.'
 					: (resumed && resumed.ok ? 'Approved action executed.' : 'Approved action was blocked or failed.');
 				status.className = 'agent-preset-status ' + (decision === 'deny' || (resumed && resumed.ok) ? 'agent-preset-status-ok' : 'agent-preset-status-error');
-				setLog(decision === 'approve' ? 'Approved tool action completed.' : 'Tool action declined.');
+				setLog(decision === 'approve' ? mbText('approved_tool_action_completed', 'Approved tool action completed.') : mbText('tool_action_declined', 'Tool action declined.'));
 			} catch (error) {
 				status.textContent = getText(error && error.message ? error.message : error);
 				status.className = 'agent-preset-status agent-preset-status-error';
@@ -1652,7 +1673,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 				resultRoot.replaceChildren(createJsonValue(response));
 				status.textContent = response.ok ? 'Context contribution generated.' : 'Context contribution failed.';
 				status.className = 'agent-preset-status ' + (response.ok ? 'agent-preset-status-ok' : 'agent-preset-status-error');
-				setLog('Context contributor tested for ' + payload.preset_id + '.');
+				setLog(mbText('context_contributor_tested_for_prefix', 'Context contributor tested for ') + payload.preset_id + '.');
 			} catch (error) {
 				status.textContent = getText(error && error.message ? error.message : error);
 				status.className = 'agent-preset-status agent-preset-status-error';
@@ -1673,7 +1694,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		const feedback = createInput('helpful');
 		const contextEditor = createTextarea('{}', 5);
 		const status = createElement('agent-preset-status');
-		grid.appendChild(createField('Node id', nodeId, true, 'Writes are restricted server-side to isolated ids beginning with ' + MEMORY_TEST_NODE_PREFIX));
+		grid.appendChild(createField(mbText('node_id', 'Node id'), nodeId, true, 'Writes are restricted server-side to isolated ids beginning with ' + MEMORY_TEST_NODE_PREFIX));
 		grid.appendChild(createField('Role', role));
 		grid.appendChild(createField('Message id for feedback', messageId));
 		grid.appendChild(createField('Message content', content, true));
@@ -1694,7 +1715,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		panel.appendChild(status);
 
 		async function request(mode, extra = {}, requiresConfirmation = false) {
-			if (requiresConfirmation && !window.confirm('Execute this state-changing memory test operation on the isolated test node?')) return;
+			if (requiresConfirmation && !window.confirm(mbText('execute_this_state_changing_memory_test_operation_on_the_isolated_test_node', 'Execute this state-changing memory test operation on the isolated test node?'))) return;
 			try {
 				const response = await postJson(Object.assign({
 					mode,
@@ -1710,7 +1731,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 				if (history.length > 0 && !messageId.value) {
 					messageId.value = getText(history[history.length - 1].id, '');
 				}
-				setLog('Memory operation ' + mode + ' completed for ' + payload.preset_id + '.');
+				setLog(mbText('memory_operation_prefix', 'Memory operation ') + mode + ' completed for ' + payload.preset_id + '.');
 			} catch (error) {
 				status.textContent = getText(error && error.message ? error.message : error);
 				status.className = 'agent-preset-status agent-preset-status-error';
@@ -1759,9 +1780,9 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 
 		const panels = [
 			['Overview', () => renderOverviewPanel(payload), true],
-			['Tool', () => renderToolPanel(payload, resultRoot), !!payload.tool],
+			[mbText('tool', 'Tool'), () => renderToolPanel(payload, resultRoot), !!payload.tool],
 			['Context', () => renderContextPanel(payload, resultRoot), !!payload.context],
-			['Memory', () => renderMemoryPanel(payload, resultRoot), !!payload.memory],
+			[mbText('memory', 'Memory'), () => renderMemoryPanel(payload, resultRoot), !!payload.memory],
 			['Preset JSON', () => createJsonValue(payload.preset_json || {}), true]
 		].filter((item) => item[2]);
 
@@ -1794,7 +1815,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		if (!row) return;
 		const response = await postJson({ mode: 'record', preset_id: row.preset_id });
 		await copyText(stringifyJson(response.record));
-		setLog('Copied preset ' + getText(row.preset_id) + '.');
+		setLog(mbText('copied_preset_prefix', 'Copied preset ') + getText(row.preset_id) + '.');
 	}
 
 	async function initGrid(modularGridModule) {
@@ -1831,6 +1852,7 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		});
 
 		const grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 			layout,
 			adapter,
 			dataMode: 'server',
@@ -1840,13 +1862,13 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 			sort: { key: 'name', direction: 'asc' },
 			plugins: [SearchPlugin, HeaderMenuPlugin, InfoPlugin, ColumnVisibilityPlugin, ResetPlugin, RowActionsPlugin, RowDetailPlugin, InfiniteScrollPlugin].filter(Boolean),
 			pluginOptions: {
-				search: { zone: 'topLine', order: 10, label: 'Search', placeholder: 'Search preset, type, capability or dock' },
+				search: { zone: 'topLine', order: 10, label: mbText('search', 'Search'), placeholder: mbText('search_preset_type_capability_or_dock', 'Search preset, type, capability or dock') },
 				headerMenu: { showSortActions: true, showClearSortAction: true, showHideColumnAction: true },
-				reset: { zone: 'topLine', order: 20, label: 'Reset', sections: ['query', 'columns', 'detailView'] },
+				reset: { zone: 'topLine', order: 20, label: mbText('reset', 'Reset'), sections: ['query', 'columns', 'detailView'] },
 				info: { zone: 'statusZone', order: 10, displayMode: 'loaded' },
 				rowActions: {
-					headerMenu: { enabled: true, buttonLabel: '...', items: [{ type: 'columnVisibility', label: 'Columns', showReset: true, resetLabel: 'Reset columns' }] },
-					items: [{ key: 'copy-preset', label: 'Copy preset JSON', onClick(context) { copyPreset(context && context.row ? context.row : null); } }]
+					headerMenu: { enabled: true, buttonLabel: '...', items: [{ type: 'columnVisibility', label: mbText('columns', 'Columns'), showReset: true, resetLabel: 'Reset columns' }] },
+					items: [{ key: 'copy-preset', label: mbText('copy_preset_json', 'Copy preset JSON'), onClick(context) { copyPreset(context && context.row ? context.row : null); } }]
 				},
 				rowDetail: {
 					rowIdKey: 'preset_id',
@@ -1862,45 +1884,45 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 			},
 			columns: [
 				{
-					key: 'name', label: 'Preset', width: 290,
-					headerMenu: { defaultSortKey: 'name', defaultSortDirection: 'asc', sortOptions: [{ key: 'name', label: 'Preset' }] },
+					key: 'name', label: mbText('preset', 'Preset'), width: 290,
+					headerMenu: { defaultSortKey: 'name', defaultSortDirection: 'asc', sortOptions: [{ key: 'name', label: mbText('preset', 'Preset') }] },
 					render(value, row) { return renderPreset(value, row); }
 				},
 				{
-					key: 'type', label: 'Resource type', width: 280,
-					headerMenu: { defaultSortKey: 'type', defaultSortDirection: 'asc', sortOptions: [{ key: 'type', label: 'Resource type' }] },
+					key: 'type', label: mbText('resource_type', 'Resource type'), width: 280,
+					headerMenu: { defaultSortKey: 'type', defaultSortDirection: 'asc', sortOptions: [{ key: 'type', label: mbText('resource_type', 'Resource type') }] },
 					render(value, row) { return renderType(value, row); }
 				},
 				{
-					key: 'capabilities', label: 'Capabilities', width: 200,
-					headerMenu: { defaultSortKey: 'capability_names', defaultSortDirection: 'asc', sortOptions: [{ key: 'capability_names', label: 'Capabilities' }] },
+					key: 'capabilities', label: mbText('capabilities', 'Capabilities'), width: 200,
+					headerMenu: { defaultSortKey: 'capability_names', defaultSortDirection: 'asc', sortOptions: [{ key: 'capability_names', label: mbText('capabilities', 'Capabilities') }] },
 					render(value) { return createPills(value, 'agent-preset-pill-strong'); }
 				},
 				{
-					key: 'dock_count', label: 'Docks', width: 95,
-					headerMenu: { defaultSortKey: 'dock_count', defaultSortDirection: 'desc', sortOptions: [{ key: 'dock_count', label: 'Dock count' }] }
+					key: 'dock_count', label: mbText('docks', 'Docks'), width: 95,
+					headerMenu: { defaultSortKey: 'dock_count', defaultSortDirection: 'desc', sortOptions: [{ key: 'dock_count', label: mbText('dock_count', 'Dock count') }] }
 				},
 				{
-					key: 'status', label: 'Status', width: 120,
-					headerMenu: { defaultSortKey: 'status', defaultSortDirection: 'asc', sortOptions: [{ key: 'status', label: 'Status' }] },
+					key: 'status', label: mbText('status', 'Status'), width: 120,
+					headerMenu: { defaultSortKey: 'status', defaultSortDirection: 'asc', sortOptions: [{ key: 'status', label: mbText('status', 'Status') }] },
 					render(value) { return renderStatus(value); }
 				},
 				{
-					key: 'dock_names', label: 'Dock names', width: 220, visible: false,
+					key: 'dock_names', label: mbText('dock_names', 'Dock names'), width: 220, visible: false,
 					textDisplay: { strategy: 'clamp', lines: 3, expandable: true }
 				},
 				{
-					key: 'description', label: 'Description', width: 420, visible: false,
+					key: 'description', label: mbText('description', 'Description'), width: 420, visible: false,
 					textDisplay: { strategy: 'clamp', lines: 3, expandable: true }
 				}
 			]
 		});
 
-		grid.on('data:appended', ({ appendedCount, totalLoaded }) => setLog('Loaded ' + appendedCount + ' more presets; ' + totalLoaded + ' currently loaded.'));
-		grid.on('detail:loaded', (event) => setLog('Materialized preset ' + getText(event && event.rowId) + '.'));
-		grid.on('detail:error', (event) => setLog('Preset detail failed: ' + getText(event && event.error && event.error.message ? event.error.message : event && event.error)));
+		grid.on('data:appended', ({ appendedCount, totalLoaded }) => setLog(mbText('loaded_more_presets_currently_loaded', 'Loaded {appended} more presets; {total} currently loaded.', { appended: appendedCount, total: totalLoaded })));
+		grid.on('detail:loaded', (event) => setLog(mbText('materialized_preset_prefix', 'Materialized preset ') + getText(event && event.rowId) + '.'));
+		grid.on('detail:error', (event) => setLog(mbText('preset_detail_failed_prefix', 'Preset detail failed: ') + getText(event && event.error && event.error.message ? event.error.message : event && event.error)));
 		await grid.init();
-		setLog('Initial preset batch loaded. Open a row to test its effective capabilities.');
+		setLog(mbText('initial_preset_batch_loaded_open_a_row_to_test_its_effective_capabilities', 'Initial preset batch loaded. Open a row to test its effective capabilities.'));
 	}
 
 	(async function() {
@@ -1910,12 +1932,12 @@ $jsonLensJsUrl = (string)$resolve('plugin/ClientStack/assets/jsonlens/index.js')
 		setStartupStatus('Loading ModularGrid module...');
 		try {
 			const module = await importFirst(MODULARGRID_URLS, 'ModularGrid');
-			setStartupStatus('Initializing preset grid...');
+			setStartupStatus(mbText('initializing_preset_grid_2', 'Initializing preset grid...'));
 			await initGrid(module);
 		} catch (error) {
 			const message = getText(error && error.message ? error.message : error);
-			setStartupStatus('Agent Component Preset Tests could not be initialized.', message, true);
-			setLog('Initialization failed: ' + message);
+			setStartupStatus(mbText('agent_component_preset_tests_could_not_be_initialized', 'Agent Component Preset Tests could not be initialized.'), message, true);
+			setLog(mbText('initialization_failed_prefix', 'Initialization failed: ') + message);
 			console.error(error);
 		}
 	})();

@@ -1,11 +1,17 @@
+<?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 <div id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>" class="embedding-config-admin">
-	<h3>Embedding Services</h3>
+	<h3><?php echo $mbTextEsc('embedding_services', 'Embedding Services'); ?></h3>
 
 	<div class="embcfg-meta">
-		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Connection group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
-		<div data-role="loading" class="embcfg-loading">Please wait...</div>
+		<div><strong><?php echo $mbTextEsc('settings_group', 'Settings group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('connection_group', 'Connection group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('last_update', 'Last update:'); ?></strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="embcfg-loading"><?php echo $mbTextEsc('please_wait', 'Please wait...'); ?></div>
 	</div>
 
 	<div class="embcfg-hint">
@@ -15,41 +21,41 @@
 	<div class="embcfg-layout">
 		<div class="embcfg-listbox">
 			<div class="embcfg-toolbar">
-				<button type="button" data-role="new">New embedding service</button>
-				<button type="button" data-role="reload">Reload</button>
+				<button type="button" data-role="new"><?php echo $mbTextEsc('new_embedding_service', 'New embedding service'); ?></button>
+				<button type="button" data-role="reload"><?php echo $mbTextEsc('reload', 'Reload'); ?></button>
 			</div>
 
 			<table class="embcfg-table">
 				<thead>
 					<tr>
-						<th>ID</th>
-						<th>Name</th>
-						<th>Connection</th>
-						<th>Driver</th>
-						<th>Model</th>
-						<th>Dimensions</th>
-						<th>Batch</th>
-						<th>Status</th>
+						<th><?php echo $mbTextEsc('id', 'ID'); ?></th>
+						<th><?php echo $mbTextEsc('name', 'Name'); ?></th>
+						<th><?php echo $mbTextEsc('connection', 'Connection'); ?></th>
+						<th><?php echo $mbTextEsc('driver', 'Driver'); ?></th>
+						<th><?php echo $mbTextEsc('model', 'Model'); ?></th>
+						<th><?php echo $mbTextEsc('dimensions', 'Dimensions'); ?></th>
+						<th><?php echo $mbTextEsc('batch', 'Batch'); ?></th>
+						<th><?php echo $mbTextEsc('status', 'Status'); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="9" class="mono">Loading...</td></tr>
+					<tr><td colspan="9" class="mono"><?php echo $mbTextEsc('loading', 'Loading...'); ?></td></tr>
 				</tbody>
 			</table>
 		</div>
 
 		<div class="embcfg-formbox">
 			<form data-role="form">
-				<h4 data-role="legend">Create embedding service</h4>
+				<h4 data-role="legend"><?php echo $mbTextEsc('create_embedding_service', 'Create embedding service'); ?></h4>
 
 				<div class="embcfg-hint" data-role="idhint">
-					Technical embedding service id. Agent resources and vector collections use this id to resolve the configured embedding service.
+					<?php echo $mbTextEsc('technical_embedding_service_id_agent_resources_and_vector_collections_use_this_id_to_resolve_the_configured_em', 'Technical embedding service id. Agent resources and vector collections use this id to resolve the configured embedding service.'); ?>
 				</div>
 
 				<div class="embcfg-grid">
 					<div class="embcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-id">Embedding service id</label>
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-id"><?php echo $mbTextEsc('embedding_service_id', 'Embedding service id'); ?></label>
 						<input
 							type="text"
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-id"
@@ -60,7 +66,7 @@
 					</div>
 
 					<div class="embcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-name">Name</label>
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-name"><?php echo $mbTextEsc('name', 'Name'); ?></label>
 						<input
 							type="text"
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-name"
@@ -71,30 +77,30 @@
 					</div>
 
 					<div class="embcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection">Connection</label>
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection"><?php echo $mbTextEsc('connection', 'Connection'); ?></label>
 						<select
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connection"
 							name="connection"
 						>
-							<option value="">Loading connections...</option>
+							<option value=""><?php echo $mbTextEsc('loading_connections', 'Loading connections...'); ?></option>
 						</select>
 						<div class="embcfg-hint embcfg-inline-hint" data-role="connectionhint">
-							Connections contain endpoint and authentication data.
+							<?php echo $mbTextEsc('connections_contain_endpoint_and_authentication_data', 'Connections contain endpoint and authentication data.'); ?>
 						</div>
 					</div>
 
 					<div class="embcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-driver">Driver</label>
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-driver"><?php echo $mbTextEsc('driver', 'Driver'); ?></label>
 						<select
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-driver"
 							name="driver"
 						>
-							<option value="">Loading drivers...</option>
+							<option value=""><?php echo $mbTextEsc('loading_drivers', 'Loading drivers...'); ?></option>
 						</select>
 					</div>
 
 					<div class="embcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model">Model</label>
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model"><?php echo $mbTextEsc('model', 'Model'); ?></label>
 						<input
 							type="text"
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-model"
@@ -106,7 +112,7 @@
 
 					<div class="embcfg-field embcfg-field-row">
 						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-dimensions">Dimensions</label>
+							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-dimensions"><?php echo $mbTextEsc('dimensions', 'Dimensions'); ?></label>
 							<input
 								type="text"
 								id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-dimensions"
@@ -117,7 +123,7 @@
 						</div>
 
 						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-batchsize">Batch size</label>
+							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-batchsize"><?php echo $mbTextEsc('batch_size', 'Batch size'); ?></label>
 							<input
 								type="text"
 								id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-batchsize"
@@ -130,7 +136,7 @@
 
 					<div class="embcfg-field embcfg-field-row">
 						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-timeout">Timeout seconds</label>
+							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-timeout"><?php echo $mbTextEsc('timeout_seconds', 'Timeout seconds'); ?></label>
 							<input
 								type="text"
 								id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-timeout"
@@ -141,7 +147,7 @@
 						</div>
 
 						<div>
-							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connecttimeout">Connect timeout seconds</label>
+							<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connecttimeout"><?php echo $mbTextEsc('connect_timeout_seconds', 'Connect timeout seconds'); ?></label>
 							<input
 								type="text"
 								id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-connecttimeout"
@@ -153,7 +159,7 @@
 					</div>
 
 					<div class="embcfg-field">
-						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-options">Advanced options JSON</label>
+						<label for="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-options"><?php echo $mbTextEsc('advanced_options_json', 'Advanced options JSON'); ?></label>
 						<textarea
 							id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>-options"
 							name="options"
@@ -168,14 +174,14 @@
 					<div class="embcfg-field embcfg-field-checkbox">
 						<label class="embcfg-checkbox">
 							<input type="checkbox" name="normalizeVectors">
-							<span>Normalize vectors</span>
+							<span><?php echo $mbTextEsc('normalize_vectors', 'Normalize vectors'); ?></span>
 						</label>
 					</div>
 
 					<div class="embcfg-field embcfg-field-checkbox">
 						<label class="embcfg-checkbox">
 							<input type="checkbox" name="enabled" checked>
-							<span>Enabled</span>
+							<span><?php echo $mbTextEsc('enabled', 'Enabled'); ?></span>
 						</label>
 					</div>
 				</div>
@@ -188,8 +194,8 @@
 				</div>
 
 				<div class="embcfg-actions">
-					<button type="submit" class="primary">Save embedding service</button><button type="button" data-role="test">Test embedding service</button>
-					<button type="button" data-role="delete" disabled>Delete embedding service</button>
+					<button type="submit" class="primary"><?php echo $mbTextEsc('save_embedding_service', 'Save embedding service'); ?></button><button type="button" data-role="test"><?php echo $mbTextEsc('test_embedding_service', 'Test embedding service'); ?></button>
+					<button type="button" data-role="delete" disabled><?php echo $mbTextEsc('delete_embedding_service', 'Delete embedding service'); ?></button>
 				</div>
 			</form>
 		</div>
@@ -485,6 +491,20 @@
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
 
@@ -587,11 +607,11 @@
 			refs.deleteBtn.disabled = !editing;
 
 			if (editing) {
-				refs.legend.textContent = "Edit embedding service";
-				refs.idhint.textContent = "Technical embedding service id is fixed for existing entries. Create a new entry if you need another key.";
+				refs.legend.textContent = mbText('edit_embedding_service', 'Edit embedding service');
+				refs.idhint.textContent = mbText('technical_embedding_service_id_is_fixed_for_existing_entries_create_a_new_entry_if_you_need_another_key', 'Technical embedding service id is fixed for existing entries. Create a new entry if you need another key.');
 			} else {
-				refs.legend.textContent = "Create embedding service";
-				refs.idhint.textContent = "Technical embedding service id. Agent resources and vector collections use this id to resolve the configured embedding service.";
+				refs.legend.textContent = mbText('create_embedding_service', 'Create embedding service');
+				refs.idhint.textContent = mbText('technical_embedding_service_id_agent_resources_and_vector_collections_use_this_id_to_resolve_the_configured_em', 'Technical embedding service id. Agent resources and vector collections use this id to resolve the configured embedding service.');
 			}
 		}
 
@@ -651,7 +671,7 @@
 			const connection = findConnection(refs.connection.value);
 
 			if (!connection) {
-				refs.connectionhint.textContent = "Connections contain endpoint and authentication data.";
+				refs.connectionhint.textContent = mbText('connections_contain_endpoint_and_authentication_data', 'Connections contain endpoint and authentication data.');
 				return;
 			}
 
@@ -671,7 +691,7 @@
 			if (connections.length === 0) {
 				const option = document.createElement("option");
 				option.value = "";
-				option.textContent = "No connections configured";
+				option.textContent = mbText('no_connections_configured', 'No connections configured');
 				refs.connection.appendChild(option);
 				updateConnectionHint();
 				return;
@@ -679,7 +699,7 @@
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = "Select connection";
+			empty.textContent = mbText('select_connection', 'Select connection');
 			refs.connection.appendChild(empty);
 
 			for (const connection of connections) {
@@ -705,14 +725,14 @@
 			if (drivers.length === 0) {
 				const option = document.createElement("option");
 				option.value = "";
-				option.textContent = "No embedding drivers available";
+				option.textContent = mbText('no_embedding_drivers_available', 'No embedding drivers available');
 				refs.driver.appendChild(option);
 				return;
 			}
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = "Select driver";
+			empty.textContent = mbText('select_driver', 'Select driver');
 			refs.driver.appendChild(empty);
 
 			for (const driver of drivers) {
@@ -805,14 +825,14 @@
 
 		function statusBadge(embedding) {
 			if (!embedding.enabled) {
-				return "<span class='badge off'>disabled</span>";
+				return "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
 			}
 
 			if (!embedding.connectionEnabled) {
-				return "<span class='badge warn'>connection off</span>";
+				return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
 			}
 
-			return "<span class='badge ok'>enabled</span>";
+			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
 		}
 
 		function renderRows() {
@@ -820,7 +840,7 @@
 			refs.tbody.innerHTML = "";
 
 			if (embeddings.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'>No embedding services configured.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('no_embedding_services_configured', mbText('no_embedding_services_configured', 'No embedding services configured.')); ?></td></tr>";
 				return;
 			}
 
@@ -839,7 +859,7 @@
 					"<td class='number-col'>" + esc(embedding.dimensions || "") + "</td>" +
 					"<td class='number-col'>" + esc(embedding.batchSize || "") + "</td>" +
 					"<td>" + statusBadge(embedding) + "</td>" +
-					"<td><button type='button' class='embcfg-edit-btn' data-action='edit' data-id='" + esc(embedding.id) + "'>Edit</button></td>";
+					"<td><button type='button' class='embcfg-edit-btn' data-action='edit' data-id='" + esc(embedding.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
 
 				refs.tbody.appendChild(tr);
 			}
@@ -881,7 +901,7 @@
 				try {
 					json = JSON.parse(text);
 				} catch (e) {
-					showFeedback("The server response could not be read.", "error");
+					showFeedback(mbText('the_server_response_could_not_be_read', 'The server response could not be read.'), "error");
 					return null;
 				}
 
@@ -894,7 +914,7 @@
 
 				return json;
 			} catch (e) {
-				showFeedback("The request failed. Please try again.", "error");
+				showFeedback(mbText('the_request_failed_please_try_again', 'The request failed. Please try again.'), "error");
 				return null;
 			} finally {
 				setLoading(false);
@@ -907,7 +927,7 @@
 			});
 
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'>Embedding services could not be loaded.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='9' class='mono'><?php echo $mbTextEsc('embedding_services_could_not_be_loaded', mbText('embedding_services_could_not_be_loaded', 'Embedding services could not be loaded.')); ?></td></tr>";
 				return;
 			}
 
@@ -951,13 +971,13 @@
 				const parsed = JSON.parse(raw);
 
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					showFeedback("Advanced options must be a JSON object.", "error");
+					showFeedback(mbText('advanced_options_must_be_a_json_object', 'Advanced options must be a JSON object.'), "error");
 					return null;
 				}
 
 				return JSON.stringify(parsed);
 			} catch (e) {
-				showFeedback("Advanced options must be valid JSON.", "error");
+				showFeedback(mbText('advanced_options_must_be_valid_json', 'Advanced options must be valid JSON.'), "error");
 				return null;
 			}
 		}
@@ -1009,7 +1029,7 @@
 			const testBtn = root.querySelector("[data-role='test']");
 			testBtn.disabled = true;
 			const originalLabel = testBtn.textContent;
-			testBtn.textContent = "Testing...";
+			testBtn.textContent = mbText('testing', 'Testing...');
 
 			try {
 				const json = await callApi(buildTestRequest());
@@ -1017,7 +1037,7 @@
 
 				const result = json.data && json.data.test ? json.data.test : null;
 				if (!result) {
-					showFeedback("Service test returned no result.", "error");
+					showFeedback(mbText('service_test_returned_no_result', 'Service test returned no result.'), "error");
 					return;
 				}
 
@@ -1054,27 +1074,27 @@
 			refs.driver.value = driver;
 
 			if (!id) {
-				showFeedback("Embedding service id is required.", "error");
+				showFeedback(mbText('embedding_service_id_is_required', 'Embedding service id is required.'), "error");
 				return;
 			}
 
 			if (!name) {
-				showFeedback("Name is required.", "error");
+				showFeedback(mbText('name_is_required', 'Name is required.'), "error");
 				return;
 			}
 
 			if (!connection) {
-				showFeedback("Connection is required.", "error");
+				showFeedback(mbText('connection_is_required', 'Connection is required.'), "error");
 				return;
 			}
 
 			if (!driver) {
-				showFeedback("Driver is required.", "error");
+				showFeedback(mbText('driver_is_required', 'Driver is required.'), "error");
 				return;
 			}
 
 			if (!model) {
-				showFeedback("Model is required.", "error");
+				showFeedback(mbText('model_is_required', 'Model is required.'), "error");
 				return;
 			}
 
@@ -1100,7 +1120,7 @@
 
 			const embedding = (json.data && json.data.embedding) ? json.data.embedding : null;
 
-			showFeedback("Embedding service saved.", "success");
+			showFeedback(mbText('embedding_service_saved', 'Embedding service saved.'), "success");
 
 			await loadList(embedding && embedding.id ? embedding.id : id);
 		}
@@ -1111,7 +1131,7 @@
 			const id = String(state.selectedId || refs.id.value || "").trim();
 
 			if (!id) {
-				showFeedback("No embedding service selected.", "error");
+				showFeedback(mbText('no_embedding_service_selected', 'No embedding service selected.'), "error");
 				return;
 			}
 
@@ -1128,7 +1148,7 @@
 				return;
 			}
 
-			showFeedback("Embedding service deleted.", "success");
+			showFeedback(mbText('embedding_service_deleted', 'Embedding service deleted.'), "success");
 
 			resetForm();
 			await loadList();

@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 $serviceUrl = (string)($this->_['service'] ?? '');
 $orchestratorOptions = is_array($this->_['orchestrator_options'] ?? null) ? $this->_['orchestrator_options'] : [];
@@ -66,19 +72,33 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 </style>
 
 <div class="agent-composition-shell">
-	<h1>Effective Agent Composition</h1>
+	<h1><?php echo $mbTextEsc('effective_agent_composition', 'Effective Agent Composition'); ?></h1>
 	<p>
 		Read-only inspection of the configuration that MissionBay will actually use: orchestrator profile, fixed and module-mounted stages, tool profiles, component presets, capability sources, callable tool names and memory roles. Prompt-specific tool preselection still happens during each model decision.
 	</p>
 	<div class="agent-composition-actions">
-		<button type="button" id="agent-composition-reload" class="agent-composition-button">Reload settings</button>
+		<button type="button" id="agent-composition-reload" class="agent-composition-button"><?php echo $mbTextEsc('reload_settings', 'Reload settings'); ?></button>
 	</div>
-	<div id="agent-composition-grid" class="agent-composition-grid"><div class="agent-composition-panel">Loading agents...</div></div>
-	<div id="agent-composition-status" class="agent-composition-status"><strong>Last action:</strong> Waiting for initialization.</div>
+	<div id="agent-composition-grid" class="agent-composition-grid"><div class="agent-composition-panel"><?php echo $mbTextEsc('loading_agents', 'Loading agents...'); ?></div></div>
+	<div id="agent-composition-status" class="agent-composition-status"><strong><?php echo $mbTextEsc('last_action', 'Last action:'); ?></strong> <?php echo $mbTextEsc('waiting_for_initialization', 'Waiting for initialization.'); ?></div>
 </div>
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const ENDPOINT = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const GRID_JS = <?php echo json_encode($gridJs, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const ORCHESTRATOR_OPTIONS = <?php echo json_encode($orchestratorOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -95,7 +115,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	}
 	function setStatus(message) {
 		const node = document.querySelector('#agent-composition-status');
-		if (node) node.innerHTML = '<strong>Last action:</strong> ' + text(message, '');
+		if (!node) return;
+		node.innerHTML = '';
+		const strong = document.createElement('strong');
+		strong.textContent = mbText('last_action', 'Last action:');
+		node.appendChild(strong);
+		node.appendChild(document.createTextNode(' ' + text(message, '')));
 	}
 	function pill(value, extra = '') {
 		const node = document.createElement('span');
@@ -189,15 +214,15 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		(record.warnings || []).forEach((message) => root.appendChild(buildAlert('warning', message)));
 
 		const overview = element('agent-composition-card');
-		const title = document.createElement('h3'); title.textContent = 'Orchestrator and stages'; overview.prepend(title);
-		appendKeyValue(overview, 'Agent', record.label + ' (' + record.agent_id + ')');
+		const title = document.createElement('h3'); title.textContent = mbText('orchestrator_and_stages', 'Orchestrator and stages'); overview.prepend(title);
+		appendKeyValue(overview, mbText('agent', 'Agent'), record.label + ' (' + record.agent_id + ')');
 		appendKeyValue(overview, 'Chat model', record.chatmodel || 'not selected');
-		appendKeyValue(overview, 'Orchestrator profile', text(record.orchestrator && record.orchestrator.label) + ' [' + text(record.orchestrator && record.orchestrator.id) + ']');
+		appendKeyValue(overview, mbText('orchestrator_profile', 'Orchestrator profile'), text(record.orchestrator && record.orchestrator.label) + ' [' + text(record.orchestrator && record.orchestrator.id) + ']');
 		const memoryProfile = record.memory_profile || {};
 		const contextProfile = record.context_profile || {};
-		appendKeyValue(overview, 'Memory profile', text(memoryProfile.label, 'none') + (memoryProfile.id ? ' [' + memoryProfile.id + ']' : '') + ' · ' + text(memoryProfile.status, 'none'));
-		appendKeyValue(overview, 'Context profile', text(contextProfile.label, 'none') + (contextProfile.id ? ' [' + contextProfile.id + ']' : '') + ' · ' + text(contextProfile.status, 'none'));
-		appendKeyValue(overview, 'Mode', record.orchestrator && record.orchestrator.mode);
+		appendKeyValue(overview, mbText('memory_profile', 'Memory profile'), text(memoryProfile.label, 'none') + (memoryProfile.id ? ' [' + memoryProfile.id + ']' : '') + ' · ' + text(memoryProfile.status, 'none'));
+		appendKeyValue(overview, mbText('context_profile', 'Context profile'), text(contextProfile.label, 'none') + (contextProfile.id ? ' [' + contextProfile.id + ']' : '') + ' · ' + text(contextProfile.status, 'none'));
+		appendKeyValue(overview, mbText('mode', 'Mode'), record.orchestrator && record.orchestrator.mode);
 		appendKeyValue(overview, 'Max tool loops', record.orchestrator && record.orchestrator.max_tool_loops);
 		const selection = record.capability_selection || {};
 		const coreStages = Array.isArray(record.core_stage_ids) ? record.core_stage_ids : [];
@@ -213,14 +238,14 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			selectionParts.push('candidates ' + text(selection.semantic_candidate_tools ?? selection.semanticCandidateTools, '48'));
 		}
 		selectionParts.push(selection.sticky === false ? 'not sticky' : 'sticky');
-		appendKeyValue(overview, 'Capability selection', selectionParts.join(' · '));
+		appendKeyValue(overview, mbText('capability_selection', 'Capability selection'), selectionParts.join(' · '));
 		appendKeyValue(overview, 'Core stages', pills(record.core_stage_ids || []));
 		appendKeyValue(overview, 'Module stage mounts', pills((record.module_stage_mounts || []).map((mount) => text(mount.slot, 'slot') + ': ' + text(mount.stage_id, mount.stage_name))));
 		appendKeyValue(overview, 'Final stages', pills(record.final_stage_ids || []));
 		root.appendChild(overview);
 
 		const profileCard = element('agent-composition-card');
-		const profileTitle = document.createElement('h3'); profileTitle.textContent = 'Tool, memory and context profiles'; profileCard.appendChild(profileTitle);
+		const profileTitle = document.createElement('h3'); profileTitle.textContent = mbText('tool_memory_and_context_profiles', 'Tool, memory and context profiles'); profileCard.appendChild(profileTitle);
 		const profileList = element('agent-composition-list');
 		(record.tool_profiles || []).forEach((profile) => profileList.appendChild(buildItem(profile.label + ' [' + profile.id + ']', [profile.status, profile.mcp_enabled ? 'MCP' : 'internal'], (profile.tools || []).length + ' preset(s): ' + text((profile.tools || []).join(', '), 'none'))));
 		if (!profileList.children.length) profileList.appendChild(element('agent-composition-item-sub', 'No tool profiles selected.'));
@@ -229,7 +254,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const contextProfileRecord = record.context_profile || {};
 		profileList.appendChild(buildItem(text(contextProfileRecord.label, contextProfileRecord.id || 'No context profile') + (contextProfileRecord.id ? ' [' + contextProfileRecord.id + ']' : ''), [contextProfileRecord.status || 'none'], (contextProfileRecord.presets || []).length + ' context-contributor preset(s)'));
 		profileCard.appendChild(profileList);
-		const componentTitle = document.createElement('h4'); componentTitle.textContent = 'Resolved component presets'; profileCard.appendChild(componentTitle);
+		const componentTitle = document.createElement('h4'); componentTitle.textContent = mbText('resolved_component_presets', 'Resolved component presets'); profileCard.appendChild(componentTitle);
 		const componentList = element('agent-composition-list');
 		(record.components || []).forEach((component) => {
 			const details = [
@@ -248,7 +273,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		root.appendChild(profileCard);
 
 		const toolsCard = element('agent-composition-card');
-		const toolsTitle = document.createElement('h3'); toolsTitle.textContent = 'Callable capability catalog'; toolsCard.appendChild(toolsTitle);
+		const toolsTitle = document.createElement('h3'); toolsTitle.textContent = mbText('callable_capability_catalog', 'Callable capability catalog'); toolsCard.appendChild(toolsTitle);
 		const toolsList = element('agent-composition-list');
 		(record.tools || []).forEach((tool) => {
 			const labels = [];
@@ -265,7 +290,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		root.appendChild(toolsCard);
 
 		const memoryCard = element('agent-composition-card');
-		const memoryTitle = document.createElement('h3'); memoryTitle.textContent = 'Conversation memory, context and capability sources'; memoryCard.appendChild(memoryTitle);
+		const memoryTitle = document.createElement('h3'); memoryTitle.textContent = mbText('conversation_memory_context_and_capability_sources', 'Conversation memory, context and capability sources'); memoryCard.appendChild(memoryTitle);
 		const memoryList = element('agent-composition-list');
 		(record.memories || []).forEach((memory) => {
 			const labels = ['priority ' + memory.priority, memory.preset_id || 'flow', 'configured ' + text(memory.configured_role, 'auto')].concat(memory.roles || []);
@@ -274,17 +299,17 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		});
 		if (!memoryList.children.length) memoryList.appendChild(element('agent-composition-item-sub', 'No conversation memory or context contributor attached.'));
 		memoryCard.appendChild(memoryList);
-		const sourceTitle = document.createElement('h4'); sourceTitle.textContent = 'Configured source allow-list'; memoryCard.appendChild(sourceTitle);
+		const sourceTitle = document.createElement('h4'); sourceTitle.textContent = mbText('configured_source_allow_list', 'Configured source allow-list'); memoryCard.appendChild(sourceTitle);
 		const sources = record.capability_sources || {};
 		['tools', 'providers', 'modules', 'resourceProviders', 'promptProviders'].forEach((key) => appendKeyValue(memoryCard, key, pills(sources[key] || [])));
 		appendKeyValue(memoryCard, 'strict', sources.strict ? 'yes' : 'no');
 		const resolved = record.discovery && record.discovery.resolved ? record.discovery.resolved : {};
-		const resolvedTitle = document.createElement('h4'); resolvedTitle.textContent = 'Resolved runtime sources'; memoryCard.appendChild(resolvedTitle);
+		const resolvedTitle = document.createElement('h4'); resolvedTitle.textContent = mbText('resolved_runtime_sources', 'Resolved runtime sources'); memoryCard.appendChild(resolvedTitle);
 		['tools', 'providers', 'modules', 'resourceProviders', 'promptProviders'].forEach((key) => appendKeyValue(memoryCard, key, pills(resolved[key] || [])));
 		root.appendChild(memoryCard);
 
 		const raw = document.createElement('details'); raw.className = 'agent-composition-card agent-composition-details';
-		const rawSummary = document.createElement('summary'); rawSummary.textContent = 'Redacted diagnostic JSON'; raw.appendChild(rawSummary);
+		const rawSummary = document.createElement('summary'); rawSummary.textContent = mbText('redacted_diagnostic_json', 'Redacted diagnostic JSON'); raw.appendChild(rawSummary);
 		const pre = document.createElement('pre'); pre.className = 'agent-composition-json'; pre.textContent = record.composition_json || JSON.stringify(record, null, 2); raw.appendChild(pre);
 		root.appendChild(raw);
 		return root;
@@ -294,12 +319,13 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			const gridModule = await importModule(GRID_JS);
 			const { AjaxAdapter, FiltersPlugin, HeaderMenuPlugin, InfoPlugin, InfiniteScrollPlugin, ModularGrid, ResetPlugin, RowDetailPlugin, SearchPlugin } = gridModule;
 			if (!AjaxAdapter || !ModularGrid) throw new Error('Required ClientStack exports are missing.');
-			const profileFilterOptions = [{ value: '', label: 'All orchestrators' }].concat((ORCHESTRATOR_OPTIONS || []).map((option) => ({ value: option.id, label: option.label || option.id })));
+			const profileFilterOptions = [{ value: '', label: mbText('all_orchestrators', 'All orchestrators') }].concat((ORCHESTRATOR_OPTIONS || []).map((option) => ({ value: option.id, label: option.label || option.id })));
 			const adapter = new AjaxAdapter({ url: ENDPOINT, method: 'POST', rowsPath: 'data', totalPath: 'total', mapRequest(request) {
 				const state = grid ? grid.getState() : {};
 				return { mode: 'page', page: request.page || 1, pageSize: request.pageSize || BATCH_SIZE, search: request.search || '', sort: [{ key: request.sortKey || 'agent_id', dir: request.sortDirection || 'asc' }], filters: state.filters || {} };
 			} });
 			grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 				layout: { type: 'stack', children: [
 					{ type: 'zone', key: 'topLine', className: 'agent-composition-panel' },
 					{ type: 'zone', key: 'filterLine', className: 'agent-composition-panel' },
@@ -314,13 +340,13 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				sort: { key: 'agent_id', direction: 'asc' },
 				plugins: [SearchPlugin, FiltersPlugin, HeaderMenuPlugin, InfoPlugin, ResetPlugin, RowDetailPlugin, InfiniteScrollPlugin].filter(Boolean),
 				pluginOptions: {
-					search: { zone: 'topLine', order: 10, label: 'Search', placeholder: 'Search agents, profiles and status' },
+					search: { zone: 'topLine', order: 10, label: mbText('search', 'Search'), placeholder: mbText('search_agents_profiles_and_status', 'Search agents, profiles and status') },
 					filters: { zone: 'filterLine', order: 10, stateKey: 'filters', showClearButton: true, fields: [
-						{ key: 'status', label: 'Status', type: 'select', options: [{ value: '', label: 'All states' }, { value: 'valid', label: 'Valid' }, { value: 'error', label: 'Invalid' }] },
-						{ key: 'enabled', label: 'Agent', type: 'select', options: [{ value: '', label: 'All agents' }, { value: '1', label: 'Enabled' }, { value: '0', label: 'Disabled' }] },
-						{ key: 'orchestrator_profile', label: 'Orchestrator', type: 'select', options: profileFilterOptions }
+						{ key: 'status', label: mbText('status', 'Status'), type: 'select', options: [{ value: '', label: mbText('all_states', 'All states') }, { value: 'valid', label: mbText('valid', 'Valid') }, { value: 'error', label: mbText('invalid', 'Invalid') }] },
+						{ key: 'enabled', label: mbText('agent', 'Agent'), type: 'select', options: [{ value: '', label: mbText('all_agents', 'All agents') }, { value: '1', label: mbText('enabled', 'Enabled') }, { value: '0', label: mbText('disabled', 'Disabled') }] },
+						{ key: 'orchestrator_profile', label: mbText('orchestrator', 'Orchestrator'), type: 'select', options: profileFilterOptions }
 					] },
-					reset: { zone: 'topLine', order: 20, label: 'Reset', sections: ['query', 'filters', 'detailView'] },
+					reset: { zone: 'topLine', order: 20, label: mbText('reset', 'Reset'), sections: ['query', 'filters', 'detailView'] },
 					info: { zone: 'status', order: 10, displayMode: 'loaded' },
 					rowDetail: { rowIdKey: 'agent_id', clearOnDataReload: true, asyncDetail: {
 						load(context) { return postJson({ mode: 'record', id: context.row.agent_id }).then((response) => { if (!response.ok) throw new Error(response.error); return response.record; }); },
@@ -331,10 +357,10 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 					infiniteScroll: { threshold: 180, pageSize: BATCH_SIZE, containerSelector: '.mg-table-scroll' }
 				},
 				columns: [
-					{ key: 'agent_id', label: 'Agent', width: 300, render: renderAgent },
-					{ key: 'status', label: 'Configuration state', width: 430, render: renderState },
-					{ key: 'orchestrator_profile', label: 'Profiles', width: 420, render: renderProfiles },
-					{ key: 'chatmodel', label: 'Chat model', width: 260, render: renderChatModel }
+					{ key: 'agent_id', label: mbText('agent', 'Agent'), width: 300, render: renderAgent },
+					{ key: 'status', label: mbText('configuration_state', 'Configuration state'), width: 430, render: renderState },
+					{ key: 'orchestrator_profile', label: mbText('profiles', 'Profiles'), width: 420, render: renderProfiles },
+					{ key: 'chatmodel', label: mbText('chat_model', 'Chat model'), width: 260, render: renderChatModel }
 				]
 			});
 			grid.init();
@@ -342,14 +368,14 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 				const response = await postJson({ mode: 'reload' });
 				if (!response.ok) throw new Error(response.error || 'Reload failed.');
 				await refreshGrid();
-				setStatus('Settings reloaded.');
+				setStatus(mbText('settings_reloaded', 'Settings reloaded.'));
 			});
-			setStatus('Initialized. Expand an agent row to resolve its effective composition.');
+			setStatus(mbText('initialized_expand_an_agent_row_to_resolve_its_effective_composition', 'Initialized. Expand an agent row to resolve its effective composition.'));
 		}
 		catch (error) {
 			const root = document.querySelector(GRID_SELECTOR);
 			root.replaceChildren(buildAlert('error', error.message || String(error)));
-			setStatus('Initialization failed.');
+			setStatus(mbText('initialization_failed', 'Initialization failed.'));
 		}
 	}
 	init();

@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $modularGridCssUrl = (string) $this->_['modularGridCssUrl'];
 $modularGridJsUrl = (string) $this->_['modularGridJsUrl'];
 $modularDialogCssUrl = (string) $this->_['modularDialogCssUrl'];
@@ -342,7 +348,7 @@ $enabledOptions = $this->_['enabledOptions'];
 </style>
 
 <div class="userpref-def-admin-shell">
-	<h1>User preference definitions</h1>
+	<h1><?php echo $mbTextEsc('user_preference_definitions', 'User preference definitions'); ?></h1>
 	<p>
 		Definitions for the UserPrefs agent tool. These records control allowed preference keys, validation, default scope and the injected system prompt text.
 	</p>
@@ -363,56 +369,56 @@ $enabledOptions = $this->_['enabledOptions'];
 
 		<div class="userpref-def-admin-form-row-inline">
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">Preference key</span>
+				<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('preference_key', 'Preference key'); ?></span>
 				<input type="text" id="userpref-def-admin-pref-key" class="userpref-def-admin-form-input" autocomplete="off" placeholder="answer_style" />
 			</label>
 
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">Description</span>
-				<input type="text" id="userpref-def-admin-description" class="userpref-def-admin-form-input" autocomplete="off" placeholder="Short admin description" />
+				<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('description', 'Description'); ?></span>
+				<input type="text" id="userpref-def-admin-description" class="userpref-def-admin-form-input" autocomplete="off" placeholder="<?php echo $mbTextEsc('short_admin_description', 'Short admin description'); ?>" />
 			</label>
 		</div>
 
 		<div class="userpref-def-admin-form-row-inline-four">
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">Value type</span>
+				<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('value_type', 'Value type'); ?></span>
 				<select id="userpref-def-admin-value-type" class="userpref-def-admin-form-select">
-					<option value="string">String</option>
-					<option value="enum">Enum</option>
-					<option value="bool">Boolean</option>
+					<option value="string"><?php echo $mbTextEsc('string', 'String'); ?></option>
+					<option value="enum"><?php echo $mbTextEsc('enum', 'Enum'); ?></option>
+					<option value="bool"><?php echo $mbTextEsc('boolean', 'Boolean'); ?></option>
 				</select>
 			</label>
 
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">Default scope</span>
+				<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('default_scope', 'Default scope'); ?></span>
 				<select id="userpref-def-admin-default-scope" class="userpref-def-admin-form-select">
-					<option value="user">User</option>
-					<option value="session">Session</option>
+					<option value="user"><?php echo $mbTextEsc('user', 'User'); ?></option>
+					<option value="session"><?php echo $mbTextEsc('session', 'Session'); ?></option>
 				</select>
 			</label>
 
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">Sort order</span>
+				<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('sort_order', 'Sort order'); ?></span>
 				<input type="number" id="userpref-def-admin-sort-order" class="userpref-def-admin-form-input" value="100" />
 			</label>
 
 			<label class="userpref-def-admin-form-row">
-				<span class="userpref-def-admin-form-label">State</span>
+				<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('state', 'State'); ?></span>
 				<select id="userpref-def-admin-enabled" class="userpref-def-admin-form-select">
-					<option value="1">Enabled</option>
-					<option value="0">Disabled</option>
+					<option value="1"><?php echo $mbTextEsc('enabled', 'Enabled'); ?></option>
+					<option value="0"><?php echo $mbTextEsc('disabled', 'Disabled'); ?></option>
 				</select>
 			</label>
 		</div>
 
 		<label class="userpref-def-admin-form-row">
-			<span class="userpref-def-admin-form-label">System template</span>
-			<textarea id="userpref-def-admin-system-template" class="userpref-def-admin-form-textarea userpref-def-admin-form-textarea-large" spellcheck="false" placeholder="Antworte im Stil: {{value}}."></textarea>
-			<span class="userpref-def-admin-form-hint">Use {{value}} for string and enum values. Boolean templates are injected only when the value is true.</span>
+			<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('system_template', 'System template'); ?></span>
+			<textarea id="userpref-def-admin-system-template" class="userpref-def-admin-form-textarea userpref-def-admin-form-textarea-large" spellcheck="false" placeholder="<?php echo $mbTextEsc('system_template_placeholder', 'Respond in this style: {{value}}.'); ?>"></textarea>
+			<span class="userpref-def-admin-form-hint"><?php echo $mbTextEsc('use_value_for_string_and_enum_values_boolean_templates_are_injected_only_when_the_value_is_true', 'Use {{value}} for string and enum values. Boolean templates are injected only when the value is true.'); ?></span>
 		</label>
 
 		<label class="userpref-def-admin-form-row">
-			<span class="userpref-def-admin-form-label">Allowed values</span>
+			<span class="userpref-def-admin-form-label"><?php echo $mbTextEsc('allowed_values', 'Allowed values'); ?></span>
 			<textarea id="userpref-def-admin-allowed-values" class="userpref-def-admin-form-textarea" spellcheck="false" placeholder="[
 	&quot;kurz&quot;,
 	&quot;normal&quot;,
@@ -425,6 +431,20 @@ $enabledOptions = $this->_['enabledOptions'];
 
 <script>
 	(function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 		const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 		const MODULAR_GRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 		const MODULAR_DIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -458,7 +478,7 @@ $enabledOptions = $this->_['enabledOptions'];
 			logElement.replaceChildren();
 
 			const label = document.createElement('strong');
-			label.textContent = 'Last action:';
+			label.textContent = mbText('last_action', 'Last action:');
 
 			logElement.appendChild(label);
 			logElement.appendChild(document.createTextNode(' ' + getText(message, 'None')));
@@ -701,7 +721,7 @@ $enabledOptions = $this->_['enabledOptions'];
 				elements.allowedValues.value = '';
 				elements.allowedValues.disabled = true;
 				elements.allowedValues.placeholder = '';
-				elements.allowedValuesHint.textContent = 'Boolean preferences do not use allowed values. False disables system template injection.';
+				elements.allowedValuesHint.textContent = mbText('boolean_preferences_do_not_use_allowed_values_false_disables_system_template_injection', 'Boolean preferences do not use allowed values. False disables system template injection.');
 				return;
 			}
 
@@ -709,18 +729,18 @@ $enabledOptions = $this->_['enabledOptions'];
 			elements.allowedValues.placeholder = '[\n\t"value1",\n\t"value2"\n]';
 
 			if(selectedType === 'enum') {
-				elements.allowedValuesHint.textContent = 'Required for enum. Use a JSON list of allowed scalar values.';
+				elements.allowedValuesHint.textContent = mbText('required_for_enum_use_a_json_list_of_allowed_scalar_values', 'Required for enum. Use a JSON list of allowed scalar values.');
 				return;
 			}
 
-			elements.allowedValuesHint.textContent = 'Optional for string. Leave empty to allow any non-empty scalar value.';
+			elements.allowedValuesHint.textContent = mbText('optional_for_string_leave_empty_to_allow_any_non_empty_scalar_value', 'Optional for string. Leave empty to allow any non-empty scalar value.');
 		}
 
 		function buildEditorButtons(isExisting) {
 			return [
 				{
 					key: 'delete',
-					label: 'Delete',
+					label: mbText('delete', 'Delete'),
 					danger: true,
 					hidden: !isExisting,
 					async action() {
@@ -729,12 +749,12 @@ $enabledOptions = $this->_['enabledOptions'];
 				},
 				{
 					key: 'cancel',
-					label: 'Cancel',
+					label: mbText('cancel', 'Cancel'),
 					action: 'close'
 				},
 				{
 					key: 'save',
-					label: 'Save',
+					label: mbText('save', 'Save'),
 					primary: true,
 					busyLabel: 'Saving...',
 					async action() {
@@ -756,15 +776,16 @@ $enabledOptions = $this->_['enabledOptions'];
 			const content = createEditorContent();
 
 			editorDialog = modularDialogModule.createStandardDialog({
+			strings: mbStringSet('cs_dialog_'),
 				id: 'userpref-def-admin-editor-dialog',
 				className: 'userpref-def-admin-dialog',
 				surfaceClassName: 'userpref-def-admin-dialog-surface',
 				size: 'large',
-				title: 'Preference definition',
+				title: mbText('preference_definition', 'Preference definition'),
 				content,
 				status: '',
 				closeButtonPlugin: {
-					label: 'Close',
+					label: mbText('close', 'Close'),
 					className: 'userpref-def-admin-dialog-close'
 				},
 				statusPlugin: {
@@ -787,7 +808,7 @@ $enabledOptions = $this->_['enabledOptions'];
 			const elements = getEditorElements();
 
 			if(!editorDialog || !elements.root) {
-				setLog('Preference definition editor is not available.');
+				setLog(mbText('preference_definition_editor_is_not_available', 'Preference definition editor is not available.'));
 				return;
 			}
 
@@ -846,13 +867,13 @@ $enabledOptions = $this->_['enabledOptions'];
 
 		async function openEditorForRow(row) {
 			try {
-				setLog('Loading preference definition...');
+				setLog(mbText('loading_preference_definition', 'Loading preference definition...'));
 				const record = await loadRecord(row);
 				openEditor(record);
-				setLog('Loaded preference definition ' + getText(record.pref_key) + '.');
+				setLog(mbText('loaded_preference_definition_prefix', 'Loaded preference definition ') + getText(record.pref_key) + '.');
 			}
 			catch(error) {
-				setLog('Failed to load preference definition: ' + getText(error && error.message, String(error)));
+				setLog(mbText('failed_to_load_preference_definition_prefix', 'Failed to load preference definition: ') + getText(error && error.message, String(error)));
 			}
 		}
 
@@ -885,7 +906,7 @@ $enabledOptions = $this->_['enabledOptions'];
 				await refreshGrid();
 
 				const record = response.record || payload;
-				setLog('Saved preference definition ' + getText(record.pref_key) + '.');
+				setLog(mbText('saved_preference_definition_prefix', 'Saved preference definition ') + getText(record.pref_key) + '.');
 			}
 			catch(error) {
 				setEditorError(getText(error && error.message, String(error)));
@@ -894,13 +915,13 @@ $enabledOptions = $this->_['enabledOptions'];
 
 		async function deleteRecord(row) {
 			if(!row || !row.id) {
-				setLog('Missing preference definition id.');
+				setLog(mbText('missing_preference_definition_id', 'Missing preference definition id.'));
 				return;
 			}
 
 			const label = getText(row.pref_key);
 
-			if(!window.confirm('Delete preference definition "' + label + '"?')) {
+			if(!window.confirm(mbText('delete_preference_definition_confirm', 'Delete preference definition \"{label}\"?', {label}))) {
 				return;
 			}
 
@@ -915,10 +936,10 @@ $enabledOptions = $this->_['enabledOptions'];
 				}
 
 				await refreshGrid();
-				setLog('Deleted preference definition ' + label + '.');
+				setLog(mbText('deleted_preference_definition_prefix', 'Deleted preference definition ') + label + '.');
 			}
 			catch(error) {
-				setLog('Failed to delete preference definition ' + label + ': ' + getText(error && error.message, String(error)));
+				setLog(mbText('failed_to_delete_preference_definition_prefix', 'Failed to delete preference definition ') + label + ': ' + getText(error && error.message, String(error)));
 			}
 		}
 
@@ -1094,6 +1115,7 @@ $enabledOptions = $this->_['enabledOptions'];
 			});
 
 			grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 				layout,
 				adapter,
 				dataMode: 'server',
@@ -1125,8 +1147,8 @@ $enabledOptions = $this->_['enabledOptions'];
 					search: {
 						zone: 'topLine1',
 						order: 10,
-						label: 'Search',
-						placeholder: 'Search key, description, template or allowed values'
+						label: mbText('search', 'Search'),
+						placeholder: mbText('search_key_description_template_or_allowed_values', 'Search key, description, template or allowed values')
 					},
 					filters: {
 						zone: 'topLine2',
@@ -1137,26 +1159,26 @@ $enabledOptions = $this->_['enabledOptions'];
 						fields: [
 							{
 								key: 'pref_key',
-								label: 'Key',
+								label: mbText('key', 'Key'),
 								type: 'text',
-								placeholder: 'Preference key',
+								placeholder: mbText('preference_key', 'Preference key'),
 								width: 220
 							},
 							{
 								key: 'value_type',
-								label: 'Type',
+								label: mbText('type', 'Type'),
 								type: 'select',
 								options: VALUE_TYPE_OPTIONS
 							},
 							{
 								key: 'default_scope',
-								label: 'Scope',
+								label: mbText('scope', 'Scope'),
 								type: 'select',
 								options: SCOPE_OPTIONS
 							},
 							{
 								key: 'enabled',
-								label: 'State',
+								label: mbText('state', 'State'),
 								type: 'select',
 								options: ENABLED_OPTIONS
 							}
@@ -1173,7 +1195,7 @@ $enabledOptions = $this->_['enabledOptions'];
 					reset: {
 						zone: 'topLine1',
 						order: 30,
-						label: 'Reset',
+						label: mbText('reset', 'Reset'),
 						sections: ['query', 'filters', 'columns']
 					},
 					sessionStorage: {
@@ -1197,7 +1219,7 @@ $enabledOptions = $this->_['enabledOptions'];
 							items: [
 								{
 									type: 'columnVisibility',
-									label: 'Columns',
+									label: mbText('columns', 'Columns'),
 									showReset: true,
 									resetLabel: 'Reset columns'
 								}
@@ -1206,14 +1228,14 @@ $enabledOptions = $this->_['enabledOptions'];
 						items: [
 							{
 								key: 'edit',
-								label: 'Edit',
+								label: mbText('edit', 'Edit'),
 								onClick(context) {
 									openEditorForRow(context.row);
 								}
 							},
 							{
 								key: 'delete',
-								label: 'Delete',
+								label: mbText('delete', 'Delete'),
 								onClick(context) {
 									deleteRecord(context.row);
 								}
@@ -1224,13 +1246,13 @@ $enabledOptions = $this->_['enabledOptions'];
 				columns: [
 					{
 						key: 'pref_key',
-						label: 'Preference',
+						label: mbText('preference', 'Preference'),
 						width: 340,
 						headerMenu: {
 							defaultSortKey: 'pref_key',
 							defaultSortDirection: 'asc',
 							sortOptions: [
-								{ key: 'pref_key', label: 'Key' }
+								{ key: 'pref_key', label: mbText('key', 'Key') }
 							]
 						},
 						render(value, row) {
@@ -1239,15 +1261,15 @@ $enabledOptions = $this->_['enabledOptions'];
 					},
 					{
 						key: 'value_type',
-						label: 'Type',
+						label: mbText('type', 'Type'),
 						width: 190,
 						headerMenu: {
 							defaultSortKey: 'value_type',
 							defaultSortDirection: 'asc',
 							sortOptions: [
-								{ key: 'value_type', label: 'Type' },
-								{ key: 'default_scope', label: 'Scope' },
-								{ key: 'enabled', label: 'State' }
+								{ key: 'value_type', label: mbText('type', 'Type') },
+								{ key: 'default_scope', label: mbText('scope', 'Scope') },
+								{ key: 'enabled', label: mbText('state', 'State') }
 							]
 						},
 						render(value, row) {
@@ -1256,7 +1278,7 @@ $enabledOptions = $this->_['enabledOptions'];
 					},
 					{
 						key: 'system_template_preview',
-						label: 'System template',
+						label: mbText('system_template', 'System template'),
 						width: 540,
 						render(value) {
 							return renderPre(value);
@@ -1264,7 +1286,7 @@ $enabledOptions = $this->_['enabledOptions'];
 					},
 					{
 						key: 'allowed_values_preview',
-						label: 'Allowed values',
+						label: mbText('allowed_values', 'Allowed values'),
 						width: 320,
 						render(value) {
 							return renderPre(value || '-');
@@ -1272,14 +1294,14 @@ $enabledOptions = $this->_['enabledOptions'];
 					},
 					{
 						key: 'sort_order',
-						label: 'Order',
+						label: mbText('order', 'Order'),
 						width: 160,
 						headerMenu: {
 							defaultSortKey: 'sort_order',
 							defaultSortDirection: 'asc',
 							sortOptions: [
-								{ key: 'sort_order', label: 'Sort order' },
-								{ key: 'updated', label: 'Updated' }
+								{ key: 'sort_order', label: mbText('sort_order', 'Sort order') },
+								{ key: 'updated', label: mbText('updated', 'Updated') }
 							]
 						},
 						render(value, row) {
@@ -1288,27 +1310,27 @@ $enabledOptions = $this->_['enabledOptions'];
 					},
 					{
 						key: 'default_scope',
-						label: 'Scope',
+						label: mbText('scope', 'Scope'),
 						width: 120,
 						visible: false,
 						headerMenu: {
 							defaultSortKey: 'default_scope',
 							defaultSortDirection: 'asc',
 							sortOptions: [
-								{ key: 'default_scope', label: 'Scope' }
+								{ key: 'default_scope', label: mbText('scope', 'Scope') }
 							]
 						}
 					},
 					{
 						key: 'enabled_label',
-						label: 'State',
+						label: mbText('state', 'State'),
 						width: 120,
 						visible: false,
 						headerMenu: {
 							defaultSortKey: 'enabled',
 							defaultSortDirection: 'desc',
 							sortOptions: [
-								{ key: 'enabled', label: 'State' }
+								{ key: 'enabled', label: mbText('state', 'State') }
 							]
 						}
 					}
@@ -1322,12 +1344,12 @@ $enabledOptions = $this->_['enabledOptions'];
 				return;
 			}
 
-			setLog('Initial preference definitions loaded.');
+			setLog(mbText('initial_preference_definitions_loaded', 'Initial preference definitions loaded.'));
 		}
 
 		initGrid().catch((error) => {
 			console.error('UserPrefDefAdminDisplay failed:', error);
-			setLog('Preference definition grid failed: ' + getText(error && error.message, String(error)));
+			setLog(mbText('preference_definition_grid_failed_prefix', 'Preference definition grid failed: ') + getText(error && error.message, String(error)));
 		});
 	})();
 </script>

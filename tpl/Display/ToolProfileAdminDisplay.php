@@ -1,4 +1,10 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $resolve = $this->_['resolve'];
 
 $serviceUrl = (string) ($this->_['service'] ?? '');
@@ -461,19 +467,19 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 </style>
 
 <div class="tool-profile-admin-shell">
-	<h1>Tool Profiles</h1>
+	<h1><?php echo $mbTextEsc('tool_profiles_2', 'Tool Profiles'); ?></h1>
 	<p>
 		Manage reusable tool profiles for internal MissionBay agents, MCP exposure, or both. Profiles reference already configured tool Component Presets. Memory and context are configured in their own profile displays.
 	</p>
 
 	<div class="tool-profile-admin-grid">
 		<div id="tool-profile-admin-grid" class="tool-profile-admin-grid-shell">
-			<div class="tool-profile-admin-startup">Loading Tool Profile Admin display...</div>
+			<div class="tool-profile-admin-startup"><?php echo $mbTextEsc('loading_tool_profile_admin_display', 'Loading Tool Profile Admin display...'); ?></div>
 		</div>
-		<div id="tool-profile-admin-output" class="tool-profile-admin-status"><strong>Last action:</strong> Waiting for initialization.</div>
+		<div id="tool-profile-admin-output" class="tool-profile-admin-status"><strong><?php echo $mbTextEsc('last_action', 'Last action:'); ?></strong> <?php echo $mbTextEsc('waiting_for_initialization', 'Waiting for initialization.'); ?></div>
 		<details class="tool-profile-admin-log-details">
-			<summary>Debug log</summary>
-			<pre id="tool-profile-admin-log" class="tool-profile-admin-log">Status log will appear here.</pre>
+			<summary><?php echo $mbTextEsc('debug_log', 'Debug log'); ?></summary>
+			<pre id="tool-profile-admin-log" class="tool-profile-admin-log"><?php echo $mbTextEsc('status_log_will_appear_here', 'Status log will appear here.'); ?></pre>
 		</details>
 	</div>
 </div>
@@ -484,51 +490,51 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 			<input type="hidden" name="old_id" />
 
 			<div>
-				<label class="tool-profile-admin-label">Profile ID</label>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('profile_id', 'Profile ID'); ?></label>
 				<input type="text" name="id" class="tool-profile-admin-input" />
 			</div>
 
 			<div>
-				<label class="tool-profile-admin-label">Label</label>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('label', 'Label'); ?></label>
 				<input type="text" name="label" class="tool-profile-admin-input" />
 			</div>
 
 			<div class="tool-profile-admin-field-full">
-				<label class="tool-profile-admin-label">Description</label>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('description', 'Description'); ?></label>
 				<textarea name="description" class="tool-profile-admin-input" rows="3"></textarea>
-				<div class="tool-profile-admin-form-hint">Short description exposed as missionbay://profile resource. Do not include secrets.</div>
+				<div class="tool-profile-admin-form-hint"><?php echo $mbTextEsc('short_description_profile_resource_hint', 'Short description exposed as missionbay://profile resource. Do not include secrets.'); ?></div>
 			</div>
 
 			<div>
-				<label class="tool-profile-admin-label">Profile use</label>
-				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="internal_enabled" value="1" /> available to internal agents</label>
-				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_enabled" value="1" /> expose through MCP</label>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('profile_use', 'Profile use'); ?></label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="internal_enabled" value="1" /> <?php echo $mbTextEsc('available_to_internal_agents', 'available to internal agents'); ?></label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_enabled" value="1" /> <?php echo $mbTextEsc('expose_through_mcp', 'expose through MCP'); ?></label>
 			</div>
 
 			<div>
-				<label class="tool-profile-admin-label">Enabled</label>
-				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="enabled" value="1" /> enabled</label>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('enabled', 'Enabled'); ?></label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="enabled" value="1" /> <?php echo $mbTextEsc('enabled_lowercase', 'enabled'); ?></label>
 			</div>
 
 			<div class="tool-profile-admin-field-full" data-mcp-auth-section>
-				<label class="tool-profile-admin-label">MCP authentication</label>
-				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_fixed_bearer_enabled" value="1" /> fixed bearer token</label>
-				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_credential_enabled" value="1" /> personal credentials through CredentialFoundation</label>
-				<div class="tool-profile-admin-form-hint">Personal credentials publish the stable service missionbay:mcp:&lt;profile-id&gt; to KeyHarbor or another CredentialFoundation implementation.</div>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('mcp_authentication', 'MCP authentication'); ?></label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_fixed_bearer_enabled" value="1" /> <?php echo $mbTextEsc('fixed_bearer_token', 'fixed bearer token'); ?></label>
+				<label class="tool-profile-admin-checkbox-row"><input type="checkbox" name="mcp_credential_enabled" value="1" /> <?php echo $mbTextEsc('personal_credentials_through_credentialfoundation', 'personal credentials through CredentialFoundation'); ?></label>
+				<div class="tool-profile-admin-form-hint"><?php echo $mbTextEsc('personal_credentials_publish_hint', 'Personal credentials publish the stable service missionbay:mcp:<profile-id> to KeyHarbor or another CredentialFoundation implementation.'); ?></div>
 			</div>
 
 			<div class="tool-profile-admin-field-full" data-mcp-token-section>
-				<label class="tool-profile-admin-label">Fixed bearer token</label>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('fixed_bearer_token_2', 'Fixed bearer token'); ?></label>
 				<div class="tool-profile-admin-token-row">
 					<input type="text" name="token" class="tool-profile-admin-input" autocomplete="off" spellcheck="false" />
-					<button type="button" class="tool-profile-admin-button" data-action="generate-token">Generate</button>
-					<button type="button" class="tool-profile-admin-button" data-action="copy-token">Copy</button>
+					<button type="button" class="tool-profile-admin-button" data-action="generate-token"><?php echo $mbTextEsc('generate', 'Generate'); ?></button>
+					<button type="button" class="tool-profile-admin-button" data-action="copy-token"><?php echo $mbTextEsc('copy', 'Copy'); ?></button>
 				</div>
-				<div class="tool-profile-admin-form-hint">Shared technical token used only when fixed bearer access is enabled.</div>
+				<div class="tool-profile-admin-form-hint"><?php echo $mbTextEsc('shared_technical_token_used_only_when_fixed_bearer_access_is_enabled', 'Shared technical token used only when fixed bearer access is enabled.'); ?></div>
 			</div>
 
 			<div class="tool-profile-admin-field-full">
-				<label class="tool-profile-admin-label">Tool presets</label>
+				<label class="tool-profile-admin-label"><?php echo $mbTextEsc('tool_presets', 'Tool presets'); ?></label>
 				<div class="tool-profile-admin-checkbox-list" data-tool-checkbox-list>
 <?php foreach($toolPresetOptions as $toolPresetOption): ?>
 <?php
@@ -560,7 +566,7 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 					</label>
 <?php endforeach; ?>
 				</div>
-				<div class="tool-profile-admin-form-hint">Select already configured tool Component Presets for this profile. Their saved configuration is used unchanged.</div>
+				<div class="tool-profile-admin-form-hint"><?php echo $mbTextEsc('select_already_configured_tool_component_presets_for_this_profile_their_saved_configuration_is_used_unchanged', 'Select already configured tool Component Presets for this profile. Their saved configuration is used unchanged.'); ?></div>
 			</div>
 		</form>
 	</div>
@@ -568,6 +574,20 @@ $e = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES |
 
 <script>
 	(function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 console.log('[ToolProfileAdmin] script entered');
 
 const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -575,14 +595,14 @@ const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED
 const MODULARDIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const TOOL_PRESET_OPTIONS = <?php echo json_encode($toolPresetOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 const BOOLEAN_FILTER_OPTIONS = [
-	{ value: '', label: 'All' },
-	{ value: '1', label: 'Yes' },
-	{ value: '0', label: 'No' }
+	{ value: '', label: mbText('all', 'All') },
+	{ value: '1', label: mbText('yes_label', 'Yes') },
+	{ value: '0', label: mbText('no_label', 'No') }
 ];
 const ENABLED_FILTER_OPTIONS = [
-	{ value: '', label: 'All states' },
-	{ value: '1', label: 'Enabled' },
-	{ value: '0', label: 'Disabled' }
+	{ value: '', label: mbText('all_states', 'All states') },
+	{ value: '1', label: mbText('enabled', 'Enabled') },
+	{ value: '0', label: mbText('disabled', 'Disabled') }
 ];
 const GRID_SELECTOR = '#tool-profile-admin-grid';
 const LOG_SELECTOR = '#tool-profile-admin-log';
@@ -636,7 +656,7 @@ function log(label, value = undefined) {
 	console.log('[ToolProfileAdmin]', label, value === undefined ? '' : value);
 
 	if (logElement) {
-		logElement.textContent = (logElement.textContent === 'Status log will appear here.' ? '' : logElement.textContent + '\n') + message;
+		logElement.textContent = (logElement.textContent === mbText('status_log_will_appear_here', 'Status log will appear here.') ? '' : logElement.textContent + '\n') + message;
 	}
 }
 
@@ -649,7 +669,7 @@ function setLog(message) {
 
 	output.innerHTML = '';
 	const label = document.createElement('strong');
-	label.textContent = 'Last action:';
+	label.textContent = mbText('last_action', 'Last action:');
 	output.appendChild(label);
 	output.appendChild(document.createTextNode(' ' + message));
 }
@@ -823,7 +843,7 @@ async function postJson(payload) {
 
 async function refreshGrid() {
 	if (!grid) {
-		setLog('Grid is not initialized; refresh skipped.');
+		setLog(mbText('grid_is_not_initialized_refresh_skipped', 'Grid is not initialized; refresh skipped.'));
 		return;
 	}
 
@@ -855,7 +875,7 @@ async function refreshGrid() {
 		}
 	}
 
-	setLog('Grid refresh is not available. Please refresh the page manually.');
+	setLog(mbText('grid_refresh_is_not_available_please_refresh_the_page_manually', 'Grid refresh is not available. Please refresh the page manually.'));
 }
 
 function getProfileIdFromRow(row) {
@@ -917,13 +937,13 @@ function renderProfileDetail(context) {
 	const pre = document.createElement('pre');
 
 	left.appendChild(createElement('tool-profile-admin-detail-title', getText(record.label || record.profile_id)));
-	left.appendChild(createDetailRow('ID', record.profile_id || record.id));
-	left.appendChild(createDetailRow('Use', record.usage_text));
-	left.appendChild(createDetailRow('Enabled', record.enabled ? 'yes' : 'no'));
-	left.appendChild(createDetailRow('MCP authentication', record.mcp_enabled ? getText(record.authentication_text, 'missing') : 'not used'));
-	left.appendChild(createDetailRow('Credential service', record.credential_service_id || 'not published'));
-	left.appendChild(createDetailRow('Fixed token', record.fixed_bearer_enabled ? (record.token_configured ? 'configured' : 'missing') : 'disabled'));
-	left.appendChild(createDetailRow('Tools', record.tool_text));
+	left.appendChild(createDetailRow(mbText('id', 'ID'), record.profile_id || record.id));
+	left.appendChild(createDetailRow(mbText('use', 'Use'), record.usage_text));
+	left.appendChild(createDetailRow(mbText('enabled', 'Enabled'), record.enabled ? 'yes' : 'no'));
+	left.appendChild(createDetailRow(mbText('mcp_authentication', 'MCP authentication'), record.mcp_enabled ? getText(record.authentication_text, 'missing') : 'not used'));
+	left.appendChild(createDetailRow(mbText('credential_service', 'Credential service'), record.credential_service_id || 'not published'));
+	left.appendChild(createDetailRow(mbText('fixed_token', 'Fixed token'), record.fixed_bearer_enabled ? (record.token_configured ? 'configured' : 'missing') : 'disabled'));
+	left.appendChild(createDetailRow(mbText('tools', 'Tools'), record.tool_text));
 
 	right.appendChild(createElement('tool-profile-admin-detail-title', 'Record JSON'));
 	pre.className = 'tool-profile-admin-json';
@@ -1052,14 +1072,14 @@ function buildEditorButtons(isExisting = false) {
 	const buttons = [
 		{
 			key: 'copy-payload',
-			label: 'Copy payload',
+			label: mbText('copy_payload', 'Copy payload'),
 			async action() {
 				await copyEditorPayload();
 			}
 		},
 		{
 			key: 'save',
-			label: 'Save',
+			label: mbText('save', 'Save'),
 			primary: true,
 			busyLabel: 'Saving...',
 			async action() {
@@ -1071,7 +1091,7 @@ function buildEditorButtons(isExisting = false) {
 	if (isExisting) {
 		buttons.unshift({
 			key: 'delete-current-profile',
-			label: 'Delete',
+			label: mbText('delete', 'Delete'),
 			danger: true,
 			busyLabel: 'Deleting...',
 			async action() {
@@ -1095,15 +1115,16 @@ function initEditorDialog(modularDialogModule) {
 	const content = createEditorContent();
 
 	editorDialog = modularDialogModule.createStandardDialog({
+			strings: mbStringSet('cs_dialog_'),
 		id: 'tool-profile-admin-editor-dialog',
 		className: 'tool-profile-admin-dialog',
 		surfaceClassName: 'tool-profile-admin-dialog-surface',
 		size: 'large',
-		title: 'Tool profile editor',
+		title: mbText('tool_profile_editor', 'Tool profile editor'),
 		content,
 		status: 'Save is enabled.',
 		closeButtonPlugin: {
-			label: 'Close'
+			label: mbText('close', 'Close')
 		},
 		statusPlugin: {
 			renderEmpty: false
@@ -1113,7 +1134,7 @@ function initEditorDialog(modularDialogModule) {
 
 	editorDialog.on('afterClose', () => {
 		currentEditorProfileId = '';
-		setLog('Closed editor.');
+		setLog(mbText('closed_editor', 'Closed editor.'));
 	});
 
 	editorDialog.init();
@@ -1125,7 +1146,7 @@ function openProfileEditor(record) {
 	const elements = getEditorElements();
 
 	if (!editorDialog || !elements.form) {
-		setLog('Tool profile editor is not available.');
+		setLog(mbText('tool_profile_editor_is_not_available', 'Tool profile editor is not available.'));
 		return;
 	}
 
@@ -1174,7 +1195,7 @@ function openProfileEditor(record) {
 		}
 	}, 0);
 
-	setLog('Opened editor for ' + getText(record.profile_id || record.id, 'new profile'));
+	setLog(mbText('opened_editor_for_prefix', 'Opened editor for ') + getText(record.profile_id || record.id, 'new profile'));
 }
 
 function openNewProfileEditor() {
@@ -1200,11 +1221,11 @@ async function openEditorFromRow(row) {
 	}
 
 	try {
-		setLog('Loading profile ' + getText(getProfileIdFromRow(row)) + ' for editor...');
+		setLog(mbText('loading_profile_prefix', 'Loading profile ') + getText(getProfileIdFromRow(row)) + ' for editor...');
 		const record = await loadRemoteRecord(row);
 		openProfileEditor(record);
 	} catch (error) {
-		setLog('Failed to load profile for editor: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('failed_to_load_profile_for_editor_prefix', 'Failed to load profile for editor: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -1230,11 +1251,11 @@ async function openDuplicateEditorFromRow(row) {
 	}
 
 	try {
-		setLog('Loading profile ' + getText(getProfileIdFromRow(row)) + ' for duplication...');
+		setLog(mbText('loading_profile_prefix', 'Loading profile ') + getText(getProfileIdFromRow(row)) + ' for duplication...');
 		const record = await loadRemoteRecord(row);
 		openProfileEditor(createDuplicateProfileRecord(record));
 	} catch (error) {
-		setLog('Failed to duplicate profile: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('failed_to_duplicate_profile_prefix', 'Failed to duplicate profile: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -1325,7 +1346,7 @@ async function copyEditorPayload() {
 		const payload = buildEditorPayload({ validateRequired: false });
 		await copyText(stringifyJson(payload));
 		setEditorStatus('Payload copied.', 'ok');
-		setLog('Copied editor payload for ' + getText(payload.id, 'new profile'));
+		setLog(mbText('copied_editor_payload_for_prefix', 'Copied editor payload for ') + getText(payload.id, 'new profile'));
 	} catch (error) {
 		setEditorStatus(error && error.message ? error.message : String(error), 'error');
 	}
@@ -1336,7 +1357,7 @@ async function saveEditorPayload() {
 		const payload = buildEditorPayload({ validateRequired: true });
 
 		setEditorStatus('Saving profile...', '');
-		setLog('Saving profile ' + getText(payload.id, 'new profile'));
+		setLog(mbText('saving_profile_prefix', 'Saving profile ') + getText(payload.id, 'new profile'));
 
 		const response = await postJson(payload);
 
@@ -1349,10 +1370,10 @@ async function saveEditorPayload() {
 		await refreshGrid();
 
 		const record = response.record || payload;
-		setLog('Saved profile ' + getText(record.profile_id || record.id || payload.id, payload.id) + '.');
+		setLog(mbText('saved_profile_prefix', 'Saved profile ') + getText(record.profile_id || record.id || payload.id, payload.id) + '.');
 	} catch (error) {
 		setEditorStatus(error && error.message ? error.message : String(error), 'error');
-		setLog('Save failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('save_failed_prefix', 'Save failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -1385,7 +1406,7 @@ async function deleteCurrentProfileFromEditor() {
 		return;
 	}
 
-	if (!window.confirm('Delete tool profile "' + id + '"?')) {
+	if (!window.confirm(mbText('delete_tool_profile_confirm', 'Delete tool profile \"{id}\"?', {id}))) {
 		return;
 	}
 
@@ -1394,10 +1415,10 @@ async function deleteCurrentProfileFromEditor() {
 		await deleteProfileById(id);
 		closeProfileEditor();
 		await refreshGrid();
-		setLog('Deleted profile ' + id + '.');
+		setLog(mbText('deleted_profile_prefix', 'Deleted profile ') + id + '.');
 	} catch (error) {
 		setEditorStatus(error && error.message ? error.message : String(error), 'error');
-		setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('delete_failed_prefix', 'Delete failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -1405,27 +1426,27 @@ async function deleteProfileFromRow(row) {
 	const id = getProfileIdFromRow(row);
 
 	if (!id) {
-		setLog('Cannot delete row without profile id.');
+		setLog(mbText('cannot_delete_row_without_profile_id', 'Cannot delete row without profile id.'));
 		return;
 	}
 
-	if (!window.confirm('Delete tool profile "' + id + '"?')) {
+	if (!window.confirm(mbText('delete_tool_profile_confirm', 'Delete tool profile \"{id}\"?', {id}))) {
 		return;
 	}
 
 	try {
-		setLog('Deleting profile ' + id + '...');
+		setLog(mbText('deleting_profile_prefix', 'Deleting profile ') + id + '...');
 		await deleteProfileById(id);
 		await refreshGrid();
-		setLog('Deleted profile ' + id + '.');
+		setLog(mbText('deleted_profile_prefix', 'Deleted profile ') + id + '.');
 	} catch (error) {
-		setLog('Delete failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('delete_failed_prefix', 'Delete failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
 async function reloadProfileStore() {
 	try {
-		setLog('Reloading profile store...');
+		setLog(mbText('reloading_profile_store', 'Reloading profile store...'));
 		const response = await postJson({ mode: 'reload' });
 
 		if (!response || !response.ok) {
@@ -1433,9 +1454,9 @@ async function reloadProfileStore() {
 		}
 
 		await refreshGrid();
-		setLog('Profile store reloaded.');
+		setLog(mbText('profile_store_reloaded', 'Profile store reloaded.'));
 	} catch (error) {
-		setLog('Reload failed: ' + getText(error && error.message ? error.message : error));
+		setLog(mbText('reload_failed_prefix', 'Reload failed: ') + getText(error && error.message ? error.message : error));
 	}
 }
 
@@ -1498,7 +1519,7 @@ function createProfileActionsPlugin() {
 						const addButton = createButton('tool-profile-admin-button tool-profile-admin-button-primary', 'Add profile');
 						addButton.addEventListener('click', () => openNewProfileEditor());
 
-						const reloadButton = createButton('tool-profile-admin-button', 'Reload');
+						const reloadButton = createButton('tool-profile-admin-button', mbText('reload', 'Reload'));
 						reloadButton.addEventListener('click', () => reloadProfileStore());
 
 						wrapper.appendChild(addButton);
@@ -1629,6 +1650,7 @@ async function initGrid(modularGridModule) {
 	log('adapter created');
 
 	grid = new ModularGrid(GRID_SELECTOR, {
+			strings: mbStringSet('cs_grid_'),
 		layout,
 		adapter,
 		dataMode: 'server',
@@ -1660,8 +1682,8 @@ async function initGrid(modularGridModule) {
 			search: {
 				zone: 'topLine',
 				order: 10,
-				label: 'Search',
-				placeholder: 'Search profile id, label or tools'
+				label: mbText('search', 'Search'),
+				placeholder: mbText('search_profile_id_label_or_tools', 'Search profile id, label or tools')
 			},
 			filters: {
 				zone: 'topLine2',
@@ -1672,19 +1694,19 @@ async function initGrid(modularGridModule) {
 				fields: [
 					{
 						key: 'internal_enabled',
-						label: 'Internal',
+						label: mbText('internal', 'Internal'),
 						type: 'select',
 						options: BOOLEAN_FILTER_OPTIONS
 					},
 					{
 						key: 'mcp_enabled',
-						label: 'MCP',
+						label: mbText('mcp', 'MCP'),
 						type: 'select',
 						options: BOOLEAN_FILTER_OPTIONS
 					},
 					{
 						key: 'enabled',
-						label: 'State',
+						label: mbText('state', 'State'),
 						type: 'select',
 						options: ENABLED_FILTER_OPTIONS
 					}
@@ -1701,7 +1723,7 @@ async function initGrid(modularGridModule) {
 			reset: {
 				zone: 'topLine',
 				order: 20,
-				label: 'Reset',
+				label: mbText('reset', 'Reset'),
 				sections: ['query', 'filters', 'columns', 'detailView']
 			},
 			info: {
@@ -1716,7 +1738,7 @@ async function initGrid(modularGridModule) {
 					items: [
 						{
 							type: 'columnVisibility',
-							label: 'Columns',
+							label: mbText('columns', 'Columns'),
 							showReset: true,
 							resetLabel: 'Reset columns'
 						}
@@ -1725,21 +1747,21 @@ async function initGrid(modularGridModule) {
 				items: [
 					{
 						key: 'edit-profile',
-						label: 'Edit profile',
+						label: mbText('edit_profile', 'Edit profile'),
 						onClick(context) {
 							openEditorFromRow(context && context.row ? context.row : null);
 						}
 					},
 					{
 						key: 'duplicate-profile',
-						label: 'Duplicate profile',
+						label: mbText('duplicate_profile', 'Duplicate profile'),
 						onClick(context) {
 							openDuplicateEditorFromRow(context && context.row ? context.row : null);
 						}
 					},
 					{
 						key: 'delete-profile',
-						label: 'Delete profile',
+						label: mbText('delete_profile', 'Delete profile'),
 						onClick(context) {
 							deleteProfileFromRow(context && context.row ? context.row : null);
 						}
@@ -1775,14 +1797,14 @@ async function initGrid(modularGridModule) {
 		columns: [
 			{
 				key: 'profile_id',
-				label: 'Profile',
+				label: mbText('profile', 'Profile'),
 				width: 320,
 				headerMenu: {
 					defaultSortKey: 'profile_id',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'profile_id', label: 'Profile ID' },
-						{ key: 'label', label: 'Label' }
+						{ key: 'profile_id', label: mbText('profile_id', 'Profile ID') },
+						{ key: 'label', label: mbText('label', 'Label') }
 					]
 				},
 				render(value, row) {
@@ -1791,14 +1813,14 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'usage_text',
-				label: 'Use',
+				label: mbText('use', 'Use'),
 				width: 210,
 				headerMenu: {
 					defaultSortKey: 'usage_text',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'usage_text', label: 'Use' },
-						{ key: 'enabled_label', label: 'State' }
+						{ key: 'usage_text', label: mbText('use', 'Use') },
+						{ key: 'enabled_label', label: mbText('state', 'State') }
 					]
 				},
 				render(value, row) {
@@ -1807,7 +1829,7 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'token_configured_label',
-				label: 'Token',
+				label: mbText('token', 'Token'),
 				width: 120,
 				render(value, row) {
 					return renderPills(row.mcp_enabled ? value : 'not used');
@@ -1815,14 +1837,14 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'tool_text',
-				label: 'Tool presets',
+				label: mbText('tool_presets', 'Tool presets'),
 				width: 520,
 				headerMenu: {
 					defaultSortKey: 'tool_text',
 					defaultSortDirection: 'asc',
 					sortOptions: [
-						{ key: 'tool_text', label: 'Tool presets' },
-						{ key: 'tool_count', label: 'Tool count' }
+						{ key: 'tool_text', label: mbText('tool_presets', 'Tool presets') },
+						{ key: 'tool_count', label: mbText('tool_count', 'Tool count') }
 					]
 				},
 				render(value, row) {
@@ -1831,7 +1853,7 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'enabled_label',
-				label: 'Enabled',
+				label: mbText('enabled', 'Enabled'),
 				width: 120,
 				visible: false,
 				render(value) {
@@ -1840,7 +1862,7 @@ async function initGrid(modularGridModule) {
 			},
 			{
 				key: 'tool_count',
-				label: 'Tools',
+				label: mbText('tools', 'Tools'),
 				width: 110,
 				visible: false
 			}
@@ -1859,12 +1881,12 @@ async function initGrid(modularGridModule) {
 
 	grid.on('detail:loaded', (event) => {
 		log('event detail:loaded', event);
-		setLog('Loaded detail for ' + getText(event && event.rowId));
+		setLog(mbText('loaded_detail_for_prefix', 'Loaded detail for ') + getText(event && event.rowId));
 	});
 
 	grid.on('detail:error', (event) => {
 		log('event detail:error', event);
-		setLog('Failed to load detail: ' + getText(event && event.error));
+		setLog(mbText('failed_to_load_detail_prefix', 'Failed to load detail: ') + getText(event && event.error));
 	});
 
 	log('grid.init start');
@@ -1875,7 +1897,7 @@ async function initGrid(modularGridModule) {
 		return;
 	}
 
-	setLog('Tool Profile Admin loaded. Column visibility and infinite scroll are enabled.');
+	setLog(mbText('tool_profile_admin_loaded_column_visibility_and_infinite_scroll_are_enabled', 'Tool Profile Admin loaded. Column visibility and infinite scroll are enabled.'));
 }
 
 (async function() {
@@ -1897,16 +1919,16 @@ async function initGrid(modularGridModule) {
 	}
 
 	root.dataset.initialized = '1';
-	setStartupStatus('Loading ModularGrid module.');
+	setStartupStatus(mbText('loading_modulargrid_module', 'Loading ModularGrid module.'));
 
 	try {
 		const modularGridModule = await importFirst(MODULARGRID_URL, 'ModularGrid');
-		setStartupStatus('Initializing tool profile grid.');
+		setStartupStatus(mbText('initializing_tool_profile_grid', 'Initializing tool profile grid.'));
 		await initGrid(modularGridModule);
 	} catch (error) {
 		const message = error && error.message ? error.message : String(error);
-		setStartupStatus('Tool Profile Admin could not be initialized.', message, true);
-		setLog('Initialization failed: ' + message);
+		setStartupStatus(mbText('tool_profile_admin_could_not_be_initialized', 'Tool Profile Admin could not be initialized.'), message, true);
+		setLog(mbText('initialization_failed_prefix', 'Initialization failed: ') + message);
 		console.error(error);
 	}
 })();

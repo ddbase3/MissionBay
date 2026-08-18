@@ -1,43 +1,49 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 ?>
 <div id="<?php echo $instanceId; ?>" class="tts-config-admin">
-	<h3>Text-to-Speech Services</h3>
+	<h3><?php echo $mbTextEsc('text_to_speech_services', 'Text-to-Speech Services'); ?></h3>
 	<div class="ttscfg-meta">
-		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Connection group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
-		<div data-role="loading" class="ttscfg-loading">Please wait...</div>
+		<div><strong><?php echo $mbTextEsc('settings_group', 'Settings group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('connection_group', 'Connection group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('last_update', 'Last update:'); ?></strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="ttscfg-loading"><?php echo $mbTextEsc('please_wait', 'Please wait...'); ?></div>
 	</div>
-	<p class="ttscfg-hint">Text-to-speech services generate audio through the configured server-side connection. Permanent provider credentials are never exposed to the browser.</p>
+	<p class="ttscfg-hint"><?php echo $mbTextEsc('text_to_speech_services_generate_audio_through_the_configured_server_side_connection_permanent_provider_creden', 'Text-to-speech services generate audio through the configured server-side connection. Permanent provider credentials are never exposed to the browser.'); ?></p>
 	<div class="ttscfg-layout">
 		<section class="ttscfg-panel">
 			<div class="ttscfg-toolbar">
-				<button type="button" data-role="new">New service</button>
-				<button type="button" data-role="reload">Reload</button>
+				<button type="button" data-role="new"><?php echo $mbTextEsc('new_service', 'New service'); ?></button>
+				<button type="button" data-role="reload"><?php echo $mbTextEsc('reload', 'Reload'); ?></button>
 			</div>
 			<table class="ttscfg-table">
-				<thead><tr><th>ID</th><th>Name</th><th>Connection</th><th>Driver</th><th>Model</th><th>Voice</th><th>Format</th><th>Status</th><th></th></tr></thead>
-				<tbody data-role="tbody"><tr><td colspan="9" class="mono">Loading...</td></tr></tbody>
+				<thead><tr><th><?php echo $mbTextEsc('id', 'ID'); ?></th><th><?php echo $mbTextEsc('name', 'Name'); ?></th><th><?php echo $mbTextEsc('connection', 'Connection'); ?></th><th><?php echo $mbTextEsc('driver', 'Driver'); ?></th><th><?php echo $mbTextEsc('model', 'Model'); ?></th><th><?php echo $mbTextEsc('voice', 'Voice'); ?></th><th><?php echo $mbTextEsc('format', 'Format'); ?></th><th><?php echo $mbTextEsc('status', 'Status'); ?></th><th></th></tr></thead>
+				<tbody data-role="tbody"><tr><td colspan="9" class="mono"><?php echo $mbTextEsc('loading', 'Loading...'); ?></td></tr></tbody>
 			</table>
 		</section>
 		<section class="ttscfg-panel">
 			<form data-role="form">
-				<h4 data-role="legend">Create text-to-speech service</h4>
+				<h4 data-role="legend"><?php echo $mbTextEsc('create_text_to_speech_service', 'Create text-to-speech service'); ?></h4>
 				<div class="ttscfg-grid">
-					<label>Service id<input type="text" name="id" placeholder="openai-default" autocomplete="off"></label>
-					<label>Name<input type="text" name="name" placeholder="OpenAI Default Voice" autocomplete="off"></label>
-					<label>Connection<select name="connection"><option value="">Loading connections...</option></select></label>
-					<label>Driver<select name="driver"><option value="">Loading drivers...</option></select></label>
-					<label>Model<input type="text" name="model" placeholder="gpt-4o-mini-tts" autocomplete="off"></label>
-					<label>Voice<input type="text" name="voice" placeholder="alloy" autocomplete="off"></label>
+					<label><?php echo $mbTextEsc('service_id', 'Service id'); ?><input type="text" name="id" placeholder="openai-default" autocomplete="off"></label>
+					<label><?php echo $mbTextEsc('name', 'Name'); ?><input type="text" name="name" placeholder="OpenAI Default Voice" autocomplete="off"></label>
+					<label><?php echo $mbTextEsc('connection', 'Connection'); ?><select name="connection"><option value=""><?php echo $mbTextEsc('loading_connections', 'Loading connections...'); ?></option></select></label>
+					<label><?php echo $mbTextEsc('driver', 'Driver'); ?><select name="driver"><option value=""><?php echo $mbTextEsc('loading_drivers', 'Loading drivers...'); ?></option></select></label>
+					<label><?php echo $mbTextEsc('model', 'Model'); ?><input type="text" name="model" placeholder="gpt-4o-mini-tts" autocomplete="off"></label>
+					<label><?php echo $mbTextEsc('voice', 'Voice'); ?><input type="text" name="voice" placeholder="alloy" autocomplete="off"></label>
 					<div class="ttscfg-row">
-						<label>Audio format<select name="responseFormat"><option value="mp3">mp3</option><option value="opus">opus</option><option value="aac">aac</option><option value="flac">flac</option><option value="wav">wav</option></select></label>
-						<label>Speed<input type="text" name="speed" placeholder="1.0" inputmode="decimal"><small>Allowed range: 0.25 to 4.0.</small></label>
+						<label><?php echo $mbTextEsc('audio_format', 'Audio format'); ?><select name="responseFormat"><option value="mp3">mp3</option><option value="opus">opus</option><option value="aac">aac</option><option value="flac">flac</option><option value="wav">wav</option></select></label>
+						<label><?php echo $mbTextEsc('speed', 'Speed'); ?><input type="text" name="speed" placeholder="1.0" inputmode="decimal"><small><?php echo $mbTextEsc('allowed_range_0_25_to_4_0', 'Allowed range: 0.25 to 4.0.'); ?></small></label>
 					</div>
-					<label>Voice instructions<textarea name="instructions" spellcheck="true" placeholder="Speak clearly and warmly in German."></textarea></label>
-					<label>Advanced options JSON<textarea name="options" spellcheck="false" placeholder="{&#10;}"></textarea></label>
-					<label class="ttscfg-checkbox"><input type="checkbox" name="enabled" checked><span>Enabled</span></label>
+					<label><?php echo $mbTextEsc('voice_instructions', 'Voice instructions'); ?><textarea name="instructions" spellcheck="true" placeholder="<?php echo $mbTextEsc('voice_instructions_placeholder', 'Speak clearly and warmly.'); ?>"></textarea></label>
+					<label><?php echo $mbTextEsc('advanced_options_json', 'Advanced options JSON'); ?><textarea name="options" spellcheck="false" placeholder="{&#10;}"></textarea></label>
+					<label class="ttscfg-checkbox"><input type="checkbox" name="enabled" checked><span><?php echo $mbTextEsc('enabled', 'Enabled'); ?></span></label>
 				</div>
 				<div data-role="formfeedback" class="ttscfg-feedback" hidden></div>
 
@@ -45,7 +51,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 					<div data-role="testmeta" class="ttscfg-test-meta"></div>
 					<pre data-role="testpreview" class="ttscfg-test-preview"></pre>
 				</div>
-				<div class="ttscfg-actions"><button type="submit" class="primary">Save service</button><button type="button" data-role="test">Test service</button><button type="button" data-role="delete" disabled>Delete service</button></div>
+				<div class="ttscfg-actions"><button type="submit" class="primary"><?php echo $mbTextEsc('save_service', 'Save service'); ?></button><button type="button" data-role="test"><?php echo $mbTextEsc('test_service', 'Test service'); ?></button><button type="button" data-role="delete" disabled><?php echo $mbTextEsc('delete_service', 'Delete service'); ?></button></div>
 			</form>
 		</section>
 	</div>
@@ -57,6 +63,20 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 </style>
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpoint = <?php echo json_encode((string)$this->_['endpoint']); ?>;
 	const root = document.getElementById(instanceId);
@@ -77,15 +97,15 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 	function feedback(message, type) { refs.feedback.hidden = false; refs.feedback.className = 'ttscfg-feedback ' + type; refs.feedback.textContent = message; }
 	function clearFeedback() { refs.feedback.hidden = true; refs.feedback.textContent = ''; }
 	function setLoading(value) { refs.loading.style.display = value ? 'block' : 'none'; }
-	function status(row) { if(!row.enabled) return '<span class="badge off">disabled</span>'; if(!row.connectionEnabled) return '<span class="badge warn">connection off</span>'; return '<span class="badge ok">enabled</span>'; }
+	function status(row) { if(!row.enabled) return '<span class="badge off"><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>'; if(!row.connectionEnabled) return '<span class="badge warn"><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>'; return '<span class="badge ok"><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>'; }
 	function renderSelect(select, rows, selected, label, valueKey, labelKey) {
-		select.innerHTML = '<option value="">' + esc(rows.length ? label : 'No entries available') + '</option>';
+		select.innerHTML = '<option value="">' + esc(rows.length ? label : mbText('no_entries_available', 'No entries available')) + '</option>';
 		for(const row of rows) { const option = document.createElement('option'); option.value = row[valueKey] || ''; option.textContent = row[labelKey] || row[valueKey] || ''; if(row.enabled === false) option.textContent += ' [disabled]'; select.appendChild(option); }
 		select.value = selected || '';
 	}
 	function renderRows() {
-		if(!state.services.length) { refs.tbody.innerHTML = '<tr><td colspan="9" class="mono">No text-to-speech services configured.</td></tr>'; return; }
-		refs.tbody.innerHTML = state.services.map(row => '<tr data-id="' + esc(row.id) + '"><td class="technical">' + esc(row.id) + '</td><td>' + esc(row.name) + '</td><td class="technical">' + esc(row.connection) + '</td><td class="technical">' + esc(row.driverLabel || row.driver) + '</td><td class="technical">' + esc(row.model) + '</td><td>' + esc(row.voice) + '</td><td class="technical">' + esc(row.responseFormat) + '</td><td>' + status(row) + '</td><td><button type="button" class="ttscfg-edit" data-edit="' + esc(row.id) + '">Edit</button></td></tr>').join('');
+		if(!state.services.length) { refs.tbody.innerHTML = '<tr><td colspan="9" class="mono"><?php echo $mbTextEsc('no_text_to_speech_services_configured', mbText('no_text_to_speech_services_configured', 'No text-to-speech services configured.')); ?></td></tr>'; return; }
+		refs.tbody.innerHTML = state.services.map(row => '<tr data-id="' + esc(row.id) + '"><td class="technical">' + esc(row.id) + '</td><td>' + esc(row.name) + '</td><td class="technical">' + esc(row.connection) + '</td><td class="technical">' + esc(row.driverLabel || row.driver) + '</td><td class="technical">' + esc(row.model) + '</td><td>' + esc(row.voice) + '</td><td class="technical">' + esc(row.responseFormat) + '</td><td>' + status(row) + '</td><td><button type="button" class="ttscfg-edit" data-edit="' + esc(row.id) + '"><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td></tr>').join('');
 		highlight();
 	}
 	function highlight() { root.querySelectorAll('tr[data-id]').forEach(row => row.classList.toggle('selected', row.dataset.id === state.selectedId)); }
@@ -97,12 +117,12 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 	}
 	function reset() {
 		clearTestResult();
-		refs.form.reset(); state.selectedId = ''; refs.id.readOnly = false; refs.legend.textContent = 'Create text-to-speech service'; refs.deleteBtn.disabled = true; refs.id.value = refs.name.value = refs.connection.value = refs.driver.value = refs.model.value = refs.voice.value = refs.speed.value = refs.instructions.value = ''; refs.responseFormat.value = 'mp3'; refs.options.value = '{\n}'; refs.enabled.checked = true; highlight();
+		refs.form.reset(); state.selectedId = ''; refs.id.readOnly = false; refs.legend.textContent = mbText('create_text_to_speech_service', 'Create text-to-speech service'); refs.deleteBtn.disabled = true; refs.id.value = refs.name.value = refs.connection.value = refs.driver.value = refs.model.value = refs.voice.value = refs.speed.value = refs.instructions.value = ''; refs.responseFormat.value = 'mp3'; refs.options.value = '{\n}'; refs.enabled.checked = true; highlight();
 	}
 	function fill(row) {
 		clearTestResult();
 		if(!row) { reset(); return; }
-		state.selectedId = row.id || ''; refs.legend.textContent = 'Edit text-to-speech service'; refs.id.readOnly = true; refs.deleteBtn.disabled = false; refs.id.value = row.id || ''; refs.name.value = row.name || ''; refs.connection.value = row.connection || ''; refs.driver.value = row.driver || ''; refs.model.value = row.model || ''; refs.voice.value = row.voice || ''; refs.responseFormat.value = row.responseFormat || 'mp3'; refs.speed.value = row.speed || '1'; refs.instructions.value = row.instructions || ''; refs.options.value = formatOptions(row.options); refs.enabled.checked = !!row.enabled; highlight();
+		state.selectedId = row.id || ''; refs.legend.textContent = mbText('edit_text_to_speech_service', 'Edit text-to-speech service'); refs.id.readOnly = true; refs.deleteBtn.disabled = false; refs.id.value = row.id || ''; refs.name.value = row.name || ''; refs.connection.value = row.connection || ''; refs.driver.value = row.driver || ''; refs.model.value = row.model || ''; refs.voice.value = row.voice || ''; refs.responseFormat.value = row.responseFormat || 'mp3'; refs.speed.value = row.speed || '1'; refs.instructions.value = row.instructions || ''; refs.options.value = formatOptions(row.options); refs.enabled.checked = !!row.enabled; highlight();
 	}
 	async function api(params) {
 		setLoading(true);
@@ -115,7 +135,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 	async function load(preselect) {
 		const json = await api({action:'list'}); if(!json) return;
 		state.services = json.data?.textToSpeechServices || []; state.connections = json.data?.connections || []; state.drivers = json.data?.drivers || [];
-		renderSelect(refs.connection, state.connections, refs.connection.value, 'Select connection', 'id', 'name'); renderSelect(refs.driver, state.drivers, refs.driver.value, 'Select driver', 'driver', 'label'); renderRows();
+		renderSelect(refs.connection, state.connections, refs.connection.value, mbText('select_connection', 'Select connection'), 'id', 'name'); renderSelect(refs.driver, state.drivers, refs.driver.value, mbText('select_driver', 'Select driver'), 'driver', 'label'); renderRows();
 		const selected = find(preselect || state.selectedId); if(selected) fill(selected); else if(!state.services.length) reset();
 	}
 	function clearTestResult() {
@@ -165,7 +185,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 		const testBtn = root.querySelector("[data-role='test']");
 		testBtn.disabled = true;
 		const originalLabel = testBtn.textContent;
-		testBtn.textContent = "Testing...";
+		testBtn.textContent = mbText('testing', 'Testing...');
 
 		try {
 			const json = await api(buildTestRequest());
@@ -173,7 +193,7 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 
 			const result = json.data && json.data.test ? json.data.test : null;
 			if (!result) {
-				feedback("Service test returned no result.", "error");
+				feedback(mbText('service_test_returned_no_result', 'Service test returned no result.'), "error");
 				return;
 			}
 
@@ -187,13 +207,13 @@ $instanceId = htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES);
 
 	async function save() {
 		clearFeedback(); let advanced;
-		try { advanced = JSON.parse(refs.options.value.trim() || '{}'); if(!advanced || Array.isArray(advanced)) throw new Error(); } catch(error) { feedback('Advanced options must be a JSON object.', 'error'); return; }
+		try { advanced = JSON.parse(refs.options.value.trim() || '{}'); if(!advanced || Array.isArray(advanced)) throw new Error(); } catch(error) { feedback(mbText('advanced_options_must_be_a_json_object', 'Advanced options must be a JSON object.'), 'error'); return; }
 		const data = {action:'save',id:key(refs.id.value),name:refs.name.value.trim(),connection:key(refs.connection.value),driver:key(refs.driver.value),model:refs.model.value.trim(),voice:refs.voice.value.trim(),responseFormat:refs.responseFormat.value,speed:refs.speed.value.trim(),instructions:refs.instructions.value.trim(),options:JSON.stringify(advanced),enabled:refs.enabled.checked?'1':'0'};
 		if(!data.id || !data.name || !data.connection || !data.driver || !data.model || !data.voice) { feedback('Id, name, connection, driver, model and voice are required.', 'error'); return; }
 		const json = await api(data); if(!json) return; feedback('Text-to-speech service saved.', 'success'); await load(json.data?.textToSpeechService?.id || data.id);
 	}
 	async function remove() {
-		const id = state.selectedId; if(!id || !window.confirm("Delete text-to-speech service '" + id + "'?")) return;
+		const id = state.selectedId; if(!id || !window.confirm(mbText('delete_text_to_speech_service_confirm', "Delete text-to-speech service '{id}'?", {id}))) return;
 		const json = await api({action:'remove',id}); if(!json) return; feedback('Text-to-speech service deleted.', 'success'); reset(); await load();
 	}
 	refs.form.addEventListener('submit', event => { event.preventDefault(); save(); }); q('[data-role="test"]').addEventListener('click', testCurrent); refs.newBtn.addEventListener('click', () => { clearFeedback(); reset(); }); refs.reloadBtn.addEventListener('click', () => load(state.selectedId)); refs.deleteBtn.addEventListener('click', remove); refs.driver.addEventListener('change', () => applyDefaults(true)); refs.tbody.addEventListener('click', event => { const button = event.target.closest('[data-edit]'); if(button) fill(find(button.dataset.edit)); });

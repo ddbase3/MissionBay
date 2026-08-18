@@ -1,10 +1,16 @@
+<?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 <div id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>" class="connection-config-admin">
-	<h3>Connections</h3>
+	<h3><?php echo $mbTextEsc('connections', 'Connections'); ?></h3>
 
 	<div class="ccad-meta">
-		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
-		<div data-role="loading" class="ccad-loading">Please wait...</div>
+		<div><strong><?php echo $mbTextEsc('settings_group', 'Settings group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('last_update', 'Last update:'); ?></strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="ccad-loading"><?php echo $mbTextEsc('please_wait', 'Please wait...'); ?></div>
 	</div>
 
 	<div class="ccad-hint">
@@ -14,32 +20,32 @@
 	<div class="ccad-layout">
 		<div class="ccad-listbox">
 			<div class="ccad-toolbar">
-				<button type="button" data-role="new">New connection</button>
-				<button type="button" data-role="reload">Reload</button>
+				<button type="button" data-role="new"><?php echo $mbTextEsc('new_connection', 'New connection'); ?></button>
+				<button type="button" data-role="reload"><?php echo $mbTextEsc('reload', 'Reload'); ?></button>
 			</div>
 
 			<table class="ccad-table">
 				<thead>
 					<tr>
-						<th>ID</th>
-						<th>Name</th>
-						<th>Driver</th>
-						<th>Base URL</th>
-						<th>Auth</th>
-						<th>Secret</th>
-						<th>Status</th>
+						<th><?php echo $mbTextEsc('id', 'ID'); ?></th>
+						<th><?php echo $mbTextEsc('name', 'Name'); ?></th>
+						<th><?php echo $mbTextEsc('driver', 'Driver'); ?></th>
+						<th><?php echo $mbTextEsc('base_url', 'Base URL'); ?></th>
+						<th><?php echo $mbTextEsc('auth', 'Auth'); ?></th>
+						<th><?php echo $mbTextEsc('secret', 'Secret'); ?></th>
+						<th><?php echo $mbTextEsc('status', 'Status'); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="8" class="mono">Loading...</td></tr>
+					<tr><td colspan="8" class="mono"><?php echo $mbTextEsc('loading', 'Loading...'); ?></td></tr>
 				</tbody>
 			</table>
 		</div>
 
 		<div class="ccad-formbox">
 			<form data-role="form">
-				<h4 data-role="legend">Create connection</h4>
+				<h4 data-role="legend"><?php echo $mbTextEsc('create_connection', 'Create connection'); ?></h4>
 
 				<div class="ccad-hint" data-role="idhint">
 					Technical connection id. This becomes the fixed lookup key used by service configurations.
@@ -47,34 +53,34 @@
 
 				<div class="ccad-grid">
 					<div class="ccad-field">
-						<label>Connection id</label>
+						<label><?php echo $mbTextEsc('connection_id', 'Connection id'); ?></label>
 						<input type="text" name="id" placeholder="openai" autocomplete="off">
 					</div>
 
 					<div class="ccad-field">
-						<label>Name</label>
+						<label><?php echo $mbTextEsc('name', 'Name'); ?></label>
 						<input type="text" name="name" placeholder="OpenAI" autocomplete="off">
 					</div>
 
 					<div class="ccad-field ccad-field-row">
 						<div>
-							<label>Driver</label>
-							<select name="driver"><option value="">Loading drivers...</option></select>
+							<label><?php echo $mbTextEsc('driver', 'Driver'); ?></label>
+							<select name="driver"><option value=""><?php echo $mbTextEsc('loading_drivers', 'Loading drivers...'); ?></option></select>
 						</div>
 						<div>
-							<label>Type</label>
+							<label><?php echo $mbTextEsc('type', 'Type'); ?></label>
 							<input type="text" name="type" placeholder="http" autocomplete="off" readonly>
 						</div>
 					</div>
 
 					<div class="ccad-field">
-						<label>Base URL</label>
+						<label><?php echo $mbTextEsc('base_url', 'Base URL'); ?></label>
 						<input type="text" name="baseUrl" placeholder="https://api.openai.com" autocomplete="off">
 					</div>
 
 					<div class="ccad-field ccad-field-row">
 						<div>
-							<label>Auth type</label>
+							<label><?php echo $mbTextEsc('auth_type', 'Auth type'); ?></label>
 							<select name="authType">
 								<option value="none">none</option>
 								<option value="bearer">bearer</option>
@@ -83,20 +89,20 @@
 							</select>
 						</div>
 						<div>
-							<label>Auth header name</label>
+							<label><?php echo $mbTextEsc('auth_header_name', 'Auth header name'); ?></label>
 							<input type="text" name="authHeaderName" placeholder="Authorization / api-key / X-API-Key" autocomplete="off">
 						</div>
 					</div>
 
 					<div class="ccad-field ccad-field-row">
 						<div>
-							<label>Secret source</label>
+							<label><?php echo $mbTextEsc('secret_source', 'Secret source'); ?></label>
 							<select name="secretMode"><option value="fixed">fixed</option></select>
 						</div>
 						<div class="ccad-keepsecret" data-role="keepsecretwrap" style="display:none">
 							<label class="ccad-checkbox ccad-keepsecret-label">
 								<input type="checkbox" name="keepSecret">
-								<span>Keep existing fixed secret</span>
+								<span><?php echo $mbTextEsc('keep_existing_fixed_secret', 'Keep existing fixed secret'); ?></span>
 							</label>
 						</div>
 					</div>
@@ -109,31 +115,31 @@
 
 					<div class="ccad-field ccad-field-row">
 						<div>
-							<label>Timeout seconds</label>
+							<label><?php echo $mbTextEsc('timeout_seconds', 'Timeout seconds'); ?></label>
 							<input type="text" name="timeoutSeconds" placeholder="60" autocomplete="off">
 						</div>
 						<div>
-							<label>Scope</label>
+							<label><?php echo $mbTextEsc('scope', 'Scope'); ?></label>
 							<input type="text" name="scope" placeholder="global" autocomplete="off">
 						</div>
 					</div>
 
 					<div class="ccad-field">
-						<label>Options JSON</label>
+						<label><?php echo $mbTextEsc('options_json', 'Options JSON'); ?></label>
 						<textarea name="options" spellcheck="false" placeholder="{&#10;}"></textarea>
-						<div class="ccad-hint ccad-inline-hint">Optional connection-driver options. Secrets are stored only in the auth block above.</div>
+						<div class="ccad-hint ccad-inline-hint"><?php echo $mbTextEsc('optional_connection_driver_options_secrets_are_stored_only_in_the_auth_block_above', 'Optional connection-driver options. Secrets are stored only in the auth block above.'); ?></div>
 					</div>
 
 					<div class="ccad-field ccad-field-checkbox">
-						<label class="ccad-checkbox"><input type="checkbox" name="enabled" checked><span>Enabled</span></label>
+						<label class="ccad-checkbox"><input type="checkbox" name="enabled" checked><span><?php echo $mbTextEsc('enabled', 'Enabled'); ?></span></label>
 					</div>
 				</div>
 
 				<div data-role="formfeedback" class="ccad-form-feedback" style="display:none"></div>
 
 				<div class="ccad-actions">
-					<button type="submit" class="primary">Save connection</button>
-					<button type="button" data-role="delete" disabled>Delete connection</button>
+					<button type="submit" class="primary"><?php echo $mbTextEsc('save_connection', 'Save connection'); ?></button>
+					<button type="button" data-role="delete" disabled><?php echo $mbTextEsc('delete_connection', 'Delete connection'); ?></button>
 				</div>
 			</form>
 		</div>
@@ -146,6 +152,20 @@
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	var instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	var endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
 	var configGroup = <?php echo json_encode((string)$this->_['configGroup']); ?>;
@@ -293,7 +313,7 @@
 		function setEditMode(editing) {
 			refs.id.readOnly = editing;
 			refs.deleteBtn.disabled = !editing;
-			refs.legend.textContent = editing ? "Edit connection" : "Create connection";
+			refs.legend.textContent = editing ? "Edit connection" : mbText('create_connection', 'Create connection');
 			refs.idhint.textContent = editing
 				? "Technical connection id is fixed for existing entries. Create a new entry if you need another key."
 				: "Technical connection id. This becomes the fixed lookup key used by service configurations.";
@@ -461,7 +481,7 @@
 				refs.secretMode.disabled = true;
 				refs.authHeaderName.disabled = true;
 				refs.keepSecret.checked = false;
-				refs.secrethint.textContent = "No secret is used when auth type is none.";
+				refs.secrethint.textContent = mbText('no_secret_is_used_when_auth_type_is_none', 'No secret is used when auth type is none.');
 				return;
 			}
 
@@ -530,7 +550,7 @@
 
 			if(mode === "fixed" && key === "value" && refs.keepSecret.checked) {
 				input.value = "";
-				input.placeholder = "Leave empty to keep the existing stored secret.";
+				input.placeholder = mbText('leave_empty_keep_existing_secret', 'Leave empty to keep the existing stored secret.');
 			}
 			else {
 				input.value = value === undefined || value === null ? "" : String(value);
@@ -557,7 +577,7 @@
 			var key;
 
 			wrap.className = "ccad-secret-field";
-			label.textContent = "Mode payload JSON";
+			label.textContent = mbText('mode_payload_json', 'Mode payload JSON');
 			wrap.appendChild(label);
 
 			for(key in config) {
@@ -583,21 +603,21 @@
 			}
 
 			if(mode === "env") {
-				refs.secrethint.textContent = "Enter the environment variable name. The runtime resolves it when the connection is used.";
+				refs.secrethint.textContent = mbText('enter_the_environment_variable_name_the_runtime_resolves_it_when_the_connection_is_used', 'Enter the environment variable name. The runtime resolves it when the connection is used.');
 				return;
 			}
 
 			if(mode === "configuration") {
-				refs.secrethint.textContent = "Enter the BASE3 configuration group and key. The runtime resolves the value through the configuration service.";
+				refs.secrethint.textContent = mbText('enter_the_base3_configuration_group_and_key_the_runtime_resolves_the_value_through_the_configuration_service', 'Enter the BASE3 configuration group and key. The runtime resolves the value through the configuration service.');
 				return;
 			}
 
 			if(mode === "file") {
-				refs.secrethint.textContent = "Enter the file path. The runtime reads the secret from this file.";
+				refs.secrethint.textContent = mbText('enter_the_file_path_the_runtime_reads_the_secret_from_this_file', 'Enter the file path. The runtime reads the secret from this file.');
 				return;
 			}
 
-			refs.secrethint.textContent = "This secret source is provided by a config value mode resolver.";
+			refs.secrethint.textContent = mbText('this_secret_source_is_provided_by_a_config_value_mode_resolver', 'This secret source is provided by a config value mode resolver.');
 		}
 
 		function updateAuthUi() {
@@ -622,7 +642,7 @@
 			if(state.drivers.length === 0) {
 				option = document.createElement("option");
 				option.value = "";
-				option.textContent = "No drivers available";
+				option.textContent = mbText('no_drivers_available', 'No drivers available');
 				refs.driver.appendChild(option);
 				return;
 			}
@@ -716,7 +736,7 @@
 		}
 
 		function statusBadge(enabled) {
-			return enabled ? "<span class='badge ok'>enabled</span>" : "<span class='badge off'>disabled</span>";
+			return enabled ? "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>" : "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
 		}
 
 		function renderRows() {
@@ -731,7 +751,7 @@
 			refs.tbody.innerHTML = "";
 
 			if(state.connections.length === 0) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'>No connections configured.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_connections_configured_2', mbText('no_connections_configured_2', 'No connections configured.')); ?></td></tr>";
 				return;
 			}
 
@@ -752,7 +772,7 @@
 					"<td class='auth-col'><span>" + esc(connection.authType) + "</span><br><span class='ccad-subline'>" + esc(headerText) + "</span></td>" +
 					"<td class='secret-col' title='" + esc(secretSummary) + "'><span>" + esc(secretMode || "none") + "</span><br><span class='ccad-subline'>" + esc(secretSummary) + "</span></td>" +
 					"<td>" + statusBadge(!!connection.enabled) + "</td>" +
-					"<td><button type='button' class='ccad-edit-btn' data-action='edit' data-id='" + esc(connection.id) + "'>Edit</button></td>";
+					"<td><button type='button' class='ccad-edit-btn' data-action='edit' data-id='" + esc(connection.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
 
 				refs.tbody.appendChild(tr);
 			}
@@ -778,7 +798,7 @@
 			var body;
 
 			if(!endpointBase) {
-				showFeedback("The request endpoint is missing. The connection cannot be loaded or saved.", "error");
+				showFeedback(mbText('the_request_endpoint_is_missing_the_connection_cannot_be_loaded_or_saved', 'The request endpoint is missing. The connection cannot be loaded or saved.'), "error");
 				return Promise.resolve(null);
 			}
 
@@ -806,7 +826,7 @@
 					json = JSON.parse(text);
 				}
 				catch(e) {
-					showFeedback("The server response could not be read.", "error");
+					showFeedback(mbText('the_server_response_could_not_be_read', 'The server response could not be read.'), "error");
 					return null;
 				}
 
@@ -819,7 +839,7 @@
 
 				return json;
 			}).catch(function() {
-				showFeedback("The request failed. Please try again.", "error");
+				showFeedback(mbText('the_request_failed_please_try_again', 'The request failed. Please try again.'), "error");
 				return null;
 			}).finally(function() {
 				setLoading(false);
@@ -833,7 +853,7 @@
 				var selected;
 
 				if(!json) {
-					refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'>Connections could not be loaded.</td></tr>";
+					refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('connections_could_not_be_loaded', mbText('connections_could_not_be_loaded', 'Connections could not be loaded.')); ?></td></tr>";
 					return;
 				}
 
@@ -871,14 +891,14 @@
 				parsed = JSON.parse(raw);
 
 				if(!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					showFeedback("Options must be a JSON object.", "error");
+					showFeedback(mbText('options_must_be_a_json_object', 'Options must be a JSON object.'), "error");
 					return null;
 				}
 
 				return JSON.stringify(parsed);
 			}
 			catch(e) {
-				showFeedback("Options must be valid JSON.", "error");
+				showFeedback(mbText('options_must_be_valid_json', 'Options must be valid JSON.'), "error");
 				return null;
 			}
 		}
@@ -912,7 +932,7 @@
 
 					if(!payload || typeof payload !== "object" || Array.isArray(payload)) {
 						if(validate) {
-							showFeedback("Secret payload must be a JSON object.", "error");
+							showFeedback(mbText('secret_payload_must_be_a_json_object', 'Secret payload must be a JSON object.'), "error");
 						}
 
 						return null;
@@ -926,7 +946,7 @@
 				}
 				catch(e) {
 					if(validate) {
-						showFeedback("Secret payload must be valid JSON.", "error");
+						showFeedback(mbText('secret_payload_must_be_valid_json', 'Secret payload must be valid JSON.'), "error");
 					}
 
 					return null;
@@ -1024,12 +1044,12 @@
 			refs.scope.value = scope;
 
 			if(!id || !name || !driver || !type) {
-				showFeedback("Connection id, name, driver and type are required.", "error");
+				showFeedback(mbText('connection_id_name_driver_and_type_are_required', 'Connection id, name, driver and type are required.'), "error");
 				return;
 			}
 
 			if(type === "http" && !baseUrl) {
-				showFeedback("Base URL is required for HTTP connections.", "error");
+				showFeedback(mbText('base_url_is_required_for_http_connections', 'Base URL is required for HTTP connections.'), "error");
 				return;
 			}
 
@@ -1056,7 +1076,7 @@
 				}
 
 				connection = json.data && json.data.connection ? json.data.connection : null;
-				showFeedback("Connection saved.", "success");
+				showFeedback(mbText('connection_saved', 'Connection saved.'), "success");
 				loadList(connection && connection.id ? connection.id : id);
 			});
 		}
@@ -1067,11 +1087,11 @@
 			clearFeedback();
 
 			if(!id) {
-				showFeedback("No connection selected.", "error");
+				showFeedback(mbText('no_connection_selected', 'No connection selected.'), "error");
 				return;
 			}
 
-			if(!window.confirm("Delete connection '" + id + "'?")) {
+			if(!window.confirm(mbText('delete_connection_confirm', "Delete connection '{id}'?", {id}))) {
 				return;
 			}
 
@@ -1083,7 +1103,7 @@
 					return;
 				}
 
-				showFeedback("Connection deleted.", "success");
+				showFeedback(mbText('connection_deleted', 'Connection deleted.'), "success");
 				resetForm();
 				loadList();
 			});

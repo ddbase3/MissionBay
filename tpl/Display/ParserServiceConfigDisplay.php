@@ -1,11 +1,17 @@
+<?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 <div id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>" class="parser-config-admin">
-	<h3>Parsers</h3>
+	<h3><?php echo $mbTextEsc('parsers', 'Parsers'); ?></h3>
 
 	<div class="parsercfg-meta">
-		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Connection group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
-		<div data-role="loading" class="parsercfg-loading">Please wait...</div>
+		<div><strong><?php echo $mbTextEsc('settings_group', 'Settings group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('connection_group', 'Connection group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('last_update', 'Last update:'); ?></strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="parsercfg-loading"><?php echo $mbTextEsc('please_wait', 'Please wait...'); ?></div>
 	</div>
 
 	<div class="parsercfg-hint">
@@ -15,32 +21,32 @@
 	<div class="parsercfg-layout">
 		<div class="parsercfg-listbox">
 			<div class="parsercfg-toolbar">
-				<button type="button" data-role="new">New parser</button>
-				<button type="button" data-role="reload">Reload</button>
+				<button type="button" data-role="new"><?php echo $mbTextEsc('new_parser', 'New parser'); ?></button>
+				<button type="button" data-role="reload"><?php echo $mbTextEsc('reload', 'Reload'); ?></button>
 			</div>
 
 			<table class="parsercfg-table">
 				<thead>
 					<tr>
-						<th>ID</th>
-						<th>Name</th>
-						<th>Connection</th>
-						<th>Driver</th>
-						<th>Types</th>
-						<th>Priority</th>
-						<th>Status</th>
+						<th><?php echo $mbTextEsc('id', 'ID'); ?></th>
+						<th><?php echo $mbTextEsc('name', 'Name'); ?></th>
+						<th><?php echo $mbTextEsc('connection', 'Connection'); ?></th>
+						<th><?php echo $mbTextEsc('driver', 'Driver'); ?></th>
+						<th><?php echo $mbTextEsc('types', 'Types'); ?></th>
+						<th><?php echo $mbTextEsc('priority', 'Priority'); ?></th>
+						<th><?php echo $mbTextEsc('status', 'Status'); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="8" class="mono">Loading...</td></tr>
+					<tr><td colspan="8" class="mono"><?php echo $mbTextEsc('loading', 'Loading...'); ?></td></tr>
 				</tbody>
 			</table>
 		</div>
 
 		<div class="parsercfg-formbox">
 			<form data-role="form">
-				<h4 data-role="legend">Create parser</h4>
+				<h4 data-role="legend"><?php echo $mbTextEsc('create_parser', 'Create parser'); ?></h4>
 
 				<div class="parsercfg-hint" data-role="idhint">
 					Technical parser id. Agent resources use this id to resolve the configured parser.
@@ -48,74 +54,74 @@
 
 				<div class="parsercfg-grid">
 					<div class="parsercfg-field">
-						<label>Parser id</label>
+						<label><?php echo $mbTextEsc('parser_id', 'Parser id'); ?></label>
 						<input type="text" name="id" placeholder="docling_default" autocomplete="off">
 					</div>
 
 					<div class="parsercfg-field">
-						<label>Name</label>
+						<label><?php echo $mbTextEsc('name', 'Name'); ?></label>
 						<input type="text" name="name" placeholder="Docling Default Parser" autocomplete="off">
 					</div>
 
 					<div class="parsercfg-field">
-						<label>Connection</label>
-						<select name="connection"><option value="">Loading connections...</option></select>
-						<div class="parsercfg-hint parsercfg-inline-hint" data-role="connectionhint">Connections contain endpoint, authentication header and secret.</div>
+						<label><?php echo $mbTextEsc('connection', 'Connection'); ?></label>
+						<select name="connection"><option value=""><?php echo $mbTextEsc('loading_connections', 'Loading connections...'); ?></option></select>
+						<div class="parsercfg-hint parsercfg-inline-hint" data-role="connectionhint"><?php echo $mbTextEsc('connections_contain_endpoint_authentication_header_and_secret', 'Connections contain endpoint, authentication header and secret.'); ?></div>
 					</div>
 
 					<div class="parsercfg-field">
-						<label>Driver</label>
-						<select name="driver"><option value="">Loading drivers...</option></select>
+						<label><?php echo $mbTextEsc('driver', 'Driver'); ?></label>
+						<select name="driver"><option value=""><?php echo $mbTextEsc('loading_drivers', 'Loading drivers...'); ?></option></select>
 					</div>
 
 					<input type="hidden" name="model" value="default">
 
 					<div class="parsercfg-field">
-						<label>Content type</label>
+						<label><?php echo $mbTextEsc('content_type', 'Content type'); ?></label>
 						<input type="text" name="contentType" placeholder="application/x-agent-content-json" autocomplete="off">
 					</div>
 
 					<div class="parsercfg-field">
-						<label>Supported types</label>
+						<label><?php echo $mbTextEsc('supported_types', 'Supported types'); ?></label>
 						<textarea name="supportedTypes" spellcheck="false" placeholder="file&#10;text&#10;stream"></textarea>
-						<div class="parsercfg-hint parsercfg-inline-hint">One type per line. File-based parser backends usually use only <span class="mono">file</span>.</div>
+						<div class="parsercfg-hint parsercfg-inline-hint"><?php echo $mbTextEsc('one_type_per_line_file_based_parser_backends_usually_use_only', 'One type per line. File-based parser backends usually use only'); ?> <span class="mono">file</span>.</div>
 					</div>
 
 					<div class="parsercfg-field parsercfg-field-row">
 						<div>
-							<label>Priority</label>
+							<label><?php echo $mbTextEsc('priority', 'Priority'); ?></label>
 							<input type="text" name="priority" placeholder="45" autocomplete="off">
 						</div>
 						<div>
-							<label>Max bytes</label>
+							<label><?php echo $mbTextEsc('max_bytes', 'Max bytes'); ?></label>
 							<input type="text" name="maxBytes" placeholder="0" autocomplete="off">
 						</div>
 					</div>
 
 					<div class="parsercfg-field">
-						<label>Multipart file field</label>
+						<label><?php echo $mbTextEsc('multipart_file_field', 'Multipart file field'); ?></label>
 						<input type="text" name="fileField" placeholder="file" autocomplete="off">
 					</div>
 
 					<div class="parsercfg-field parsercfg-field-row">
 						<div>
-							<label>Timeout seconds</label>
+							<label><?php echo $mbTextEsc('timeout_seconds', 'Timeout seconds'); ?></label>
 							<input type="text" name="timeoutSeconds" placeholder="90" autocomplete="off">
 						</div>
 						<div>
-							<label>Connect timeout seconds</label>
+							<label><?php echo $mbTextEsc('connect_timeout_seconds', 'Connect timeout seconds'); ?></label>
 							<input type="text" name="connectTimeoutSeconds" placeholder="20" autocomplete="off">
 						</div>
 					</div>
 
 					<div class="parsercfg-field">
-						<label>Advanced options JSON</label>
+						<label><?php echo $mbTextEsc('advanced_options_json', 'Advanced options JSON'); ?></label>
 						<textarea name="options" spellcheck="false" placeholder="{&#10;}"></textarea>
-						<div class="parsercfg-hint parsercfg-inline-hint">No endpoint, secret or auth header here. Those belong to the selected connection.</div>
+						<div class="parsercfg-hint parsercfg-inline-hint"><?php echo $mbTextEsc('no_endpoint_secret_or_auth_header_here_those_belong_to_the_selected_connection', 'No endpoint, secret or auth header here. Those belong to the selected connection.'); ?></div>
 					</div>
 
 					<div class="parsercfg-field parsercfg-field-checkbox">
-						<label class="parsercfg-checkbox"><input type="checkbox" name="enabled" checked><span>Enabled</span></label>
+						<label class="parsercfg-checkbox"><input type="checkbox" name="enabled" checked><span><?php echo $mbTextEsc('enabled', 'Enabled'); ?></span></label>
 					</div>
 				</div>
 
@@ -127,9 +133,9 @@
 				</div>
 
 				<div class="parsercfg-actions">
-					<button type="submit" class="primary">Save parser</button>
-					<button type="button" data-role="test">Test parser</button>
-					<button type="button" data-role="delete" disabled>Delete parser</button>
+					<button type="submit" class="primary"><?php echo $mbTextEsc('save_parser', 'Save parser'); ?></button>
+					<button type="button" data-role="test"><?php echo $mbTextEsc('test_parser', 'Test parser'); ?></button>
+					<button type="button" data-role="delete" disabled><?php echo $mbTextEsc('delete_parser', 'Delete parser'); ?></button>
 				</div>
 			</form>
 		</div>
@@ -142,6 +148,20 @@
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
 
@@ -196,7 +216,7 @@
 		function clearTestResult() { refs.testresult.style.display = "none"; refs.testmeta.textContent = ""; refs.testpreview.textContent = ""; }
 		function renderTestResult(result) {
 			result = result || {};
-			refs.testmeta.textContent = "Driver: " + (result.driver || "-") + " | Connection: " + (result.connectionId || "-") + " | Input: " + (result.inputName || result.inputType || "-") + " | Duration: " + String(result.durationMs ?? "-") + " ms | Parsed: " + String(result.textLength ?? 0) + " bytes";
+			refs.testmeta.textContent = mbText('parser_test_meta', 'Driver: {driver} | Connection: {connection} | Input: {input} | Duration: {duration} ms | Parsed: {parsed} bytes', {driver:(result.driver || '-'),connection:(result.connectionId || '-'),input:(result.inputName || result.inputType || '-'),duration:String(result.durationMs ?? '-'),parsed:String(result.textLength ?? 0)});
 			refs.testpreview.textContent = result.preview || "";
 			refs.testresult.style.display = "block";
 		}
@@ -214,13 +234,13 @@
 
 		function updateConnectionHint() {
 			const c = findConnection(refs.connection.value);
-			refs.connectionhint.textContent = c ? "Type: " + (c.type || "unknown") + ". Driver: " + (c.driver || "unknown") + ". Auth header: " + (c.authHeaderName || "driver default") + ". Base URL: " + (c.baseUrl || "not set") + "." + (!c.enabled ? " This connection is currently disabled." : "") : "Connections contain endpoint, authentication header and secret.";
+			refs.connectionhint.textContent = c ? "Type: " + (c.type || "unknown") + ". Driver: " + (c.driver || "unknown") + ". Auth header: " + (c.authHeaderName || "driver default") + ". Base URL: " + (c.baseUrl || "not set") + "." + (!c.enabled ? " This connection is currently disabled." : "") : mbText('connections_contain_endpoint_authentication_header_and_secret', 'Connections contain endpoint, authentication header and secret.');
 		}
 
 		function setEditMode(editing) {
 			refs.id.readOnly = editing;
 			refs.deleteBtn.disabled = !editing;
-			refs.legend.textContent = editing ? "Edit parser" : "Create parser";
+			refs.legend.textContent = editing ? "Edit parser" : mbText('create_parser', 'Create parser');
 			refs.idhint.textContent = editing ? "Technical parser id is fixed for existing entries. Create a new entry if you need another key." : "Technical parser id. Agent resources use this id to resolve the configured parser.";
 		}
 
@@ -229,7 +249,7 @@
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = state.connections.length > 0 ? "Select connection" : "No connections configured";
+			empty.textContent = state.connections.length > 0 ? mbText('select_connection', 'Select connection') : mbText('no_connections_configured', 'No connections configured');
 			refs.connection.appendChild(empty);
 
 			for (const connection of state.connections) {
@@ -249,7 +269,7 @@
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = state.drivers.length > 0 ? "Select driver" : "No parser drivers available";
+			empty.textContent = state.drivers.length > 0 ? mbText('select_driver', 'Select driver') : "No parser drivers available";
 			refs.driver.appendChild(empty);
 
 			for (const driver of state.drivers) {
@@ -326,15 +346,15 @@
 		}
 
 		function statusBadge(row) {
-			if (!row.enabled) return "<span class='badge off'>disabled</span>";
-			if (!row.connectionEnabled) return "<span class='badge warn'>connection off</span>";
-			return "<span class='badge ok'>enabled</span>";
+			if (!row.enabled) return "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
+			if (!row.connectionEnabled) return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
 		}
 
 		function renderRows() {
 			refs.tbody.innerHTML = "";
 			if (!state.parsers.length) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'>No parsers configured.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('no_parsers_configured', mbText('no_parsers_configured', 'No parsers configured.')); ?></td></tr>";
 				return;
 			}
 
@@ -349,7 +369,7 @@
 					"<td class='option-col'>" + esc((parser.supportedTypes || []).join(", ")) + "</td>" +
 					"<td class='option-col'>" + esc(parser.priority || "") + "</td>" +
 					"<td>" + statusBadge(parser) + "</td>" +
-					"<td><button type='button' class='parsercfg-edit-btn' data-action='edit' data-id='" + esc(parser.id) + "'>Edit</button></td>";
+					"<td><button type='button' class='parsercfg-edit-btn' data-action='edit' data-id='" + esc(parser.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
 				refs.tbody.appendChild(tr);
 			});
 
@@ -373,7 +393,7 @@
 				try {
 					json = JSON.parse(text);
 				} catch (e) {
-					showFeedback("The server response could not be read.", "error");
+					showFeedback(mbText('the_server_response_could_not_be_read', 'The server response could not be read.'), "error");
 					return null;
 				}
 
@@ -386,7 +406,7 @@
 
 				return json;
 			} catch (e) {
-				showFeedback("The request failed. Please try again.", "error");
+				showFeedback(mbText('the_request_failed_please_try_again', 'The request failed. Please try again.'), "error");
 				return null;
 			} finally {
 				setLoading(false);
@@ -396,7 +416,7 @@
 		async function loadList(preselectId) {
 			const json = await callApi({action: "list"});
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'>Parsers could not be loaded.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='8' class='mono'><?php echo $mbTextEsc('parsers_could_not_be_loaded', mbText('parsers_could_not_be_loaded', 'Parsers could not be loaded.')); ?></td></tr>";
 				return;
 			}
 
@@ -420,12 +440,12 @@
 			try {
 				const parsed = JSON.parse(raw);
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					showFeedback("Advanced options must be a JSON object.", "error");
+					showFeedback(mbText('advanced_options_must_be_a_json_object', 'Advanced options must be a JSON object.'), "error");
 					return null;
 				}
 				return JSON.stringify(parsed);
 			} catch (e) {
-				showFeedback("Advanced options must be valid JSON.", "error");
+				showFeedback(mbText('advanced_options_must_be_valid_json', 'Advanced options must be valid JSON.'), "error");
 				return null;
 			}
 		}
@@ -444,7 +464,7 @@
 			refs.model.value = model;
 
 			if (!id || !name || !connection || !driver) {
-				showFeedback("Parser id, name, connection and driver are required.", "error");
+				showFeedback(mbText('parser_id_name_connection_and_driver_are_required', 'Parser id, name, connection and driver are required.'), "error");
 				return null;
 			}
 
@@ -480,7 +500,7 @@
 			if (!json) return;
 
 			const parser = json.data && json.data.parser ? json.data.parser : null;
-			showFeedback("Parser saved.", "success");
+			showFeedback(mbText('parser_saved', 'Parser saved.'), "success");
 			await loadList(parser && parser.id ? parser.id : id);
 		}
 
@@ -493,7 +513,7 @@
 
 			refs.testBtn.disabled = true;
 			const originalLabel = refs.testBtn.textContent;
-			refs.testBtn.textContent = "Testing...";
+			refs.testBtn.textContent = mbText('testing', 'Testing...');
 
 			try {
 				const json = await callApi(request);
@@ -501,12 +521,12 @@
 
 				const result = json.data && json.data.test ? json.data.test : null;
 				if (!result) {
-					showFeedback("Parser test returned no result.", "error");
+					showFeedback(mbText('parser_test_returned_no_result', 'Parser test returned no result.'), "error");
 					return;
 				}
 
 				renderTestResult(result);
-				showFeedback("Parser connection and service test succeeded.", "success");
+				showFeedback(mbText('parser_connection_and_service_test_succeeded', 'Parser connection and service test succeeded.'), "success");
 			} finally {
 				refs.testBtn.disabled = false;
 				refs.testBtn.textContent = originalLabel;
@@ -518,16 +538,16 @@
 
 			const id = String(state.selectedId || refs.id.value || "").trim();
 			if (!id) {
-				showFeedback("No parser selected.", "error");
+				showFeedback(mbText('no_parser_selected', 'No parser selected.'), "error");
 				return;
 			}
 
-			if (!window.confirm("Delete parser '" + id + "'?")) return;
+			if (!window.confirm(mbText('delete_parser_confirm', "Delete parser '{id}'?", {id}))) return;
 
 			const json = await callApi({action:"remove", id});
 			if (!json) return;
 
-			showFeedback("Parser deleted.", "success");
+			showFeedback(mbText('parser_deleted', 'Parser deleted.'), "success");
 			resetForm();
 			await loadList();
 		}

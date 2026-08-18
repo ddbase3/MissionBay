@@ -1,11 +1,17 @@
+<?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
 <div id="<?php echo htmlspecialchars((string)$this->_['instanceId'], ENT_QUOTES); ?>" class="vectorstore-config-admin">
-	<h3>Vector Stores</h3>
+	<h3><?php echo $mbTextEsc('vector_stores', 'Vector Stores'); ?></h3>
 
 	<div class="vectorstorecfg-meta">
-		<div><strong>Settings group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Connection group:</strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
-		<div><strong>Last update:</strong> <span data-role="lastupdate" class="mono">-</span></div>
-		<div data-role="loading" class="vectorstorecfg-loading">Please wait...</div>
+		<div><strong><?php echo $mbTextEsc('settings_group', 'Settings group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['configGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('connection_group', 'Connection group:'); ?></strong> <span class="mono"><?php echo htmlspecialchars((string)$this->_['connectionGroup'], ENT_QUOTES); ?></span></div>
+		<div><strong><?php echo $mbTextEsc('last_update', 'Last update:'); ?></strong> <span data-role="lastupdate" class="mono">-</span></div>
+		<div data-role="loading" class="vectorstorecfg-loading"><?php echo $mbTextEsc('please_wait', 'Please wait...'); ?></div>
 	</div>
 
 	<div class="vectorstorecfg-hint">
@@ -15,31 +21,31 @@
 	<div class="vectorstorecfg-layout">
 		<div class="vectorstorecfg-listbox">
 			<div class="vectorstorecfg-toolbar">
-				<button type="button" data-role="new">New vector store</button>
-				<button type="button" data-role="reload">Reload</button>
+				<button type="button" data-role="new"><?php echo $mbTextEsc('new_vector_store', 'New vector store'); ?></button>
+				<button type="button" data-role="reload"><?php echo $mbTextEsc('reload', 'Reload'); ?></button>
 			</div>
 
 			<table class="vectorstorecfg-table">
 				<thead>
 					<tr>
-						<th>ID</th>
-						<th>Name</th>
-						<th>Connection</th>
-						<th>Driver</th>
-						<th>Indexes</th>
-						<th>Status</th>
+						<th><?php echo $mbTextEsc('id', 'ID'); ?></th>
+						<th><?php echo $mbTextEsc('name', 'Name'); ?></th>
+						<th><?php echo $mbTextEsc('connection', 'Connection'); ?></th>
+						<th><?php echo $mbTextEsc('driver', 'Driver'); ?></th>
+						<th><?php echo $mbTextEsc('indexes', 'Indexes'); ?></th>
+						<th><?php echo $mbTextEsc('status', 'Status'); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody data-role="tbody">
-					<tr><td colspan="7" class="mono">Loading...</td></tr>
+					<tr><td colspan="7" class="mono"><?php echo $mbTextEsc('loading', 'Loading...'); ?></td></tr>
 				</tbody>
 			</table>
 		</div>
 
 		<div class="vectorstorecfg-formbox">
 			<form data-role="form">
-				<h4 data-role="legend">Create vector store</h4>
+				<h4 data-role="legend"><?php echo $mbTextEsc('create_vector_store', 'Create vector store'); ?></h4>
 
 				<div class="vectorstorecfg-hint" data-role="idhint">
 					Technical vector store id. Agent resources use this id to resolve the configured vector store.
@@ -47,51 +53,51 @@
 
 				<div class="vectorstorecfg-grid">
 					<div class="vectorstorecfg-field">
-						<label>Vector store id</label>
+						<label><?php echo $mbTextEsc('vector_store_id', 'Vector store id'); ?></label>
 						<input type="text" name="id" placeholder="qdrant_default" autocomplete="off">
 					</div>
 
 					<div class="vectorstorecfg-field">
-						<label>Name</label>
+						<label><?php echo $mbTextEsc('name', 'Name'); ?></label>
 						<input type="text" name="name" placeholder="Qdrant Default" autocomplete="off">
 					</div>
 
 					<div class="vectorstorecfg-field">
-						<label>Connection</label>
-						<select name="connection"><option value="">Loading connections...</option></select>
-						<div class="vectorstorecfg-hint vectorstorecfg-inline-hint" data-role="connectionhint">Connections contain endpoint, authentication header and secret.</div>
+						<label><?php echo $mbTextEsc('connection', 'Connection'); ?></label>
+						<select name="connection"><option value=""><?php echo $mbTextEsc('loading_connections', 'Loading connections...'); ?></option></select>
+						<div class="vectorstorecfg-hint vectorstorecfg-inline-hint" data-role="connectionhint"><?php echo $mbTextEsc('connections_contain_endpoint_authentication_header_and_secret', 'Connections contain endpoint, authentication header and secret.'); ?></div>
 					</div>
 
 					<div class="vectorstorecfg-field">
-						<label>Driver</label>
-						<select name="driver"><option value="">Loading drivers...</option></select>
+						<label><?php echo $mbTextEsc('driver', 'Driver'); ?></label>
+						<select name="driver"><option value=""><?php echo $mbTextEsc('loading_drivers', 'Loading drivers...'); ?></option></select>
 					</div>
 
 					<input type="hidden" name="model" value="qdrant">
 
 					<div class="vectorstorecfg-field vectorstorecfg-field-checkbox">
-						<label class="vectorstorecfg-checkbox"><input type="checkbox" name="createPayloadIndexes" checked><span>Create payload indexes</span></label>
+						<label class="vectorstorecfg-checkbox"><input type="checkbox" name="createPayloadIndexes" checked><span><?php echo $mbTextEsc('create_payload_indexes', 'Create payload indexes'); ?></span></label>
 					</div>
 
 					<div class="vectorstorecfg-field vectorstorecfg-field-row">
 						<div>
-							<label>Timeout seconds</label>
+							<label><?php echo $mbTextEsc('timeout_seconds', 'Timeout seconds'); ?></label>
 							<input type="text" name="timeoutSeconds" placeholder="90" autocomplete="off">
 						</div>
 						<div>
-							<label>Connect timeout seconds</label>
+							<label><?php echo $mbTextEsc('connect_timeout_seconds', 'Connect timeout seconds'); ?></label>
 							<input type="text" name="connectTimeoutSeconds" placeholder="20" autocomplete="off">
 						</div>
 					</div>
 
 					<div class="vectorstorecfg-field">
-						<label>Advanced options JSON</label>
+						<label><?php echo $mbTextEsc('advanced_options_json', 'Advanced options JSON'); ?></label>
 						<textarea name="options" spellcheck="false" placeholder="{&#10;}"></textarea>
-						<div class="vectorstorecfg-hint vectorstorecfg-inline-hint">No endpoint, secret, auth header or proxy option here. Those belong to the selected connection or to a future connection driver.</div>
+						<div class="vectorstorecfg-hint vectorstorecfg-inline-hint"><?php echo $mbTextEsc('no_endpoint_secret_auth_header_or_proxy_option_here_those_belong_to_the_selected_connection_or_to_a_future_con', 'No endpoint, secret, auth header or proxy option here. Those belong to the selected connection or to a future connection driver.'); ?></div>
 					</div>
 
 					<div class="vectorstorecfg-field vectorstorecfg-field-checkbox">
-						<label class="vectorstorecfg-checkbox"><input type="checkbox" name="enabled" checked><span>Enabled</span></label>
+						<label class="vectorstorecfg-checkbox"><input type="checkbox" name="enabled" checked><span><?php echo $mbTextEsc('enabled', 'Enabled'); ?></span></label>
 					</div>
 				</div>
 
@@ -103,8 +109,8 @@
 				</div>
 
 				<div class="vectorstorecfg-actions">
-					<button type="submit" class="primary">Save vector store</button><button type="button" data-role="test">Test vector store</button>
-					<button type="button" data-role="delete" disabled>Delete vector store</button>
+					<button type="submit" class="primary"><?php echo $mbTextEsc('save_vector_store', 'Save vector store'); ?></button><button type="button" data-role="test"><?php echo $mbTextEsc('test_vector_store', 'Test vector store'); ?></button>
+					<button type="button" data-role="delete" disabled><?php echo $mbTextEsc('delete_vector_store', 'Delete vector store'); ?></button>
 				</div>
 			</form>
 		</div>
@@ -119,6 +125,20 @@
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const instanceId = <?php echo json_encode((string)$this->_['instanceId']); ?>;
 	const endpointBase = <?php echo json_encode((string)$this->_['endpoint']); ?>;
 
@@ -176,13 +196,13 @@
 
 		function updateConnectionHint() {
 			const c = findConnection(refs.connection.value);
-			refs.connectionhint.textContent = c ? "Type: " + (c.type || "unknown") + ". Driver: " + (c.driver || "unknown") + ". Auth header: " + (c.authHeaderName || "driver default") + ". Base URL: " + (c.baseUrl || "not set") + "." + (!c.enabled ? " This connection is currently disabled." : "") : "Connections contain endpoint, authentication header and secret.";
+			refs.connectionhint.textContent = c ? "Type: " + (c.type || "unknown") + ". Driver: " + (c.driver || "unknown") + ". Auth header: " + (c.authHeaderName || "driver default") + ". Base URL: " + (c.baseUrl || "not set") + "." + (!c.enabled ? " This connection is currently disabled." : "") : mbText('connections_contain_endpoint_authentication_header_and_secret', 'Connections contain endpoint, authentication header and secret.');
 		}
 
 		function setEditMode(editing) {
 			refs.id.readOnly = editing;
 			refs.deleteBtn.disabled = !editing;
-			refs.legend.textContent = editing ? "Edit vector store" : "Create vector store";
+			refs.legend.textContent = editing ? "Edit vector store" : mbText('create_vector_store', 'Create vector store');
 			refs.idhint.textContent = editing ? "Technical vector store id is fixed for existing entries. Create a new entry if you need another key." : "Technical vector store id. Agent resources use this id to resolve the configured vector store.";
 		}
 
@@ -191,7 +211,7 @@
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = state.connections.length > 0 ? "Select connection" : "No connections configured";
+			empty.textContent = state.connections.length > 0 ? mbText('select_connection', 'Select connection') : mbText('no_connections_configured', 'No connections configured');
 			refs.connection.appendChild(empty);
 
 			for (const connection of state.connections) {
@@ -211,7 +231,7 @@
 
 			const empty = document.createElement("option");
 			empty.value = "";
-			empty.textContent = state.drivers.length > 0 ? "Select driver" : "No vector store drivers available";
+			empty.textContent = state.drivers.length > 0 ? mbText('select_driver', 'Select driver') : "No vector store drivers available";
 			refs.driver.appendChild(empty);
 
 			for (const driver of state.drivers) {
@@ -281,15 +301,15 @@
 		}
 
 		function statusBadge(row) {
-			if (!row.enabled) return "<span class='badge off'>disabled</span>";
-			if (!row.connectionEnabled) return "<span class='badge warn'>connection off</span>";
-			return "<span class='badge ok'>enabled</span>";
+			if (!row.enabled) return "<span class='badge off'><?php echo $mbTextEsc('disabled', 'disabled'); ?></span>";
+			if (!row.connectionEnabled) return "<span class='badge warn'><?php echo $mbTextEsc('connection_off', mbText('connection_off', 'connection off')); ?></span>";
+			return "<span class='badge ok'><?php echo $mbTextEsc('enabled_2', 'enabled'); ?></span>";
 		}
 
 		function renderRows() {
 			refs.tbody.innerHTML = "";
 			if (!state.vectorstores.length) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'>No vector stores configured.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('no_vector_stores_configured', mbText('no_vector_stores_configured', 'No vector stores configured.')); ?></td></tr>";
 				return;
 			}
 
@@ -303,7 +323,7 @@
 					"<td class='driver-col'>" + esc(v.driverLabel || v.driver) + "</td>" +
 					"<td class='option-col'>" + (v.createPayloadIndexes === false ? "off" : "on") + "</td>" +
 					"<td>" + statusBadge(v) + "</td>" +
-					"<td><button type='button' class='vectorstorecfg-edit-btn' data-action='edit' data-id='" + esc(v.id) + "'>Edit</button></td>";
+					"<td><button type='button' class='vectorstorecfg-edit-btn' data-action='edit' data-id='" + esc(v.id) + "'><?php echo $mbTextEsc('edit', mbText('edit', 'Edit')); ?></button></td>";
 				refs.tbody.appendChild(tr);
 			});
 
@@ -327,7 +347,7 @@
 				try {
 					json = JSON.parse(text);
 				} catch (e) {
-					showFeedback("The server response could not be read.", "error");
+					showFeedback(mbText('the_server_response_could_not_be_read', 'The server response could not be read.'), "error");
 					return null;
 				}
 
@@ -340,7 +360,7 @@
 
 				return json;
 			} catch (e) {
-				showFeedback("The request failed. Please try again.", "error");
+				showFeedback(mbText('the_request_failed_please_try_again', 'The request failed. Please try again.'), "error");
 				return null;
 			} finally {
 				setLoading(false);
@@ -350,7 +370,7 @@
 		async function loadList(preselectId) {
 			const json = await callApi({action: "list"});
 			if (!json) {
-				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'>Vector stores could not be loaded.</td></tr>";
+				refs.tbody.innerHTML = "<tr><td colspan='7' class='mono'><?php echo $mbTextEsc('vector_stores_could_not_be_loaded', mbText('vector_stores_could_not_be_loaded', 'Vector stores could not be loaded.')); ?></td></tr>";
 				return;
 			}
 
@@ -374,12 +394,12 @@
 			try {
 				const parsed = JSON.parse(raw);
 				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-					showFeedback("Advanced options must be a JSON object.", "error");
+					showFeedback(mbText('advanced_options_must_be_a_json_object', 'Advanced options must be a JSON object.'), "error");
 					return null;
 				}
 				return JSON.stringify(parsed);
 			} catch (e) {
-				showFeedback("Advanced options must be valid JSON.", "error");
+				showFeedback(mbText('advanced_options_must_be_valid_json', 'Advanced options must be valid JSON.'), "error");
 				return null;
 			}
 		}
@@ -431,7 +451,7 @@
 			const testBtn = root.querySelector("[data-role='test']");
 			testBtn.disabled = true;
 			const originalLabel = testBtn.textContent;
-			testBtn.textContent = "Testing...";
+			testBtn.textContent = mbText('testing', 'Testing...');
 
 			try {
 				const json = await callApi(buildTestRequest());
@@ -439,7 +459,7 @@
 
 				const result = json.data && json.data.test ? json.data.test : null;
 				if (!result) {
-					showFeedback("Service test returned no result.", "error");
+					showFeedback(mbText('service_test_returned_no_result', 'Service test returned no result.'), "error");
 					return;
 				}
 
@@ -467,7 +487,7 @@
 			refs.model.value = model;
 
 			if (!id || !name || !connection || !driver) {
-				showFeedback("Vector store id, name, connection and driver are required.", "error");
+				showFeedback(mbText('vector_store_id_name_connection_and_driver_are_required', 'Vector store id, name, connection and driver are required.'), "error");
 				return;
 			}
 
@@ -488,7 +508,7 @@
 			if (!json) return;
 
 			const vectorstore = json.data && json.data.vectorstore ? json.data.vectorstore : null;
-			showFeedback("Vector store saved.", "success");
+			showFeedback(mbText('vector_store_saved', 'Vector store saved.'), "success");
 			await loadList(vectorstore && vectorstore.id ? vectorstore.id : id);
 		}
 
@@ -497,16 +517,16 @@
 
 			const id = String(state.selectedId || refs.id.value || "").trim();
 			if (!id) {
-				showFeedback("No vector store selected.", "error");
+				showFeedback(mbText('no_vector_store_selected', 'No vector store selected.'), "error");
 				return;
 			}
 
-			if (!window.confirm("Delete vector store '" + id + "'?")) return;
+			if (!window.confirm(mbText('delete_vector_store_confirm', "Delete vector store '{id}'?", {id}))) return;
 
 			const json = await callApi({action:"remove", id});
 			if (!json) return;
 
-			showFeedback("Vector store deleted.", "success");
+			showFeedback(mbText('vector_store_deleted', 'Vector store deleted.'), "success");
 			resetForm();
 			await loadList();
 		}

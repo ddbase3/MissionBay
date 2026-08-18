@@ -1,21 +1,27 @@
 <?php
+$this->loadBricks('Administration');
+$mbUiText = is_array($this->_['bricks']['missionbay_admin'] ?? null) ? $this->_['bricks']['missionbay_admin'] : [];
+$mbText = static fn(string $key, string $fallback): string => trim((string)($mbUiText[$key] ?? '')) !== '' ? (string)$mbUiText[$key] : $fallback;
+$mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchars($mbText($key, $fallback), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+?>
+<?php
 $service = (string)$this->_['service'];
 $instanceId = 'retrieval_points_' . str_replace('.', '_', uniqid('', true));
 ?>
 
 <div id="<?php echo htmlspecialchars($instanceId, ENT_QUOTES); ?>" class="rvp-admin">
-	<h3>Vector Points</h3>
-	<p class="rvp-description">Inspect stored points through the configured retrieval index. The optional filter uses the backend-neutral retrieval filter structure.</p>
-	<div class="rvp-status" data-role="status">Loading…</div>
+	<h3><?php echo $mbTextEsc('vector_points', 'Vector Points'); ?></h3>
+	<p class="rvp-description"><?php echo $mbTextEsc('inspect_stored_points_through_the_configured_retrieval_index_the_optional_filter_uses_the_backend_neutral_retr', 'Inspect stored points through the configured retrieval index. The optional filter uses the backend-neutral retrieval filter structure.'); ?></p>
+	<div class="rvp-status" data-role="status"><?php echo $mbTextEsc('loading', 'Loading...'); ?></div>
 
 	<div class="rvp-controls">
-		<label><span>Collection</span><select data-role="collection"></select></label>
-		<label><span>Limit</span><input data-role="limit" type="number" min="1" max="100" value="10"></label>
-		<label class="wide"><span>Filter JSON (optional)</span><textarea data-role="filter" rows="5" placeholder='{"must":[{"field":"source_kind","operator":"eq","value":"wiki"}]}'></textarea></label>
-		<label><span>Offset (optional)</span><input data-role="offset" type="text" value=""></label>
+		<label><span><?php echo $mbTextEsc('collection', 'Collection'); ?></span><select data-role="collection"></select></label>
+		<label><span><?php echo $mbTextEsc('limit', 'Limit'); ?></span><input data-role="limit" type="number" min="1" max="100" value="10"></label>
+		<label class="wide"><span><?php echo $mbTextEsc('filter_json_optional', 'Filter JSON (optional)'); ?></span><textarea data-role="filter" rows="5" placeholder='{"must":[{"field":"source_kind","operator":"eq","value":"wiki"}]}'></textarea></label>
+		<label><span><?php echo $mbTextEsc('offset_optional', 'Offset (optional)'); ?></span><input data-role="offset" type="text" value=""></label>
 	</div>
-	<div class="rvp-actions"><button type="button" data-role="inspect">Inspect points</button></div>
-	<div class="rvp-meta"><span>Backend: <strong data-role="backend">–</strong></span><span>Next offset: <strong data-role="next-offset">–</strong></span></div>
+	<div class="rvp-actions"><button type="button" data-role="inspect"><?php echo $mbTextEsc('inspect_points', 'Inspect points'); ?></button></div>
+	<div class="rvp-meta"><span><?php echo $mbTextEsc('backend', 'Backend:'); ?> <strong data-role="backend">-</strong></span><span><?php echo $mbTextEsc('next_offset', 'Next offset:'); ?> <strong data-role="next-offset">-</strong></span></div>
 	<div class="rvp-grid" data-role="points"></div>
 </div>
 
@@ -48,6 +54,20 @@ $instanceId = 'retrieval_points_' . str_replace('.', '_', uniqid('', true));
 
 <script>
 (function() {
+	const MB_UI_TEXT = <?php echo json_encode($mbUiText, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const mbText = (key, fallback, replacements = {}) => {
+		let value = String(MB_UI_TEXT[key] || fallback || '');
+		Object.entries(replacements).forEach(([name, replacement]) => {
+			value = value.split('{' + name + '}').join(String(replacement));
+		});
+		return value;
+	};
+	const mbStringSet = (prefix) => Object.fromEntries(
+		Object.entries(MB_UI_TEXT)
+			.filter(([key, value]) => key.startsWith(prefix) && String(value || '').trim() !== '')
+			.map(([key, value]) => [key.slice(prefix.length), value])
+	);
+
 	const root = document.getElementById(<?php echo json_encode($instanceId); ?>);
 	const endpoint = <?php echo json_encode($service); ?>;
 	let collections = [];
@@ -65,7 +85,7 @@ $instanceId = 'retrieval_points_' . str_replace('.', '_', uniqid('', true));
 	}
 	function updateBackend() {
 		const row = collections.find((item) => item.key === node('collection').value);
-		node('backend').textContent = row ? row.backend_collection : '–';
+		node('backend').textContent = row ? row.backend_collection : '-';
 	}
 	function parseFilter() {
 		const value = node('filter').value.trim();
@@ -80,7 +100,7 @@ $instanceId = 'retrieval_points_' . str_replace('.', '_', uniqid('', true));
 		if (!Array.isArray(points) || !points.length) {
 			const empty = document.createElement('div');
 			empty.className = 'rvp-empty';
-			empty.textContent = 'No points returned.';
+			empty.textContent = mbText('no_points_returned', 'No points returned.');
 			grid.appendChild(empty);
 			return;
 		}
@@ -101,7 +121,7 @@ $instanceId = 'retrieval_points_' . str_replace('.', '_', uniqid('', true));
 		});
 	}
 	async function load() {
-		status('Loading…');
+		status(mbText('loading', 'Loading...'));
 		try {
 			const data = await post({ action: 'bootstrap' });
 			if (!data.ok) throw new Error(data.error || 'Unable to load configuration.');
@@ -112,11 +132,11 @@ $instanceId = 'retrieval_points_' . str_replace('.', '_', uniqid('', true));
 				option.selected = row.key === data.default_collection_key; select.appendChild(option);
 			});
 			updateBackend();
-			status(collections.length ? 'Ready.' : 'No collection mapping configured.');
+			status(collections.length ? mbText('ready', 'Ready.') : mbText('no_collection_mapping_configured', 'No collection mapping configured.'));
 		} catch (error) { status(error.message || String(error), 'error'); }
 	}
 	async function inspect() {
-		status('Loading points…');
+		status(mbText('loading_points', 'Loading points…'));
 		try {
 			const data = await post({
 				action: 'inspect', collection_key: node('collection').value,
@@ -125,9 +145,9 @@ $instanceId = 'retrieval_points_' . str_replace('.', '_', uniqid('', true));
 			if (!data.ok) throw new Error(data.error || 'Unable to inspect points.');
 			const result = data.result || {};
 			node('backend').textContent = result.collection || node('backend').textContent;
-			node('next-offset').textContent = result.next_offset ?? '–';
+			node('next-offset').textContent = result.next_offset ?? '-';
 			renderPoints(result.points || []);
-			status('Points loaded.', 'success');
+			status(mbText('points_loaded', 'Points loaded.'), 'success');
 		} catch (error) { status(error.message || String(error), 'error'); }
 	}
 
