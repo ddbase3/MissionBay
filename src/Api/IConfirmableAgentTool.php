@@ -22,16 +22,18 @@ use AssistantFoundation\Api\IAgentContext;
 /**
  * IConfirmableAgentTool
  *
- * Optional compatibility contract for direct in-process callers where the tool
- * itself decides whether one concrete invocation must be confirmed before it is
- * executed.
+ * Optional invocation-specific confirmation/review capability.
  *
- * This contract combines the confirmation decision with legacy array-based
- * presentation data. It is intentionally separate from
- * IAgentMutationGuardedTool. In the policy-controlled agent harness, action
- * policies decide whether approval is required, while guarded mutation tools
- * create an AgentActionReview from a server-owned commit snapshot and validate
- * that snapshot before execution.
+ * Direct in-process callers may use the returned request to decide whether they
+ * need confirmation. The policy-controlled agent harness may also use a
+ * non-null request as server-owned presentation data for an approval that was
+ * already required by an action policy. A null result must never be interpreted
+ * by that harness as permission to bypass policy-required approval.
+ *
+ * This contract remains separate from IAgentMutationGuardedTool. Guarded tools
+ * create AgentActionReview data from a server-owned commit snapshot and
+ * revalidate that snapshot before execution. IConfirmableAgentTool does not
+ * provide commit guarding.
  *
  * Implementing this interface does not mark a function as mutating and does not
  * replace mutation, requiresApproval or commitGuardRequired annotations in
@@ -41,11 +43,11 @@ use AssistantFoundation\Api\IAgentContext;
 interface IConfirmableAgentTool {
 
 	/**
-	 * Builds a confirmation request for a direct in-process tool invocation.
+	 * Builds invocation-specific confirmation/review data.
 	 *
-	 * Return null when this direct caller may execute the call immediately. In a
-	 * policy-controlled agent run, null must never be interpreted as permission
-	 * to bypass an approval already required by an action policy.
+	 * Return null when no tool-provided review is available. A policy-controlled
+	 * agent run must never interpret null as permission to bypass approval already
+	 * required by an action policy.
 	 *
 	 * @param string $name Name of the function as declared in getToolDefinitions
 	 * @param array<string, mixed> $arguments Arguments passed to the tool call
