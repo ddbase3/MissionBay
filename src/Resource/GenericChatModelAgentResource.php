@@ -248,6 +248,14 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 
 					$choice = $json['choices'][0] ?? [];
 
+					// tool call chunks (if any)
+					if (!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
+						$onMeta([
+							'event'      => 'toolcall',
+							'tool_calls' => $choice['delta']['tool_calls']
+						]);
+					}
+
 					// delta text
 					if (isset($choice['delta']['content'])) {
 						$onData($choice['delta']['content']);
@@ -259,14 +267,6 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 							'event'          => 'meta',
 							'finish_reason'  => $choice['finish_reason'],
 							'full'           => $json
-						]);
-					}
-
-					// tool call chunks (if any)
-					if (!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
-						$onMeta([
-							'event'      => 'toolcall',
-							'tool_calls' => $choice['delta']['tool_calls']
 						]);
 					}
 				}

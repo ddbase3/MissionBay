@@ -230,11 +230,6 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 					]);
 				}
 
-				$delta = $choice['delta']['content'] ?? null;
-				if ($delta !== null) {
-					$onData($delta);
-				}
-
 				if (!empty($choice['delta']['tool_calls'])) {
 					if ($onMeta !== null) {
 						$onMeta([
@@ -242,6 +237,11 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 							'tool_calls' => $choice['delta']['tool_calls']
 						]);
 					}
+				}
+
+				$delta = $choice['delta']['content'] ?? null;
+				if ($delta !== null) {
+					$onData($delta);
 				}
 			}
 

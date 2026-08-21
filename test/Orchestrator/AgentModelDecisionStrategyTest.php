@@ -261,11 +261,11 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 		$this->assertSame('', $patch[AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT]);
 		$this->assertSame(AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_NONE, $patch[AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY]);
 		$this->assertStringContainsString(
-			'Do not include user-facing narration, confirmation questions, approval requests or completion claims',
+			'you may emit brief plain-language progress text before the tool call',
 			$model->getLastMessages()[0]['content']
 		);
 		$this->assertStringContainsString(
-			'call that tool instead of announcing future tool use',
+			'Do not start structured renderer blocks, JSON payloads, tables, charts or other final-answer formatting before required tools have returned',
 			$model->getLastMessages()[0]['content']
 		);
 	}
@@ -442,15 +442,15 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 		$this->assertSame('', $patch[AgentToolLoopContextKeys::MESSAGES][2]['content']);
 	}
 
-	public function testNativeStrategyReportsProviderMixedContentToolCallWithoutPersistingContent(): void {
+	public function testNativeStrategyAllowsVisibleProgressBeforeLaterToolCallWithoutPersistingProgress(): void {
 		$events = [];
 		$model = new ModelDecisionQueueChatModel([
 			new AiChatResult(
-				'Preparing the tool call.',
+				'Ich schaue kurz nach.',
 				[new AiToolCall('call-1', 'get_record', ['record_id' => '42'])],
-				new AiResultMetadata('model_decision', 'test', 'native-mixed')
+				new AiResultMetadata('model_decision', 'test', 'native-progress')
 			)
-		], [['Preparing the tool call.']]);
+		], [['Ich schaue kurz nach.']]);
 		$context = $this->context(
 			$model,
 			AgentModelDecisionConfig::native(),
@@ -470,12 +470,11 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 
 		$patch = (new AgentModelDecisionStage())->process($context)->getPatch();
 
-		$this->assertSame('token', $events[0][0]);
-		$this->assertSame('native_mixed_content_tool_call', $events[1][1]['event']);
-		$this->assertSame('native_mixed_content_tool_call', $patch[AgentToolLoopContextKeys::FAILURE_CODE]);
-		$this->assertSame(AgentToolLoopContextKeys::PHASE_FAILED, $patch[AgentToolLoopContextKeys::PHASE]);
-		$this->assertSame([], $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS]);
-		$this->assertFalse($patch[AgentToolLoopContextKeys::COMPLETED]);
+		$this->assertSame([['token', ['text' => 'Ich schaue kurz nach.']]], $events);
+		$this->assertSame(AgentToolLoopContextKeys::PHASE_TOOLS, $patch[AgentToolLoopContextKeys::PHASE]);
+		$this->assertSame('get_record', $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS][0]->getName());
+		$this->assertSame('', $patch[AgentToolLoopContextKeys::MESSAGES][2]['content']);
+		$this->assertArrayNotHasKey(AgentToolLoopContextKeys::FAILURE_CODE, $patch);
 	}
 
 	public function testNativeStrategyBuffersTerminalContentAfterFailedMutation(): void {

@@ -117,27 +117,10 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 		$toolCalls = $result->getToolCalls();
 		if ($toolCalls !== []) {
 			if (trim($publishedContent) !== '') {
-				$this->emitEvent($runtime['event_callback'], 'meta', [
-					'event' => 'native_mixed_content_tool_call',
-					'text_length' => strlen($publishedContent),
-					'tool_call_count' => count($toolCalls)
-				]);
-				$this->logError($runtime['logger'], 'Native model stream emitted visible text before returning tool calls. The tool calls were not executed.');
-
-				return AgentStageResult::patch([
-					AgentToolLoopContextKeys::MODEL_RESULTS => $runtime['model_results'],
-					AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT => $publishedContent,
-					AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY => AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_STREAMED,
-					AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
-					AgentToolLoopContextKeys::FAILURE_CODE => 'native_mixed_content_tool_call',
-					AgentToolLoopContextKeys::FAILURE_MESSAGE => 'Native model streaming returned tool calls after visible assistant content had already been delivered.',
-					AgentToolLoopContextKeys::FAILURE_DETAIL => [
-						'text_length' => strlen($publishedContent),
-						'tool_call_count' => count($toolCalls)
-					],
-					AgentToolLoopContextKeys::COMPLETED => false,
-					AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED
-				]);
+				$this->log(
+					$runtime['logger'],
+					'Native model stream emitted ' . strlen($publishedContent) . ' byte(s) of visible progress before returning tool calls. Continuing the tool phase.'
+				);
 			}
 
 			$assessment = AgentModelDecisionAssessment::toolCall(
@@ -204,10 +187,11 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 			'When the user explicitly requests an action and a matching registered tool exists, call that exact tool immediately with the required arguments.',
 			'For tools that require approval, do not ask for confirmation in natural language. Call the tool once. The host application will pause execution and display physical approval and cancel controls to the user.',
 			'Do not claim that a mutation was completed before the tool returns a successful result.',
-			'When current runtime information is required and a matching registered read tool exists, call that tool instead of announcing future tool use.',
+			'When current runtime information is required and a matching registered read tool exists, call that tool promptly. Brief plain-language progress text may precede the call, but it must not replace or delay the call.',
 			'If no registered tool can perform the requested action, say so clearly instead of fabricating a tool call.',
 			'When a tool result reports unavailable data, missing indexing, unsupported scope, uncertainty, or another limitation, preserve and explain that limitation in the final answer instead of silently omitting it.',
-			'When a tool is required, emit only the tool call or tool calls. Do not include user-facing narration, confirmation questions, approval requests or completion claims in the same assistant turn.',
+			'When a tool is required, you may emit brief plain-language progress text before the tool call. Do not start structured renderer blocks, JSON payloads, tables, charts or other final-answer formatting before required tools have returned.',
+			'After progress text, emit the tool call without further narration. Never include confirmation questions, approval requests or completion claims in a tool-call turn. For approval-bound actions, progress text must not imply that approval was granted or that the action already ran.',
 			'A normal assistant response without tool calls ends the orchestration and is shown directly to the user. Normal conversation that does not require a tool remains valid without a tool call.'
 		];
 

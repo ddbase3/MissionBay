@@ -289,17 +289,17 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 			return;
 		}
 
-		$delta = $choice['delta']['content'] ?? null;
-
-		if (is_string($delta) && $delta !== '') {
-			$onData($delta);
-		}
-
 		if (!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
 			$onMeta([
 				'event' => 'toolcall',
 				'tool_calls' => $choice['delta']['tool_calls']
 			]);
+		}
+
+		$delta = $choice['delta']['content'] ?? null;
+
+		if (is_string($delta) && $delta !== '') {
+			$onData($delta);
 		}
 
 		if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {

@@ -128,6 +128,42 @@ final class AbstractChatCompletionModelStreamingToolsTest extends TestCase {
 		$this->assertSame([], $result->getToolCalls()[0]->getArguments());
 	}
 
+	public function testToolCallMetadataPrecedesContentFromSameConfiguredProviderEvent(): void {
+		$provider = new MixedContentToolStreamingProvider();
+		$model = new MistralChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
+		$model->setOptions([
+			'model' => 'mistral-small-2603',
+			'endpoint' => 'https://example.test',
+			'apikey' => 'test-key'
+		]);
+		$events = [];
+
+		$result = $model->streamResult(
+			[['role' => 'user', 'content' => 'Look it up']],
+			[[
+				'type' => 'function',
+				'function' => [
+					'name' => 'lookup',
+					'parameters' => ['type' => 'object', 'properties' => []]
+				]
+			]],
+			function(string $delta) use (&$events): void {
+				$events[] = ['data', $delta];
+			},
+			function(array $metadata) use (&$events): void {
+				$events[] = ['meta', $metadata['event'] ?? ''];
+			}
+		);
+
+		$this->assertSame(['meta', 'toolcall'], $events[0]);
+		$this->assertSame(['data', 'This must not be published before tool metadata.'], $events[1]);
+		$this->assertCount(1, $result->getToolCalls());
+		$this->assertSame('lookup', $result->getToolCalls()[0]->getName());
+	}
+
 	public function testStreamingPayloadIncludesConfiguredChatTemplateKwargs(): void {
 		$provider = new CapturingStreamingProvider(false);
 		$model = new MistralChatModel(
@@ -245,6 +281,34 @@ final class ReasoningStreamingProvider implements IAiProvider {
 		$onChunk("data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\" quietly\"},\"finish_reason\":null}]}\n\n");
 		$onChunk("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Final answer.\"},\"finish_reason\":null}]}\n\n");
 		$onChunk("data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n");
+		$onChunk("data: [DONE]\n\n");
+	}
+}
+
+final class MixedContentToolStreamingProvider implements IAiProvider {
+
+	/** @var array<string,mixed> */
+	private array $options = [];
+
+	public static function getName(): string {
+		return 'mixedcontenttoolstreamingprovider';
+	}
+
+	public function setOptions(array $options): void {
+		$this->options = array_merge($this->options, $options);
+	}
+
+	public function getOptions(): array {
+		return $this->options;
+	}
+
+	public function request(string $path, array $payload, array $options = []): array {
+		return [];
+	}
+
+	public function stream(string $path, array $payload, callable $onChunk, array $options = []): void {
+		$onChunk("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"This must not be published before tool metadata.\",\"tool_calls\":[{\"index\":0,\"id\":\"call-lookup\",\"type\":\"function\",\"function\":{\"name\":\"lookup\",\"arguments\":\"{}\"}}]},\"finish_reason\":null}]}\n\n");
+		$onChunk("data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n");
 		$onChunk("data: [DONE]\n\n");
 	}
 }

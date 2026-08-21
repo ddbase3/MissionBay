@@ -277,17 +277,17 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 			]);
 		}
 
-		$delta = $choice['delta']['content'] ?? null;
-
-		if($delta !== null) {
-			$onData($delta);
-		}
-
 		if(!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
 			$onMeta([
 				'event' => 'toolcall',
 				'tool_calls' => $choice['delta']['tool_calls']
 			]);
+		}
+
+		$delta = $choice['delta']['content'] ?? null;
+
+		if($delta !== null) {
+			$onData($delta);
 		}
 	}
 

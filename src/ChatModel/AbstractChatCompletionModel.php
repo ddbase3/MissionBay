@@ -656,6 +656,14 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 			]);
 		}
 
+		if(!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
+			$this->finishReasoningStream($onMeta);
+			$onMeta([
+				'event' => 'toolcall',
+				'tool_calls' => $choice['delta']['tool_calls'],
+			]);
+		}
+
 		$delta = $choice['delta']['content'] ?? null;
 
 		if($delta === null) {
@@ -665,14 +673,6 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		if(is_string($delta) && $delta !== '') {
 			$this->finishReasoningStream($onMeta);
 			$onData($delta);
-		}
-
-		if(!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
-			$this->finishReasoningStream($onMeta);
-			$onMeta([
-				'event' => 'toolcall',
-				'tool_calls' => $choice['delta']['tool_calls'],
-			]);
 		}
 	}
 

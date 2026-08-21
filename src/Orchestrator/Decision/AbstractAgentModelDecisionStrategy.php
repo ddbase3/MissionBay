@@ -100,8 +100,9 @@ abstract class AbstractAgentModelDecisionStrategy {
 
 	/** @param array<int,array<string,mixed>> $messages @param array<int,AiToolCall> $toolCalls @param array<int,array<string,mixed>> $modelResults @param array<int,AgentModelDecisionAssessment> $priorAssessments */
 	protected function toolCallResult(IAgentContext $context, array $messages, AiChatResult $result, array $toolCalls, array $modelResults, AgentModelDecisionAssessment $assessment, array $priorAssessments = []): AgentStageResult {
-		// Text accompanying tool calls is control-phase output. It must not become
-		// a visible assistant message or compete with structured review stages.
+		// Text accompanying tool calls is control-phase output. It may already have
+		// been streamed as progress, but it must not enter assistant history or
+		// compete with structured review stages.
 		$assistantResult = new AiChatResult('', $toolCalls, $result->getMetadata());
 		$messages[] = AgentChatMessageAdapter::assistantMessage($assistantResult);
 

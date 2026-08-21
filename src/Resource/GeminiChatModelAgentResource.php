@@ -359,26 +359,29 @@ class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiC
 				if (!is_array($parts)) $parts = [];
 
 				foreach ($parts as $p) {
-					if (!is_array($p)) continue;
-
-					if (isset($p['text']) && is_string($p['text'])) {
-						$onData($p['text']);
+					if (!is_array($p) || !isset($p['functionCall']) || !is_array($p['functionCall']) || $onMeta === null) {
 						continue;
 					}
 
-					if (isset($p['functionCall']) && is_array($p['functionCall']) && $onMeta !== null) {
-						$onMeta([
-							'event' => 'toolcall',
-							'tool_calls' => [[
-								'id' => uniqid('tool_', true),
-								'type' => 'function',
-								'function' => [
-									'name' => (string)($p['functionCall']['name'] ?? ''),
-									'arguments' => json_encode($p['functionCall']['args'] ?? [], JSON_UNESCAPED_UNICODE)
-								]
-							]]
-						]);
+					$onMeta([
+						'event' => 'toolcall',
+						'tool_calls' => [[
+							'id' => uniqid('tool_', true),
+							'type' => 'function',
+							'function' => [
+								'name' => (string)($p['functionCall']['name'] ?? ''),
+								'arguments' => json_encode($p['functionCall']['args'] ?? [], JSON_UNESCAPED_UNICODE)
+							]
+						]]
+					]);
+				}
+
+				foreach ($parts as $p) {
+					if (!is_array($p) || !isset($p['text']) || !is_string($p['text'])) {
+						continue;
 					}
+
+					$onData($p['text']);
 				}
 
 				if ($onMeta !== null && isset($candidate['finishReason']) && $candidate['finishReason'] !== null) {
