@@ -97,6 +97,7 @@ use MissionBay\Mcp\Client\McpHmacRequestSigner;
 use MissionBay\Mcp\Client\McpStreamableHttpTransport;
 use MissionBay\Mcp\McpProfileAuthorizer;
 use MissionBay\Mcp\McpToolProfileRepository;
+use MissionBay\Reporting\Settings\AiUsageReportingSettingsSeeder;
 use MissionBay\Retrieval\DefaultRetrievalCollectionDefinition;
 use MissionBay\Retrieval\PhoneticTextMaterializer;
 use MissionBay\Orchestrator\AgentActionFingerprint;
@@ -205,6 +206,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 	public function init() {
 		$this->container
 			->set(self::getName(), $this, IContainer::SHARED)
+			->set(AiUsageReportingSettingsSeeder::class, fn($c) => new AiUsageReportingSettingsSeeder(
+				$c->get(ISettingsStore::class),
+				dirname(__DIR__)
+			), IContainer::SHARED)
 
 			->set(IEventManager::class, fn() => new EventManager(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AiProviderRequestEventDispatcher::class, fn($c) => new AiProviderRequestEventDispatcher(
