@@ -31,6 +31,8 @@ use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 use Base3\Event\Api\IEventManager;
+use MissionBay\Api\IAgentTool;
+use MissionBay\Api\IConfirmableAgentTool;
 use MissionBay\Event\MissionBayAgentActionAuditEvent;
 use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
@@ -233,7 +235,12 @@ final class AgentActionReviewService {
 			?? $function['name']
 			?? $action->getName()
 		));
+		$toolReview = $this->buildToolProvidedReview($action, $context);
+
 		$title = trim((string)($interaction['title'] ?? ''));
+		if ($title === '' && is_array($toolReview)) {
+			$title = trim((string)($toolReview['title'] ?? ''));
+		}
 		if ($title === '') {
 			$title = $kind === AgentInteractionRequest::KIND_APPROVAL
 				? 'Confirm: ' . ($baseTitle !== '' ? $baseTitle : 'Tool action')
@@ -241,6 +248,9 @@ final class AgentActionReviewService {
 		}
 
 		$message = trim((string)($interaction['message'] ?? ''));
+		if ($message === '' && is_array($toolReview)) {
+			$message = trim((string)($toolReview['message'] ?? ''));
+		}
 		if ($message === '') {
 			$message = trim($decision->getReason());
 		}
@@ -250,9 +260,46 @@ final class AgentActionReviewService {
 
 		$summary = is_array($interaction['summary'] ?? null)
 			? $interaction['summary']
-			: $this->buildSchemaSummary($action, $function);
+			: (is_array($toolReview['summary'] ?? null)
+				? $toolReview['summary']
+				: $this->buildSchemaSummary($action, $function));
 
 		return new AgentActionReview($title, $message, $summary);
+	}
+
+	/** @return ?array<string,mixed> */
+	private function buildToolProvidedReview(AgentAction $action, IAgentContext $context): ?array {
+		$tool = $this->findTool($action->getName(), $context);
+		if (!$tool instanceof IConfirmableAgentTool) {
+			return null;
+		}
+
+		$review = $tool->getConfirmationRequest($action->getName(), $action->getInput(), $context);
+		return is_array($review) ? $review : null;
+	}
+
+	private function findTool(string $toolName, IAgentContext $context): ?IAgentTool {
+		$tools = $context->getVar(AgentToolLoopContextKeys::TOOLS);
+		if (!is_array($tools)) {
+			return null;
+		}
+
+		foreach ($tools as $tool) {
+			if (!$tool instanceof IAgentTool) {
+				continue;
+			}
+			foreach ($tool->getToolDefinitions() as $definition) {
+				if (!is_array($definition)) {
+					continue;
+				}
+				$function = is_array($definition['function'] ?? null) ? $definition['function'] : $definition;
+				if (trim((string)($function['name'] ?? '')) === $toolName) {
+					return $tool;
+				}
+			}
+		}
+
+		return null;
 	}
 
 	/** @param array<string,mixed> $function @return array<string,mixed> */
