@@ -19,25 +19,16 @@ namespace MissionBay\Api;
 
 use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
 use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
-use AssistantFoundation\Dto\SpeechToTextRequest;
-use AssistantFoundation\Dto\SpeechToTextResult;
 use Base3\Api\IBase;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Service\ServiceConfig;
 
 /**
- * Provider driver for complete and realtime speech-to-text operations.
+ * Provider driver for realtime speech-to-text sessions.
  */
 interface ISpeechToTextDriver extends IBase {
 
 	public function getDriver(): string;
-
-	public function transcribe(
-		ServiceConfig $serviceConfig,
-		ConnectionConfig $connectionConfig,
-		string $secret,
-		SpeechToTextRequest $request
-	): SpeechToTextResult;
 
 	public function createSession(
 		ServiceConfig $serviceConfig,

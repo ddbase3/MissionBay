@@ -36,7 +36,7 @@ final class MistralSpeechToTextDriverDefinition implements IServiceDriverDefinit
 	}
 
 	public function getLabel(): string {
-		return 'Mistral Speech-to-Text';
+		return 'Mistral Dual-Stream Realtime Speech-to-Text';
 	}
 
 	public function requiresConnection(): bool {
@@ -61,49 +61,39 @@ final class MistralSpeechToTextDriverDefinition implements IServiceDriverDefinit
 			'properties' => [
 				'model' => [
 					'type' => 'string',
-					'label' => 'Transcription model',
-					'default' => 'voxtral-mini-latest',
+					'label' => 'Realtime transcription model',
+					'default' => 'voxtral-mini-transcribe-realtime-2602',
 					'required' => true
 				],
-				'realtimeModel' => [
-					'type' => 'string',
-					'label' => 'Realtime transcription model',
-					'default' => 'voxtral-mini-transcribe-realtime-2602'
+				'vocabulary' => [
+					'type' => 'array',
+					'label' => 'Required and corrected words',
+					'default' => ['ILIAS']
 				],
-				'language' => [
-					'type' => 'string',
-					'label' => 'Language',
-					'default' => 'de'
-				],
-				'sampleRate' => [
+				'fastStreamingDelayMs' => [
 					'type' => 'integer',
-					'label' => 'Sample rate',
-					'default' => 16000
+					'label' => 'Fast stream delay (ms)',
+					'default' => 240
 				],
-				'targetStreamingDelayMs' => [
+				'slowStreamingDelayMs' => [
 					'type' => 'integer',
-					'label' => 'Target streaming delay (ms)',
-					'default' => 480
-				],
-				'silenceDurationMs' => [
-					'type' => 'integer',
-					'label' => 'Silence before stop (ms)',
-					'default' => 1200
+					'label' => 'Correction stream delay (ms)',
+					'default' => 2400
 				],
 				'chunkDurationMs' => [
 					'type' => 'integer',
 					'label' => 'Audio chunk duration (ms)',
-					'default' => 480
+					'default' => 20
 				],
-				'noSpeechTimeoutMs' => [
+				'sessionTimeoutMs' => [
 					'type' => 'integer',
-					'label' => 'No-speech timeout (ms)',
-					'default' => 10000
+					'label' => 'Session initialization timeout (ms)',
+					'default' => 12000
 				],
-				'diarize' => [
-					'type' => 'boolean',
-					'label' => 'Diarize complete transcriptions',
-					'default' => false
+				'finalizationTimeoutMs' => [
+					'type' => 'integer',
+					'label' => 'Finalization timeout (ms)',
+					'default' => 25000
 				]
 			]
 		];
@@ -113,18 +103,15 @@ final class MistralSpeechToTextDriverDefinition implements IServiceDriverDefinit
 		return [
 			'serviceType' => 'stt',
 			'driver' => 'mistral-stt',
-			'model' => 'voxtral-mini-latest',
+			'model' => 'voxtral-mini-transcribe-realtime-2602',
 			'enabled' => true,
 			'options' => [
-				'realtimeModel' => 'voxtral-mini-transcribe-realtime-2602',
-				'language' => 'de',
-				'sampleRate' => 16000,
-				'targetStreamingDelayMs' => 480,
-				'silenceDurationMs' => 1200,
-				'chunkDurationMs' => 480,
-				'finalizationTimeoutMs' => 10000,
-				'noSpeechTimeoutMs' => 10000,
-				'diarize' => false
+				'vocabulary' => ['ILIAS'],
+				'fastStreamingDelayMs' => 240,
+				'slowStreamingDelayMs' => 2400,
+				'chunkDurationMs' => 20,
+				'sessionTimeoutMs' => 12000,
+				'finalizationTimeoutMs' => 25000
 			]
 		];
 	}

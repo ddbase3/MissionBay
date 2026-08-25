@@ -38,7 +38,6 @@ use AssistantFoundation\Api\IAgentActionPolicy;
 use AssistantFoundation\Api\IRetrievalCollectionDefinition;
 use AssistantFoundation\Api\IAiModelConfigurationProvider;
 use AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
-use AssistantFoundation\Api\ISpeechToTextService;
 use AssistantFoundation\Api\ITextToSpeechService;
 use AssistantFoundation\Api\IAgentCapabilitySelector;
 use AssistantFoundation\Api\IAgentStage;
@@ -157,7 +156,6 @@ use MissionBay\Service\AgentConfigFormService;
 use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
 use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use MissionBay\Speech\ConfiguredRealtimeSpeechToTextSessionService;
-use MissionBay\Speech\ConfiguredSpeechToTextService;
 use MissionBay\Speech\ConfiguredTextToSpeechService;
 use MissionBay\Tool\Profile\MissionBayAgentToolProfileProvider;
 use MissionBay\Service\AgentConversationService;
@@ -343,9 +341,6 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(IClassMap::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAiModelConfigurationProvider::class, fn($c) => $c->get(ConfiguredAiModelConfigurationProvider::class), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(ISpeechToTextService::class, fn($c) => new ConfiguredSpeechToTextService(
-				$c->get(ConfiguredServiceRuntimeResolver::class)
-			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IRealtimeSpeechToTextSessionService::class, fn($c) => new ConfiguredRealtimeSpeechToTextSessionService(
 				$c->get(ConfiguredServiceRuntimeResolver::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)

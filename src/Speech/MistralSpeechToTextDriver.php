@@ -19,15 +19,14 @@ namespace MissionBay\Speech;
 
 use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
 use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
-use AssistantFoundation\Dto\SpeechToTextRequest;
-use AssistantFoundation\Dto\SpeechToTextResult;
-use CURLFile;
 use MissionBay\Api\ISpeechToTextDriver;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
 final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
+
+	private const DEFAULT_MODEL = 'voxtral-mini-transcribe-realtime-2602';
 
 	public static function getName(): string {
 		return 'mistralspeechtotextdriver';
@@ -37,86 +36,17 @@ final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
 		return 'mistral-stt';
 	}
 
-	public function transcribe(
-		ServiceConfig $serviceConfig,
-		ConnectionConfig $connectionConfig,
-		string $secret,
-		SpeechToTextRequest $request
-	): SpeechToTextResult {
-		$model = trim($serviceConfig->getModel());
-		if($model === '') {
-			throw new RuntimeException('Mistral speech-to-text model is missing.');
-		}
-
-		$audio = $request->getAudio();
-		if($audio === '') {
-			throw new RuntimeException('Speech-to-text audio input is empty.');
-		}
-
-		$baseUrl = rtrim(trim($connectionConfig->getBaseUrl()), '/');
-		if($baseUrl === '') {
-			throw new RuntimeException('Mistral speech-to-text connection has no base URL.');
-		}
-
-		$options = $serviceConfig->getOptions();
-		$requestOptions = $request->getOptions();
-		$language = trim($request->getLanguage());
-		if($language === '' || strtolower($language) === 'auto') {
-			$language = trim((string)($requestOptions['language'] ?? $options['language'] ?? ''));
-		}
-		$language = $this->normalizeLanguage($language);
-
-		$form = [
-			'model' => $model
-		];
-		if($this->normalizeBool($requestOptions['diarize'] ?? $options['diarize'] ?? false)) {
-			$form['diarize'] = 'true';
-		}
-		if($language !== '') {
-			$form['language'] = $language;
-		}
-
-		$response = $this->postMultipartAudio(
-			$baseUrl . '/v1/audio/transcriptions',
-			$form,
-			$audio,
-			$request->getMimeType(),
-			$secret,
-			$connectionConfig->getAuthHeaderName(),
-			$connectionConfig->getTimeoutSeconds()
-		);
-
-		$text = trim((string)($response['text'] ?? ''));
-		$resolvedLanguage = trim((string)($response['language'] ?? $language));
-		$metadata = [
-			'provider' => 'mistral',
-			'model' => trim((string)($response['model'] ?? $model))
-		];
-		if(is_array($response['segments'] ?? null)) {
-			$metadata['segments'] = $response['segments'];
-		}
-		if(is_array($response['usage'] ?? null)) {
-			$metadata['usage'] = $response['usage'];
-		}
-
-		return new SpeechToTextResult($text, $resolvedLanguage, $metadata, $response);
-	}
-
 	public function createSession(
 		ServiceConfig $serviceConfig,
 		ConnectionConfig $connectionConfig,
 		string $secret,
 		RealtimeSpeechToTextSessionRequest $request
 	): RealtimeSpeechToTextSession {
-		$serviceOptions = $serviceConfig->getOptions();
+		$options = $serviceConfig->getOptions();
 		$requestOptions = $request->getOptions();
-		$model = trim((string)(
-			$requestOptions['realtimeModel']
-			?? $serviceOptions['realtimeModel']
-			?? $serviceConfig->getModel()
-		));
+		$model = trim((string)($requestOptions['model'] ?? $serviceConfig->getModel()));
 		if($model === '') {
-			throw new RuntimeException('Mistral realtime speech-to-text model is missing.');
+			$model = self::DEFAULT_MODEL;
 		}
 
 		$baseUrl = rtrim(trim($connectionConfig->getBaseUrl()), '/');
@@ -124,6 +54,83 @@ final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
 			throw new RuntimeException('Mistral realtime speech-to-text connection has no base URL.');
 		}
 
+		$fastToken = $this->mintClientToken(
+			$baseUrl,
+			$model,
+			$secret,
+			$connectionConfig->getAuthHeaderName(),
+			$connectionConfig->getTimeoutSeconds()
+		);
+		$slowToken = $this->mintClientToken(
+			$baseUrl,
+			$model,
+			$secret,
+			$connectionConfig->getAuthHeaderName(),
+			$connectionConfig->getTimeoutSeconds()
+		);
+
+		if(hash_equals($fastToken['value'], $slowToken['value'])) {
+			throw new RuntimeException('Mistral returned the same realtime token for both transcription streams.');
+		}
+
+		$fastDelay = $this->positiveInt(
+			$requestOptions['fastStreamingDelayMs'] ?? $options['fastStreamingDelayMs'] ?? 240,
+			'fast streaming delay'
+		);
+		$slowDelay = $this->positiveInt(
+			$requestOptions['slowStreamingDelayMs'] ?? $options['slowStreamingDelayMs'] ?? 2400,
+			'slow streaming delay'
+		);
+		$chunkDuration = $this->positiveInt(
+			$requestOptions['chunkDurationMs'] ?? $options['chunkDurationMs'] ?? 20,
+			'audio chunk duration'
+		);
+		$vocabulary = $this->normalizeStringList(
+			$requestOptions['vocabulary'] ?? $options['vocabulary'] ?? []
+		);
+
+		return new RealtimeSpeechToTextSession(
+			'mistral',
+			'websocket',
+			$this->buildWebSocketEndpoint($baseUrl, $model),
+			$fastToken['value'],
+			$this->earliestExpiration($fastToken['expiresAt'], $slowToken['expiresAt']),
+			$model,
+			'pcm_s16le',
+			48000,
+			[
+				'clientTokens' => [
+					'fast' => $fastToken,
+					'slow' => $slowToken
+				],
+				'fastStreamingDelayMs' => $fastDelay,
+				'slowStreamingDelayMs' => $slowDelay,
+				'chunkDurationMs' => $chunkDuration,
+				'supportedSampleRates' => [8000, 16000, 22050, 44100, 48000],
+				'sessionTimeoutMs' => $this->positiveInt(
+					$requestOptions['sessionTimeoutMs'] ?? $options['sessionTimeoutMs'] ?? 12000,
+					'session timeout'
+				),
+				'finalizationTimeoutMs' => $this->positiveInt(
+					$requestOptions['finalizationTimeoutMs'] ?? $options['finalizationTimeoutMs'] ?? 25000,
+					'finalization timeout'
+				),
+				'maxQueueBytes' => 512 * 1024,
+				'webSocketHighWaterBytes' => 192 * 1024,
+				'vocabulary' => $vocabulary,
+				'interimResults' => true
+			]
+		);
+	}
+
+	/** @return array{value:string,expiresAt:string} */
+	private function mintClientToken(
+		string $baseUrl,
+		string $model,
+		string $secret,
+		string $authHeaderName,
+		int $timeoutSeconds
+	): array {
 		$response = $this->postJson(
 			$baseUrl . '/v1/client/sessions',
 			[
@@ -131,117 +138,24 @@ final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
 				'model' => $model
 			],
 			$secret,
-			$connectionConfig->getAuthHeaderName(),
-			$connectionConfig->getTimeoutSeconds()
+			$authHeaderName,
+			$timeoutSeconds
 		);
 
 		$clientSecret = is_array($response['client_secret'] ?? null) ? $response['client_secret'] : [];
 		$token = trim((string)($clientSecret['value'] ?? ''));
-		$expiresAt = $clientSecret['expires_at'] ?? null;
-
-		if($token === '') {
-			throw new RuntimeException('Mistral realtime session response has no client token.');
-		}
-		if(!is_string($expiresAt) || trim($expiresAt) === '' || strtotime($expiresAt) === false) {
-			throw new RuntimeException('Mistral realtime session response has no valid expiration timestamp.');
-		}
-
-		$sampleRate = $this->positiveInt($requestOptions['sampleRate'] ?? $serviceOptions['sampleRate'] ?? 16000, 'sample rate');
-		$targetDelay = $this->positiveInt($requestOptions['targetStreamingDelayMs'] ?? $serviceOptions['targetStreamingDelayMs'] ?? 480, 'target streaming delay');
-		$silenceDuration = $this->positiveInt($requestOptions['silenceDurationMs'] ?? $serviceOptions['silenceDurationMs'] ?? 900, 'silence duration');
-		$noSpeechTimeout = $this->positiveInt($requestOptions['noSpeechTimeoutMs'] ?? $serviceOptions['noSpeechTimeoutMs'] ?? 10000, 'no-speech timeout');
-		$language = trim($request->getLanguage());
-		if($language === '' || strtolower($language) === 'auto') {
-			$language = trim((string)($serviceOptions['language'] ?? ''));
-		}
-
-		$options = [
-			'targetStreamingDelayMs' => $targetDelay,
-			'silenceDurationMs' => $silenceDuration,
-			'noSpeechTimeoutMs' => $noSpeechTimeout,
-			'chunkDurationMs' => $this->positiveInt($requestOptions['chunkDurationMs'] ?? $serviceOptions['chunkDurationMs'] ?? 480, 'chunk duration'),
-			'finalizationTimeoutMs' => $this->positiveInt($requestOptions['finalizationTimeoutMs'] ?? $serviceOptions['finalizationTimeoutMs'] ?? 10000, 'finalization timeout'),
-			'interimResults' => true
-		];
-		if($language !== '' && strtolower($language) !== 'auto') {
-			$options['language'] = $language;
-		}
-
-		return new RealtimeSpeechToTextSession(
-			'mistral',
-			'websocket',
-			$this->buildWebSocketEndpoint($baseUrl, $model),
-			$token,
-			trim($expiresAt),
-			$model,
-			'pcm_s16le',
-			$sampleRate,
-			$options
+		$expiresAt = $this->normalizeExpiration(
+			$clientSecret['expires_at'] ?? $response['expires_at'] ?? null
 		);
-	}
 
-	/** @param array<string,mixed> $fields @return array<string,mixed> */
-	private function postMultipartAudio(
-		string $url,
-		array $fields,
-		string $audio,
-		string $mimeType,
-		string $secret,
-		string $authHeaderName,
-		int $timeoutSeconds
-	): array {
-		if(!function_exists('curl_init')) {
-			throw new RuntimeException('PHP cURL extension is required for Mistral speech-to-text.');
+		if(!str_starts_with($token, 'rt_')) {
+			throw new RuntimeException('Mistral realtime session response has no valid client token.');
 		}
 
-		$tempFile = tempnam(sys_get_temp_dir(), 'base3_stt_');
-		if($tempFile === false || file_put_contents($tempFile, $audio) === false) {
-			throw new RuntimeException('Unable to prepare Mistral speech-to-text audio upload.');
-		}
-
-		try {
-			$mimeType = $this->normalizeMimeType($mimeType);
-			$fields['file'] = new CURLFile($tempFile, $mimeType, 'audio.' . $this->extensionForMimeType($mimeType));
-			return $this->postForm($url, $fields, $secret, $authHeaderName, $timeoutSeconds);
-		}
-		finally {
-			@unlink($tempFile);
-		}
-	}
-
-	/** @param array<string,mixed> $fields @return array<string,mixed> */
-	private function postForm(
-		string $url,
-		array $fields,
-		string $secret,
-		string $authHeaderName,
-		int $timeoutSeconds
-	): array {
-		$authHeaderName = $this->normalizeAuthHeaderName($authHeaderName);
-		$curl = curl_init($url);
-		if($curl === false) {
-			throw new RuntimeException('Unable to initialize Mistral speech-to-text request.');
-		}
-
-		curl_setopt_array($curl, [
-			CURLOPT_POST => true,
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_TIMEOUT => $timeoutSeconds,
-			CURLOPT_HTTPHEADER => [
-				$authHeaderName . ': Bearer ' . $secret,
-				'Accept: application/json'
-			],
-			CURLOPT_POSTFIELDS => $fields
-		]);
-		$responseBody = curl_exec($curl);
-		$statusCode = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-		$error = curl_error($curl);
-		curl_close($curl);
-
-		if($responseBody === false) {
-			throw new RuntimeException('Mistral speech-to-text request failed: ' . $error);
-		}
-		return $this->decodeJsonResponse((string)$responseBody, $statusCode, 'Mistral speech-to-text request failed');
+		return [
+			'value' => $token,
+			'expiresAt' => $expiresAt
+		];
 	}
 
 	/** @param array<string,mixed> $payload @return array<string,mixed> */
@@ -255,28 +169,41 @@ final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
 		if(!function_exists('curl_init')) {
 			throw new RuntimeException('PHP cURL extension is required for Mistral realtime speech-to-text.');
 		}
-		$authHeaderName = $this->normalizeAuthHeaderName($authHeaderName);
+
+		$body = json_encode(
+			$payload,
+			JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+		);
+		if(!is_string($body)) {
+			throw new RuntimeException('Unable to encode Mistral realtime session request.');
+		}
+
 		$curl = curl_init($url);
 		if($curl === false) {
 			throw new RuntimeException('Unable to initialize Mistral realtime session request.');
 		}
 
-		$body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-		if($body === false) {
-			throw new RuntimeException('Unable to encode Mistral realtime session request.');
-		}
-
 		curl_setopt_array($curl, [
 			CURLOPT_POST => true,
+			CURLOPT_POSTFIELDS => $body,
 			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_TIMEOUT => $timeoutSeconds,
+			CURLOPT_HEADER => false,
+			CURLOPT_FOLLOWLOCATION => false,
+			CURLOPT_MAXREDIRS => 0,
+			CURLOPT_CONNECTTIMEOUT => min(10, max(1, $timeoutSeconds)),
+			CURLOPT_TIMEOUT => max(1, $timeoutSeconds),
+			CURLOPT_NOSIGNAL => true,
+			CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+			CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+			CURLOPT_SSL_VERIFYPEER => true,
+			CURLOPT_SSL_VERIFYHOST => 2,
 			CURLOPT_HTTPHEADER => [
-				$authHeaderName . ': Bearer ' . $secret,
+				$this->normalizeAuthHeaderName($authHeaderName) . ': Bearer ' . $secret,
 				'Content-Type: application/json',
 				'Accept: application/json'
-			],
-			CURLOPT_POSTFIELDS => $body
+			]
 		]);
+
 		$responseBody = curl_exec($curl);
 		$statusCode = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
 		$error = curl_error($curl);
@@ -285,7 +212,12 @@ final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
 		if($responseBody === false) {
 			throw new RuntimeException('Mistral realtime session request failed: ' . $error);
 		}
-		return $this->decodeJsonResponse((string)$responseBody, $statusCode, 'Mistral realtime session request failed');
+
+		return $this->decodeJsonResponse(
+			(string)$responseBody,
+			$statusCode,
+			'Mistral realtime session request failed'
+		);
 	}
 
 	/** @return array<string,mixed> */
@@ -295,7 +227,7 @@ final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
 			throw new RuntimeException($errorPrefix . ': invalid JSON response.');
 		}
 		if($statusCode < 200 || $statusCode >= 300) {
-			$message = $decoded['message'] ?? $decoded['detail'] ?? 'HTTP ' . $statusCode;
+			$message = $decoded['error']['message'] ?? $decoded['message'] ?? $decoded['detail'] ?? 'HTTP ' . $statusCode;
 			if(is_array($message)) {
 				$message = json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: 'HTTP ' . $statusCode;
 			}
@@ -322,35 +254,49 @@ final class MistralSpeechToTextDriver implements ISpeechToTextDriver {
 			. '/v1/audio/transcriptions/realtime?model=' . rawurlencode($model);
 	}
 
-	private function normalizeLanguage(string $language): string {
-		$language = strtolower(trim($language));
-		if(str_contains($language, '-')) {
-			$language = explode('-', $language, 2)[0];
+	private function normalizeExpiration(mixed $value): string {
+		if(is_int($value) || (is_string($value) && ctype_digit($value))) {
+			return gmdate('c', (int)$value);
 		}
-		return preg_match('/^[a-z]{2,3}$/', $language) === 1 ? $language : '';
-	}
-
-	private function normalizeBool(mixed $value): bool {
-		if(is_bool($value)) {
-			return $value;
+		if(is_string($value) && trim($value) !== '' && strtotime($value) !== false) {
+			return gmdate('c', (int)strtotime($value));
 		}
-		return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'on'], true);
+		return '';
 	}
 
-	private function normalizeMimeType(string $mimeType): string {
-		$mimeType = strtolower(trim(explode(';', $mimeType, 2)[0] ?? ''));
-		return $mimeType !== '' ? $mimeType : 'audio/wav';
+	private function earliestExpiration(string $left, string $right): string {
+		$leftTime = strtotime($left);
+		$rightTime = strtotime($right);
+		if($leftTime === false) {
+			return $right;
+		}
+		if($rightTime === false) {
+			return $left;
+		}
+		return gmdate('c', min($leftTime, $rightTime));
 	}
 
-	private function extensionForMimeType(string $mimeType): string {
-		return match($mimeType) {
-			'audio/mpeg', 'audio/mp3' => 'mp3',
-			'audio/mp4', 'audio/x-m4a' => 'm4a',
-			'audio/ogg' => 'ogg',
-			'audio/flac' => 'flac',
-			'audio/webm' => 'webm',
-			default => 'wav'
-		};
+	/** @return array<int,string> */
+	private function normalizeStringList(mixed $value): array {
+		if(is_string($value)) {
+			$value = preg_split('/[\r\n,]+/', $value) ?: [];
+		}
+		if(!is_array($value)) {
+			return [];
+		}
+
+		$result = [];
+		foreach($value as $item) {
+			if(!is_scalar($item)) {
+				continue;
+			}
+			$item = trim((string)$item);
+			if($item === '' || preg_match('/[<>\r\n]/', $item) === 1) {
+				continue;
+			}
+			$result[] = $item;
+		}
+		return array_values(array_unique($result));
 	}
 
 	private function positiveInt(mixed $value, string $label): int {

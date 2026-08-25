@@ -23,6 +23,8 @@ use MissionBay\Speech\OpenAiSpeechToTextDriver;
 
 final class OpenAiSpeechToTextDriverDefinition implements IServiceDriverDefinition {
 
+	private const DEFAULT_PROMPT = 'Deutschsprachige Chatnachricht, frei diktiert in natürlicher Alltagssprache. Erwartet werden vollständige Sätze mit deutscher Groß- und Kleinschreibung sowie passender Zeichensetzung. Namen, Zahlen, Datumsangaben, E-Mail-Adressen, URLs, Produktnamen und technische Begriffe können vorkommen.';
+
 	public static function getName(): string {
 		return 'openaispeechtotextdriverdefinition';
 	}
@@ -36,7 +38,7 @@ final class OpenAiSpeechToTextDriverDefinition implements IServiceDriverDefiniti
 	}
 
 	public function getLabel(): string {
-		return 'OpenAI Speech-to-Text';
+		return 'OpenAI Realtime Speech-to-Text';
 	}
 
 	public function requiresConnection(): bool {
@@ -61,47 +63,46 @@ final class OpenAiSpeechToTextDriverDefinition implements IServiceDriverDefiniti
 			'properties' => [
 				'model' => [
 					'type' => 'string',
-					'label' => 'Transcription model',
-					'default' => 'gpt-4o-mini-transcribe',
+					'label' => 'Realtime transcription model',
+					'default' => 'gpt-live-transcribe',
 					'required' => true
 				],
-				'realtimeModel' => [
+				'languages' => [
+					'type' => 'array',
+					'label' => 'Languages',
+					'default' => ['de']
+				],
+				'keywords' => [
+					'type' => 'array',
+					'label' => 'Required words',
+					'default' => ['ILIAS']
+				],
+				'delay' => [
 					'type' => 'string',
-					'label' => 'Realtime transcription model',
-					'default' => 'gpt-4o-mini-transcribe'
-				],
-				'language' => [
-					'type' => 'string',
-					'label' => 'Language',
-					'default' => 'de'
-				],
-				'prompt' => [
-					'type' => 'string',
-					'label' => 'Prompt',
-					'default' => ''
-				],
-				'vadThreshold' => [
-					'type' => 'number',
-					'label' => 'VAD threshold',
-					'minimum' => 0,
-					'maximum' => 1,
-					'default' => 0.5
-				],
-				'prefixPaddingMs' => [
-					'type' => 'integer',
-					'label' => 'Prefix padding (ms)',
-					'default' => 300
-				],
-				'silenceDurationMs' => [
-					'type' => 'integer',
-					'label' => 'Silence before stop (ms)',
-					'default' => 800
+					'label' => 'Transcription delay',
+					'enum' => ['low', 'medium', 'high'],
+					'default' => 'low'
 				],
 				'noiseReduction' => [
 					'type' => 'string',
 					'label' => 'Noise reduction',
-					'enum' => ['near_field', 'far_field', 'off'],
-					'default' => 'near_field'
+					'enum' => ['near_field', 'far_field'],
+					'default' => 'far_field'
+				],
+				'clientSecretTtlSeconds' => [
+					'type' => 'integer',
+					'label' => 'Client secret TTL (seconds)',
+					'default' => 120
+				],
+				'prompt' => [
+					'type' => 'string',
+					'label' => 'Transcription prompt',
+					'default' => self::DEFAULT_PROMPT
+				],
+				'finalizationTimeoutMs' => [
+					'type' => 'integer',
+					'label' => 'Finalization timeout (ms)',
+					'default' => 10000
 				]
 			]
 		];
@@ -111,17 +112,15 @@ final class OpenAiSpeechToTextDriverDefinition implements IServiceDriverDefiniti
 		return [
 			'serviceType' => 'stt',
 			'driver' => 'openai-stt',
-			'model' => 'gpt-4o-mini-transcribe',
+			'model' => 'gpt-live-transcribe',
 			'enabled' => true,
 			'options' => [
-				'realtimeModel' => 'gpt-4o-mini-transcribe',
-				'language' => 'de',
-				'prompt' => '',
-				'vadThreshold' => 0.5,
-				'prefixPaddingMs' => 300,
-				'silenceDurationMs' => 800,
-				'noiseReduction' => 'near_field',
-				'chunkDurationMs' => 100,
+				'languages' => ['de'],
+				'keywords' => ['ILIAS'],
+				'delay' => 'low',
+				'noiseReduction' => 'far_field',
+				'clientSecretTtlSeconds' => 120,
+				'prompt' => self::DEFAULT_PROMPT,
 				'finalizationTimeoutMs' => 10000
 			]
 		];

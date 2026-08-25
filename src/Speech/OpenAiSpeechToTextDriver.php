@@ -19,9 +19,6 @@ namespace MissionBay\Speech;
 
 use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
 use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
-use AssistantFoundation\Dto\SpeechToTextRequest;
-use AssistantFoundation\Dto\SpeechToTextResult;
-use CURLFile;
 use MissionBay\Api\ISpeechToTextDriver;
 use MissionBay\Connection\ConnectionConfig;
 use MissionBay\Service\ServiceConfig;
@@ -29,74 +26,15 @@ use RuntimeException;
 
 final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 
+	private const DEFAULT_MODEL = 'gpt-live-transcribe';
+	private const DEFAULT_PROMPT = 'Deutschsprachige Chatnachricht, frei diktiert in natürlicher Alltagssprache. Erwartet werden vollständige Sätze mit deutscher Groß- und Kleinschreibung sowie passender Zeichensetzung. Namen, Zahlen, Datumsangaben, E-Mail-Adressen, URLs, Produktnamen und technische Begriffe können vorkommen.';
+
 	public static function getName(): string {
 		return 'openaispeechtotextdriver';
 	}
 
 	public function getDriver(): string {
 		return 'openai-stt';
-	}
-
-	public function transcribe(
-		ServiceConfig $serviceConfig,
-		ConnectionConfig $connectionConfig,
-		string $secret,
-		SpeechToTextRequest $request
-	): SpeechToTextResult {
-		$model = trim($serviceConfig->getModel());
-		if($model === '') {
-			throw new RuntimeException('OpenAI speech-to-text model is missing.');
-		}
-
-		$audio = $request->getAudio();
-		if($audio === '') {
-			throw new RuntimeException('Speech-to-text audio input is empty.');
-		}
-
-		$baseUrl = rtrim(trim($connectionConfig->getBaseUrl()), '/');
-		if($baseUrl === '') {
-			throw new RuntimeException('OpenAI speech-to-text connection has no base URL.');
-		}
-
-		$options = $serviceConfig->getOptions();
-		$requestOptions = $request->getOptions();
-		$language = $this->normalizeLanguage(
-			$request->getLanguage() !== '' ? $request->getLanguage() : (string)($options['language'] ?? '')
-		);
-		$prompt = trim((string)($requestOptions['prompt'] ?? $options['prompt'] ?? ''));
-
-		$form = [
-			'model' => $model,
-			'response_format' => 'json'
-		];
-		if($language !== '') {
-			$form['language'] = $language;
-		}
-		if($prompt !== '') {
-			$form['prompt'] = $prompt;
-		}
-
-		$response = $this->postMultipartAudio(
-			$baseUrl . '/v1/audio/transcriptions',
-			$form,
-			$audio,
-			$request->getMimeType(),
-			$secret,
-			$connectionConfig->getAuthHeaderName(),
-			$connectionConfig->getTimeoutSeconds()
-		);
-
-		$text = trim((string)($response['text'] ?? ''));
-		$resolvedLanguage = trim((string)($response['language'] ?? $language));
-		$metadata = [
-			'provider' => 'openai',
-			'model' => trim((string)($response['model'] ?? $model))
-		];
-		if(is_array($response['usage'] ?? null)) {
-			$metadata['usage'] = $response['usage'];
-		}
-
-		return new SpeechToTextResult($text, $resolvedLanguage, $metadata, $response);
 	}
 
 	public function createSession(
@@ -107,9 +45,9 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 	): RealtimeSpeechToTextSession {
 		$options = $serviceConfig->getOptions();
 		$requestOptions = $request->getOptions();
-		$model = trim((string)($requestOptions['realtimeModel'] ?? $options['realtimeModel'] ?? $serviceConfig->getModel()));
+		$model = trim((string)($requestOptions['model'] ?? $serviceConfig->getModel()));
 		if($model === '') {
-			throw new RuntimeException('OpenAI realtime speech-to-text model is missing.');
+			$model = self::DEFAULT_MODEL;
 		}
 
 		$baseUrl = rtrim(trim($connectionConfig->getBaseUrl()), '/');
@@ -117,49 +55,62 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 			throw new RuntimeException('OpenAI realtime speech-to-text connection has no base URL.');
 		}
 
-		$language = trim($request->getLanguage());
-		if($language === '' || strtolower($language) === 'auto') {
-			$language = trim((string)($options['language'] ?? ''));
-		}
-		$language = $this->normalizeLanguage($language);
-		$prompt = trim((string)($requestOptions['prompt'] ?? $options['prompt'] ?? ''));
-		$threshold = $this->numberInRange($requestOptions['vadThreshold'] ?? $options['vadThreshold'] ?? 0.5, 0.0, 1.0, 0.5);
-		$prefixPadding = $this->positiveInt($requestOptions['prefixPaddingMs'] ?? $options['prefixPaddingMs'] ?? 300, 'prefix padding');
-		$silenceDuration = $this->positiveInt($requestOptions['silenceDurationMs'] ?? $options['silenceDurationMs'] ?? 800, 'silence duration');
-		$noiseReduction = $this->normalizeNoiseReduction((string)($requestOptions['noiseReduction'] ?? $options['noiseReduction'] ?? 'near_field'));
-
-		$transcription = ['model' => $model];
-		if($language !== '') {
-			$transcription['language'] = $language;
-		}
-		if($prompt !== '') {
-			$transcription['prompt'] = $prompt;
+		$languages = $this->normalizeLanguages(
+			$requestOptions['languages'] ?? $options['languages'] ?? []
+		);
+		if($languages === []) {
+			$language = $this->normalizeLanguage($request->getLanguage());
+			$languages = [$language !== '' ? $language : 'de'];
 		}
 
-		$input = [
-			'format' => [
-				'type' => 'audio/pcm',
-				'rate' => 24000
-			],
-			'transcription' => $transcription,
-			'turn_detection' => [
-				'type' => 'server_vad',
-				'threshold' => $threshold,
-				'prefix_padding_ms' => $prefixPadding,
-				'silence_duration_ms' => $silenceDuration
-			]
+		$keywords = $this->normalizeStringList(
+			$requestOptions['keywords'] ?? $options['keywords'] ?? []
+		);
+		$delay = $this->normalizeDelay((string)($requestOptions['delay'] ?? $options['delay'] ?? 'low'));
+		$noiseReduction = $this->normalizeNoiseReduction(
+			(string)($requestOptions['noiseReduction'] ?? $options['noiseReduction'] ?? 'far_field')
+		);
+		$ttl = $this->positiveInt(
+			$requestOptions['clientSecretTtlSeconds'] ?? $options['clientSecretTtlSeconds'] ?? 120,
+			'client secret TTL'
+		);
+		$prompt = trim((string)($requestOptions['prompt'] ?? $options['prompt'] ?? self::DEFAULT_PROMPT));
+		if($prompt === '') {
+			$prompt = self::DEFAULT_PROMPT;
+		}
+		$context = $this->normalizeContext((string)($requestOptions['context'] ?? ''));
+
+		$transcription = [
+			'model' => $model,
+			'languages' => $languages,
+			'delay' => $delay,
+			'prompt' => $this->buildPrompt($prompt, $context)
 		];
-		if($noiseReduction !== '') {
-			$input['noise_reduction'] = ['type' => $noiseReduction];
+		if($keywords !== []) {
+			$transcription['keywords'] = $keywords;
 		}
 
 		$response = $this->postJson(
 			$baseUrl . '/v1/realtime/client_secrets',
 			[
+				'expires_after' => [
+					'anchor' => 'created_at',
+					'seconds' => $ttl
+				],
 				'session' => [
 					'type' => 'transcription',
 					'audio' => [
-						'input' => $input
+						'input' => [
+							'format' => [
+								'type' => 'audio/pcm',
+								'rate' => 24000
+							],
+							'noise_reduction' => [
+								'type' => $noiseReduction
+							],
+							'transcription' => $transcription,
+							'turn_detection' => null
+						]
 					]
 				]
 			],
@@ -167,6 +118,7 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 			$connectionConfig->getAuthHeaderName(),
 			$connectionConfig->getTimeoutSeconds()
 		);
+
 		$token = trim((string)($response['value'] ?? ''));
 		if($token === '') {
 			throw new RuntimeException('OpenAI realtime transcription session response has no client token.');
@@ -174,86 +126,23 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 
 		return new RealtimeSpeechToTextSession(
 			'openai',
-			'websocket',
-			$this->buildWebSocketEndpoint($baseUrl),
+			'webrtc',
+			$baseUrl . '/v1/realtime/calls',
 			$token,
 			$this->normalizeExpiration($response['expires_at'] ?? null),
 			$model,
-			'pcm_s16le',
+			'audio/pcm',
 			24000,
 			[
-				'chunkDurationMs' => $this->positiveInt($requestOptions['chunkDurationMs'] ?? $options['chunkDurationMs'] ?? 100, 'chunk duration'),
-				'finalizationTimeoutMs' => $this->positiveInt($requestOptions['finalizationTimeoutMs'] ?? $options['finalizationTimeoutMs'] ?? 10000, 'finalization timeout'),
+				'finalizationTimeoutMs' => $this->positiveInt(
+					$requestOptions['finalizationTimeoutMs'] ?? $options['finalizationTimeoutMs'] ?? 10000,
+					'finalization timeout'
+				),
+				'commitDrainMs' => 180,
+				'transcriptQuietMs' => 300,
 				'interimResults' => true
 			]
 		);
-	}
-
-	/**
-	 * @param array<string,mixed> $fields
-	 * @return array<string,mixed>
-	 */
-	private function postMultipartAudio(
-		string $url,
-		array $fields,
-		string $audio,
-		string $mimeType,
-		string $secret,
-		string $authHeaderName,
-		int $timeoutSeconds
-	): array {
-		if(!function_exists('curl_init')) {
-			throw new RuntimeException('PHP cURL extension is required for OpenAI speech-to-text.');
-		}
-
-		$tempFile = tempnam(sys_get_temp_dir(), 'base3_stt_');
-		if($tempFile === false || file_put_contents($tempFile, $audio) === false) {
-			throw new RuntimeException('Unable to prepare OpenAI speech-to-text audio upload.');
-		}
-
-		try {
-			$mimeType = $this->normalizeMimeType($mimeType);
-			$fields['file'] = new CURLFile($tempFile, $mimeType, 'audio.' . $this->extensionForMimeType($mimeType));
-			return $this->postForm($url, $fields, $secret, $authHeaderName, $timeoutSeconds);
-		}
-		finally {
-			@unlink($tempFile);
-		}
-	}
-
-	/** @param array<string,mixed> $fields @return array<string,mixed> */
-	private function postForm(
-		string $url,
-		array $fields,
-		string $secret,
-		string $authHeaderName,
-		int $timeoutSeconds
-	): array {
-		$authHeaderName = $this->normalizeAuthHeaderName($authHeaderName);
-		$curl = curl_init($url);
-		if($curl === false) {
-			throw new RuntimeException('Unable to initialize OpenAI speech-to-text request.');
-		}
-
-		curl_setopt_array($curl, [
-			CURLOPT_POST => true,
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_TIMEOUT => $timeoutSeconds,
-			CURLOPT_HTTPHEADER => [
-				$authHeaderName . ': Bearer ' . $secret,
-				'Accept: application/json'
-			],
-			CURLOPT_POSTFIELDS => $fields
-		]);
-		$responseBody = curl_exec($curl);
-		$statusCode = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-		$error = curl_error($curl);
-		curl_close($curl);
-
-		if($responseBody === false) {
-			throw new RuntimeException('OpenAI speech-to-text request failed: ' . $error);
-		}
-		return $this->decodeJsonResponse((string)$responseBody, $statusCode, 'OpenAI speech-to-text request failed');
 	}
 
 	/** @param array<string,mixed> $payload @return array<string,mixed> */
@@ -267,27 +156,41 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 		if(!function_exists('curl_init')) {
 			throw new RuntimeException('PHP cURL extension is required for OpenAI realtime speech-to-text.');
 		}
-		$authHeaderName = $this->normalizeAuthHeaderName($authHeaderName);
+
+		$body = json_encode(
+			$payload,
+			JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+		);
+		if(!is_string($body)) {
+			throw new RuntimeException('Unable to encode OpenAI realtime speech-to-text session request.');
+		}
+
 		$curl = curl_init($url);
 		if($curl === false) {
 			throw new RuntimeException('Unable to initialize OpenAI realtime speech-to-text session request.');
 		}
-		$body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-		if($body === false) {
-			throw new RuntimeException('Unable to encode OpenAI realtime speech-to-text session request.');
-		}
 
 		curl_setopt_array($curl, [
 			CURLOPT_POST => true,
+			CURLOPT_POSTFIELDS => $body,
 			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_TIMEOUT => $timeoutSeconds,
+			CURLOPT_HEADER => false,
+			CURLOPT_FOLLOWLOCATION => false,
+			CURLOPT_MAXREDIRS => 0,
+			CURLOPT_CONNECTTIMEOUT => min(10, max(1, $timeoutSeconds)),
+			CURLOPT_TIMEOUT => max(1, $timeoutSeconds),
+			CURLOPT_NOSIGNAL => true,
+			CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+			CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+			CURLOPT_SSL_VERIFYPEER => true,
+			CURLOPT_SSL_VERIFYHOST => 2,
 			CURLOPT_HTTPHEADER => [
-				$authHeaderName . ': Bearer ' . $secret,
+				$this->normalizeAuthHeaderName($authHeaderName) . ': Bearer ' . $secret,
 				'Content-Type: application/json',
 				'Accept: application/json'
-			],
-			CURLOPT_POSTFIELDS => $body
+			]
 		]);
+
 		$responseBody = curl_exec($curl);
 		$statusCode = (int)curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
 		$error = curl_error($curl);
@@ -296,7 +199,12 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 		if($responseBody === false) {
 			throw new RuntimeException('OpenAI realtime speech-to-text session request failed: ' . $error);
 		}
-		return $this->decodeJsonResponse((string)$responseBody, $statusCode, 'OpenAI realtime speech-to-text session request failed');
+
+		return $this->decodeJsonResponse(
+			(string)$responseBody,
+			$statusCode,
+			'OpenAI realtime speech-to-text session request failed'
+		);
 	}
 
 	/** @return array<string,mixed> */
@@ -306,10 +214,94 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 			throw new RuntimeException($errorPrefix . ': invalid JSON response.');
 		}
 		if($statusCode < 200 || $statusCode >= 300) {
-			$message = $decoded['error']['message'] ?? $decoded['message'] ?? 'HTTP ' . $statusCode;
+			$message = $decoded['error']['message'] ?? $decoded['message'] ?? $decoded['detail'] ?? 'HTTP ' . $statusCode;
+			if(is_array($message)) {
+				$message = json_encode($message, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: 'HTTP ' . $statusCode;
+			}
 			throw new RuntimeException($errorPrefix . ': ' . trim((string)$message));
 		}
 		return $decoded;
+	}
+
+	private function buildPrompt(string $prompt, string $context): string {
+		if($context === '') {
+			return $prompt;
+		}
+
+		return $prompt
+			. "\n\nBereits vorhandener Text unmittelbar vor der Einfügeposition:\n"
+			. $context;
+	}
+
+	private function normalizeContext(string $context): string {
+		$context = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', ' ', $context) ?? '';
+		$context = trim($context);
+		if(strlen($context) > 4000) {
+			$context = substr($context, -4000);
+		}
+		return $context;
+	}
+
+	/** @return array<int,string> */
+	private function normalizeLanguages(mixed $value): array {
+		$languages = [];
+		foreach($this->normalizeStringList($value) as $language) {
+			$language = $this->normalizeLanguage($language);
+			if($language !== '') {
+				$languages[] = $language;
+			}
+		}
+		return array_values(array_unique($languages));
+	}
+
+	/** @return array<int,string> */
+	private function normalizeStringList(mixed $value): array {
+		if(is_string($value)) {
+			$value = preg_split('/[\r\n,]+/', $value) ?: [];
+		}
+		if(!is_array($value)) {
+			return [];
+		}
+
+		$result = [];
+		foreach($value as $item) {
+			if(!is_scalar($item)) {
+				continue;
+			}
+			$item = trim((string)$item);
+			if($item === '' || preg_match('/[<>\r\n]/', $item) === 1) {
+				continue;
+			}
+			$result[] = $item;
+		}
+		return array_values(array_unique($result));
+	}
+
+	private function normalizeLanguage(string $language): string {
+		$language = strtolower(trim($language));
+		if($language === '' || $language === 'auto') {
+			return '';
+		}
+		if(str_contains($language, '-')) {
+			$language = explode('-', $language, 2)[0];
+		}
+		return preg_match('/^[a-z]{2,3}$/', $language) === 1 ? $language : '';
+	}
+
+	private function normalizeDelay(string $delay): string {
+		$delay = strtolower(trim($delay));
+		if(!in_array($delay, ['low', 'medium', 'high'], true)) {
+			throw new RuntimeException('Invalid OpenAI realtime transcription delay.');
+		}
+		return $delay;
+	}
+
+	private function normalizeNoiseReduction(string $noiseReduction): string {
+		$noiseReduction = strtolower(trim($noiseReduction));
+		if(!in_array($noiseReduction, ['near_field', 'far_field'], true)) {
+			throw new RuntimeException('Invalid OpenAI realtime noise reduction.');
+		}
+		return $noiseReduction;
 	}
 
 	private function normalizeAuthHeaderName(string $authHeaderName): string {
@@ -323,49 +315,14 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 		return $authHeaderName;
 	}
 
-	private function buildWebSocketEndpoint(string $baseUrl): string {
-		$endpoint = preg_replace('/^https:/i', 'wss:', $baseUrl);
-		$endpoint = preg_replace('/^http:/i', 'ws:', (string)$endpoint);
-		return rtrim((string)$endpoint, '/') . '/v1/realtime';
-	}
-
 	private function normalizeExpiration(mixed $value): string {
-		if(is_numeric($value) && (int)$value > 0) {
+		if(is_int($value) || (is_string($value) && ctype_digit($value))) {
 			return gmdate('c', (int)$value);
 		}
 		if(is_string($value) && trim($value) !== '' && strtotime($value) !== false) {
 			return gmdate('c', (int)strtotime($value));
 		}
-		return gmdate('c', time() + 60);
-	}
-
-	private function normalizeLanguage(string $language): string {
-		$language = strtolower(trim($language));
-		if(str_contains($language, '-')) {
-			$language = explode('-', $language, 2)[0];
-		}
-		return preg_match('/^[a-z]{2,3}$/', $language) === 1 ? $language : '';
-	}
-
-	private function normalizeNoiseReduction(string $value): string {
-		$value = strtolower(trim($value));
-		return in_array($value, ['near_field', 'far_field'], true) ? $value : '';
-	}
-
-	private function normalizeMimeType(string $mimeType): string {
-		$mimeType = strtolower(trim(explode(';', $mimeType, 2)[0] ?? ''));
-		return $mimeType !== '' ? $mimeType : 'audio/wav';
-	}
-
-	private function extensionForMimeType(string $mimeType): string {
-		return match($mimeType) {
-			'audio/mpeg', 'audio/mp3' => 'mp3',
-			'audio/mp4', 'audio/x-m4a' => 'm4a',
-			'audio/ogg' => 'ogg',
-			'audio/flac' => 'flac',
-			'audio/webm' => 'webm',
-			default => 'wav'
-		};
+		return '';
 	}
 
 	private function positiveInt(mixed $value, string $label): int {
@@ -373,12 +330,5 @@ final class OpenAiSpeechToTextDriver implements ISpeechToTextDriver {
 			throw new RuntimeException('Invalid ' . $label . '.');
 		}
 		return (int)$value;
-	}
-
-	private function numberInRange(mixed $value, float $minimum, float $maximum, float $default): float {
-		if(!is_numeric($value)) {
-			return $default;
-		}
-		return max($minimum, min($maximum, (float)$value));
 	}
 }
