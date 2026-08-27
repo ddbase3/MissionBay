@@ -20,6 +20,7 @@ namespace MissionBay\Orchestrator\Suspension;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Dto\AgentSuspensionResolution;
 use AssistantFoundation\Dto\AgentSuspensionState;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 
@@ -34,6 +35,10 @@ final class UnavailableAgentSuspensionRepository implements IAgentSuspensionRepo
 		throw $this->unavailable();
 	}
 
+	public function findAll(string $scopeId): array {
+		throw $this->unavailable();
+	}
+
 	public function claim(string $resumeHandle): AgentSuspensionClaim {
 		throw $this->unavailable();
 	}
@@ -41,7 +46,10 @@ final class UnavailableAgentSuspensionRepository implements IAgentSuspensionRepo
 	public function release(AgentSuspensionClaim $claim): void {
 	}
 
-	public function consume(AgentSuspensionClaim $claim): void {
+	public function consume(
+		AgentSuspensionClaim $claim,
+		?AgentSuspensionResolution $resolution = null
+	): void {
 		throw $this->unavailable();
 	}
 

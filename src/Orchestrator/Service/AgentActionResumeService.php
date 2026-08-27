@@ -27,6 +27,7 @@ use AssistantFoundation\Dto\AgentInteractionResponse;
 use AssistantFoundation\Dto\AgentResume;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Dto\AgentSuspensionResolution;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
 use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
@@ -201,13 +202,6 @@ final class AgentActionResumeService {
 				continue;
 			}
 			if ($response->getDecision() === AgentInteractionResponse::DECISION_SUBMIT) {
-				if (!in_array($request->getKind(), [AgentInteractionRequest::KIND_CLARIFICATION, AgentInteractionRequest::KIND_DRY_RUN], true)) {
-					return $this->releaseFailure(
-						$prepared,
-						'invalid_agent_resume_decision',
-						'The submit decision is valid only for clarification or dry-run requests: ' . $request->getId()
-					);
-				}
 				$originalCall = $this->readToolCall($request);
 				$metadata = $originalCall->getMetadata();
 				$metadata['resumed_from_interaction'] = $request->getId();
@@ -226,8 +220,15 @@ final class AgentActionResumeService {
 			);
 		}
 
+		$responseSource = $resolution instanceof AgentInteractionResolution ? 'natural_language_ai' : 'explicit';
+		$suspensionResolution = new AgentSuspensionResolution(
+			$resolvedResponses,
+			$responseSource,
+			gmdate('c')
+		);
+
 		try {
-			$this->suspensionRepository->consume($prepared->getClaim());
+			$this->suspensionRepository->consume($prepared->getClaim(), $suspensionResolution);
 		} catch (AgentSuspensionRepositoryException $e) {
 			$this->releaseBestEffort($prepared->getClaim());
 			return $this->failure(
@@ -243,6 +244,8 @@ final class AgentActionResumeService {
 				['type' => get_class($e), 'message' => $e->getMessage()]
 			);
 		}
+
+		$this->emitInteractionResolved($context, $prepared, $suspensionResolution);
 
 		foreach ($auditEvents as $auditEvent) {
 			$this->emitAudit(
@@ -284,7 +287,7 @@ final class AgentActionResumeService {
 			'denied' => $deniedCount,
 			'submitted' => $submittedCount,
 			'resume_handle_consumed' => true,
-			'response_source' => $resolution instanceof AgentInteractionResolution ? 'natural_language_ai' : 'explicit'
+			'response_source' => $responseSource
 		]);
 	}
 
@@ -335,6 +338,38 @@ final class AgentActionResumeService {
 			['interaction_request_id' => $request->getId(), 'user_decision' => $response->toArray()],
 			['ok' => false, 'blocked' => true, 'decision' => 'deny', 'reason' => $message, 'action' => $request->getAction()->toArray()]
 		);
+	}
+
+
+	private function emitInteractionResolved(
+		IAgentContext $context,
+		PreparedAgentResume $prepared,
+		AgentSuspensionResolution $resolution
+	): void {
+		$eventCallback = $context->getVar(AgentToolLoopContextKeys::EVENT_CALLBACK);
+		if (!is_callable($eventCallback)) {
+			return;
+		}
+
+		$requests = array_map(
+			static fn(AgentInteractionRequest $request): array => $request->toArray(),
+			$this->createPublicRequests($prepared->getSuspension()->getRequests())
+		);
+		$metadata = $prepared->getSuspension()->getMetadata();
+
+		try {
+			$eventCallback('agent.interaction.resolved', [
+				'id' => $prepared->getSuspension()->getId(),
+				'lifecycle' => 'resolved',
+				'status' => $prepared->getSuspension()->getStatus(),
+				'resume_handle' => $prepared->getResumeHandle(),
+				'interaction_requests' => $requests,
+				'created_at' => $prepared->getSuspension()->getCreatedAt(),
+				'expires_at' => trim((string)($metadata['expires_at'] ?? '')),
+				'resolution' => $resolution->toArray()
+			]);
+		} catch (\Throwable) {
+		}
 	}
 
 	/** @param array<string,mixed> $metadata */

@@ -66,6 +66,10 @@ final class AgentActionReviewService {
 		$requests = [];
 		$suspensionRequests = [];
 		$hasInputRequest = false;
+		$suspensionId = $this->createSuspensionId();
+		$createdTimestamp = time();
+		$createdAt = gmdate('c', $createdTimestamp);
+		$expiresAt = gmdate('c', $createdTimestamp + $this->suspensionTtlSeconds);
 		foreach ($candidates as $candidate) {
 			if (!is_array($candidate)) {
 				return $this->failure('invalid_action_review_candidate', 'Action review candidate must be an array.');
@@ -92,7 +96,10 @@ final class AgentActionReviewService {
 
 			$publicMetadata = [
 				'decision' => $decision->toArray(),
-				'tool_call' => $toolCall->toArray()
+				'tool_call' => $toolCall->toArray(),
+				'suspension_id' => $suspensionId,
+				'created_at' => $createdAt,
+				'expires_at' => $expiresAt
 			];
 			$suspensionMetadata = $publicMetadata;
 
@@ -142,7 +149,6 @@ final class AgentActionReviewService {
 		$status = $hasInputRequest
 			? AgentExecutionStatus::AWAITING_INPUT
 			: AgentExecutionStatus::AWAITING_APPROVAL;
-		$suspensionId = $this->createSuspensionId();
 		$scopeId = AgentSuspensionScope::forConversation(
 			trim((string)($context->getVar('conversation_channel_id') ?? '')),
 			trim((string)($context->getVar('conversation_id') ?? ''))
@@ -152,10 +158,12 @@ final class AgentActionReviewService {
 			status: $status,
 			requests: $suspensionRequests,
 			state: $this->createSnapshot($context, $projectedPatch),
-			createdAt: gmdate('c'),
+			createdAt: $createdAt,
 			metadata: [
 				'node_id' => (string)($context->getVar(AgentToolLoopContextKeys::NODE_ID) ?? ''),
-				'iteration' => (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0)
+				'iteration' => (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0),
+				'created_at' => $createdAt,
+				'expires_at' => $expiresAt
 			],
 			scopeId: $scopeId !== '' ? $scopeId : $suspensionId
 		);

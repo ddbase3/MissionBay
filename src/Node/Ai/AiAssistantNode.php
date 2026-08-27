@@ -234,18 +234,36 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 			$turnResult->getInteractionRequests()
 		);
 		$resumeHandle = $turnResult->getResumeHandle();
+		$suspensionId = '';
+		$createdAt = '';
+		$expiresAt = '';
+		foreach ($turnResult->getInteractionRequests() as $request) {
+			$metadata = $request->getMetadata();
+			$suspensionId = trim((string)($metadata['suspension_id'] ?? ''));
+			$createdAt = trim((string)($metadata['created_at'] ?? ''));
+			$expiresAt = trim((string)($metadata['expires_at'] ?? ''));
+			if ($suspensionId !== '' || $createdAt !== '' || $expiresAt !== '') {
+				break;
+			}
+		}
 
 		AgentEventDispatcher::emit($eventSink, 'agent.interaction.required', [
+			'id' => $suspensionId,
 			'status' => $turnResult->getExecutionStatus(),
 			'interaction_requests' => $requests,
-			'resume_handle' => $resumeHandle
+			'resume_handle' => $resumeHandle,
+			'created_at' => $createdAt,
+			'expires_at' => $expiresAt
 		]);
 		AgentEventDispatcher::emit($eventSink, 'done', ['status' => $turnResult->getExecutionStatus()]);
 
 		return [
+			'id' => $suspensionId,
 			'status' => $turnResult->getExecutionStatus(),
 			'interaction_requests' => $requests,
 			'resume_handle' => $resumeHandle,
+			'created_at' => $createdAt,
+			'expires_at' => $expiresAt,
 			'tool_calls' => $turnResult->getToolCalls()
 		];
 	}

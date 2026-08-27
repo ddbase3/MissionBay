@@ -11,6 +11,7 @@ use AssistantFoundation\Dto\AgentMutationCommitDecision;
 use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 use AssistantFoundation\Dto\AgentSuspension;
 use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Dto\AgentSuspensionResolution;
 use AssistantFoundation\Dto\AgentSuspensionState;
 use Base3\Event\Api\IEventManager;
 use MissionBay\Api\IAgentMutationGuardedTool;
@@ -165,6 +166,11 @@ final class ComponentPresetTestSuspensionRepository implements IAgentSuspensionR
 		return null;
 	}
 
+	public function findAll(string $scopeId): array {
+		$pending = $this->findPending($scopeId);
+		return $pending !== null ? [$pending] : [];
+	}
+
 	public function claim(string $resumeHandle): AgentSuspensionClaim {
 		if(!isset($this->suspensions[$resumeHandle])) {
 			throw new \RuntimeException('Unknown resume handle.');
@@ -180,7 +186,7 @@ final class ComponentPresetTestSuspensionRepository implements IAgentSuspensionR
 	public function release(AgentSuspensionClaim $claim): void {
 	}
 
-	public function consume(AgentSuspensionClaim $claim): void {
+	public function consume(AgentSuspensionClaim $claim, ?AgentSuspensionResolution $resolution = null): void {
 		unset($this->suspensions[$claim->getResumeHandle()]);
 	}
 }

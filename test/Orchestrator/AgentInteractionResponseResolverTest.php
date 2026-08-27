@@ -32,6 +32,27 @@ final class AgentInteractionResponseResolverTest extends TestCase {
 		$this->assertSame(AgentInteractionResponse::DECISION_APPROVE, $resolution->getResponses()[0]->getDecision());
 	}
 
+
+	public function testNaturalLanguageRevisionCanSubmitAChangedApprovalPayload(): void {
+		$resolution = (new AgentInteractionResponseResolver())->resolve(
+			new InteractionResolverQueueChatModel([$this->modelResponse([
+				'status' => 'resolved',
+				'reason' => 'The user requested a concrete revision.',
+				'responses' => [[
+					'request_id' => 'air-1',
+					'decision' => 'submit',
+					'input' => ['id' => 42, 'title' => 'Changed title']
+				]]
+			])]),
+			[$this->approvalRequest('air-1')],
+			'Ändere bitte nur den Titel auf Changed title.'
+		);
+
+		$this->assertTrue($resolution->isResolved());
+		$this->assertSame(AgentInteractionResponse::DECISION_SUBMIT, $resolution->getResponses()[0]->getDecision());
+		$this->assertSame(['id' => 42, 'title' => 'Changed title'], $resolution->getResponses()[0]->getInput());
+	}
+
 	public function testNaturalLanguageDenialIsResolvedByModelOutput(): void {
 		$resolution = (new AgentInteractionResponseResolver())->resolve(
 			new InteractionResolverQueueChatModel([$this->modelResponse([

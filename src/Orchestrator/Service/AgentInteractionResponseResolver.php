@@ -130,11 +130,13 @@ final class AgentInteractionResponseResolver {
 				'role' => 'system',
 				'content' => implode("\n", [
 					'Interpret the user reply only as a response to the listed pending agent interactions.',
-					'Do not execute actions, invent request ids, alter action payloads, or infer consent from silence.',
-					'Natural language may express approval, denial, clarification input, or uncertainty in any wording or language.',
-					'For an approval request, allowed decisions are approve or deny.',
+					'Do not execute actions, invent request ids, make changes the user did not request, or infer consent from silence.',
+					'Natural language may express approval, denial, a requested revision, clarification input, or uncertainty in any wording or language.',
+					'For an approval request, approve accepts the exact proposed action, deny rejects it, and submit means the user explicitly requested a revised action payload.',
+					'For an approval revision, put the complete revised tool input in input. Preserve existing values unless the user explicitly changes them. Do not invent missing values.',
+					'A submitted approval revision is not approval. The revised action will be evaluated again and may require a new approval.',
 					'For a clarification or dry_run request, allowed decisions are submit or deny. Put supplied structured values in input.',
-					'If the reply is ambiguous, unrelated, conditional without a clear decision, or insufficient for any request, return status unclear and no responses.',
+					'If the reply is ambiguous, unrelated, conditionally approves without a concrete revision, or insufficient for any request, return status unclear and no responses.',
 					'If several requests are pending, return exactly one response for every request only when the reply clearly covers all of them.',
 					'Return exactly one JSON object and no surrounding text:',
 					'{"status":"resolved|unclear","reason":"short explanation","responses":[{"request_id":"exact id","decision":"approve|deny|submit","input":{},"note":"optional"}]}'
@@ -196,7 +198,8 @@ final class AgentInteractionResponseResolver {
 		if ($request->getKind() === AgentInteractionRequest::KIND_APPROVAL) {
 			return in_array($decision, [
 				AgentInteractionResponse::DECISION_APPROVE,
-				AgentInteractionResponse::DECISION_DENY
+				AgentInteractionResponse::DECISION_DENY,
+				AgentInteractionResponse::DECISION_SUBMIT
 			], true);
 		}
 

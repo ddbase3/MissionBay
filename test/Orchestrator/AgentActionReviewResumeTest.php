@@ -174,6 +174,14 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertSame([
 			['token', ['text' => 'Record 42 was updated.']]
 		], $tokenEvents);
+		$resolvedEvents = array_values(array_filter(
+			$events,
+			static fn(array $event): bool => ($event[0] ?? '') === 'agent.interaction.resolved'
+		));
+		$this->assertCount(1, $resolvedEvents);
+		$this->assertSame('resolved', $resolvedEvents[0][1]['lifecycle'] ?? null);
+		$this->assertSame('approved', $resolvedEvents[0][1]['resolution']['outcome'] ?? null);
+		$this->assertNotSame('', $resolvedEvents[0][1]['id'] ?? '');
 	}
 
 	public function testNaturalLanguageApprovalExecutesMutation(): void {
@@ -215,6 +223,78 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertTrue($result->isCompleted());
 		$this->assertSame(1, $tool->getCallCount());
 		$this->assertSame(['id' => 42, 'title' => 'Natural approval'], $tool->getLastArguments());
+	}
+
+
+	public function testNaturalLanguageRevisionReentersApprovalBeforeExecution(): void {
+		$tool = new ApprovalMutationTool();
+		[$orchestrator, $resumeService] = $this->createHarness();
+		$firstResult = $orchestrator->run(
+			new ApprovalQueueChatModel([$this->toolCallResponse('call-natural-revise', 'update_record', ['id' => 42, 'title' => 'Original title'])]),
+			[['role' => 'user', 'content' => 'Update record 42.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+		$firstRequest = $firstResult->getInteractionRequests()[0];
+
+		$revisedResult = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->interactionResolutionResponse('resolved', [[
+					'request_id' => $firstRequest->getId(),
+					'decision' => AgentInteractionResponse::DECISION_SUBMIT,
+					'input' => ['id' => 42, 'title' => 'Changed title']
+				]])
+			]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			null,
+			10,
+			'',
+			null,
+			null,
+			null,
+			null,
+			$resumeService->prepare(new AgentResume(
+				$firstResult->getResumeHandle(),
+				[],
+				'Ändere bitte den Titel auf Changed title.'
+			))
+		);
+
+		$this->assertTrue($revisedResult->isSuspended());
+		$this->assertSame(AgentExecutionStatus::AWAITING_APPROVAL, $revisedResult->getExecutionStatus());
+		$this->assertNotSame($firstResult->getResumeHandle(), $revisedResult->getResumeHandle());
+		$this->assertSame(0, $tool->getCallCount());
+		$this->assertSame(
+			['Record' => '42', 'New title' => 'Changed title'],
+			$revisedResult->getInteractionRequests()[0]->getSummary()
+		);
+
+		$revisedRequest = $revisedResult->getInteractionRequests()[0];
+		$finalResult = $orchestrator->run(
+			new ApprovalQueueChatModel([$this->terminalResponse()]),
+			[],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext(),
+			null,
+			10,
+			'',
+			null,
+			null,
+			null,
+			null,
+			$resumeService->prepare(new AgentResume($revisedResult->getResumeHandle(), [
+				new AgentInteractionResponse($revisedRequest->getId(), AgentInteractionResponse::DECISION_APPROVE)
+			]))
+		);
+
+		$this->assertTrue($finalResult->isCompleted());
+		$this->assertSame(1, $tool->getCallCount());
+		$this->assertSame(['id' => 42, 'title' => 'Changed title'], $tool->getLastArguments());
 	}
 
 	public function testNaturalLanguageDenialDoesNotExecuteMutation(): void {

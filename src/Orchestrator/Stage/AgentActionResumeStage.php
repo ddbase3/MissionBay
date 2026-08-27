@@ -101,9 +101,6 @@ final class AgentActionResumeStage implements IAgentStage {
 				continue;
 			}
 			if ($response->getDecision() === AgentInteractionResponse::DECISION_SUBMIT) {
-				if (!in_array($request->getKind(), [AgentInteractionRequest::KIND_CLARIFICATION, AgentInteractionRequest::KIND_DRY_RUN], true)) {
-					return $this->failure('invalid_agent_resume_decision', 'The submit decision is valid only for clarification or dry-run requests: ' . $request->getId());
-				}
 				$originalCall = $this->readToolCall($request);
 				$metadata = $originalCall->getMetadata();
 				$metadata['resumed_from_interaction'] = $request->getId();
