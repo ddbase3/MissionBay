@@ -556,7 +556,8 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 			$schema['type'] = 'object';
 		}
 
-		if(!is_array($schema['properties'] ?? null)) {
+		$properties = $schema['properties'] ?? null;
+		if(!is_array($properties) || $properties === []) {
 			$schema['properties'] = new \stdClass();
 		}
 

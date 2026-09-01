@@ -103,6 +103,18 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 			$definitions['retrieval_search']['description']
 		);
 		$this->assertStringContainsString(
+			'call retrieval_filter_help before searching',
+			$definitions['retrieval_search']['description']
+		);
+		$this->assertStringContainsString(
+			'factual content questions, explanations, passage discovery, and grounded summaries',
+			$definitions['retrieval_search']['description']
+		);
+		$this->assertStringContainsString(
+			'call retrieval_context with selected hits',
+			$definitions['retrieval_search']['description']
+		);
+		$this->assertStringContainsString(
 			'Never invent unavailable filter fields',
 			$definitions['retrieval_search']['parameters']['properties']['filters']['description']
 		);
@@ -118,6 +130,63 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 			'Do not derive or reconstruct',
 			$definitions['retrieval_context']['parameters']['properties']['retrieval_ref']['description']
 		);
+		$this->assertStringContainsString(
+			'content questions or producing summaries',
+			$definitions['retrieval_context']['description']
+		);
+		$this->assertStringContainsString(
+			'preceding chunks from the same content sequence',
+			$definitions['retrieval_context']['parameters']['properties']['before']['description']
+		);
+		$this->assertStringContainsString(
+			'following chunks from the same content sequence',
+			$definitions['retrieval_context']['parameters']['properties']['after']['description']
+		);
+		$this->assertStringContainsString(
+			'agent-approved metadata filters',
+			$definitions['retrieval_filter_help']['description']
+		);
+		$this->assertFalse(
+			$definitions['retrieval_filter_help']['parameters']['additionalProperties']
+		);
+		$this->assertInstanceOf(
+			\stdClass::class,
+			$definitions['retrieval_filter_help']['parameters']['properties']
+		);
+		$this->assertStringContainsString(
+			'"properties":{}',
+			json_encode($definitions['retrieval_filter_help']['parameters'], JSON_THROW_ON_ERROR)
+		);
+	}
+
+	public function testRetrievalFilterHelpReturnsDomainOwnedDescriptionsAndExamples(): void {
+		$classMap = $this->createMock(IClassMap::class);
+		$definition = $this->defaultDefinition();
+		$resource = new RetrievalAgentTool(
+			$this->resolver(),
+			$definition,
+			new PhoneticTextMaterializer($classMap, $definition),
+			'retrieval'
+		);
+
+		$help = $resource->callTool(
+			'retrieval_filter_help',
+			[],
+			$this->createMock(IAgentContext::class)
+		);
+
+		$this->assertSame('default', $help['collection_key']);
+		$this->assertCount(1, $help['filters']);
+		$this->assertSame('content_uuid', $help['filters'][0]['field']);
+		$this->assertSame('keyword', $help['filters'][0]['type']);
+		$this->assertSame(['eq', 'in'], $help['filters'][0]['operators']);
+		$this->assertStringContainsString('Stable identifier', $help['filters'][0]['description']);
+		$this->assertSame([
+			'field' => 'content_uuid',
+			'operator' => 'eq',
+			'value' => '0123456789abcdef0123456789abcdef'
+		], $help['filters'][0]['examples'][0]);
+		$this->assertNotEmpty($help['guidance']);
 	}
 
 

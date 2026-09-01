@@ -178,7 +178,7 @@ final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTo
 				'requiresApproval' => false,
 				'function' => [
 					'name' => 'retrieval_search',
-					'description' => 'Searches indexed content. Use auto when no search strategy is requested. If the user explicitly requests semantic, lexical/BM25/full-text, phonetic, or exact search, set mode to semantic, lexical, phonetic, or exact accordingly. Use phrases for ordered multi-token phrases: in phonetic mode they are matched after phonetic normalization; in all other modes they are matched in the normal text index. Use required_terms for required terms and excluded_terms for exclusions. Use only metadata filters exposed by this schema; if a requested filter is unavailable, do not claim it was applied and do not silently substitute an unfiltered search.',
+					'description' => 'Searches indexed content for factual content questions, explanations, passage discovery, and grounded summaries. When the answer or summary may span more than one chunk, use retrieval_search to find relevant anchor chunks, then call retrieval_context with selected hits to load their preceding and following chunks before answering. Search additional aspects when the first anchors do not cover the requested subject. Use auto when no search strategy is requested. If the user explicitly requests semantic, lexical/BM25/full-text, phonetic, or exact search, set mode to semantic, lexical, phonetic, or exact accordingly. Use phrases for ordered multi-token phrases: in phonetic mode they are matched after phonetic normalization; in all other modes they are matched in the normal text index. Use required_terms for required terms and excluded_terms for exclusions. Use only metadata filters exposed by this schema; if a requested filter is unavailable, do not claim it was applied and do not silently substitute an unfiltered search. If filtering is required but field semantics, identifier kinds, or value shapes are unclear, call retrieval_filter_help before searching. Never guess a filter field, identifier kind, or value.',
 					'parameters' => $this->getSearchToolParameters()
 				]
 			],
@@ -193,7 +193,7 @@ final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTo
 				'requiresApproval' => false,
 				'function' => [
 					'name' => 'retrieval_context',
-					'description' => 'Loads neighboring chunks around an exact hit returned by retrieval_search. Pass that hit\'s retrieval_ref value verbatim. The reference is opaque and must not be derived or reconstructed from other result fields.',
+					'description' => 'Loads preceding and following chunks from the same content sequence around an exact hit returned by retrieval_search. Use it to expand an anchor hit before answering content questions or producing summaries when the hit alone may omit definitions, qualifications, examples, or continuations. Pass that hit\'s retrieval_ref value verbatim. The reference is opaque and must not be derived or reconstructed from other result fields.',
 					'parameters' => [
 						'type' => 'object',
 						'properties' => [
@@ -203,18 +203,40 @@ final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTo
 							],
 							'before' => [
 								'type' => 'integer',
+								'description' => 'Number of preceding chunks from the same content sequence to load.',
 								'minimum' => 0,
 								'maximum' => 10,
 								'default' => 1
 							],
 							'after' => [
 								'type' => 'integer',
+								'description' => 'Number of following chunks from the same content sequence to load.',
 								'minimum' => 0,
 								'maximum' => 10,
 								'default' => 1
 							]
 						],
 						'required' => ['retrieval_ref'],
+						'additionalProperties' => false
+					]
+				]
+			],
+			[
+				'type' => 'function',
+				'label' => 'Retrieval Filter Help',
+				'category' => 'retrieval',
+				'tags' => ['retrieval', 'filter', 'help'],
+				'priority' => 48,
+				'readOnlyHint' => true,
+				'mutation' => false,
+				'requiresApproval' => false,
+				'function' => [
+					'name' => 'retrieval_filter_help',
+					'description' => 'Explains the agent-approved metadata filters available for retrieval_search in the active collection. Call this before searching when filtering is needed but field semantics, identifier kinds, operators, or value shapes are unclear. It does not expose stored payload metadata or authorization fields.',
+					'parameters' => [
+						'type' => 'object',
+						'properties' => new \stdClass(),
+						'required' => [],
 						'additionalProperties' => false
 					]
 				]
@@ -226,6 +248,7 @@ final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTo
 		return match($toolName) {
 			'retrieval_search' => $this->callSearch($arguments),
 			'retrieval_context' => $this->callContext($arguments),
+			'retrieval_filter_help' => $this->callFilterHelp(),
 			default => throw new \InvalidArgumentException("Unsupported tool: {$toolName}")
 		};
 	}
@@ -329,6 +352,20 @@ final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTo
 	}
 
 	/** @return array<string,mixed> */
+	private function callFilterHelp(): array {
+		return [
+			'collection_key' => $this->collectionKey,
+			'filters' => $this->getAgentFilterHelpEntries(),
+			'guidance' => [
+				'Use only the listed field and operator combinations.',
+				'Match every identifier and value to the field description and expected value type.',
+				'Do not guess filter fields, identifier kinds, or values when the required scope cannot be mapped confidently.',
+				'Agent-requested filters only narrow mandatory server-side restrictions and cannot relax them.'
+			]
+		];
+	}
+
+	/** @return array<string,mixed> */
 	private function getSearchToolParameters(): array {
 		return [
 			'type' => 'object',
@@ -367,30 +404,46 @@ final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTo
 
 	/** @return array<string,mixed> */
 	private function getAgentFilterArraySchema(): array {
-		$schema = $this->collectionDefinition->getAgentFilterSchema($this->collectionKey);
 		$variants = [];
 
-		foreach($schema as $field => $definition) {
-			if(!is_array($definition)) continue;
+		foreach($this->getAgentFilterHelpEntries() as $definition) {
+			$field = (string)$definition['field'];
+			$type = (string)$definition['type'];
+			$description = (string)($definition['description'] ?? '');
+			$valueDescription = (string)($definition['value_description'] ?? '');
+			$examples = is_array($definition['examples'] ?? null) ? $definition['examples'] : [];
 
-			$type = strtolower(trim((string)($definition['type'] ?? '')));
-			$operators = $definition['operators'] ?? [];
-			if(!is_array($operators)) continue;
+			foreach($definition['operators'] as $operator) {
+				$fieldSchema = ['type' => 'string', 'enum' => [$field]];
+				if($description !== '') {
+					$fieldSchema['description'] = $description;
+				}
 
-			foreach($operators as $operator) {
-				$operator = strtolower(trim((string)$operator));
-				if($operator === '') continue;
+				$valueSchema = $this->getFilterValueSchema($type, $operator);
+				if($valueDescription !== '') {
+					$valueSchema['description'] = $valueDescription;
+				}
 
-				$variants[] = [
+				$operatorExamples = array_values(array_filter(
+					$examples,
+					static fn(array $example): bool => ($example['operator'] ?? null) === $operator
+				));
+
+				$variant = [
 					'type' => 'object',
 					'properties' => [
-						'field' => ['type' => 'string', 'enum' => [(string)$field]],
+						'field' => $fieldSchema,
 						'operator' => ['type' => 'string', 'enum' => [$operator]],
-						'value' => $this->getFilterValueSchema($type, $operator)
+						'value' => $valueSchema
 					],
 					'required' => ['field', 'operator', 'value'],
 					'additionalProperties' => false
 				];
+				if($operatorExamples !== []) {
+					$variant['examples'] = $operatorExamples;
+				}
+
+				$variants[] = $variant;
 			}
 		}
 
@@ -405,6 +458,95 @@ final class RetrievalAgentTool extends AbstractAgentResource implements IAgentTo
 		}
 		else {
 			$out['items'] = ['oneOf' => $variants];
+		}
+
+		return $out;
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function getAgentFilterHelpEntries(): array {
+		$schema = $this->collectionDefinition->getAgentFilterSchema($this->collectionKey);
+		$out = [];
+
+		foreach($schema as $field => $definition) {
+			if(!is_string($field) || trim($field) === '' || !is_array($definition)) continue;
+
+			$type = strtolower(trim((string)($definition['type'] ?? '')));
+			$operators = $this->normalizeFilterOperators($definition['operators'] ?? []);
+			if($type === '' || $operators === []) continue;
+
+			$entry = [
+				'field' => trim($field),
+				'type' => $type,
+				'operators' => $operators
+			];
+			foreach(['description', 'value_description'] as $key) {
+				$value = $definition[$key] ?? null;
+				if(is_scalar($value) && trim((string)$value) !== '') {
+					$entry[$key] = trim((string)$value);
+				}
+			}
+
+			$examples = $this->normalizeFilterExamples(
+				trim($field),
+				$operators,
+				$definition,
+				$definition['examples'] ?? []
+			);
+			if($examples !== []) {
+				$entry['examples'] = $examples;
+			}
+
+			$out[] = $entry;
+		}
+
+		return $out;
+	}
+
+	/** @return string[] */
+	private function normalizeFilterOperators(mixed $operators): array {
+		if(!is_array($operators)) return [];
+
+		$supported = ['eq', 'in', 'range', 'text', 'phrase'];
+		$out = [];
+		foreach($operators as $operator) {
+			$operator = strtolower(trim((string)$operator));
+			if($operator !== '' && in_array($operator, $supported, true)) {
+				$out[$operator] = $operator;
+			}
+		}
+
+		return array_values($out);
+	}
+
+	/** @return array<int,array<string,mixed>> */
+	private function normalizeFilterExamples(
+		string $field,
+		array $operators,
+		array $definition,
+		mixed $examples
+	): array {
+		if(!is_array($examples)) return [];
+
+		$out = [];
+		foreach($examples as $example) {
+			if(!is_array($example)) continue;
+
+			$operator = strtolower(trim((string)($example['operator'] ?? '')));
+			if(!in_array($operator, $operators, true) || !array_key_exists('value', $example)) continue;
+
+			try {
+				$this->validateFilterValue($field, $operator, $example['value'], $definition);
+			}
+			catch(\Throwable $e) {
+				continue;
+			}
+
+			$out[] = [
+				'field' => $field,
+				'operator' => $operator,
+				'value' => $example['value']
+			];
 		}
 
 		return $out;

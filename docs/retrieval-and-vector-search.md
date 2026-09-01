@@ -70,6 +70,10 @@ qdrantvectorsearch
 
 `RetrievalSearchService` can list component presets that expose retrieval search and execute search/context operations through the materialized configured component.
 
+`RetrievalAgentTool` exposes `retrieval_filter_help` in addition to search and context. The help function returns only the active collection definition's agent-approved filter fields, operators, descriptions, and examples. It never exposes the complete stored payload schema.
+
+The tool descriptions present retrieval as a source for factual content questions, explanations, and grounded summaries. For requests that may span several chunks, the agent first searches for relevant anchor chunks and then calls `retrieval_context` with their exact `retrieval_ref` values. Context retrieval loads preceding and following chunks from the same content sequence so definitions, qualifications, examples, and continuations are not lost at chunk boundaries.
+
 ## Filters
 
 Agent-requested filters are data, not authority.
@@ -77,6 +81,8 @@ Agent-requested filters are data, not authority.
 A retrieval resource may receive filter providers that inject mandatory server-side constraints. Host extensions can therefore enforce ACL, tenant, source-kind or other mandatory constraints independently from what the model asks for.
 
 Do not expose a technical filter field to the agent merely because the vector backend can filter it. The collection definition decides the agent filter surface.
+
+Domain filter definitions should document identifier kinds and value shapes when a field name alone is ambiguous. MissionBay transports those descriptions without knowing domain-specific field names.
 
 ## Stored payload versus agent context
 

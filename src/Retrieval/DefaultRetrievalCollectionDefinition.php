@@ -90,7 +90,13 @@ final class DefaultRetrievalCollectionDefinition implements IRetrievalCollection
 		return [
 			'content_uuid' => [
 				'type' => 'keyword',
-				'operators' => ['eq', 'in']
+				'operators' => ['eq', 'in'],
+				'description' => 'Stable identifier of one indexed content unit.',
+				'value_description' => 'Use an exact content UUID returned by the content domain.',
+				'examples' => [[
+					'operator' => 'eq',
+					'value' => '0123456789abcdef0123456789abcdef'
+				]]
 			]
 		];
 	}

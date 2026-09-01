@@ -117,6 +117,27 @@ the configuration of a resource or component instance.
 Do not use `IOutputSchemaProvider` for function arguments.
 `IOutputSchemaProvider` describes tool return values indexed by operation name.
 
+### Parameterless functions
+
+For a function without arguments, `properties` must serialize as the JSON object
+`{}`. Declare it with `new \stdClass()`:
+
+```php
+'parameters' => [
+	'type' => 'object',
+	'properties' => new \stdClass(),
+	'required' => [],
+	'additionalProperties' => false
+]
+```
+
+Do not declare an empty `properties` map as `[]`. PHP serializes an empty array
+as the JSON array `[]`, which is not valid for the JSON Schema `properties`
+keyword. A model provider may then reject the complete tool catalog before any
+tool call starts, so no tool execution record is created. The chat-model
+serialization boundary normalizes an empty array to an empty object as an
+additional invariant, but tool definitions must still publish the correct type.
+
 ## 3. Read-only annotations
 
 A read-only function should explicitly declare:

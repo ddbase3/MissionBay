@@ -83,6 +83,8 @@ IRetrievalCollectionDefinition::getAgentFilterSchema()
 
 returns only fields and operators that a caller may expose as agent-controlled filters. Mandatory server-side filters, especially ACL constraints, are supplied independently and merged with agent filters. Agent filters may narrow retrieval but must not relax mandatory restrictions.
 
+Filter definitions may include domain-owned descriptions, value descriptions, and examples. `RetrievalAgentTool` publishes this documentation in the `retrieval_search` schema and through `retrieval_filter_help`. The generic tool does not infer field meaning from technical names.
+
 ## 6. Agent context projection
 
 Stored payload is not automatically returned to the LLM.

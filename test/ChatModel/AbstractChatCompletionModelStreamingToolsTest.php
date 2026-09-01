@@ -87,7 +87,7 @@ final class AbstractChatCompletionModelStreamingToolsTest extends TestCase {
 		$this->assertSame($messages, $provider->payload['messages'] ?? null);
 	}
 
-	public function testStreamingPayloadKeepsToolDefinitionsForConfiguredModels(): void {
+	public function testStreamingPayloadKeepsToolDefinitionsAndSerializesEmptyPropertiesAsObject(): void {
 		$provider = new CapturingStreamingProvider();
 		$model = new MistralChatModel(
 			new SingleProviderClassMap($provider),
@@ -120,7 +120,17 @@ final class AbstractChatCompletionModelStreamingToolsTest extends TestCase {
 			static function(array $metadata): void {}
 		);
 
-		$this->assertSame($tools, $provider->payload['tools'] ?? null);
+		$payloadTools = $provider->payload['tools'] ?? null;
+		$this->assertIsArray($payloadTools);
+		$this->assertSame('get_global_webdav_status', $payloadTools[0]['function']['name'] ?? null);
+		$this->assertInstanceOf(
+			\stdClass::class,
+			$payloadTools[0]['function']['parameters']['properties'] ?? null
+		);
+		$this->assertStringContainsString(
+			'"properties":{}',
+			json_encode($payloadTools[0]['function']['parameters'], JSON_THROW_ON_ERROR)
+		);
 		$this->assertSame('auto', $provider->payload['tool_choice'] ?? null);
 		$this->assertTrue($provider->payload['stream'] ?? false);
 		$this->assertCount(1, $result->getToolCalls());
