@@ -25,6 +25,7 @@ final class MissionBayAgentActionAuditEvent extends BaseEvent {
 
 	private readonly string $timestamp;
 
+	public const TYPE_PREFLIGHT_REJECTED = 'preflight_rejected';
 	public const TYPE_APPROVAL_REQUESTED = 'approval_requested';
 	public const TYPE_APPROVAL_GRANTED = 'approval_granted';
 	public const TYPE_APPROVAL_DENIED = 'approval_denied';
@@ -80,6 +81,7 @@ final class MissionBayAgentActionAuditEvent extends BaseEvent {
 	/** @return array<int,string> */
 	public static function getAllowedTypes(): array {
 		return [
+			self::TYPE_PREFLIGHT_REJECTED,
 			self::TYPE_APPROVAL_REQUESTED,
 			self::TYPE_APPROVAL_GRANTED,
 			self::TYPE_APPROVAL_DENIED,

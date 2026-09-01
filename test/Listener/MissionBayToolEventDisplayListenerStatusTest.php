@@ -86,6 +86,42 @@ final class MissionBayToolEventDisplayListenerStatusTest extends TestCase {
 		);
 	}
 
+	public function testPreflightRejectionIsStoredAsFailedActionWithErrorDetails(): void {
+		$listener = $this->createListener();
+		$statusMethod = $listener['reflection']->getMethod('resolveActionStatus');
+		$recordMethod = $listener['reflection']->getMethod('buildActionRecord');
+		$action = new AgentAction('call-preflight', AgentAction::TYPE_TOOL_CALL, 'update_course', ['ref_id' => 404]);
+		$event = new MissionBayAgentActionAuditEvent(
+			MissionBayAgentActionAuditEvent::TYPE_PREFLIGHT_REJECTED,
+			$action,
+			'No active course exists for ref_id 404.',
+			[],
+			[
+				'error_code' => 'mutation_preflight_rejected',
+				'exception_type' => \InvalidArgumentException::class
+			]
+		);
+
+		$status = $statusMethod->invoke($listener['instance'], $event, '');
+		$record = $recordMethod->invoke(
+			$listener['instance'],
+			$event,
+			'agent_action',
+			'call-preflight',
+			$status,
+			'2026-08-31 12:00:00',
+			[],
+			[]
+		);
+
+		$this->assertSame('failed', $record['status']);
+		$this->assertSame('No active course exists for ref_id 404.', $record['error_message']);
+		$this->assertSame(\InvalidArgumentException::class, $record['error_type']);
+		$this->assertSame('mutation_preflight_rejected', $record['error_code']);
+		$meta = json_decode((string)$record['meta_json'], true, 512, JSON_THROW_ON_ERROR);
+		$this->assertSame('rejected', $meta['preflight']['status']);
+	}
+
 	/** @return array{reflection:\ReflectionClass,instance:MissionBayToolEventDisplayListener} */
 	private function createListener(): array {
 		$reflection = new \ReflectionClass(MissionBayToolEventDisplayListener::class);

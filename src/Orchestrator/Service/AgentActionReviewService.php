@@ -65,7 +65,11 @@ final class AgentActionReviewService {
 
 		$requests = [];
 		$suspensionRequests = [];
+		$reviewCandidates = [];
+		$toolResults = $this->arrayValue($context, AgentToolLoopContextKeys::TOOL_RESULTS, $projectedPatch);
+		$preflightRejectionCount = 0;
 		$hasInputRequest = false;
+		$iteration = (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0);
 		$suspensionId = $this->createSuspensionId();
 		$createdTimestamp = time();
 		$createdAt = gmdate('c', $createdTimestamp);
@@ -106,6 +110,11 @@ final class AgentActionReviewService {
 			if ($kind === AgentInteractionRequest::KIND_APPROVAL) {
 				try {
 					$commitSnapshot = $this->mutationCommitGuardService->capture($action, $toolCall, $context);
+				} catch (\LogicException $e) {
+					$toolResults[] = $this->createPreflightRejectedResult($action, $decision, $e, $iteration);
+					$preflightRejectionCount++;
+					$this->emitPreflightRejectedAudit($action, $e, $context);
+					continue;
 				} catch (\Throwable $e) {
 					return $this->failure(
 						'mutation_commit_snapshot_failed',
@@ -121,6 +130,11 @@ final class AgentActionReviewService {
 							$commitSnapshot,
 							$context
 						);
+					} catch (\LogicException $e) {
+						$toolResults[] = $this->createPreflightRejectedResult($action, $decision, $e, $iteration);
+						$preflightRejectionCount++;
+						$this->emitPreflightRejectedAudit($action, $e, $context);
+						continue;
 					} catch (\Throwable $e) {
 						return $this->failure(
 							'mutation_action_review_failed',
@@ -144,6 +158,26 @@ final class AgentActionReviewService {
 			];
 			$requests[] = new AgentInteractionRequest(...$requestArguments, metadata: $publicMetadata);
 			$suspensionRequests[] = new AgentInteractionRequest(...$requestArguments, metadata: $suspensionMetadata);
+			$reviewCandidates[] = $candidate;
+		}
+
+		$projectedPatch[AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES] = $reviewCandidates;
+		$projectedPatch[AgentToolLoopContextKeys::TOOL_RESULTS] = $toolResults;
+		if ($requests === []) {
+			$pendingToolCalls = $this->arrayValue($context, AgentToolLoopContextKeys::PENDING_TOOL_CALLS, $projectedPatch);
+			return AgentStageResult::patch(array_merge($projectedPatch, [
+				AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
+				AgentToolLoopContextKeys::SUSPENSION => null,
+				AgentToolLoopContextKeys::RESUME_HANDLE => '',
+				AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::RUNNING,
+				AgentToolLoopContextKeys::SUSPENDED => false,
+				AgentToolLoopContextKeys::PHASE => $pendingToolCalls === []
+					? AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
+					: AgentToolLoopContextKeys::PHASE_TOOLS,
+				AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE
+			]), [
+				'preflight_rejection_count' => $preflightRejectionCount
+			]);
 		}
 
 		$status = $hasInputRequest
@@ -215,8 +249,68 @@ final class AgentActionReviewService {
 			'suspension_id' => $suspension->getId(),
 			'status' => $status,
 			'request_count' => count($requests),
+			'preflight_rejection_count' => $preflightRejectionCount,
 			'ttl_seconds' => $this->suspensionTtlSeconds
 		]);
+	}
+
+	private function createPreflightRejectedResult(
+		AgentAction $action,
+		AgentActionDecision $decision,
+		\Throwable $exception,
+		int $iteration
+	): AgentToolResult {
+		$message = trim($exception->getMessage());
+		if ($message === '') {
+			$message = 'Mutation preflight rejected the proposed action.';
+		}
+
+		return AgentToolResult::failure(
+			$action->getId(),
+			$action->getName(),
+			$action->getInput(),
+			'mutation_preflight_rejected',
+			$message,
+			[
+				'iteration' => $iteration,
+				'action' => $action->toArray(),
+				'action_decision' => $decision->toArray(),
+				'exception_type' => get_class($exception),
+				'blocked_before_approval' => true,
+				'blocked_before_execution' => true
+			],
+			[
+				'ok' => false,
+				'blocked' => true,
+				'phase' => 'preflight',
+				'error_code' => 'mutation_preflight_rejected',
+				'error' => $message
+			]
+		);
+	}
+
+	private function emitPreflightRejectedAudit(
+		AgentAction $action,
+		\Throwable $exception,
+		IAgentContext $context
+	): void {
+		$message = trim($exception->getMessage());
+		if ($message === '') {
+			$message = 'Mutation preflight rejected the proposed action.';
+		}
+
+		$this->emitAudit(
+			MissionBayAgentActionAuditEvent::TYPE_PREFLIGHT_REJECTED,
+			$action,
+			$message,
+			$context,
+			[
+				'error_code' => 'mutation_preflight_rejected',
+				'exception_type' => get_class($exception),
+				'blocked_before_approval' => true,
+				'blocked_before_execution' => true
+			]
+		);
 	}
 
 	/**

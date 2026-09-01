@@ -617,6 +617,42 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertSame(0, $tool->getCallCount());
 	}
 
+	public function testExpectedMutationPreflightRejectionBecomesStructuredToolFailure(): void {
+		$tool = new ApprovalPreflightRejectingMutationTool();
+		[$orchestrator, , , $events] = $this->createHarness();
+		$result = $orchestrator->run(
+			new ApprovalQueueChatModel([
+				$this->toolCallResponse('call-preflight', 'update_missing_course', ['ref_id' => 404]),
+				$this->terminalResponse()
+			]),
+			[['role' => 'user', 'content' => 'Update course 404.']],
+			$tool->getToolDefinitions(),
+			[$tool],
+			new AgentContext()
+		);
+
+		$this->assertTrue($result->isCompleted());
+		$this->assertFalse($result->isSuspended());
+		$this->assertSame('', $result->getFailureCode());
+		$this->assertSame(0, $tool->getCallCount());
+		$this->assertSame([], $result->getInteractionRequests());
+		$this->assertStringContainsString(
+			'mutation_preflight_rejected',
+			json_encode($result->getMessages(), JSON_THROW_ON_ERROR)
+		);
+		$this->assertStringContainsString(
+			'No active course exists for ref_id 404.',
+			json_encode($result->getMessages(), JSON_THROW_ON_ERROR)
+		);
+		$this->assertSame(
+			[MissionBayAgentActionAuditEvent::TYPE_PREFLIGHT_REJECTED],
+			array_map(
+				static fn(MissionBayAgentActionAuditEvent $event): string => $event->getType(),
+				$events->getAuditEvents()
+			)
+		);
+	}
+
 	public function testLegacyMutationCanExplicitlyOptOutOfCommitGuard(): void {
 		$tool = new ApprovalLegacyMutationTool(false);
 		[$orchestrator, $resumeService] = $this->createHarness();
@@ -890,6 +926,59 @@ final class ApprovalMutationTool implements IAgentTool, IAgentMutationGuardedToo
 	public function getLastArguments(): array { return $this->lastArguments; }
 	public function setVersion(int $version): void { $this->version = $version; }
 	public function setAuthorized(bool $authorized): void { $this->authorized = $authorized; }
+}
+
+final class ApprovalPreflightRejectingMutationTool implements IAgentTool, IAgentMutationGuardedTool {
+	private int $callCount = 0;
+
+	public static function getName(): string { return 'approvalpreflightrejectingmutationtool'; }
+
+	public function getToolDefinitions(): array {
+		return [[
+			'type' => 'function',
+			'label' => 'Update missing course',
+			'annotations' => ['readOnlyHint' => false, 'commitGuardRequired' => true],
+			'function' => [
+				'name' => 'update_missing_course',
+				'description' => 'Updates one course.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => ['ref_id' => ['type' => 'integer']]
+				]
+			]
+		]];
+	}
+
+	public function captureMutationCommitSnapshot(
+		AgentAction $action,
+		string $actionFingerprint,
+		IAgentContext $context
+	): AgentMutationCommitSnapshot {
+		throw new \InvalidArgumentException('No active course exists for ref_id 404.');
+	}
+
+	public function getActionReview(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentActionReview {
+		throw new \LogicException('Action review must not be reached after a rejected preflight.');
+	}
+
+	public function validateMutationCommit(
+		AgentAction $action,
+		AgentMutationCommitSnapshot $snapshot,
+		IAgentContext $context
+	): AgentMutationCommitDecision {
+		return AgentMutationCommitDecision::allow('Test mutation remains valid.');
+	}
+
+	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
+		$this->callCount++;
+		return ['updated' => true];
+	}
+
+	public function getCallCount(): int { return $this->callCount; }
 }
 
 

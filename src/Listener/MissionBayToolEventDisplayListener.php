@@ -355,6 +355,8 @@ class MissionBayToolEventDisplayListener {
 		$iteration = max(0, (int)($actionMetadata['iteration'] ?? 0));
 		$callIndex = max(0, (int)($actionMetadata['call_index'] ?? $iteration));
 		$meta = $this->buildActionMeta($event, $currentMeta);
+		$isPreflightRejected = $event->getType() === MissionBayAgentActionAuditEvent::TYPE_PREFLIGHT_REJECTED;
+		$eventMetadata = $event->getMetadata();
 
 		return [
 			'turn_id' => $this->traceString($trace, 'turn_id', $this->recordString($current, 'turn_id', $callId)),
@@ -374,9 +376,15 @@ class MissionBayToolEventDisplayListener {
 			'status' => $status,
 			'arguments_json' => $this->encodeJson($action->getInput()),
 			'result_json' => $this->nullableRecordString($current, 'result_json'),
-			'error_message' => $this->nullableRecordString($current, 'error_message'),
-			'error_type' => $this->nullableRecordString($current, 'error_type'),
-			'error_code' => $this->nullableRecordString($current, 'error_code'),
+			'error_message' => $isPreflightRejected
+				? $event->getReason()
+				: $this->nullableRecordString($current, 'error_message'),
+			'error_type' => $isPreflightRejected
+				? $this->metadataString($eventMetadata, 'exception_type')
+				: $this->nullableRecordString($current, 'error_type'),
+			'error_code' => $isPreflightRejected
+				? $this->metadataString($eventMetadata, 'error_code')
+				: $this->nullableRecordString($current, 'error_code'),
 			'created_at' => $this->recordString($current, 'created_at', $time),
 			'updated_at' => $time,
 			'finished_at' => $this->isTerminalStatus($status)
@@ -403,6 +411,15 @@ class MissionBayToolEventDisplayListener {
 			'trace' => $trace,
 			'action_audit' => $entry
 		];
+
+		if ($type === MissionBayAgentActionAuditEvent::TYPE_PREFLIGHT_REJECTED) {
+			$patch['preflight'] = [
+				'status' => 'rejected',
+				'reason' => $event->getReason(),
+				'timestamp' => $event->getTimestamp(),
+				'metadata' => $event->getMetadata()
+			];
+		}
 
 		if (in_array($type, [
 			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_REQUESTED,
@@ -445,6 +462,7 @@ class MissionBayToolEventDisplayListener {
 
 	private function resolveActionStatus(MissionBayAgentActionAuditEvent $event, string $currentStatus): string {
 		return match ($event->getType()) {
+			MissionBayAgentActionAuditEvent::TYPE_PREFLIGHT_REJECTED => self::STATUS_FAILED,
 			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_REQUESTED => self::STATUS_WAITING_APPROVAL,
 			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_GRANTED => self::STATUS_READY,
 			MissionBayAgentActionAuditEvent::TYPE_APPROVAL_DENIED => self::STATUS_DENIED,
@@ -617,6 +635,17 @@ class MissionBayToolEventDisplayListener {
 	 */
 	private function nullableTraceString(array $trace, string $key): ?string {
 		$value = $trace[$key] ?? null;
+		if (!is_scalar($value) && $value !== null) {
+			return null;
+		}
+
+		$value = trim((string)$value);
+		return $value !== '' ? $value : null;
+	}
+
+	/** @param array<string,mixed> $metadata */
+	private function metadataString(array $metadata, string $key): ?string {
+		$value = $metadata[$key] ?? null;
 		if (!is_scalar($value) && $value !== null) {
 			return null;
 		}
