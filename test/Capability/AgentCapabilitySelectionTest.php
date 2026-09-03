@@ -282,6 +282,77 @@ final class AgentCapabilitySelectionTest extends TestCase {
 	}
 
 
+	public function testSemanticSourceSelectionSkipsAiForSmallSourcePoolThatFitsMaxTools(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('source_a_read', 'Read source A.', ['source-a'], 20, 'source-a'),
+			$this->capability('source_a_write', 'Write source A.', ['source-a'], 20, 'source-a'),
+			$this->capability('source_b_read', 'Read source B.', ['source-b'], 20, 'source-b'),
+			$this->capability('source_b_write', 'Write source B.', ['source-b'], 20, 'source-b'),
+			$this->capability('source_c_read', 'Read source C.', ['source-c'], 20, 'source-c'),
+			$this->capability('source_c_write', 'Write source C.', ['source-c'], 20, 'source-c')
+		]);
+		$model = $this->recordingChatModel('{"selected_sources":["source-a"]}');
+
+		$selection = (new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector()))->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Read source A.',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 16,
+					selectAllThreshold: 3,
+					semanticCandidateTools: 16,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+					maxSources: 8
+				),
+				model: $model,
+				messages: [['role' => 'user', 'content' => 'Read source A.']]
+			)
+		);
+
+		$this->assertCount(6, $selection->getToolNames());
+		$this->assertNull($selection->getModelMetadata());
+		$this->assertContains('semantic-small-pool', $selection->getReasons()['source_a_read']);
+		$this->assertSame([], $model->getMessages());
+	}
+
+	public function testSemanticSourceSelectionStillUsesAiWhenSmallSourcePoolExceedsMaxTools(): void {
+		$capabilities = [];
+		foreach (['source-a', 'source-b'] as $sourceId) {
+			for ($index = 1; $index <= 9; $index++) {
+				$capabilities[] = $this->capability(
+					str_replace('-', '_', $sourceId) . '_function_' . $index,
+					'Function ' . $index . ' for ' . $sourceId . '.',
+					[$sourceId],
+					20,
+					$sourceId
+				);
+			}
+		}
+		$model = $this->recordingChatModel('{"selected_sources":["source-a"]}');
+
+		$selection = (new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector()))->select(
+			new AgentCapabilityCatalog($capabilities),
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Use source A.',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 16,
+					selectAllThreshold: 12,
+					semanticCandidateTools: 18,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+					maxSources: 8
+				),
+				model: $model,
+				messages: [['role' => 'user', 'content' => 'Use source A.']]
+			)
+		);
+
+		$this->assertCount(9, $selection->getToolNames());
+		$this->assertNotNull($selection->getModelMetadata());
+		$this->assertNotSame([], $model->getMessages());
+	}
+
 	public function testSemanticSourceSelectionExposesCompleteSelectedToolSourcesAndCanonicalMessages(): void {
 		$catalog = new AgentCapabilityCatalog([
 			$this->capability('list_ilias_plugins', 'List ILIAS plugins.', ['plugins', 'list'], 20, 'plugins'),

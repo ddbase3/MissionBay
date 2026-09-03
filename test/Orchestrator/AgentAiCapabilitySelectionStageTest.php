@@ -63,6 +63,50 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 		$this->assertSame('semantic', $result->getMetadata()['strategy']);
 	}
 
+	public function testStageRunsOnlyUntilCapabilitySelectionHasBeenApplied(): void {
+		$vars = [
+			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_MODEL,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::FAILURE_CODE => '',
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED => false,
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG => new AgentCapabilitySelectionConfig(
+				selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE
+			)
+		];
+		$context = $this->createMock(IAgentContext::class);
+		$context->method('getVar')->willReturnCallback(static function(string $key) use (&$vars): mixed {
+			return $vars[$key] ?? null;
+		});
+		$stage = new AgentAiCapabilitySelectionStage(
+			new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector())
+		);
+
+		$this->assertTrue($stage->supports($context));
+
+		$vars[AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED] = true;
+
+		$this->assertFalse($stage->supports($context));
+	}
+
+	public function testFunctionSelectionCanStillRunAgainAfterToolObservations(): void {
+		$vars = [
+			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_MODEL,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::FAILURE_CODE => '',
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED => true,
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG => new AgentCapabilitySelectionConfig(
+				selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION
+			)
+		];
+		$context = $this->createMock(IAgentContext::class);
+		$context->method('getVar')->willReturnCallback(static fn(string $key): mixed => $vars[$key] ?? null);
+		$stage = new AgentAiCapabilitySelectionStage(
+			new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector())
+		);
+
+		$this->assertTrue($stage->supports($context));
+	}
+
 	public function testStageRoutesOnlyTheCurrentUserTurnAndItsObservations(): void {
 		$catalog = new AgentCapabilityCatalog([
 			$this->capability('list_ilias_plugins', 'List registered plugins.', ['plugins', 'list'], 60, 'plugins'),

@@ -25,6 +25,8 @@ use MissionBay\Api\IAgentMemoryRoleResolver;
 
 final class AgentAssistantMemoryService implements IAgentAssistantMemoryService {
 
+	private const MAX_AGENT_HISTORY_MESSAGES = 20;
+
 	public function __construct(
 		private readonly IAgentAssistantMessageFactory $messageFactory,
 		private readonly IAgentMemoryRoleResolver $roleResolver
@@ -52,9 +54,7 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 	}
 
 	public function buildInitialMessages(string $system, array $memories, string $nodeId, ?ILogger $logger = null): array {
-		$messages = [
-			['role' => 'system', 'content' => $system]
-		];
+		$history = [];
 
 		foreach ($memories as $memory) {
 			if (!$memory instanceof IAgentMemory || !$this->roleResolver->isConversationMemory($memory)) {
@@ -66,11 +66,14 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 					continue;
 				}
 
-				$messages[] = $entry;
+				$history[] = $entry;
 			}
 		}
 
-		return $messages;
+		return array_merge(
+			[['role' => 'system', 'content' => $system]],
+			array_slice($history, -self::MAX_AGENT_HISTORY_MESSAGES)
+		);
 	}
 
 	public function appendVisibleMessage(array $memories, string $nodeId, array $message, ?ILogger $logger = null): void {

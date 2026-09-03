@@ -20,6 +20,7 @@ namespace MissionBay\Orchestrator\Stage;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use MissionBay\Capability\SemanticAgentCapabilitySelector;
 
 /**
@@ -42,7 +43,20 @@ final class AgentAiCapabilitySelectionStage extends AbstractAgentCapabilitySelec
 	}
 
 	public function getDescription(): string {
-		return 'Uses the active chat model to select a bounded relevant tool set from a deterministic candidate pool before each model decision.';
+		return 'Uses the active chat model to select a bounded relevant tool set. Source-complete selections are reused for later model decisions in the same orchestration turn.';
+	}
+
+	public function supports(IAgentContext $context): bool {
+		if (!parent::supports($context)) {
+			return false;
+		}
+
+		$config = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG);
+		if (!$config instanceof AgentCapabilitySelectionConfig || !$config->selectsSources()) {
+			return true;
+		}
+
+		return $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED) !== true;
 	}
 
 	public function getAiUsage(): string {

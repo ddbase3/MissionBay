@@ -20,6 +20,7 @@ namespace MissionBay\Orchestrator\Stage;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentStageResult;
+use AssistantFoundation\Dto\AgentStageTraceEntry;
 use AssistantFoundation\Dto\AgentToolContractValidation;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
@@ -314,6 +315,8 @@ final class AgentToolExecutionStage implements IAgentStage {
 			}
 		}
 
+		$trace = $this->withTimingTrace($context, $trace);
+
 		$metadata = [
 			'label' => $label,
 			'iteration' => $iteration,
@@ -605,6 +608,57 @@ final class AgentToolExecutionStage implements IAgentStage {
 		}
 
 		return null;
+	}
+
+	/**
+	 * @param array<string,mixed> $trace
+	 * @return array<string,mixed>
+	 */
+	private function withTimingTrace(IAgentContext $context, array $trace): array {
+		$stageRows = [];
+		$stageTrace = $context->getVar(AgentToolLoopContextKeys::STAGE_TRACE);
+		if (is_array($stageTrace)) {
+			foreach ($stageTrace as $entry) {
+				if (!$entry instanceof AgentStageTraceEntry) {
+					continue;
+				}
+
+				$stageRows[] = [
+					'stage_id' => $entry->getStageId(),
+					'iteration' => $entry->getIteration(),
+					'phase_before' => $entry->getPhaseBefore(),
+					'phase_after' => $entry->getPhaseAfter(),
+					'status' => $entry->getStatus(),
+					'duration_ms' => $entry->getDurationMs()
+				];
+			}
+		}
+
+		$messages = $context->getVar(AgentToolLoopContextKeys::MESSAGES);
+		$toolDefinitions = $context->getVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS);
+		$selectedToolNames = $context->getVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES);
+		$catalog = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_CATALOG);
+		$runStartedAt = $context->getVar(AgentToolLoopContextKeys::RUN_STARTED_AT);
+
+		$trace['orchestrator_timing'] = [
+			'elapsed_before_tool_ms' => is_int($runStartedAt)
+				? round((hrtime(true) - $runStartedAt) / 1000000, 3)
+				: null,
+			'message_count' => is_array($messages) ? count($messages) : 0,
+			'message_characters' => $this->encodedLength($messages),
+			'tool_definition_count' => is_array($toolDefinitions) ? count($toolDefinitions) : 0,
+			'tool_definition_characters' => $this->encodedLength($toolDefinitions),
+			'selected_tool_count' => is_array($selectedToolNames) ? count($selectedToolNames) : 0,
+			'capability_catalog_size' => is_countable($catalog) ? count($catalog) : 0,
+			'stages_before_tool' => $stageRows
+		];
+
+		return $trace;
+	}
+
+	private function encodedLength(mixed $value): int {
+		$json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		return is_string($json) ? strlen($json) : 0;
 	}
 
 	/**

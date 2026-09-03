@@ -49,10 +49,7 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 			$fallback = $this->expandSelectedSources($catalog, $request, $fallback, 'semantic-source-fallback');
 		}
 
-		if (
-			!$config->isEnabled()
-			|| $fallback->getEligibleSize() <= min($config->getSelectAllThreshold(), $config->getMaxTools())
-		) {
+		if (!$config->isEnabled() || $this->isSmallPool($fallback, $config)) {
 			return $this->rewrap($fallback, 'semantic-small-pool');
 		}
 
@@ -123,6 +120,36 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		);
 	}
 
+	private function isSmallPool(
+		AgentCapabilitySelection $selection,
+		AgentCapabilitySelectionConfig $config
+	): bool {
+		if ($config->getSelectAllThreshold() <= 0) {
+			return false;
+		}
+
+		if (!$config->selectsSources()) {
+			return $selection->getEligibleSize() <= min(
+				$config->getSelectAllThreshold(),
+				$config->getMaxTools()
+			);
+		}
+
+		if ($selection->getEligibleSize() > $config->getMaxTools()) {
+			return false;
+		}
+
+		$sources = [];
+		foreach ($selection->getCapabilities() as $capability) {
+			$sources[$this->sourceKey($capability)] = true;
+		}
+
+		return count($sources) <= min(
+			$config->getSelectAllThreshold(),
+			$config->getMaxSources()
+		);
+	}
+
 	/** @return array<int,array<string,mixed>> */
 	private function buildMessages(
 		AgentCapabilityCatalog $catalog,
@@ -185,35 +212,61 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		$config = $request->getConfig();
 		$payload = $this->sourcePayload($catalog, $candidates);
 		$candidateJson = $this->encodePayload($payload);
-		$messages = [[
-			'role' => 'system',
-			'content' => implode("\n", [
-				'You are a capability-source router for an AI agent.',
-				'Select complete registered tool sources, not individual functions.',
-				'Each selected source exposes all functions listed for that source to the next model decision.',
-				'Choose the smallest source-complete set that covers every independent request in the current user turn.',
-				'Use the supplied canonical conversation messages, including assistant tool calls and tool observations, to resolve follow-up requests.',
-				'An empty selection is valid when the current turn does not require tools.',
-				'Return JSON only in this exact shape: {"selected_sources":["source_id"]}.',
-				'Do not explain the choice and do not invent source ids.'
-			])
-		]];
+		$maxCharacters = $config->getSemanticMaxPromptCharacters();
+		$fixedCharacters = strlen($candidateJson) + 3000;
+		$availableContextCharacters = max(1000, min(6000, $maxCharacters - $fixedCharacters));
+		$contextText = $this->buildSourceContext($request->getMessages(), $request->getContextText());
+		$contextText = $this->limitText($contextText, $availableContextCharacters);
 
-		foreach ($request->getMessages() as $message) {
-			if (is_array($message) && trim((string)($message['role'] ?? '')) !== '') {
-				$messages[] = $message;
+		return [
+			[
+				'role' => 'system',
+				'content' => implode("\n", [
+					'You are a capability-source router for an AI agent.',
+					'Select complete registered tool sources, not individual functions.',
+					'Each selected source exposes all functions listed for that source to the next model decision.',
+					'Choose the smallest source-complete set that covers every independent request in the current user turn.',
+					'Use the supplied recent visible conversation to resolve follow-up requests.',
+					'An empty selection is valid when the current turn does not require tools.',
+					'Return JSON only in this exact shape: {"selected_sources":["source_id"]}.',
+					'Do not explain the choice and do not invent source ids.'
+				])
+			],
+			[
+				'role' => 'user',
+				'content' => "Recent visible conversation:\n" . $contextText
+					. "\n\nSelect the tool sources for the next model decision."
+					. "\nMaximum selected sources: " . $config->getMaxSources()
+					. "\nMaximum exposed functions: " . $config->getMaxTools()
+					. "\nCandidate sources:\n" . $candidateJson
+			]
+		];
+	}
+
+	/** @param array<int,mixed> $messages */
+	private function buildSourceContext(array $messages, string $fallback): string {
+		$rows = [];
+		foreach (array_slice($messages, -12) as $message) {
+			if (!is_array($message)) {
+				continue;
 			}
+
+			$role = strtolower(trim((string)($message['role'] ?? '')));
+			if (!in_array($role, ['user', 'assistant'], true)) {
+				continue;
+			}
+
+			$content = $message['content'] ?? '';
+			if (!is_scalar($content) || trim((string)$content) === '') {
+				continue;
+			}
+
+			$rows[] = $role . ': ' . $this->limitText(trim((string)$content), 1000);
 		}
 
-		$messages[] = [
-			'role' => 'user',
-			'content' => "Select the tool sources for the next model decision."
-				. "\nMaximum selected sources: " . $config->getMaxSources()
-				. "\nMaximum exposed functions: " . $config->getMaxTools()
-				. "\nCandidate sources:\n" . $candidateJson
-		];
+		$context = trim(implode("\n", $rows));
 
-		return $messages;
+		return $context !== '' ? $context : trim($fallback);
 	}
 
 	/** @return array<int,array<string,mixed>> */

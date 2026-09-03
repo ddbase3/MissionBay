@@ -230,7 +230,7 @@ final class AgentOrchestratorProfileRepository {
 				'capability_selection' => [
 					'enabled' => true,
 					'strategy' => 'hybrid',
-					'max_tools' => 64,
+					'max_tools' => 16,
 					'max_sources' => 8,
 					'selection_unit' => AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
 					'select_all_threshold' => 12,

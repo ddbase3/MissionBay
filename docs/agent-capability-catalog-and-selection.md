@@ -39,7 +39,7 @@ Operational names must be unique. Duplicate function names are rejected before t
 - `capability-selection` uses deterministic filtering and ranking without another model call;
 - `ai-capability-selection` uses the active chat model to rerank a bounded deterministic candidate pool.
 
-The two stages are explicit, mutually exclusive pipeline choices. Selection runs again before every `model-decision` phase because relevance may change after tool observations.
+The two stages are explicit, mutually exclusive pipeline choices. Deterministic `capability-selection` and function-level `ai-capability-selection` may run again before later `model-decision` phases. Source-level `ai-capability-selection` runs once for the orchestration turn and its bounded source-complete selection is reused for later model decisions in that turn.
 
 The default `HybridAgentCapabilitySelector` performs no additional model call. It uses:
 
@@ -50,7 +50,7 @@ The default `HybridAgentCapabilitySelector` performs no additional model call. I
 5. recently executed and previously selected tools for short-term stability;
 6. a configurable maximum selection size.
 
-Small pools are passed through when their size is at or below both `selectAllThreshold` and `maxTools`. Larger pools are ranked and truncated.
+Small function pools are passed through when their size is at or below both `selectAllThreshold` and `maxTools`. For source selection, the shortcut uses the number of eligible sources, but only when all functions from those sources still fit within `maxTools` and the sources fit within `maxSources`. Larger pools continue through AI selection.
 
 ## Node configuration
 
@@ -105,7 +105,7 @@ Configuration adds:
 ]
 ```
 
-The selector never grants new capabilities. AI output is accepted only when every returned name exists in the already filtered candidate set. Required capabilities remain enforced. Invalid output, provider failures, or an unavailable model fall back to deterministic hybrid selection. The routing model call is recorded in the normal model-result metadata so usage and diagnostics remain visible.
+The selector never grants new capabilities. AI output is accepted only when every returned name exists in the already filtered candidate set. Required capabilities remain enforced. Invalid output, provider failures, or an unavailable model fall back to deterministic hybrid selection. The routing model call is recorded in the normal model-result metadata so usage and diagnostics remain visible. Once applied, the selected tools remain the model-facing set for the rest of the orchestration turn. Approval resume restores those same selected tool definitions from the current run catalog instead of exposing the full catalog or rerunning the AI router.
 
 The built-in `large-catalog` profile selects `ai-capability-selection`. Standard and custom profiles may select either capability-selection stage, but never both.
 

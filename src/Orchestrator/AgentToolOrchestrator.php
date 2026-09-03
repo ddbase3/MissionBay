@@ -700,8 +700,13 @@ class AgentToolOrchestrator {
 		$context->setVar(AgentToolLoopContextKeys::TOOL_CALL_INDEXES, is_array($state['tool_call_indexes'] ?? null) ? $state['tool_call_indexes'] : []);
 		$context->setVar(AgentToolLoopContextKeys::MODEL_RESULTS, is_array($state['model_results'] ?? null) ? $state['model_results'] : []);
 		$context->setVar(AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS, is_array($state['model_decision_assessments'] ?? null) ? $state['model_decision_assessments'] : []);
-		$context->setVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES, is_array($state['selected_tool_names'] ?? null) ? $state['selected_tool_names'] : []);
-		$context->setVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED, (bool)($state['capability_selection_applied'] ?? false));
+		$selectedToolNames = is_array($state['selected_tool_names'] ?? null) ? $state['selected_tool_names'] : [];
+		$capabilitySelectionApplied = (bool)($state['capability_selection_applied'] ?? false);
+		$context->setVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES, $selectedToolNames);
+		$context->setVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED, $capabilitySelectionApplied);
+		if ($capabilitySelectionApplied) {
+			$this->restoreSelectedToolDefinitions($context, $selectedToolNames);
+		}
 		$context->setVar(AgentToolLoopContextKeys::TOOL_CACHE_RECORDS, []);
 		$context->setVar(AgentToolLoopContextKeys::PROGRESS_ASSESSMENTS, []);
 		$context->setVar(AgentToolLoopContextKeys::SUSPENSION, $suspension);
@@ -712,6 +717,30 @@ class AgentToolOrchestrator {
 		$context->setVar(AgentToolLoopContextKeys::FAILURE_CODE, '');
 		$context->setVar(AgentToolLoopContextKeys::FAILURE_MESSAGE, '');
 		$context->setVar(AgentToolLoopContextKeys::FAILURE_DETAIL, []);
+	}
+
+	/** @param array<int,mixed> $selectedToolNames */
+	private function restoreSelectedToolDefinitions(IAgentContext $context, array $selectedToolNames): void {
+		$catalog = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_CATALOG);
+		$definitions = [];
+
+		if ($catalog instanceof AgentCapabilityCatalog) {
+			foreach ($selectedToolNames as $toolName) {
+				if (!is_string($toolName) || trim($toolName) === '') {
+					continue;
+				}
+				$capability = $catalog->get($toolName);
+				if ($capability !== null) {
+					$definitions[] = $capability->getDefinition();
+				}
+			}
+		}
+
+		$context->setVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS, $definitions);
+		$context->setVar(
+			AgentToolLoopContextKeys::MUTATION_TOOL_NAMES,
+			$this->toolDefinitionSemantics->getMutationToolNames($definitions)
+		);
 	}
 
 	/** @return array<int,AiToolCall> */
@@ -842,12 +871,22 @@ class AgentToolOrchestrator {
 	 * @return array<string,mixed>
 	 */
 	private function buildTrace(IAgentContext $context): array {
-		return [
+		$trace = [
 			'turn_id' => $this->readContextString($context, ['turn_id', 'chat_turn_id', 'message_id'], 'unknown_turn'),
 			'chatbot_key' => $this->readContextString($context, ['conversation_channel_id'], 'unknown_chatbot'),
 			'config_group' => $this->readContextString($context, ['config_group', 'chatbot_config_group'], 'unknown_group'),
 			'config_name' => $this->readContextString($context, ['config_name', 'chatbot_config_name'], 'unknown_config')
 		];
+
+		try {
+			$prepareTiming = $context->getVar('agent_turn_prepare_timing');
+			if (is_array($prepareTiming)) {
+				$trace['prepare_timing'] = $prepareTiming;
+			}
+		} catch (\Throwable) {
+		}
+
+		return $trace;
 	}
 
 	/**

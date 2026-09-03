@@ -85,7 +85,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 		$this->assertFalse($profile->isCapabilitySelectionEnabled());
 		$this->assertTrue($profile->isAiCapabilitySelectionEnabled());
 		$this->assertSame(AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE, $config->getSelectionUnit());
-		$this->assertSame(64, $config->getMaxTools());
+		$this->assertSame(16, $config->getMaxTools());
 		$this->assertSame(8, $config->getMaxSources());
 		$this->assertTrue($config->isSticky());
 		$this->assertSame([

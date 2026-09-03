@@ -59,6 +59,13 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 	}
 
 	public function run(AgentAssistantTurnResources $resources, IAgentContext $context, AgentAssistantTurnOptions $options, ?callable $eventCallback = null): AgentAssistantTurnResult {
+		$turnStartedAt = hrtime(true);
+		$prepareTiming = [
+			'memory_history_ms' => 0.0,
+			'capability_discovery_ms' => 0.0,
+			'tool_setup_ms' => 0.0,
+			'context_contribution_ms' => 0.0
+		];
 		$logger = $resources->getLogger();
 		$model = $resources->getModel();
 		$nodeId = $options->getNodeId();
@@ -108,7 +115,9 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 		if ($preparedResume === null) {
 			if ($options->isMemoryReadEnabled()) {
+				$startedAt = hrtime(true);
 				$historyMessages = $this->memoryService->buildInitialMessages('', $memories, $nodeId, $logger);
+				$prepareTiming['memory_history_ms'] = $this->durationMs($startedAt);
 				array_shift($historyMessages);
 			}
 			$task = $this->normalizeTask($prompt, $historyMessages);
@@ -161,11 +170,13 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$capabilityDiscovery = null;
 
 		if ($toolsEnabled) {
+			$startedAt = hrtime(true);
 			$capabilityDiscovery = $this->capabilityDiscoveryService->discover(
 				$tools,
 				$options->getCapabilitySourceConfig(),
 				$context
 			);
+			$prepareTiming['capability_discovery_ms'] = $this->durationMs($startedAt);
 
 			foreach ($capabilityDiscovery->getErrors() as $error) {
 				$this->logError($logger, $error);
@@ -180,6 +191,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			}
 
 			$tools = $capabilityDiscovery->getTools();
+			$startedAt = hrtime(true);
 			$toolSetup = $this->toolSetupFactory->create(
 				$tools,
 				$resources->getProfileSelector(),
@@ -187,6 +199,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				$system,
 				$context
 			);
+			$prepareTiming['tool_setup_ms'] = $this->durationMs($startedAt);
 
 			if ($toolSetup->wasProfileUnavailable()) {
 				$this->logError($logger, 'Requested profiles cannot be fulfilled. Falling back to default behavior.');
@@ -224,11 +237,13 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				[['role' => 'system', 'content' => $system]],
 				$historyMessages
 			);
+			$startedAt = hrtime(true);
 			$contextMessages = $this->contextContributionService->buildMessages(
 				array_merge($resources->getContextContributors(), $memories),
 				$context,
 				$logger
 			);
+			$prepareTiming['context_contribution_ms'] = $this->durationMs($startedAt);
 
 			if ($contextMessages !== []) {
 				array_splice($messages, 1, 0, $contextMessages);
@@ -236,6 +251,12 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
 			$messages[] = $userMessage;
 		}
+
+		$prepareTiming['total_before_orchestrator_ms'] = $this->durationMs($turnStartedAt);
+		$prepareTiming['history_message_count'] = count($historyMessages);
+		$prepareTiming['agent_message_count'] = count($messages);
+		$prepareTiming['tool_definition_count'] = count($toolDefs);
+		$context->setVar('agent_turn_prepare_timing', $prepareTiming);
 
 		if (!$toolsEnabled) {
 			$this->storeSkippedOrchestratorContext($context, $messages, $logger);
@@ -606,6 +627,10 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		} catch (\Throwable $e) {
 			// UI event failures must not abort the assistant turn.
 		}
+	}
+
+	private function durationMs(int $startedAt): float {
+		return round((hrtime(true) - $startedAt) / 1000000, 3);
 	}
 
 	private function log(?ILogger $logger, string $message): void {

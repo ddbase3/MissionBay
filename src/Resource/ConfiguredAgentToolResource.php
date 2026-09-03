@@ -190,8 +190,11 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 			$audit['trace']
 		));
 
+		$toolStartedAt = hrtime(true);
+
 		try {
 			$result = $tool->callTool($originalName, $arguments, $context);
+			$finishedTrace = $this->withToolDuration($audit['trace'], $toolStartedAt);
 
 			$this->fireEvent(new MissionBayToolFinishedEvent(
 				$audit['node_id'],
@@ -203,12 +206,13 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 				$audit['iteration'],
 				'',
 				$audit['call_index'],
-				$audit['trace']
+				$finishedTrace
 			));
 
 			return $result;
 		}
 		catch (\Throwable $e) {
+			$failedTrace = $this->withToolDuration($audit['trace'], $toolStartedAt);
 			$this->fireEvent(new MissionBayToolFailedEvent(
 				$audit['node_id'],
 				$audit['call_id'],
@@ -221,7 +225,7 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 				$audit['iteration'],
 				'',
 				$audit['call_index'],
-				$audit['trace']
+				$failedTrace
 			));
 
 			throw $e;
@@ -470,6 +474,26 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 			'call_index' => max(0, (int)($metadata['call_index'] ?? 0)),
 			'trace' => $trace
 		];
+	}
+
+	/**
+	 * @param array<string,mixed> $trace
+	 * @return array<string,mixed>
+	 */
+	private function withToolDuration(array $trace, int $startedAt): array {
+		$timing = is_array($trace['orchestrator_timing'] ?? null)
+			? $trace['orchestrator_timing']
+			: [];
+		$toolDurationMs = round((hrtime(true) - $startedAt) / 1000000, 3);
+		$timing['tool_execution_ms'] = $toolDurationMs;
+
+		$elapsedBeforeTool = $timing['elapsed_before_tool_ms'] ?? null;
+		if (is_numeric($elapsedBeforeTool)) {
+			$timing['elapsed_through_tool_ms'] = round((float)$elapsedBeforeTool + $toolDurationMs, 3);
+		}
+
+		$trace['orchestrator_timing'] = $timing;
+		return $trace;
 	}
 
 	private function fireEvent(object $event): void {
