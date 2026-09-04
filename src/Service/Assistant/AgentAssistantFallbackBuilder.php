@@ -38,13 +38,20 @@ final class AgentAssistantFallbackBuilder implements IAgentAssistantFallbackBuil
                         return "Ich konnte die Tool-Phase nicht vollständig abschließen, aber der zuletzt erfolgreich erzeugte Link ist:\n" . $lastUrl;
                 }
 
+                if ($orchestrationResult->hasFailure() && $orchestrationResult->getFailureCode() === 'model_raw_error') {
+                        $technicalCause = $this->findSafeTechnicalCause($orchestrationResult);
+                        if ($technicalCause !== '') {
+                                return 'Ich konnte die Anfrage nicht vollständig abschließen. Modellfehler: ' . $technicalCause;
+                        }
+                }
+
                 $lastError = $this->findLastToolError($orchestrationResult);
                 if ($lastError !== '') {
                         return 'Ich konnte die Anfrage nicht vollständig abschließen. Letzter Tool-Hinweis: ' . $lastError;
                 }
 
                 if ($orchestrationResult->hasFailure()) {
-                        $message = $orchestrationResult->getFailureMessage();
+                        $message = trim($orchestrationResult->getFailureMessage());
                         if ($message === '') {
                                 $message = $orchestrationResult->getFailureCode();
                         }
@@ -172,13 +179,25 @@ final class AgentAssistantFallbackBuilder implements IAgentAssistantFallbackBuil
                         ? trim((string)$detail['message'])
                         : '';
 
-                if ($message === '' || !str_starts_with($message, 'Local LLM')) {
+                if ($message === '') {
                         return '';
                 }
 
                 $message = preg_replace('/Bearer\s+[^\s,;]+/i', 'Bearer [REDACTED]', $message) ?? $message;
+                $message = preg_replace('/Basic\s+[^\s,;]+/i', 'Basic [REDACTED]', $message) ?? $message;
+                $message = preg_replace('/((?:Authorization|X-Api-Key|Api-Key)\s*:\s*)[^\r\n,;]+/i', '$1[REDACTED]', $message) ?? $message;
+                $message = preg_replace('/([?&](?:api[_-]?key|access[_-]?token|token|key|client[_-]?secret)=)[^&\s]+/i', '$1[REDACTED]', $message) ?? $message;
+                $message = preg_replace('/("(?:api[_-]?key|access[_-]?token|token|secret|client[_-]?secret|password|authorization)"\s*:\s*")[^"]+("?)/i', '$1[REDACTED]$2', $message) ?? $message;
 
-                return mb_substr($message, 0, 2000);
+                $type = is_scalar($detail['type'] ?? null) ? trim((string)$detail['type']) : '';
+                if ($type !== '') {
+                        $type = str_contains($type, '\\') ? substr($type, strrpos($type, '\\') + 1) : $type;
+                        $message = $type . ': ' . $message;
+                }
+
+                return function_exists('mb_substr')
+                        ? mb_substr($message, 0, 2000)
+                        : substr($message, 0, 2000);
         }
 
 }

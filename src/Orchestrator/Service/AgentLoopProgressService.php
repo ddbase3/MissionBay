@@ -30,12 +30,14 @@ use AssistantFoundation\Dto\AgentToolResult;
  * Detects a stalled tool loop after observations have been committed. The
  * service never removes or suppresses tool calls. It only terminates a loop when
  * the latest iteration consists exclusively of successful repeat-safe calls
- * whose normalized arguments and outputs exactly match earlier observations.
+ * whose normalized outputs fail to add new evidence. Exact repeated calls stop
+ * immediately. Changed text-query arguments that still produce unchanged outputs receive
+ * one warning iteration before termination.
  */
 final class AgentLoopProgressService {
 
 	public function __construct(
-		private readonly int $maxConsecutiveStalledIterations = 1
+		private readonly int $maxConsecutiveStalledIterations = 2
 	) {
 		if ($this->maxConsecutiveStalledIterations < 1) {
 			throw new \InvalidArgumentException('maxConsecutiveStalledIterations must be at least 1.');
@@ -54,7 +56,8 @@ final class AgentLoopProgressService {
 		$assessments = is_array($assessments) ? $assessments : [];
 
 		$current = [];
-		$previous = [];
+		$previousBySignature = [];
+		$previousByOutput = [];
 
 		foreach ($observations as $observation) {
 			if (!$observation instanceof AgentToolResult) {
@@ -67,7 +70,12 @@ final class AgentLoopProgressService {
 				continue;
 			}
 
-			if ($observationIteration <= 0 || $observationIteration >= $iteration || !$observation->isSuccess()) {
+			if (
+				$observationIteration <= 0
+				|| $observationIteration >= $iteration
+				|| !$observation->isSuccess()
+				|| !$this->isRepeatSafe($toolDefinitions, $observation->getToolName())
+			) {
 				continue;
 			}
 
@@ -77,55 +85,81 @@ final class AgentLoopProgressService {
 				continue;
 			}
 
-			$previous[$signature][$outputHash] = true;
+			$previousBySignature[$signature][$outputHash] = true;
+			$previousByOutput[$observation->getToolName()][$outputHash][] = $observation->getArguments();
 		}
 
 		$verdict = AgentProgressAssessment::VERDICT_UNKNOWN;
 		$reason = 'The latest iteration could not be classified as progress or a safe repeat.';
 		$currentSignatures = [];
 		$repeatedSignatures = [];
-		$allRepeated = $current !== [];
+		$outputRepeatedSignatures = [];
+		$allExactRepeated = $current !== [];
+		$allOutputRepeated = $current !== [];
 		$allRepeatSafe = $current !== [];
 
 		foreach ($current as $result) {
 			if (!$result->isSuccess() || !$this->isRepeatSafe($toolDefinitions, $result->getToolName())) {
 				$allRepeatSafe = false;
-				$allRepeated = false;
+				$allExactRepeated = false;
+				$allOutputRepeated = false;
 				continue;
 			}
 
 			$signature = $this->buildCallSignature($result);
 			$outputHash = $this->buildValueHash($result->getOutput());
 			if ($signature === null || $outputHash === null) {
-				$allRepeated = false;
+				$allExactRepeated = false;
+				$allOutputRepeated = false;
 				continue;
 			}
 
 			$currentSignatures[] = $signature;
-			if (isset($previous[$signature][$outputHash])) {
+			if (isset($previousBySignature[$signature][$outputHash])) {
 				$repeatedSignatures[] = $signature;
-				continue;
+			} else {
+				$allExactRepeated = false;
 			}
 
-			$allRepeated = false;
+			$rephrasedWithoutNewEvidence = false;
+			foreach ($previousByOutput[$result->getToolName()][$outputHash] ?? [] as $previousArguments) {
+				if ($this->isLikelyEquivalentReadQuery($previousArguments, $result->getArguments())) {
+					$rephrasedWithoutNewEvidence = true;
+					break;
+				}
+			}
+
+			if ($rephrasedWithoutNewEvidence) {
+				$outputRepeatedSignatures[] = $signature;
+			} else {
+				$allOutputRepeated = false;
+			}
 		}
 
-		if ($current !== [] && $allRepeatSafe && $allRepeated) {
+		$repeatMode = 'none';
+		if ($current !== [] && $allRepeatSafe && $allExactRepeated) {
 			$verdict = AgentProgressAssessment::VERDICT_STALLED;
 			$consecutiveStalled++;
-			$reason = 'All successful repeat-safe tool calls matched earlier calls with equivalent arguments and unchanged outputs.';
+			$repeatMode = 'exact-call';
+			$reason = 'All successful read-only calls repeated earlier calls with equivalent arguments and unchanged outputs.';
+		} elseif ($current !== [] && $allRepeatSafe && $allOutputRepeated) {
+			$verdict = AgentProgressAssessment::VERDICT_STALLED;
+			$consecutiveStalled++;
+			$repeatMode = 'unchanged-output';
+			$reason = 'The read-only calls only rephrased equivalent text queries and reproduced outputs already observed from the same tools.';
 		} elseif ($current !== [] && $allRepeatSafe) {
 			$verdict = AgentProgressAssessment::VERDICT_PROGRESS;
 			$consecutiveStalled = 0;
-			$reason = 'The latest repeat-safe tool observations added a new call signature or changed output.';
+			$reason = 'The latest read-only tool observations added new output evidence.';
 		} else {
 			$consecutiveStalled = 0;
 		}
 
 		$currentSignatures = array_values(array_unique($currentSignatures));
 		$repeatedSignatures = array_values(array_unique($repeatedSignatures));
+		$outputRepeatedSignatures = array_values(array_unique($outputRepeatedSignatures));
 		$terminated = $verdict === AgentProgressAssessment::VERDICT_STALLED
-			&& $consecutiveStalled >= $this->maxConsecutiveStalledIterations;
+			&& ($allExactRepeated || $consecutiveStalled >= $this->maxConsecutiveStalledIterations);
 
 		$assessment = new AgentProgressAssessment(
 			iteration: $iteration,
@@ -137,8 +171,10 @@ final class AgentLoopProgressService {
 			metadata: [
 				'max_consecutive_stalled_iterations' => $this->maxConsecutiveStalledIterations,
 				'terminated' => $terminated,
+				'repeat_mode' => $repeatMode,
 				'current_result_count' => count($current),
-				'repeat_safe_result_count' => count($currentSignatures)
+				'repeat_safe_result_count' => count($currentSignatures),
+				'unchanged_output_result_count' => count($outputRepeatedSignatures)
 			]
 		);
 		$assessments[] = $assessment;
@@ -205,6 +241,61 @@ final class AgentLoopProgressService {
 		return false;
 	}
 
+	private function isLikelyEquivalentReadQuery(array $previous, array $current): bool {
+		$previous = $this->normalizeValue($previous);
+		$current = $this->normalizeValue($current);
+		if (!is_array($previous) || !is_array($current) || array_keys($previous) !== array_keys($current)) {
+			return false;
+		}
+
+		$changed = 0;
+		foreach ($previous as $key => $previousValue) {
+			$currentValue = $current[$key];
+			if ($previousValue === $currentValue) {
+				continue;
+			}
+
+			$changed++;
+			if (!preg_match('/^(?:q|query|search|search_query|term|text|question|prompt)$/i', (string)$key)) {
+				return false;
+			}
+			if (!is_string($previousValue) || !is_string($currentValue)) {
+				return false;
+			}
+			if (!$this->hasSubstantialTextOverlap($previousValue, $currentValue)) {
+				return false;
+			}
+		}
+
+		return $changed > 0;
+	}
+
+	private function hasSubstantialTextOverlap(string $left, string $right): bool {
+		$left = $this->normalizeQueryText($left);
+		$right = $this->normalizeQueryText($right);
+		if ($left === '' || $right === '') {
+			return false;
+		}
+		if (str_contains($left, $right) || str_contains($right, $left)) {
+			return true;
+		}
+
+		$leftTokens = array_values(array_unique(array_filter(explode(' ', $left), static fn(string $token): bool => strlen($token) >= 2)));
+		$rightTokens = array_values(array_unique(array_filter(explode(' ', $right), static fn(string $token): bool => strlen($token) >= 2)));
+		if ($leftTokens === [] || $rightTokens === []) {
+			return false;
+		}
+
+		$shared = count(array_intersect($leftTokens, $rightTokens));
+		return ($shared / min(count($leftTokens), count($rightTokens))) >= 0.6;
+	}
+
+	private function normalizeQueryText(string $text): string {
+		$text = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+		$text = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $text) ?? $text;
+		return trim(preg_replace('/\s+/', ' ', $text) ?? $text);
+	}
+
 	private function buildCallSignature(AgentToolResult $result): ?string {
 		$arguments = $this->normalizeValue($result->getArguments());
 		if ($arguments === null) {
@@ -269,16 +360,16 @@ final class AgentLoopProgressService {
 
 	private function buildContinuationHint(AgentProgressAssessment $assessment): string {
 		return implode("\n", [
-			'The latest iteration repeated successful read-only tool calls with equivalent arguments and unchanged outputs.',
-			'Do not request those calls again. Choose a materially different query only when it is expected to add evidence; otherwise end the tool phase.',
+			'The latest read-only tool iteration added no new output evidence.',
+			'Do not repeat the same calls and do not merely rephrase their arguments. Continue only with a concretely different tool step that is reasonably expected to resolve a material gap; otherwise end the tool phase and report the limitation.',
 			'Progress assessment: ' . $assessment->getReason()
 		]);
 	}
 
 	private function buildFinalInstruction(AgentProgressAssessment $assessment): string {
 		return implode("\n", [
-			'The tool loop was ended because an iteration repeated successful read-only calls with equivalent arguments and unchanged outputs.',
-			'Answer from the evidence already available. If the available observations do not identify or prove the requested fact, state that limitation clearly instead of inventing it.',
+			'The tool loop was ended because repeated read-only work stopped adding new output evidence.',
+			'Answer from the evidence already available. If the observations do not identify, support, or verify the requested fact or action, state that limitation clearly instead of inventing it.',
 			'Progress assessment: ' . $assessment->getReason()
 		]);
 	}

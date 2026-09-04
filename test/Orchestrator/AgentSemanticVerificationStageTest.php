@@ -3,6 +3,9 @@
 namespace MissionBay\Test\Orchestrator;
 
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AgentCapability;
+use AssistantFoundation\Dto\AgentCapabilityCatalog;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentResultVerification;
 use AssistantFoundation\Dto\AgentToolResult;
 use MissionBay\ChatModel\NormalizedChatModelTrait;
@@ -104,10 +107,15 @@ final class AgentSemanticVerificationStageTest extends TestCase {
 		(new AgentSemanticVerificationStage())->process($context);
 		$calls = $model->getCalls();
 		$payload = json_decode($calls[0][0][1]['content'], true);
+		$this->assertStringContainsString('Previous assistant statements are not evidence', $calls[0][0][0]['content']);
+		$this->assertStringContainsString('successful mutation call supports only what its returned evidence establishes', $calls[0][0][0]['content']);
 
 		$this->assertCount(2, $payload['previous_observations']);
 		$this->assertSame([], $payload['current_tool_results']);
 		$this->assertSame(2, $payload['evidence_count']);
+		$this->assertSame(2, $payload['available_tool_count']);
+		$this->assertSame(['lookup'], $payload['currently_selected_tools']);
+		$this->assertSame(['lookup', 'secondary_lookup'], array_column($payload['available_tools'], 'name'));
 	}
 
 	public function testParserAcceptsNestedAliasesAndPercentageConfidence(): void {
@@ -164,6 +172,31 @@ final class AgentSemanticVerificationStageTest extends TestCase {
 	 * @param array<int,AgentToolResult> $observations
 	 */
 	private function createContext(IAiChatModel $model, array $observations, int $iteration = 1): AgentContext {
+		$lookupDefinition = [
+			'type' => 'function',
+			'function' => [
+				'name' => 'lookup',
+				'description' => 'Look up authoritative runtime information.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => ['query' => ['type' => 'string']],
+					'required' => ['query']
+				]
+			]
+		];
+		$secondaryDefinition = [
+			'type' => 'function',
+			'function' => [
+				'name' => 'secondary_lookup',
+				'description' => 'Look up another assigned runtime domain.',
+				'parameters' => ['type' => 'object', 'properties' => []]
+			]
+		];
+		$catalog = new AgentCapabilityCatalog([
+			new AgentCapability('lookup', 'Lookup', 'Look up authoritative runtime information.', '', [], 0, $lookupDefinition, 'lookup-source', 'lookup-source'),
+			new AgentCapability('secondary_lookup', 'Secondary lookup', 'Look up another assigned runtime domain.', '', [], 0, $secondaryDefinition, 'secondary-source', 'secondary-source')
+		]);
+
 		return new AgentContext(vars: [
 			AgentToolLoopContextKeys::MODEL => $model,
 			AgentToolLoopContextKeys::MESSAGES => [
@@ -171,6 +204,9 @@ final class AgentSemanticVerificationStageTest extends TestCase {
 				['role' => 'user', 'content' => 'Check the plugin status.']
 			],
 			AgentToolLoopContextKeys::TOOL_RESULTS => [],
+			AgentToolLoopContextKeys::TOOL_DEFINITIONS => [$lookupDefinition],
+			AgentToolLoopContextKeys::CAPABILITY_CATALOG => $catalog,
+			AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG => new AgentCapabilitySelectionConfig(),
 			AgentToolLoopContextKeys::OBSERVATIONS => $observations,
 			AgentToolLoopContextKeys::MODEL_RESULTS => [],
 			AgentToolLoopContextKeys::RESULT_VERIFICATIONS => [],

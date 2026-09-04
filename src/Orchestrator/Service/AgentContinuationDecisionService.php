@@ -28,9 +28,9 @@ use AssistantFoundation\Dto\AgentStageResult;
  * AgentContinuationDecisionService
  *
  * Evaluates one semantic verification after the primary model has already
- * produced a terminal tool-phase decision. Only an explicit, high-confidence
- * continue recommendation may reopen the loop. Missing, malformed, or low-
- * confidence verifier output keeps the primary terminal decision intact.
+ * produced a terminal tool-phase decision. A valid failed verification reopens
+ * the loop for a material resolvable gap even when its reported confidence is low.
+ * Missing, malformed, or inconclusive verifier output keeps the terminal decision intact.
  */
 final class AgentContinuationDecisionService {
 
@@ -60,6 +60,8 @@ final class AgentContinuationDecisionService {
 		$confidence = isset($metadata['confidence']) && is_numeric($metadata['confidence'])
 			? max(0.0, min(1.0, (float)$metadata['confidence']))
 			: null;
+		$continueBecauseFailed = $verification->getVerdict() === AgentResultVerification::VERDICT_FAILED
+			&& $recommendation !== AgentContinuationDecision::DECISION_CLARIFY;
 		$decisionName = AgentContinuationDecision::DECISION_ANSWER;
 		$decisionReason = $this->buildDefaultAnswerReason($verification, $recommendation, $confidence, $progressTerminated);
 		$patch = [
@@ -75,13 +77,22 @@ final class AgentContinuationDecisionService {
 
 		if (
 			!$progressTerminated
-			&& $recommendation === AgentContinuationDecision::DECISION_CONTINUE
-			&& $this->meetsThreshold($confidence, $this->minContinueConfidence)
+			&& (
+				$continueBecauseFailed
+				|| (
+					$recommendation === AgentContinuationDecision::DECISION_CONTINUE
+					&& $this->meetsThreshold($confidence, $this->minContinueConfidence)
+				)
+			)
 		) {
 			$decisionName = AgentContinuationDecision::DECISION_CONTINUE;
 			$decisionReason = $verification->getSummary();
 			$patch = [
-				AgentToolLoopContextKeys::CONTINUATION_HINT => $this->buildContinuationHint($verification, $recommendation, $confidence),
+				AgentToolLoopContextKeys::CONTINUATION_HINT => $this->buildContinuationHint(
+					$verification,
+					AgentContinuationDecision::DECISION_CONTINUE,
+					$confidence
+				),
 				AgentToolLoopContextKeys::FINAL_ASSISTANT_MESSAGE => null,
 				AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION => '',
 				AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
@@ -120,6 +131,7 @@ final class AgentContinuationDecisionService {
 				'min_continue_confidence' => $this->minContinueConfidence,
 				'primary_terminal_decision_preserved' => $decisionName !== AgentContinuationDecision::DECISION_CONTINUE,
 				'loop_progress_terminated' => $progressTerminated,
+				'continue_for_failed_verification' => $continueBecauseFailed && !$progressTerminated,
 				'issues' => $verification->getIssues()
 			]
 		);
@@ -165,7 +177,7 @@ final class AgentContinuationDecisionService {
 		return implode("\n", [
 			'The tool-decision model has ended the tool phase.',
 			'Produce the user-facing answer from the available conversation and tool observations.',
-			'Keep verified facts separate from uncertainty and do not claim checks that are not present in the evidence.',
+			'Ground material factual claims in the available evidence. Keep verified facts separate from uncertainty, do not broaden partial evidence, and do not claim checks or successful actions that are not present in the evidence.',
 			'Semantic assessment: ' . $verification->getSummary()
 		]);
 	}
@@ -234,7 +246,7 @@ final class AgentContinuationDecisionService {
 			'- confidence: ' . $confidenceText,
 			'- summary: ' . $verification->getSummary(),
 			'- open issues: ' . $this->formatIssues($verification->getIssues()),
-			'Select only tool calls that are expected to add materially new evidence. Do not repeat a successful call with equivalent arguments unless a different result is reasonably expected. If the accumulated evidence is already sufficient, return the tool-phase completion signal.'
+			'Use the available tools to close the reported material gaps. Follow dependent tool steps when one result supplies values required by the next. Do not repeat an equivalent successful read, and do not merely rephrase a query without a concrete reason to expect new evidence. If the accumulated evidence now covers the requested scope and requested actions are verified complete, end the tool phase.'
 		]);
 	}
 

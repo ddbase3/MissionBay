@@ -42,7 +42,8 @@ final class AgentAssistantFinalResponseGuardTest extends TestCase {
 					'WebDAV ist deaktiviert.',
 					[],
 					new AiResultMetadata('final_response', 'test', 'draft')
-				)
+				),
+				$this->acceptVerdict()
 			]
 		);
 		$service = new AgentAssistantFinalResponseService(new AgentAssistantMessageFactory());
@@ -50,7 +51,7 @@ final class AgentAssistantFinalResponseGuardTest extends TestCase {
 		$content = $service->createDirectResponse($model, $this->successfulMutationTurnResult());
 
 		$this->assertSame('WebDAV ist deaktiviert.', $content);
-		$this->assertSame(1, $model->getCompleteCalls());
+		$this->assertSame(2, $model->getCompleteCalls());
 	}
 
 	public function testStreamingResponseBuffersDraftUntilMutationGuardCompletes(): void {
@@ -229,12 +230,25 @@ final class AgentAssistantFinalResponseGuardTest extends TestCase {
 		);
 	}
 
+	private function acceptVerdict(): AiChatResult {
+		return new AiChatResult(
+			'',
+			[new AiToolCall('verdict-accept', 'missionbay_final_response_verdict', [
+				'verdict' => 'accept',
+				'has_unsupported_mutation_claim' => false,
+				'reason' => 'The draft mutation claim is supported by the corresponding successful result.',
+				'replacement' => ''
+			])],
+			new AiResultMetadata('final_response_guard', 'test', 'verdict')
+		);
+	}
+
 	private function replacementVerdict(string $replacement): AiChatResult {
 		return new AiChatResult(
 			'',
 			[new AiToolCall('verdict-1', 'missionbay_final_response_verdict', [
 				'verdict' => 'replace',
-				'claims_successful_mutation' => true,
+				'has_unsupported_mutation_claim' => true,
 				'reason' => 'The draft claims a successful mutation without execution evidence.',
 				'replacement' => $replacement
 			])],

@@ -179,7 +179,7 @@ final class AgentAssistantFinalResponseService implements IAgentAssistantFinalRe
 		if ($turnResult->isPartialFinalResponse()) {
 			$instructions[] = implode("\n", [
 				'The tool phase reached its configured loop limit.',
-				'Produce the most useful answer possible from the tool observations and conversation already available.',
+				'Answer only from the conversation and tool observations already available. Do not fill factual gaps from model knowledge.',
 				'Clearly state which conclusions are incomplete, uncertain, or still require verification.',
 				'Do not claim that additional tools were executed and do not expose internal control codes or runtime details.'
 			]);

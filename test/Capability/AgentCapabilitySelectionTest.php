@@ -369,6 +369,7 @@ final class AgentCapabilitySelectionTest extends TestCase {
 			['role' => 'assistant', 'content' => '', 'tool_calls' => [['id' => 'call-1']]],
 			['role' => 'tool', 'tool_call_id' => 'call-1', 'content' => '{"plugin":"ReadSpeaker","active":true}'],
 			['role' => 'assistant', 'content' => 'ReadSpeaker is active.'],
+			['role' => 'assistant', 'content' => 'ReadSpeaker is active.'],
 			['role' => 'user', 'content' => 'Disable ReadSpeaker and run Igor2Base.']
 		];
 		$model = $this->recordingChatModel('{"selected_sources":["plugins","cron-jobs"]}');
@@ -400,9 +401,18 @@ final class AgentCapabilitySelectionTest extends TestCase {
 			'run_ilias_cron_job'
 		], $selection->getToolNames());
 		$this->assertNotContains('get_global_webdav_status', $selection->getToolNames());
-		$this->assertSame($messages, array_slice($model->getMessages(), 1, count($messages)));
-		$this->assertStringContainsString('"source_id":"plugins"', $model->getMessages()[array_key_last($model->getMessages())]['content']);
-		$this->assertStringContainsString('"source_id":"cron-jobs"', $model->getMessages()[array_key_last($model->getMessages())]['content']);
+		$this->assertCount(2, $model->getMessages());
+		$this->assertStringContainsString('dependency-complete source set', $model->getMessages()[0]['content']);
+		$this->assertStringContainsString('Earlier assistant statements are context only', $model->getMessages()[0]['content']);
+		$this->assertStringContainsString('immediate active subject', $model->getMessages()[0]['content']);
+		$this->assertStringContainsString('user: Is ReadSpeaker active and is Igor2Base available?', $model->getMessages()[1]['content']);
+		$this->assertStringContainsString('assistant: ReadSpeaker is active.', $model->getMessages()[1]['content']);
+		$this->assertSame(1, substr_count($model->getMessages()[1]['content'], 'assistant: ReadSpeaker is active.'));
+		$this->assertStringContainsString('user: Disable ReadSpeaker and run Igor2Base.', $model->getMessages()[1]['content']);
+		$this->assertStringNotContainsString('You are an ILIAS assistant.', $model->getMessages()[1]['content']);
+		$this->assertStringNotContainsString('"plugin":"ReadSpeaker"', $model->getMessages()[1]['content']);
+		$this->assertStringContainsString('"source_id":"plugins"', $model->getMessages()[1]['content']);
+		$this->assertStringContainsString('"source_id":"cron-jobs"', $model->getMessages()[1]['content']);
 	}
 
 	public function testSemanticSourceSelectionAllowsAnEmptySelectionForNormalConversation(): void {
@@ -512,6 +522,47 @@ final class AgentCapabilitySelectionTest extends TestCase {
 			'future_source_19_read',
 			'future_source_19_write'
 		], $selection->getToolNames());
+	}
+
+	public function testSemanticSourceSelectionCompactsLargeCatalogWithoutDroppingSources(): void {
+		$capabilities = [];
+		for ($source = 1; $source <= 80; $source++) {
+			$sourceId = 'catalog-source-' . $source;
+			$capabilities[] = $this->capability(
+				'catalog_source_' . $source . '_lookup',
+				str_repeat('Detailed generic lookup capability description. ', 12),
+				['catalog', 'lookup'],
+				10,
+				$sourceId
+			);
+		}
+		$model = $this->recordingChatModel('{"selected_sources":["catalog-source-80"]}');
+		$config = AgentCapabilitySelectionConfig::fromArray([
+			'strategy' => AgentCapabilitySelectionConfig::STRATEGY_HYBRID,
+			'max_tools' => 8,
+			'select_all_threshold' => 0,
+			'semantic_candidate_tools' => 80,
+			'semantic_max_prompt_characters' => 16000,
+			'selection_unit' => AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+			'max_sources' => 4
+		]);
+
+		$selection = (new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector()))->select(
+			new AgentCapabilityCatalog($capabilities),
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'Use catalog source 80.',
+				config: $config,
+				model: $model,
+				messages: [['role' => 'user', 'content' => 'Use catalog source 80.']]
+			)
+		);
+
+		$this->assertSame(['catalog_source_80_lookup'], $selection->getToolNames());
+		$this->assertCount(2, $model->getMessages());
+		$this->assertStringContainsString('"source_id":"catalog-source-1","source_name"', $model->getMessages()[1]['content']);
+		$this->assertStringContainsString('"source_id":"catalog-source-80","source_name"', $model->getMessages()[1]['content']);
+		$this->assertStringContainsString('representative_functions', $model->getMessages()[1]['content']);
 	}
 
 	public function testSemanticSourceSelectionNeverSilentlyCutsASelectedSource(): void {

@@ -107,6 +107,12 @@ Configuration adds:
 
 The selector never grants new capabilities. AI output is accepted only when every returned name exists in the already filtered candidate set. Required capabilities remain enforced. Invalid output, provider failures, or an unavailable model fall back to deterministic hybrid selection. The routing model call is recorded in the normal model-result metadata so usage and diagnostics remain visible. Once applied, the selected tools remain the model-facing set for the rest of the orchestration turn. Approval resume restores those same selected tool definitions from the current run catalog instead of exposing the full catalog or rerunning the AI router.
 
+Source selection is dependency-complete rather than action-name-only. If a likely operation needs an identifier, state, candidate, schema, or other prerequisite supplied by another source, the selector may include that prerequisite source in the same selection call. The core router prompt remains domain-neutral. Domain-specific workflow rules stay in tool contracts.
+
+For very large source catalogs, MissionBay keeps the AI source-selection call bounded by `semanticMaxPromptCharacters`. It first sends complete function summaries. If that no longer fits, it compacts each source to context-relevant representative functions while retaining the source id and total function count. If necessary, it reduces metadata further before omitting any candidate source id. This scaling behavior does not add another selector or another model call.
+
+Capability routing uses only a small recent visible-history window. The source selector keeps at most the last three usable user or assistant messages and ignores adjacent exact duplicates. The assistant-side selection context uses the same three-message bound. This affects only routing context; the persisted conversation history remains unchanged.
+
 The built-in `large-catalog` profile selects `ai-capability-selection`. Standard and custom profiles may select either capability-selection stage, but never both.
 
 `alwaysAvailable` remains a narrow escape hatch for truly mandatory protocol tools. It is not intended for every list or entry-point function in a large catalog.
@@ -153,3 +159,10 @@ A project may provide another selector implementation for either explicit stage 
 The catalog may receive tool functions from directly docked tools, explicitly configured tool components, configured capability providers, and activated modules. The source list is stored under `capability_sources` and is a hard per-agent allow-list. Discovery does not enumerate and grant every globally configured component.
 
 Resource providers, prompt providers, module instructions, and module stage mounts are retained in the run-local discovery result even though only callable tool functions enter the model-facing catalog. See [agent-capability-providers-and-modules.md](agent-capability-providers-and-modules.md).
+
+## Follow-up routing and evidence boundaries
+
+Capability selection receives a small recent conversation window so that short follow-ups, pronouns, corrections and misspellings can be resolved against the active subject. The window is routing context only. It does not promote previous assistant statements to factual evidence.
+
+A request such as "check that again" should therefore select an authoritative source for the active subject instead of relying on the assistant's preceding answer. Likewise, a short ambiguous message should remain attached to the immediate topic unless the user clearly changes domains.
+

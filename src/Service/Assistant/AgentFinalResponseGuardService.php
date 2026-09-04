@@ -55,7 +55,7 @@ final class AgentFinalResponseGuardService {
 			if ($verdict === null) {
 				return $ledger->getSafeFallbackResponse();
 			}
-			if ($verdict['verdict'] === self::VERDICT_ACCEPT && !$verdict['claims_successful_mutation']) {
+			if ($verdict['verdict'] === self::VERDICT_ACCEPT && !$verdict['has_unsupported_mutation_claim']) {
 				return $draft;
 			}
 			$replacement = trim($verdict['replacement']);
@@ -76,8 +76,11 @@ final class AgentFinalResponseGuardService {
 					'Compare the draft semantically with the authoritative execution ledger.',
 					'Do not answer the original task and do not call any external tool.',
 					'Call the supplied verdict function exactly once.',
-					'Use verdict=replace when the draft states or implies that a state-changing action succeeded although the ledger contains no corresponding successful mutation call.',
-					'Use verdict=accept only when the draft makes no unsupported mutation-success claim.',
+					'Validate every mutation-related claim in the draft against the ledger, including turns that contain successful mutation calls.',
+					'Use verdict=replace when the draft states or implies an action succeeded, a post-condition is verified, or a current state is established beyond what the corresponding successful_mutation_calls result actually supports.',
+					'For multiple requested mutations, validate each claimed outcome individually. One successful call does not prove that other requested changes succeeded.',
+					'Approval, intent, prior assistant statements, attempted calls, failed calls, and cached mutation results are not execution proof.',
+					'Use verdict=accept only when every mutation-related claim is supported by the authoritative ledger and the draft does not overstate verification.',
 					'When replacing, write a concise safe response in the same language as the draft and preserve useful non-conflicting information.'
 				])
 			],
@@ -88,7 +91,7 @@ final class AgentFinalResponseGuardService {
 		];
 	}
 
-	/** @param array<int,mixed> $toolCalls @return ?array{verdict:string,claims_successful_mutation:bool,replacement:string} */
+	/** @param array<int,mixed> $toolCalls @return ?array{verdict:string,has_unsupported_mutation_claim:bool,replacement:string} */
 	private function readVerdict(array $toolCalls): ?array {
 		foreach ($toolCalls as $toolCall) {
 			if (!$toolCall instanceof AiToolCall || $toolCall->getName() !== self::VERDICT_TOOL_NAME) {
@@ -99,12 +102,12 @@ final class AgentFinalResponseGuardService {
 			if (!in_array($verdict, [self::VERDICT_ACCEPT, self::VERDICT_REPLACE], true)) {
 				return null;
 			}
-			if (!array_key_exists('claims_successful_mutation', $arguments) || !is_bool($arguments['claims_successful_mutation'])) {
+			if (!array_key_exists('has_unsupported_mutation_claim', $arguments) || !is_bool($arguments['has_unsupported_mutation_claim'])) {
 				return null;
 			}
 			return [
 				'verdict' => $verdict,
-				'claims_successful_mutation' => $arguments['claims_successful_mutation'],
+				'has_unsupported_mutation_claim' => $arguments['has_unsupported_mutation_claim'],
 				'replacement' => is_scalar($arguments['replacement'] ?? null)
 					? trim((string)$arguments['replacement'])
 					: ''
@@ -127,11 +130,11 @@ final class AgentFinalResponseGuardService {
 					'additionalProperties' => false,
 					'properties' => [
 						'verdict' => ['type' => 'string', 'enum' => [self::VERDICT_ACCEPT, self::VERDICT_REPLACE]],
-						'claims_successful_mutation' => ['type' => 'boolean'],
+						'has_unsupported_mutation_claim' => ['type' => 'boolean'],
 						'reason' => ['type' => 'string'],
 						'replacement' => ['type' => 'string']
 					],
-					'required' => ['verdict', 'claims_successful_mutation', 'reason', 'replacement']
+					'required' => ['verdict', 'has_unsupported_mutation_claim', 'reason', 'replacement']
 				]
 			]
 		];

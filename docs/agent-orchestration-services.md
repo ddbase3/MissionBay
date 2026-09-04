@@ -93,6 +93,54 @@ The mechanism records `AgentToolContractValidation` diagnostics and returns corr
 
 Budget checks and loop-progress detection are enforced by `AgentToolOrchestrator`. They protect model calls, final generation, and loop continuation regardless of the selected stage profile.
 
+### Evidence and action completion discipline
+
+The model-decision strategies use one general tool contract. MissionBay core prompts do not encode retrieval, ILIAS, administration, or other domain-specific workflows. Tool descriptions, schemas, returned identifiers, limitations, and explicit next-step fields define the runtime contract for each capability.
+
+The model is instructed to:
+
+- establish tool-owned facts and identifiers through available authoritative tools instead of guessing;
+- follow prerequisite and dependent calls when one result supplies values required by the next;
+- distinguish a relevant lead from sufficient evidence for the requested scope;
+- distinguish examples from definitions, individual results from complete sets, and intended actions from verified successful outcomes;
+- continue materially useful tool work while a concrete resolvable gap remains;
+- ask the user only when a required value cannot be established from the conversation or any available eligible tool;
+- state remaining uncertainty instead of filling gaps from model knowledge.
+
+The semantic verifier applies the same general boundary after a controlled model decision attempts to end the tool phase. A failed verification with a concrete resolvable gap reopens the loop. The verifier receives a compact view of the run-local capability catalog so it can decide whether a gap is tool-resolvable without inventing unavailable capabilities.
+
+### Loop progress guard
+
+`AgentLoopProgressService` protects long tool loops without reducing the configured loop limit. Legitimate multi-step workflows may therefore use many calls. The guard operates only on successful read-only calls marked as repeat-safe.
+
+Two cases are distinguished:
+
+1. An exact read call with equivalent arguments and unchanged output is an immediate deterministic stall.
+2. A read call that only rephrases a query-like text argument and reproduces an already observed output is treated as no new evidence. One continuation warning is allowed before termination.
+
+Different structured identifiers, filters, or other changed non-query arguments are not classified as the same work merely because their outputs happen to match. This keeps lookup and administration workflows usable while stopping search churn.
+
+### Model-call failure diagnostics
+
+A model exception during tool orchestration is stored under `model_raw_error` with its original exception detail for diagnostics. The public failure message now includes a sanitized concrete cause instead of only `Model call failed during tool orchestration.` Credentials in common authorization headers, token query parameters, and secret-like JSON fields are redacted before the cause is exposed.
+
+If successful tool observations already exist when a later model-decision call fails, MissionBay may still produce a partial final response from those observations. That recovery response is explicitly restricted to the conversation and collected tool evidence and must state gaps rather than fill them from model knowledge.
+
 ## Extension guidance
 
 A custom implementation should normally replace one of these services through project composition rather than add another top-level stage. A new stage is justified when a profile needs a genuinely different semantic sequence, for example explicit planning or memory writeback.
+
+## Conversational continuity is not factual evidence
+
+The orchestrator uses visible conversation history to preserve user intent, references, corrections and the active subject. This is intentionally different from using history as runtime evidence.
+
+Previous assistant statements are not authoritative facts. In particular, an earlier assistant claim that a plugin is inactive, a job completed, or a setting has a value does not verify that state. When the user asks to check, verify, re-check or confirm a current runtime state and an authoritative read capability is available, the orchestrator must obtain fresh tool evidence.
+
+Short, elliptical, misspelled or ambiguous follow-ups are resolved against the immediate active conversation topic before the agent invents a new domain or entity. This preserves conversational continuity without turning assistant text into a source of truth.
+
+## Mutation truth states
+
+State-changing work is described with distinct states: requested, awaiting approval, approved, attempted, succeeded and verified. Approval and intent do not mean execution. A successful mutation call supports only what its returned result actually establishes. A post-condition such as "the plugin is now inactive" must not be inferred when the tool result does not establish that condition.
+
+If an already requested action remains incomplete after a failed, rejected or unsuccessful attempt, the original user intent remains active. The orchestrator continues the available workflow instead of asking whether the user still wants the same action, unless new approval, genuinely missing user input or a changed action requires another user decision.
+

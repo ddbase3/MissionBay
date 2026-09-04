@@ -683,6 +683,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$this->assertSame('model_raw_error', $result->getFailureCode());
 		$this->assertSame(1, $result->getIterations());
 		$this->assertSame('model unavailable', $result->getFailureDetail()['message']);
+		$this->assertStringContainsString('Model call failed: model unavailable', $result->getFailureMessage());
 	}
 }
 

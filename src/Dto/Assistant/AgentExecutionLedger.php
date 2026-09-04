@@ -170,7 +170,7 @@ final class AgentExecutionLedger {
 	}
 
 	public function requiresFinalResponseGuard(): bool {
-		return $this->mutationIntent && !$this->hasSuccessfulMutation();
+		return $this->mutationIntent;
 	}
 
 	public function requiresBufferedStreaming(): bool {
@@ -207,8 +207,10 @@ final class AgentExecutionLedger {
 			'Authoritative current-turn execution ledger:',
 			$json,
 			'Use this ledger as the only source of truth for claims about state-changing actions.',
-			'Approval, intent, previous conversation history, a proposed action, or a cache hit is not proof of execution.',
-			'Never state or imply that a mutation succeeded unless successful_mutation_calls contains the corresponding tool call.',
+			'Approval, intent, previous assistant statements, a proposed action, an attempted call, or a cache hit is not proof of execution.',
+			'Never state or imply that a mutation succeeded unless successful_mutation_calls contains the corresponding tool call and its returned evidence supports the specific claim.',
+			'A successful mutation call proves only the outcome represented by its result. Do not infer a verified post-condition, current state, or additional successful actions that the result does not establish.',
+			'When multiple changes were requested, account for each requested change individually from the ledger instead of generalizing from one successful call.',
 			'When mutation_intent is true and successful_mutation_calls is empty, state that the requested change was not performed, or ask the required clarification.'
 		]);
 	}

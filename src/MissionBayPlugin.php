@@ -438,7 +438,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(AgentBudgetGuardService::class, fn() => new AgentBudgetGuardService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentContextAssessmentService::class, fn() => new AgentContextAssessmentService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentContinuationDecisionService::class, fn() => new AgentContinuationDecisionService(), IContainer::SHARED | IContainer::NOOVERWRITE)
-			->set(AgentLoopProgressService::class, fn() => new AgentLoopProgressService(1), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AgentLoopProgressService::class, fn() => new AgentLoopProgressService(2), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentResultVerificationService::class, fn() => new AgentResultVerificationService(), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentSemanticVerificationService::class, fn() => new AgentSemanticVerificationService(60000, 12000), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(JsonSchemaValidator::class, fn() => new JsonSchemaValidator(), IContainer::SHARED | IContainer::NOOVERWRITE)

@@ -274,13 +274,18 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 	private function buildPrimaryInstruction(string $continuationHint): string {
 		$instruction = implode("\n", [
 			'You are in the tool-decision phase. Do not write the user-facing final answer in this phase.',
-			'If the user request requires an available tool and the required arguments are known, call that real tool now.',
+			'If the user request requires an available tool and the required arguments are known, call that real tool now. If a prerequisite must first be established by another available tool, call that prerequisite tool and continue the dependent sequence in later iterations.',
+			'Treat tool descriptions, schemas, returned identifiers, constraints, limitations, and explicit next-step information as authoritative. Never guess tool-owned facts or values. Previous assistant statements are conversational context, not factual evidence. If the user asks to check or verify current state and an authoritative read tool is available, call it even when an earlier assistant response stated a value. Resolve short or ambiguous follow-ups against the immediate active topic before inventing a new entity or domain. If a required value cannot be established from the conversation or available tools and must come from the user, request that value rather than guessing.',
+			'Do not use decision=complete merely because one result is relevant or plausible. Complete only when the material requested scope is sufficiently supported, requested actions have successful tool results, required user input is genuinely missing, or the available tools establish that the remaining gap cannot be resolved.',
 			'If no tool is required, call ' . self::CONTROL_TOOL_NAME . ' with decision=complete.',
 			'If a required tool argument is missing, call ' . self::CONTROL_TOOL_NAME . ' with decision=clarification_required, provide the clarification question, and list the missing required argument names.',
 			'Approval is enforced by the host action policy after a real tool call. Approval is not missing input and must not be requested in this phase.',
 			'Use decision=tool_required only when a tool action is necessary but no executable tool call can be emitted.',
 			'Always provide the semantic intent, confidence, candidate tool names, and a short reason in the control call.',
-			'Never claim that an action was executed unless a real tool call is emitted and later succeeds.',
+			'Never claim that an action was executed unless a real tool call is emitted and later succeeds. Distinguish requested, awaiting approval, approved, attempted, succeeded, and verified. A successful result supports only what its output actually establishes.',
+			'If a requested action remains incomplete after a failed, rejected, or unsuccessful attempt, preserve the original user intent and continue the available workflow instead of asking whether the same action is still wanted, unless new approval, genuinely missing input, or a changed action requires it.',
+			'Do not generalize an example into a definition, one result into a complete set, or a partial observation into a verified conclusion. Continue with materially useful follow-up or verification calls when evidence is incomplete.',
+			'Avoid equivalent repeated calls. Rephrasing a read request without a concrete reason to expect new evidence is not progress.',
 			'When a tool result reports unavailable data, missing indexing, unsupported scope, uncertainty, or another limitation, preserve and explain that limitation in the final user-facing answer instead of silently omitting it.'
 		]);
 		if ($continuationHint !== '') {
@@ -292,9 +297,10 @@ final class AiGuardedAgentModelDecisionStrategy extends AbstractAgentModelDecisi
 	private function buildRepairInstruction(): string {
 		return implode("\n", [
 			'The previous tool-decision response did not produce a reliable executable or terminal decision.',
-			'Re-evaluate the current user request using the complete conversation and the available tools.',
-			'If a tool is required and its arguments can be determined, call the real tool now.',
-			'If a required tool argument is missing, use decision=clarification_required and list the missing required argument names.',
+			'Re-evaluate the current user request using the complete conversation, accumulated observations, and the available tools. Previous assistant statements may resolve references but are not factual evidence for current state or successful actions.',
+			'If a tool is required and its arguments can be determined, call the real tool now. Follow prerequisite tool steps instead of guessing missing tool-owned values.',
+			'Do not repair an unresolved decision by declaring completion while a concrete material evidence or action gap remains.',
+			'If a required tool argument cannot be established from the conversation or any available prerequisite tool and must come from the user, use decision=clarification_required and list the missing required argument names.',
 			'Approval is handled by the host action policy after a real tool call and is not a clarification reason.',
 			'Otherwise call ' . self::CONTROL_TOOL_NAME . ' with decision=complete.',
 			'Do not produce a user-facing answer and do not claim that any state change already happened.',

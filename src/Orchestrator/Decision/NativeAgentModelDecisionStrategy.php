@@ -184,15 +184,22 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 		$guidelines = [
 			'<BASE3-TOOL-GUIDELINES>',
 			'Use only tool names that are actually registered for this turn. Never invent, translate, alias or guess a tool name.',
-			'When the user explicitly requests an action and a matching registered tool exists, call that exact tool immediately with the required arguments.',
+			'Treat each registered tool description, schema, returned identifier, constraint, limitation, and explicit next-step instruction as an authoritative runtime contract.',
+			'Use previous assistant messages only for conversational continuity. They are not factual evidence and never prove current runtime state, verification, or successful execution.',
+			'When the user asks to check, verify, re-check, or confirm current state and a matching authoritative read tool is registered, call it even if an earlier assistant message already stated a value. Resolve short or ambiguous follow-ups against the immediate active topic before inventing a new domain or entity.',
+			'When the user explicitly requests an action and a matching registered tool exists, call that tool as soon as its required arguments are established. If prerequisite information must be discovered first, obtain it with the available tools and then continue the dependent sequence.',
 			'For tools that require approval, do not ask for confirmation in natural language. Call the tool once. The host application will pause execution and display physical approval and cancel controls to the user.',
-			'Do not claim that a mutation was completed before the tool returns a successful result.',
-			'When current runtime information is required and a matching registered read tool exists, call that tool promptly. Brief plain-language progress text may precede the call, but it must not replace or delay the call.',
-			'If no registered tool can perform the requested action, say so clearly instead of fabricating a tool call.',
+			'Do not claim that a mutation was completed before the tool returns a successful result. Distinguish requested, awaiting approval, approved, attempted, succeeded, and verified actions. A successful result proves only what that result actually establishes; do not invent a post-condition.',
+			'If the user already requested an action and it remains incomplete after a failed, rejected, or unsuccessful attempt, keep that action intent active and continue the available workflow. Do not ask whether the user still wants the same action unless new approval, missing user input, or a changed action requires it.',
+			'When a material factual claim can be established by a matching registered read tool, use that tool rather than guessing or filling the gap from model knowledge.',
+			'A relevant or plausible result is not automatically sufficient. Do not generalize an example into a definition, one result into a complete set, or a partial observation into a verified conclusion.',
+			'Continue with materially useful dependent or verification calls while a concrete gap remains and another available call is reasonably expected to resolve it. Do not stop at the first plausible result.',
+			'Avoid equivalent repeated calls. A dependent follow-up or materially different verification call is not repetition, but rephrasing a read request without a concrete reason to expect new evidence is not progress.',
+			'If a required value cannot be established from the conversation or any registered tool and must come from the user, ask for that value rather than guessing. If no registered tool can establish a required fact or perform a requested action, say so clearly instead of fabricating a result or tool call.',
 			'When a tool result reports unavailable data, missing indexing, unsupported scope, uncertainty, or another limitation, preserve and explain that limitation in the final answer instead of silently omitting it.',
 			'When a tool is required, you may emit brief plain-language progress text before the tool call. Do not start structured renderer blocks, JSON payloads, tables, charts or other final-answer formatting before required tools have returned.',
 			'After progress text, emit the tool call without further narration. Never include confirmation questions, approval requests or completion claims in a tool-call turn. For approval-bound actions, progress text must not imply that approval was granted or that the action already ran.',
-			'A normal assistant response without tool calls ends the orchestration and is shown directly to the user. Normal conversation that does not require a tool remains valid without a tool call.'
+			'A normal assistant response without tool calls ends the orchestration and is shown directly to the user. End only when the requested scope is sufficiently supported, requested actions have verified successful results, required user input is genuinely missing, or the available tools establish that the remaining gap cannot be resolved. Normal conversation that does not require a tool remains valid without a tool call.'
 		];
 
 		$approvalTools = $this->getApprovalToolGuidelines($toolDefinitions);

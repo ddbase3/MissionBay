@@ -148,10 +148,11 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$context->setVar('conversation_history_message_count', (int)$task['history_message_count']);
 		$this->log($logger, 'Loaded ' . (int)$task['history_message_count'] . ' visible conversation-history message(s) for node ' . $nodeId . '.');
 
-		$system = rtrim($system) . "\n\nVisible conversation history is the authoritative source for earlier turns in this chat. Use it before tools. Do not use tools, delegated agents, knowledge storage, preferences, or external search to reconstruct the current conversation. Use tools only for information or actions that are not already present in the visible history.";
+		$system = rtrim($system) . "\n\nUse visible conversation history to preserve the user's intent, references, corrections, and active subject across turns. Do not use tools, delegated agents, knowledge storage, preferences, or external search to reconstruct the conversation itself. Earlier assistant statements are conversational context, not authoritative factual evidence and never prove a current runtime state or that an action succeeded. When the user asks to check, verify, re-check, confirm, or report a current state and an authoritative read capability is available, obtain fresh tool evidence even if an earlier assistant message already stated a value. For short, elliptical, misspelled, or ambiguous follow-ups, resolve the message against the immediate active conversation topic before inventing a new entity, domain, or task.";
+		$system = rtrim($system) . "\n\nWork rigorously with the capabilities available in this turn. Tool descriptions, input schemas, returned identifiers, constraints, limitations, and explicit next-step information are authoritative runtime contracts. Never invent a tool name, identifier, parameter value, source fact, runtime state, tool result, approval, or successful action. Previous assistant claims are never evidence for factual verification. When a material factual claim can be established by an available authoritative tool, use that tool instead of guessing or silently filling the gap from model knowledge. Treat a relevant result as a lead until it actually supports the material scope of the request: an example is not a general definition, one result is not a complete set, and a partial observation is not a verified conclusion. Follow dependent tool steps when one call supplies information needed by the next. Continue tool work while a concrete material gap remains and another available call is reasonably expected to resolve it. Do not stop at the first plausible result. For state-changing work, distinguish requested, awaiting approval, approved, attempted, succeeded, and verified. Approval or intent is never execution. A successful mutation result supports only the outcome it actually reports; do not infer a post-condition that the result does not establish. If a requested action remains incomplete after a failed, rejected, or unsuccessful attempt, preserve the user's original intent and continue the required tool workflow when possible instead of asking whether the user still wants the action. Ask again only when new approval, genuinely missing user input, or a changed action is required. Stop when the requested factual scope is sufficiently supported, the requested actions have actually completed with adequate tool evidence, a required user input is genuinely missing, or the available tools establish that the remaining gap cannot be resolved. If a required value cannot be established from the visible conversation or an available tool and must come from the user, ask the user rather than guessing. If something cannot be verified, say so clearly rather than fabricating it.";
 
 		if ($options->isDeliberatePlanningEnabled()) {
-			$system = rtrim($system) . "\n\nUse a concise execution plan before choosing tools: first use visible history, then identify only missing evidence, use one focused tool batch per evidence gap, avoid repeated equivalent calls, and stop as soon as the answer is supported. Do not reveal private chain-of-thought; only provide the final answer and any necessary uncertainty.";
+			$system = rtrim($system) . "\n\nUse a concise execution plan before choosing tools: review visible history for intent and references, identify the concrete facts or actions still required, obtain fresh authoritative evidence for requested state checks, follow dependency-complete tool steps, preserve unresolved action intent across retries, verify that the accumulated evidence covers the requested scope and that each requested action actually reached the claimed outcome, and then answer. Avoid equivalent repeated calls, but do not confuse a necessary dependent follow-up or a materially different verification call with repetition. Do not reveal private chain-of-thought; only provide the final answer and any necessary uncertainty.";
 			$this->stateSynchronizer->updatePlan(
 				$context,
 				$this->buildDeliberatePlan((bool)$task['has_history'], $toolsEnabled),
@@ -528,19 +529,22 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			'history_message_count' => count($historyMessages),
 			'desired_output' => 'direct_answer',
 			'completion_criteria' => [
-				'Use visible conversation history before selecting tools.',
-				'Use tools only for information or actions missing from the visible history.',
-				'Answer directly when the available evidence is sufficient.'
+				'Use visible conversation history to preserve user intent and resolve references.',
+				'Do not treat previous assistant claims as factual verification or action evidence.',
+				'Use authoritative tools for current-state checks and for facts or actions that require runtime evidence.',
+				'Answer directly only when the available evidence supports the requested scope and claimed action outcomes.'
 			]
 		];
 	}
 
 	/**
+	 * Builds the small routing-only history window. Conversation persistence is
+	 * not truncated here; the full stored history remains available to the chat.
+	 *
 	 * @param array<int,array<string,mixed>> $messages
 	 */
 	private function buildHistorySelectionContext(array $messages): string {
 		$rows = [];
-		$messages = array_slice($messages, -10);
 
 		foreach ($messages as $message) {
 			if (!is_array($message)) {
@@ -557,10 +561,17 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				continue;
 			}
 
-			$rows[] = ucfirst($role) . ': ' . $this->limitText(trim((string)$content), 1000);
+			$row = ucfirst($role) . ': ' . $this->limitText(trim((string)$content), 1000);
+			if ($rows !== [] && $rows[array_key_last($rows)] === $row) {
+				continue;
+			}
+
+			$rows[] = $row;
 		}
 
-		return $this->limitText(implode("\n", $rows), 6000);
+		$rows = array_slice($rows, -3);
+
+		return $this->limitText(implode("\n", $rows), 3500);
 	}
 
 	/** @return array<int,array<string,mixed>> */
@@ -568,13 +579,13 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$steps = [];
 
 		if ($hasHistory) {
-			$steps[] = ['id' => 'review-history', 'label' => 'Review visible conversation history'];
+			$steps[] = ['id' => 'review-history', 'label' => 'Review visible history for user intent and references'];
 		}
 
 		if ($toolsEnabled) {
 			$steps[] = ['id' => 'assess', 'label' => 'Identify information or actions still missing'];
-			$steps[] = ['id' => 'gather', 'label' => 'Use focused tools only for missing evidence'];
-			$steps[] = ['id' => 'verify', 'label' => 'Verify that available evidence supports the answer'];
+			$steps[] = ['id' => 'gather', 'label' => 'Use appropriate tools for missing evidence or actions'];
+			$steps[] = ['id' => 'verify', 'label' => 'Verify evidence coverage and requested action outcomes'];
 		}
 
 		$steps[] = ['id' => 'answer', 'label' => 'Answer directly and state remaining uncertainty'];

@@ -67,6 +67,8 @@ Built-in profiles can be duplicated into custom profiles. They cannot be overwri
 
 MissionBay supports controlled and native model-decision semantics inside the same stable stage pipeline.
 
+All model-decision strategies share the same domain-neutral quality contract. They must follow registered tool contracts, establish tool-owned facts instead of inventing them, continue prerequisite and verification calls while material resolvable gaps remain, avoid equivalent repeated work, and treat an action as complete only after a successful tool result proves it. A plausible partial result is not a terminal condition by itself. Tool-specific workflows remain in the tool descriptions and schemas rather than in MissionBay core prompts.
+
 Controlled strategies terminate the tool phase explicitly and create the visible answer afterwards:
 
 ```text
@@ -245,3 +247,12 @@ The following displays are intended for different audiences:
 | `AgentComponentPresetAdminDisplay` | Technical administrators configuring individual resource instances. |
 
 `Base3IliasLab` registers Effective Composition, Orchestrator Profiles, Tool Profiles, Memory Profiles, Context Profiles, and Component Presets next to Agents. The composition display resolves actual tool names, memory facets, capability sources, module stage mounts, and final stages without adding these details back to the normal Agent form.
+
+## Evidence discipline across turns
+
+Agent profiles share one evidence rule regardless of the selected tool landscape: conversation history preserves intent, but previous assistant output is not factual verification. Current-state checks should use an authoritative read capability when one is available, even if the assistant stated the same state in an earlier turn.
+
+The rule is deliberately tool-neutral. It applies equally to administration tools, retrieval, diagnostics, external services and future capability families.
+
+Mutation profiles additionally keep the user's unresolved action intent across failed attempts. They distinguish approval from execution and execution from verified outcome. Tool success may be reported only to the extent supported by the corresponding tool result.
+

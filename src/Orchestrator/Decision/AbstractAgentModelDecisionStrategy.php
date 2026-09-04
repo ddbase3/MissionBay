@@ -185,8 +185,8 @@ abstract class AbstractAgentModelDecisionStrategy {
 				AgentToolLoopContextKeys::TERMINAL_EVIDENCE_READY => true,
 				AgentToolLoopContextKeys::FINAL_RESPONSE_INSTRUCTION => implode("\n", [
 					'The next tool-decision call failed after successful tool observations were already collected.',
-					'Produce the most useful direct answer from the available observations.',
-					'State uncertainty where evidence is incomplete. Do not expose internal timeout or orchestration details.'
+					'Produce a direct answer only from the available conversation and tool observations.',
+					'Do not fill factual gaps from model knowledge. State uncertainty where evidence is incomplete and do not expose internal orchestration details.'
 				]),
 				AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
 				AgentToolLoopContextKeys::COMPLETED => true,
@@ -202,7 +202,7 @@ abstract class AbstractAgentModelDecisionStrategy {
 			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
 			AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS => $serializedAssessments,
 			AgentToolLoopContextKeys::FAILURE_CODE => 'model_raw_error',
-			AgentToolLoopContextKeys::FAILURE_MESSAGE => 'Model call failed during tool orchestration.',
+			AgentToolLoopContextKeys::FAILURE_MESSAGE => 'Model call failed: ' . $this->formatModelFailure($e),
 			AgentToolLoopContextKeys::FAILURE_DETAIL => [
 				'type' => get_class($e),
 				'message' => $e->getMessage(),
@@ -211,6 +211,23 @@ abstract class AbstractAgentModelDecisionStrategy {
 			AgentToolLoopContextKeys::COMPLETED => false,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FAILED
 		]);
+	}
+
+	private function formatModelFailure(\Throwable $e): string {
+		$message = trim($e->getMessage());
+		if ($message === '') {
+			$message = get_class($e);
+		}
+
+		$message = preg_replace('/Bearer\s+[^\s,;]+/i', 'Bearer [REDACTED]', $message) ?? $message;
+		$message = preg_replace('/Basic\s+[^\s,;]+/i', 'Basic [REDACTED]', $message) ?? $message;
+		$message = preg_replace('/((?:Authorization|X-Api-Key|Api-Key)\s*:\s*)[^\r\n,;]+/i', '$1[REDACTED]', $message) ?? $message;
+		$message = preg_replace('/([?&](?:api[_-]?key|access[_-]?token|token|key|client[_-]?secret)=)[^&\s]+/i', '$1[REDACTED]', $message) ?? $message;
+		$message = preg_replace('/("(?:api[_-]?key|access[_-]?token|token|secret|client[_-]?secret|password|authorization)"\s*:\s*")[^"]+("?)/i', '$1[REDACTED]$2', $message) ?? $message;
+
+		return function_exists('mb_substr')
+			? mb_substr($message, 0, 2000)
+			: substr($message, 0, 2000);
 	}
 
 	/** @param array<string,mixed> $detail */

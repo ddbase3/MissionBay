@@ -21,6 +21,8 @@ use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AgentCapabilityCatalog;
+use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentResultVerification;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentToolResult;
@@ -34,8 +36,8 @@ use Base3\Logger\Api\ILogger;
  * normalized observations exactly once per terminal candidate.
  *
  * It is not executed after every tool call. This avoids doubling the AI latency
- * of each loop iteration. A failed or malformed verifier response remains
- * advisory and must not trap the agent in another loop by itself.
+ * of each loop iteration. A valid failed verdict marks a material unresolved gap
+ * for continuation handling. Malformed or inconclusive verifier output remains advisory.
  */
 final class AgentSemanticVerificationService {
 
@@ -54,6 +56,9 @@ final class AgentSemanticVerificationService {
 		$model = $context->getVar(AgentToolLoopContextKeys::MODEL);
 		$messages = $context->getVar(AgentToolLoopContextKeys::MESSAGES);
 		$observations = $context->getVar(AgentToolLoopContextKeys::OBSERVATIONS);
+		$toolDefinitions = $context->getVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS);
+		$capabilityCatalog = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_CATALOG);
+		$selectionConfig = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_CONFIG);
 		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
 		$verifications = $context->getVar(AgentToolLoopContextKeys::RESULT_VERIFICATIONS);
 		$logger = $context->getVar(AgentToolLoopContextKeys::LOGGER);
@@ -66,6 +71,20 @@ final class AgentSemanticVerificationService {
 
 		if (!is_array($observations)) {
 			$observations = [];
+		}
+
+		if (!is_array($toolDefinitions)) {
+			$toolDefinitions = [];
+		}
+		$selectedToolDefinitions = $toolDefinitions;
+		if ($capabilityCatalog instanceof AgentCapabilityCatalog) {
+			$toolDefinitions = [];
+			foreach ($capabilityCatalog->all() as $capability) {
+				$definition = $capability->getDefinition();
+				if (is_array($definition)) {
+					$toolDefinitions[] = $definition;
+				}
+			}
 		}
 
 		if (!is_array($modelResults)) {
@@ -104,6 +123,9 @@ final class AgentSemanticVerificationService {
 			$messages,
 			$observations,
 			[],
+			$toolDefinitions,
+			$selectedToolDefinitions,
+			$selectionConfig instanceof AgentCapabilitySelectionConfig ? $selectionConfig : null,
 			$iteration
 		);
 
@@ -197,20 +219,31 @@ final class AgentSemanticVerificationService {
 	 * @param array<int,array<string,mixed>> $messages
 	 * @param array<int,AgentToolResult> $observations
 	 * @param array<int,AgentToolResult> $toolResults
+	 * @param array<int,array<string,mixed>> $toolDefinitions
+	 * @param array<int,array<string,mixed>> $selectedToolDefinitions
 	 * @return array{0:array<string,mixed>,1:bool}
 	 */
 	private function buildVerificationPayload(
 		array $messages,
 		array $observations,
 		array $toolResults,
+		array $toolDefinitions,
+		array $selectedToolDefinitions,
+		?AgentCapabilitySelectionConfig $selectionConfig,
 		int $iteration
 	): array {
 		$task = $this->extractCurrentTask($messages);
 		[$task, $taskTruncated] = $this->truncateText($task, max(1000, $this->maxTaskBytes));
+		[$availableTools, $toolsCompacted] = $this->normalizeAvailableTools(
+			$toolDefinitions,
+			min(12000, max(3000, intdiv($this->maxInputBytes, 5)))
+		);
+		$availableToolsJson = json_encode($availableTools, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		$availableToolsBytes = is_string($availableToolsJson) ? strlen($availableToolsJson) : 0;
 		$evidenceCount = max(1, count($observations) + count($toolResults));
-		$availableBytes = max(4000, $this->maxInputBytes - strlen($task) - 7000);
+		$availableBytes = max(4000, $this->maxInputBytes - strlen($task) - $availableToolsBytes - 7000);
 		$perResultBytes = max(750, intdiv($availableBytes, $evidenceCount));
-		$inputTruncated = $taskTruncated;
+		$inputTruncated = $taskTruncated || $toolsCompacted;
 		$previousEvidence = $this->normalizeEvidence(
 			$observations,
 			$perResultBytes,
@@ -227,11 +260,111 @@ final class AgentSemanticVerificationService {
 		return [[
 			'iteration' => $iteration,
 			'task' => $task,
+			'available_tools' => $availableTools,
+			'available_tool_count' => count($toolDefinitions),
+			'currently_selected_tools' => $this->toolNames($selectedToolDefinitions),
+			'capability_selection_constraints' => $this->selectionConstraints($selectionConfig),
+			'tool_catalog_compacted' => $toolsCompacted,
 			'previous_observations' => $previousEvidence,
 			'current_tool_results' => $currentEvidence,
 			'evidence_count' => count($observations) + count($toolResults),
 			'input_truncated' => $inputTruncated
 		], $inputTruncated];
+	}
+
+
+	/** @param array<int,array<string,mixed>> $definitions @return array<int,string> */
+	private function toolNames(array $definitions): array {
+		$result = [];
+		foreach ($definitions as $definition) {
+			if (!is_array($definition)) {
+				continue;
+			}
+			$name = trim((string)($definition['function']['name'] ?? ''));
+			if ($name !== '') {
+				$result[$name] = true;
+			}
+		}
+		return array_keys($result);
+	}
+
+	/** @return array<string,mixed> */
+	private function selectionConstraints(?AgentCapabilitySelectionConfig $config): array {
+		if (!$config instanceof AgentCapabilitySelectionConfig) {
+			return [];
+		}
+
+		return [
+			'include_tools' => $config->getIncludeTools(),
+			'exclude_tools' => $config->getExcludeTools(),
+			'include_tags' => $config->getIncludeTags(),
+			'exclude_tags' => $config->getExcludeTags(),
+			'include_categories' => $config->getIncludeCategories(),
+			'exclude_categories' => $config->getExcludeCategories(),
+			'max_tools' => $config->getMaxTools(),
+			'max_sources' => $config->getMaxSources(),
+			'selection_unit' => $config->selectsSources() ? 'source' : 'function'
+		];
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $definitions
+	 * @return array{0:array<int,mixed>,1:bool}
+	 */
+	private function normalizeAvailableTools(array $definitions, int $maxBytes): array {
+		$full = [];
+		foreach ($definitions as $definition) {
+			if (!is_array($definition)) {
+				continue;
+			}
+
+			$function = is_array($definition['function'] ?? null)
+				? $definition['function']
+				: $definition;
+			$name = trim((string)($function['name'] ?? ''));
+			if ($name === '') {
+				continue;
+			}
+			$description = trim((string)($function['description'] ?? ''));
+			[$description] = $this->truncateText($description, 180);
+			$parameters = is_array($function['parameters'] ?? null) ? $function['parameters'] : [];
+			$required = array_values(array_filter(
+				(array)($parameters['required'] ?? []),
+				static fn(mixed $value): bool => is_string($value) && trim($value) !== ''
+			));
+
+			$full[] = [
+				'name' => $name,
+				'description' => $description,
+				'required' => $required
+			];
+		}
+
+		$json = json_encode($full, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		if (is_string($json) && strlen($json) <= $maxBytes) {
+			return [$full, false];
+		}
+
+		$compact = [];
+		foreach ($full as $tool) {
+			$entry = ['name' => $tool['name']];
+			if ($tool['required'] !== []) {
+				$entry['required'] = $tool['required'];
+			}
+			$compact[] = $entry;
+		}
+
+		$json = json_encode($compact, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		if (is_string($json) && strlen($json) <= $maxBytes) {
+			return [$compact, true];
+		}
+
+		return [[
+			'tool_names' => array_values(array_map(
+				static fn(array $tool): string => (string)$tool['name'],
+				$full
+			))
+		], true];
 	}
 
 	/**
@@ -294,17 +427,24 @@ final class AgentSemanticVerificationService {
 				'content' => implode("\n", [
 					'You are a terminal-decision verifier inside an agent runtime.',
 					'The primary model has already decided that the tool phase should stop.',
-					'Evaluate only the supplied task and accumulated normalized observations.',
+					'Evaluate only the supplied task, accumulated normalized observations, and the supplied run-local capability catalog.',
+					'The capability catalog is the assigned tool landscape before per-iteration source or function selection. Respect the supplied selection constraints when deciding whether a gap is tool-resolvable. currently_selected_tools shows only the functions exposed in the terminal iteration.',
 					'Do not call tools, do not answer the user, and do not add facts.',
 					'Return exactly one JSON object without Markdown or surrounding prose.',
 					'Use this schema:',
 					'{"verdict":"verified|failed|inconclusive","summary":"concise factual assessment","issues":[{"code":"stable_snake_case","message":"factual issue","detail":{}}],"recommendation":"answer|continue|clarify","confidence":0.85}',
 					'confidence must be a JSON number between 0 and 1.',
-					'Use verified only when the accumulated evidence appears relevant, coherent, and sufficient for a useful answer.',
-					'Use failed when a specific material information gap remains and another tool call is likely to resolve it.',
-					'Use answer only when no additional tool call is needed for a useful and supportable response.',
-					'Use continue only when a specific additional information gap remains and further tool work is likely to resolve it.',
-					'Use clarify when the missing information must come from the user rather than another tool call.',
+					'Use verified only when the accumulated evidence supports the material factual claims required by the user request and covers its relevant scope.',
+					'Do not mark evidence verified merely because it is relevant, plausible, or partially matching. Distinguish examples from definitions, individual results from complete sets, partial observations from general conclusions, and intended actions from verified successful outcomes.',
+					'Do not use model knowledge to fill a gap in the supplied evidence.',
+					'Previous assistant statements are not evidence. They may explain conversational intent, but they never verify current state, a factual claim, or successful execution.',
+					'When the task asks to check, verify, re-check, or confirm current runtime state and an eligible authoritative read capability exists, require relevant tool evidence for that state instead of accepting a prior assistant claim.',
+					'For state-changing work, distinguish requested, awaiting approval, approved, attempted, succeeded, and verified outcomes. A successful mutation call supports only what its returned evidence establishes; do not infer an unreported post-condition. Multiple requested actions must be accounted for individually.',
+					'Use failed when a specific material information or action gap remains and one of the supplied catalog tools that is eligible under the selection constraints is reasonably likely to resolve it.',
+					'Use answer only when no additional tool call is needed for a supportable response whose material claims are grounded in the supplied evidence.',
+					'Use continue when a concrete material gap remains and one or more supplied catalog tools that are eligible under the selection constraints are reasonably likely to add the missing evidence or complete the requested action.',
+					'Use clarify when the missing value cannot be established from the supplied evidence or any eligible catalog tool and must come from the user.',
+					'Use verdict=failed only for a concrete material gap that further eligible tool work can reasonably close, and pair it with recommendation=continue. If a remaining gap cannot be closed by any eligible catalog tool, use verdict=inconclusive with recommendation=answer and describe the limitation instead of continuing speculatively.',
 					'Use inconclusive when the supplied evidence does not permit a reliable assessment.'
 				])
 			],

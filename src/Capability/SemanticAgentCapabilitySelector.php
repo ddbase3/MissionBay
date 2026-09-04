@@ -252,9 +252,12 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 				'content' => implode("\n", [
 					'You are a capability router for an AI agent.',
 					'Select only callable tool function names from the supplied candidate list.',
-					'Choose the smallest dependency-complete set for the current user request and its immediate tool steps.',
-					'Cover every independent action in the current user turn.',
-					'When an action needs a required argument that is not available in the current context, include an available discovery or lookup capability that can resolve it.',
+					'Choose the smallest dependency-complete set for the current user request and the tool steps that can reasonably be anticipated now.',
+					'Cover every independent factual need and requested action in the current user turn.',
+					'Use recent conversation only to resolve intent, references, corrections, and the immediate active subject. For short, elliptical, misspelled, or ambiguous follow-ups, prefer the current active topic unless the user clearly changes it.',
+					'Earlier assistant statements are not factual evidence. A request to check or verify a current runtime state still requires an authoritative capability when one is available.',
+					'If a likely action or lookup depends on an identifier, state, candidate, schema, or other value not already available, include an available capability that can establish that prerequisite.',
+					'Prefer authoritative domain capabilities over generic substitutes when both are available for the same material fact or action.',
 					'Distinguish resources by source, category, title and description. Do not confuse similarly named domains.',
 					'Return JSON only in this exact shape: {"selected_tools":["tool_name"]}.',
 					'Do not explain the choice and do not invent tool names.'
@@ -276,13 +279,12 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		AgentCapabilitySelection $candidates
 	): array {
 		$config = $request->getConfig();
-		$payload = $this->sourcePayload($catalog, $candidates);
-		$candidateJson = $this->encodePayload($payload);
 		$maxCharacters = $config->getSemanticMaxPromptCharacters();
-		$fixedCharacters = strlen($candidateJson) + 3000;
-		$availableContextCharacters = max(1000, min(6000, $maxCharacters - $fixedCharacters));
 		$contextText = $this->buildSourceContext($request->getMessages(), $request->getContextText());
-		$contextText = $this->limitText($contextText, $availableContextCharacters);
+		$contextText = $this->limitText($contextText, max(1000, min(6000, intdiv($maxCharacters, 4))));
+		$payloadBudget = max(4000, $maxCharacters - strlen($contextText) - 5000);
+		$payload = $this->sourcePayload($catalog, $candidates, $contextText, $payloadBudget);
+		$candidateJson = $this->encodePayload($payload);
 
 		return [
 			[
@@ -290,9 +292,13 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 				'content' => implode("\n", [
 					'You are a capability-source router for an AI agent.',
 					'Select complete registered tool sources, not individual functions.',
-					'Each selected source exposes all functions listed for that source to the next model decision.',
-					'Choose the smallest source-complete set that covers every independent request in the current user turn.',
+					'Each selected source exposes its complete registered function set to the next model decision. Candidate metadata may show only representative functions when the catalog is large; function_count remains the total source size.',
+					'Choose the smallest dependency-complete source set that covers every independent factual need and requested action in the current user turn.',
+					'If an operation is likely to depend on identifiers, state, candidates, schemas, or other information supplied by another source, include that prerequisite source as well.',
+					'Prefer the source that owns or authoritatively establishes the requested domain fact or action instead of a generic substitute.',
 					'The current user message is authoritative. Use older messages only to resolve follow-up references.',
+					'For short, elliptical, misspelled, or ambiguous follow-ups, resolve the message against the immediate active subject before selecting an unrelated source.',
+					'Earlier assistant statements are context only and are not proof of current runtime state or successful actions. Verification requests still require an authoritative source when available.',
 					'Use the supplied recent visible conversation to resolve follow-up requests.',
 					'An empty selection is valid when the current turn does not require tools.',
 					'Return JSON only in this exact shape: {"selected_sources":["source_id"]}.',
@@ -327,7 +333,12 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 				continue;
 			}
 
-			$rows[] = $role . ': ' . $this->limitText(trim((string)$content), 1000);
+			$row = $role . ': ' . $this->limitText(trim((string)$content), 1000);
+			if ($rows !== [] && $rows[array_key_last($rows)] === $row) {
+				continue;
+			}
+
+			$rows[] = $row;
 		}
 		$rows = array_slice($rows, -3);
 
@@ -339,7 +350,9 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 	/** @return array<int,array<string,mixed>> */
 	private function sourcePayload(
 		AgentCapabilityCatalog $catalog,
-		AgentCapabilitySelection $candidates
+		AgentCapabilitySelection $candidates,
+		string $contextText,
+		int $maxCharacters
 	): array {
 		$candidateSources = [];
 		foreach ($candidates->getCapabilities() as $capability) {
@@ -359,7 +372,7 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 					'categories' => [],
 					'tags' => [],
 					'function_count' => 0,
-					'functions' => []
+					'capabilities' => []
 				];
 			}
 			$category = trim($capability->getCategory());
@@ -373,10 +386,171 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 				}
 			}
 			$sources[$sourceKey]['function_count']++;
-			$sources[$sourceKey]['functions'][] = $this->sourceCapabilitySummary($capability);
+			$sources[$sourceKey]['capabilities'][] = $capability;
 		}
 
-		return array_values($sources);
+		$full = [];
+		foreach ($sources as $source) {
+			$functions = [];
+			foreach ($source['capabilities'] as $capability) {
+				$functions[] = $this->sourceCapabilitySummary($capability);
+			}
+			$full[] = [
+				'source_id' => $source['source_id'],
+				'source_name' => $source['source_name'],
+				'categories' => $source['categories'],
+				'tags' => $source['tags'],
+				'function_count' => $source['function_count'],
+				'functions' => $functions
+			];
+		}
+
+		if (strlen($this->encodePayload($full)) <= $maxCharacters) {
+			return $full;
+		}
+
+		$sourceCount = max(1, count($sources));
+		$perSourceCharacters = max(120, intdiv(max(1000, $maxCharacters - (2 * $sourceCount)), $sourceCount));
+		$context = $this->normalizeSelectionText($contextText);
+		$contextTokens = $this->selectionTokens($context);
+		$compact = [];
+
+		foreach ($sources as $source) {
+			$base = [
+				'source_id' => $source['source_id'],
+				'source_name' => $source['source_name'],
+				'function_count' => $source['function_count']
+			];
+
+			$ranked = $source['capabilities'];
+			usort($ranked, function(AgentCapability $left, AgentCapability $right) use ($context, $contextTokens): int {
+				$score = $this->sourceCapabilityRelevance($right, $context, $contextTokens)
+					<=> $this->sourceCapabilityRelevance($left, $context, $contextTokens);
+				if ($score !== 0) {
+					return $score;
+				}
+				return strcmp($left->getName(), $right->getName());
+			});
+
+			$summary = $base;
+			$summary['representative_functions'] = [];
+			foreach ($ranked as $capability) {
+				$function = [
+					'name' => $capability->getName(),
+					'title' => $capability->getTitle()
+				];
+				$candidate = $summary;
+				$candidate['representative_functions'][] = $function;
+				if (strlen($this->encodePayload([$candidate])) > $perSourceCharacters) {
+					$function = ['name' => $capability->getName()];
+					$candidate = $summary;
+					$candidate['representative_functions'][] = $function;
+					if (strlen($this->encodePayload([$candidate])) > $perSourceCharacters) {
+						break;
+					}
+				}
+				$summary = $candidate;
+			}
+			if ($summary['representative_functions'] === []) {
+				unset($summary['representative_functions']);
+			}
+
+			$categories = array_slice($source['categories'], 0, 6);
+			if ($categories !== []) {
+				$candidate = $summary;
+				$candidate['categories'] = $categories;
+				if (strlen($this->encodePayload([$candidate])) <= $perSourceCharacters) {
+					$summary = $candidate;
+				}
+			}
+
+			$tags = array_slice($source['tags'], 0, 8);
+			if ($tags !== []) {
+				$candidate = $summary;
+				$candidate['tags'] = $tags;
+				if (strlen($this->encodePayload([$candidate])) <= $perSourceCharacters) {
+					$summary = $candidate;
+				}
+			}
+
+			$compact[] = $summary;
+		}
+
+		if (strlen($this->encodePayload($compact)) <= $maxCharacters) {
+			return $compact;
+		}
+
+		// Preserve every candidate source when the function catalog is extremely
+		// large. Metadata is reduced before any source id is omitted.
+		$minimal = [];
+		foreach ($sources as $source) {
+			$minimal[] = [
+				'source_id' => $source['source_id'],
+				'source_name' => $source['source_name'],
+				'function_count' => $source['function_count']
+			];
+		}
+
+		if (strlen($this->encodePayload($minimal)) <= $maxCharacters) {
+			return $minimal;
+		}
+
+		return [[
+			'source_ids' => array_values(array_map(
+				static fn(array $source): string => (string)$source['source_id'],
+				$sources
+			))
+		]];
+	}
+
+	/** @param array<string,bool> $contextTokens */
+	private function sourceCapabilityRelevance(
+		AgentCapability $capability,
+		string $context,
+		array $contextTokens
+	): int {
+		$score = 0;
+		$name = $this->normalizeSelectionText($capability->getName());
+		$title = $this->normalizeSelectionText($capability->getTitle());
+		if ($name !== '' && str_contains($context, $name)) {
+			$score += 100;
+		}
+		if ($title !== '' && str_contains($context, $title)) {
+			$score += 60;
+		}
+
+		$searchable = implode(' ', [
+			$capability->getName(),
+			$capability->getTitle(),
+			$capability->getDescription(),
+			$capability->getCategory(),
+			implode(' ', $capability->getTags())
+		]);
+		foreach ($this->selectionTokens($this->normalizeSelectionText($searchable)) as $token => $_) {
+			if (isset($contextTokens[$token])) {
+				$score += 4;
+			}
+		}
+
+		return $score;
+	}
+
+	/** @return array<string,bool> */
+	private function selectionTokens(string $text): array {
+		$parts = preg_split('/[^\\p{L}\\p{N}_]+/u', $text) ?: [];
+		$result = [];
+		foreach ($parts as $part) {
+			if (strlen($part) >= 2) {
+				$result[$part] = true;
+			}
+		}
+		return $result;
+	}
+
+	private function normalizeSelectionText(string $text): string {
+		$text = function_exists('mb_strtolower') ? mb_strtolower($text, 'UTF-8') : strtolower($text);
+		$text = str_replace(['-', '.', '/', '\\'], ' ', $text);
+		return trim(preg_replace('/\\s+/', ' ', $text) ?? $text);
 	}
 
 	/** @return array<string,mixed> */
