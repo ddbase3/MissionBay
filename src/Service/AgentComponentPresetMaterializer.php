@@ -87,7 +87,7 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 			: null;
 		$declaredCapabilities = $this->normalizeCapabilities($preset['capabilities'] ?? []);
 		$capabilities = $this->resolveCapabilities($resource, $declaredCapabilities);
-		$tool = $this->createToolCapability($presetId, $resource, $capabilities, $context);
+		$tool = $this->createToolCapability($presetId, $preset, $resource, $capabilities, $context);
 		$memory = $this->createMemoryCapability($presetId, $resource, $capabilities, $context);
 		$contextContributor = $resource instanceof IAgentContextContributor
 			&& in_array('context', $capabilities, true)
@@ -221,6 +221,7 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 	/** @param array<int,string> $capabilities */
 	private function createToolCapability(
 		string $presetId,
+		array $preset,
 		?IAgentResource $resource,
 		array $capabilities,
 		IAgentContext $context
@@ -230,6 +231,11 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 		}
 
 		if($resource instanceof ConfiguredAgentToolResource) {
+			$resource->setCapabilitySourceMetadata(
+				$presetId,
+				trim((string)($preset['label'] ?? $presetId)),
+				trim($resource->getCapabilitySourceDescription())
+			);
 			return $resource;
 		}
 
@@ -245,6 +251,11 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 			'namespace' => $this->sanitizeId($presetId)
 		]);
 		$wrapper->init(['tool' => [$resource]], $context);
+		$wrapper->setCapabilitySourceMetadata(
+			$presetId,
+			trim((string)($preset['label'] ?? $presetId)),
+			trim($resource->getDescription())
+		);
 
 		return $wrapper;
 	}

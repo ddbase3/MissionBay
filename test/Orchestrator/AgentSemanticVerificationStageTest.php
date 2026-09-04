@@ -109,6 +109,8 @@ final class AgentSemanticVerificationStageTest extends TestCase {
 		$payload = json_decode($calls[0][0][1]['content'], true);
 		$this->assertStringContainsString('Previous assistant statements are not evidence', $calls[0][0][0]['content']);
 		$this->assertStringContainsString('successful mutation call supports only what its returned evidence establishes', $calls[0][0][0]['content']);
+		$this->assertStringContainsString('authoritative observations materially contradict each other', $calls[0][0][0]['content']);
+		$this->assertStringContainsString('failed tool result is evidence about that attempted call', $calls[0][0][0]['content']);
 
 		$this->assertCount(2, $payload['previous_observations']);
 		$this->assertSame([], $payload['current_tool_results']);

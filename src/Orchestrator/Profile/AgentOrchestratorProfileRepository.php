@@ -239,6 +239,31 @@ final class AgentOrchestratorProfileRepository {
 					'sticky' => true
 				]
 			], true),
+			'agent-selected-native' => $this->fromArray('agent-selected-native', [
+				'label' => 'Agent-selected native tool loop',
+				'description' => 'Native tool loop where the main agent repeatedly selects complete capability sources from the configured source catalog during the turn.',
+				'enabled' => true,
+				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
+				'max_tool_loops' => 32,
+				'model_decision' => AgentModelDecisionConfig::nativeCapability()->toArray(),
+				'optional_stages' => [
+					'capability-discovery' => true,
+					'capability-selection' => false,
+					'ai-capability-selection' => false,
+					'context-compaction' => true,
+					'semantic-verification' => false
+				],
+				'capability_selection' => [
+					'enabled' => false,
+					'strategy' => 'hybrid',
+					'max_tools' => 64,
+					'max_sources' => 8,
+					'select_all_threshold' => 0,
+					'semantic_candidate_tools' => 64,
+					'semantic_max_prompt_characters' => 48000,
+					'sticky' => false
+				]
+			], true),
 			'deliberate' => $this->fromArray('deliberate', [
 				'label' => 'Deliberate evidence agent',
 				'description' => 'Uses visible history first, creates a concise execution plan without an extra model call, limits repeated tool work and keeps semantic verification enabled.',

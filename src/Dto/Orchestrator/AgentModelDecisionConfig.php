@@ -19,16 +19,18 @@ namespace MissionBay\Dto\Orchestrator;
 
 final class AgentModelDecisionConfig {
 
-	/** @deprecated Compatibility only. Use STRATEGY_AI_GUARDED or STRATEGY_NATIVE. */
+	/** @deprecated Compatibility only. Use a guarded or native strategy. */
 	public const STRATEGY_SIMPLE = 'simple-model-decision';
 	public const STRATEGY_AI_GUARDED = 'ai-guarded-model-decision';
 	public const STRATEGY_NATIVE = 'native-model-decision';
+	public const STRATEGY_NATIVE_CAPABILITY = 'native-capability-model-decision';
 
 	/** @var array<int,string> */
 	private const STRATEGIES = [
 		self::STRATEGY_SIMPLE,
 		self::STRATEGY_AI_GUARDED,
-		self::STRATEGY_NATIVE
+		self::STRATEGY_NATIVE,
+		self::STRATEGY_NATIVE_CAPABILITY
 	];
 
 	public function __construct(
@@ -57,6 +59,14 @@ final class AgentModelDecisionConfig {
 		return new self(self::STRATEGY_NATIVE, false, 0.7);
 	}
 
+	public static function nativeCapability(): self {
+		return new self(self::STRATEGY_NATIVE_CAPABILITY, false, 0.7);
+	}
+
+	public function usesNativeStreaming(): bool {
+		return in_array($this->strategy, [self::STRATEGY_NATIVE, self::STRATEGY_NATIVE_CAPABILITY], true);
+	}
+
 	/** @param array<string,mixed> $data */
 	public static function fromArray(array $data): self {
 		$strategy = strtolower(trim((string)($data['strategy'] ?? self::STRATEGY_AI_GUARDED)));
@@ -65,7 +75,7 @@ final class AgentModelDecisionConfig {
 		}
 
 		$repairEnabled = self::toBool($data['repair_enabled'] ?? true);
-		if ($strategy === self::STRATEGY_NATIVE) {
+		if (in_array($strategy, [self::STRATEGY_NATIVE, self::STRATEGY_NATIVE_CAPABILITY], true)) {
 			$repairEnabled = false;
 		}
 

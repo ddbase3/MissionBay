@@ -65,6 +65,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 		$this->view->assign('model_decision_strategy_options', [
 			['id' => AgentModelDecisionConfig::STRATEGY_AI_GUARDED, 'label' => 'AI-guarded model decision'],
 			['id' => AgentModelDecisionConfig::STRATEGY_NATIVE, 'label' => 'Native model decision (live)'],
+			['id' => AgentModelDecisionConfig::STRATEGY_NATIVE_CAPABILITY, 'label' => 'Agent-selected native model decision (live)'],
 			['id' => AgentModelDecisionConfig::STRATEGY_SIMPLE, 'label' => 'Legacy compatibility model decision (text sentinel)']
 		]);
 		$this->view->assign('mode_options', [

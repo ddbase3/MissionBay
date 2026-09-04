@@ -6,6 +6,7 @@ use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentMemory;
 use Base3\Event\Api\IEventManager;
 use Base3\Logger\Api\ILogger;
+use MissionBay\Api\IAgentCapabilitySourceMetadata;
 use MissionBay\Api\IAgentComponentPresetRepository;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentContextFactory;
@@ -36,6 +37,13 @@ final class AgentComponentPresetMaterializerToolPrefixTest extends TestCase {
 		$this->assertSame(
 			'deepwiki__read_wiki_structure',
 			$tool->getToolDefinitions()[0]['function']['name'] ?? null
+		);
+		$this->assertInstanceOf(IAgentCapabilitySourceMetadata::class, $tool);
+		$this->assertSame('deepwiki', $tool->getCapabilitySourceId());
+		$this->assertSame('DeepWiki', $tool->getCapabilitySourceLabel());
+		$this->assertSame(
+			'Remote MCP-like tool used to verify configured preset naming.',
+			$tool->getCapabilitySourceDescription()
 		);
 
 		$result = $tool->callTool(

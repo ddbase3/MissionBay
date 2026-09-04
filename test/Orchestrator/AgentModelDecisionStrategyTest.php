@@ -354,6 +354,9 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 			'For tools that require approval, do not ask for confirmation in natural language. Call the tool once.',
 			$instruction
 		);
+		$this->assertStringContainsString('per-iteration capability selection', $instruction);
+		$this->assertStringContainsString('A tool error is evidence about the failed call.', $instruction);
+		$this->assertStringContainsString('authoritative tool observations materially conflict', $instruction);
 		$this->assertStringContainsString('Registered approval-bound tools for this turn:', $instruction);
 		$this->assertStringContainsString('`update_global_ilias_webdav_settings`', $instruction);
 		$this->assertStringContainsString('`set_ilias_plugin_activation_state`', $instruction);

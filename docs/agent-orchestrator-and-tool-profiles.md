@@ -49,7 +49,7 @@ The administration UI therefore uses checkboxes instead of drag-and-drop orderin
 
 ### Built-in profiles
 
-MissionBay always exposes seven read-only profiles:
+MissionBay always exposes eight read-only profiles:
 
 | Profile | Intended use |
 |---|---|
@@ -58,6 +58,7 @@ MissionBay always exposes seven read-only profiles:
 | `standard` | General multi-step tool orchestration with discovery, deterministic hybrid selection, compaction, and verification. |
 | `large-catalog` | Uses the explicit `ai-capability-selection` stage for large, heterogeneous tool catalogs with deterministic fallback. |
 | `large-catalog-native` | Uses AI selection of complete tool sources, then the same native streaming decision semantics as `native-tool-loop`. |
+| `agent-selected-native` | Gives the main native agent a compact catalog of all eligible capability sources and lets that same agent replace its active source set repeatedly during the turn. |
 | `deliberate` | Evidence-oriented orchestration with concise typed planning and a smaller loop limit. |
 | `governed` | Full orchestration for agents that may execute approved mutations. |
 
@@ -76,7 +77,7 @@ simple-model-decision
 ai-guarded-model-decision
 ```
 
-`simple-model-decision` is retained only for persisted compatibility profiles that still use the textual `TOOL_PHASE_COMPLETE` sentinel. No built-in profile uses it, and new profiles should use `ai-guarded-model-decision` or `native-model-decision`. `ai-guarded-model-decision` uses the structured MissionBay control tool and remains the controlled default for the existing built-in profiles.
+`simple-model-decision` is retained only for persisted compatibility profiles that still use the textual `TOOL_PHASE_COMPLETE` sentinel. No built-in profile uses it, and new profiles should use `ai-guarded-model-decision`, `native-model-decision`, or `native-capability-model-decision`. `ai-guarded-model-decision` uses the structured MissionBay control tool and remains the controlled default for the existing built-in profiles.
 
 The native strategy uses the provider's normal tool-calling contract:
 
@@ -121,17 +122,75 @@ Unlike the existing controlled `large-catalog` profile, it disables semantic ver
 
 For this profile, AI capability selection chooses complete registered tool sources rather than isolated function definitions. A selected administration component exposes all of its registered functions to the following model decision. This preserves the relationship between lookup, detail, and mutation operations of mixed components such as WebDAV, plugin, and cron administration. It does not split those components into artificial read-only and mutation profiles.
 
-The selector receives the canonical conversation messages already used by the orchestrator, including assistant tool calls and tool observations. It does not create a second routing history, a condensed continuation history, or a parallel memory representation. An empty source selection remains valid for ordinary conversation; selection only controls which tools are available and never forces a tool call.
+The selector receives the canonical conversation messages already used by the orchestrator and derives a routing-only view containing the current user message plus at most two previous user messages. Assistant replies and previous tool observations are not copied into that source-routing view, so stale assistant claims cannot displace a user instruction such as an explicit source preference. Current-turn execution context remains available to function-level selection where later iterations need tool observations. No second persistent history or parallel memory representation is created. An empty source selection remains valid for ordinary conversation; selection only controls which tools are available and never forces a tool call.
 
 Within one orchestration turn, `large-catalog-native` performs AI source selection once and keeps that bounded source-complete tool set for subsequent model decisions. The built-in profile exposes at most 16 functions to the native model. Small source pools bypass the AI router only when their complete functions still fit within that 16-function bound. Mutation handling still starts only when the native model emits a concrete mutation tool call. The existence of mutation functions in a selected source does not switch the decision strategy or introduce a controlled fallback.
 
 After tool execution, the next native decision receives the existing authoritative execution ledger. Claims about state changes must match successful mutation calls from the current turn; approval, intent, prior conversation text, or a successful unrelated mutation is not proof that another requested action completed.
 
+Native decision prompts also treat tool errors as evidence about the failed attempt. Validation, schema, field, syntax, or unsupported-operation failures must change the next attempt materially. The selected tools are only the current per-iteration view and their absence does not justify a global unavailable claim. If authoritative tool observations conflict, the model should resolve the contradiction before presenting a definitive result when the conflict matters to the user request.
+
+### Agent-selected native capability sources
+
+The `agent-selected-native` profile is additive. It does not change or replace `large-catalog-native`. The existing large-catalog native profile keeps its one-time AI source preselection and remains suitable for deployments that already rely on it.
+
+The new profile reuses the existing stages:
+
+```text
+capability-discovery
+  -> model-decision
+  -> action-policy
+  -> tool-execution
+  -> context-compaction
+  -> tool-observation
+```
+
+It does not mount `capability-selection` or `ai-capability-selection`. There is no separate routing model call. Instead, `native-capability-model-decision` delegates normal provider-native tool decisions and terminal streaming to the existing native decision implementation.
+
+Before each native model decision, the same main agent receives:
+
+1. the complete eligible capability-source catalog in compact form;
+2. the full schemas of only the currently active source working set;
+3. the internal orchestration function `missionbay_select_capability_sources`.
+
+The compact catalog uses stable source metadata from configured tool presets:
+
+- `source_id` is the exact component/tool preset id;
+- `label` is the configured preset label;
+- `description` is captured from the underlying tool resource's own `getDescription()` during materialization;
+- `function_count` is the number of eligible callable functions in that source after hard agent filters.
+
+Tool Profile descriptions are not used as the routing description for this profile. Function descriptions remain authoritative after a source is active and its full schemas are shown to the model. Direct compatibility tools that do not carry configured source metadata remain visible through a deterministic fallback based on their capability descriptions.
+
+The source-control function replaces the active working set. It does not append sources permanently. The agent can call it repeatedly during the same user turn:
+
+```text
+main agent sees compact source catalog
+  -> select reporting source
+  -> use reporting functions
+  -> discover that content evidence is still needed
+  -> select retrieval source
+  -> use retrieval functions
+  -> discover that an administrative action is required
+  -> select the required administration sources
+  -> continue through normal action policy and execution
+```
+
+A first source choice is therefore recoverable. If the selected tools are unsuitable, a tool error reveals a different need, or later evidence requires another authority, the agent can replace its active source set and continue the same task. The source switch itself is orchestration control and is not recorded as domain evidence or an executed domain tool.
+
+If the model emits a source switch together with domain tool calls in the same response, MissionBay applies the source switch first. The mixed domain calls are not executed against a stale tool surface. Structured tool messages tell the same model to retry those calls on the next decision if they are still required.
+
+Unknown source ids, unchanged source selections, and source sets exceeding `maxSources` or `maxTools` are returned to the main model as structured source-control errors. They do not become orchestration failures. This lets the same agent correct its source choice without introducing another selector or fallback agent.
+
+Hard tool, tag, and category filters remain authoritative. The compact source catalog can only contain capabilities already granted by the configured agent composition. Source selection never grants a globally available tool that was not part of that configured universe.
+
+The built-in profile uses `maxToolLoops = 32`, `maxSources = 8`, and `maxTools = 64`. Source switches consume normal model-decision iterations, so the higher loop bound allows repeated source correction and genuinely multi-step tool workflows without reducing the existing limits of other profiles.
+
 ### Manual UI acceptance tests for native live mode
 
 Use an existing configured LLM that supports streaming and normal provider tool calling. No provider-specific connector is required.
 
-1. Open **Orchestrator Profiles** and inspect `native-tool-loop`. The effective pipeline must contain exactly `model-decision`, `action-policy`, `tool-execution`, and `tool-observation`. The strategy must be `native-model-decision`; decision repair and semantic verification must be disabled. No additional native profile is introduced.
+1. Open **Orchestrator Profiles** and inspect `native-tool-loop`. The effective pipeline must contain exactly `model-decision`, `action-policy`, `tool-execution`, and `tool-observation`. The strategy must be `native-model-decision`; decision repair and semantic verification must be disabled. The existing `native-tool-loop` pipeline and behavior must remain unchanged.
 2. Assign `native-tool-loop` to a test agent and send: `Write the numbers one to twenty, one number per line. Do not use a tool.` The answer must build incrementally, must not expose `TOOL_PHASE_COMPLETE`, and must come from the single model-decision call.
 3. Send: `Reply exactly once with NATIVE-LIVE-ONCE. Do not use a tool.` The phrase must occur once in the chat. No duplicate response block may appear after the stream completes.
 4. Ask a read operation, for example: `Use the appropriate tool to read the current WebDAV status and summarize the result.` The trace must show the tool call and observation, followed by a terminal native model-decision whose answer streams directly. There must be no separate final-response model generation.
@@ -151,13 +210,26 @@ Use an existing configured LLM that supports streaming and normal provider tool 
 6. Ask `Check the ReadSpeaker status again.` The selector must use the canonical conversation messages and select Plugin Administration. The answer must be based on a new read-tool result, not only on previous assistant text.
 7. Repeat the same tasks with `large-catalog`. Its existing controlled decision, semantic verification, and separate final-response behavior must remain unchanged.
 
+### Manual UI acceptance tests for agent-selected native mode
+
+1. Open **Orchestrator Profiles** and inspect `agent-selected-native`. Its effective stages must be `capability-discovery`, `model-decision`, `action-policy`, `tool-execution`, `context-compaction`, and `tool-observation`. Neither capability-selection stage may be active. The model-decision strategy must be `native-capability-model-decision`.
+2. Send a simple greeting. The model must receive the compact source catalog and `missionbay_select_capability_sources`, but it may answer directly without selecting a domain source.
+3. Ask for a structured aggregate task whose best source is not initially active. The main model must select the matching source and then receive that source's complete function schemas on the next model decision. No separate routing model call may appear in the model-result trace.
+4. Continue the same user task with a need owned by another source. The same agent must be able to call `missionbay_select_capability_sources` again and replace the active working set. Functions from the previous source must no longer be registered unless that source is also listed in the new selection.
+5. Deliberately select an unsuitable source first, then return a tool observation that demonstrates the mismatch. The same agent must be able to select a different source later in the same turn instead of declaring the missing capability unavailable.
+6. Select a source set containing lookup and approval-protected mutation functions. All real tool calls must still pass through the existing action-policy and tool-execution stages. Source selection itself must never create an action review.
+7. Return an unknown source id. The model must receive a structured source-control error and remain in model phase so it can choose again. The orchestration must not fail.
+8. Emit a source-selection call and a domain tool call in the same model response. The source switch must win, the domain call must not execute, and the next model decision must receive a structured instruction to retry it if still required.
+9. Repeat representative tasks with `large-catalog-native`. Its existing one-time AI source preselection and stage trace must remain unchanged.
+
 ### Release acceptance
 
 The native orchestration release is complete when all of the following remain true in the same installed build:
 
 - all existing controlled built-in profiles keep their previous stage and final-response semantics;
 - `native-tool-loop` provides direct provider-native streaming without a separate final-response model call;
-- `large-catalog-native` adds source-complete AI capability selection without introducing a second selector, routing history, or mutation fallback;
+- `large-catalog-native` keeps its existing source-complete AI capability selection without introducing a second selector, routing history, or mutation fallback;
+- `agent-selected-native` adds repeated main-agent source replacement without changing `large-catalog-native`;
 - capability selection controls availability only and never forces a tool call;
 - mutation approval starts only after a concrete mutation tool call;
 - visible output, returned assistant content, and conversation memory contain the same canonical final response;

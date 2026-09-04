@@ -10,14 +10,15 @@ use PHPUnit\Framework\TestCase;
 
 final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 
-	public function testExposesSevenBuiltinProfilesIncludingLargeCatalogVariantsAndNativeToolLoop(): void {
+	public function testExposesEightBuiltinProfilesIncludingAgentSelectedNativeToolLoop(): void {
 		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
 		$profiles = $repository->getProfiles();
 
-		$this->assertCount(7, $profiles);
+		$this->assertCount(8, $profiles);
 		$this->assertArrayHasKey('large-catalog', $profiles);
 		$this->assertArrayHasKey('native-tool-loop', $profiles);
 		$this->assertArrayHasKey('large-catalog-native', $profiles);
+		$this->assertArrayHasKey('agent-selected-native', $profiles);
 
 		$profile = $profiles['large-catalog'];
 		$config = $profile->getCapabilitySelection();
@@ -39,7 +40,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
 
 		foreach ($repository->getProfiles() as $id => $profile) {
-			if (in_array($id, ['native-tool-loop', 'large-catalog-native'], true)) {
+			if (in_array($id, ['native-tool-loop', 'large-catalog-native', 'agent-selected-native'], true)) {
 				continue;
 			}
 			$this->assertSame(AgentModelDecisionConfig::STRATEGY_AI_GUARDED, $profile->getModelDecision()->getStrategy());
@@ -91,6 +92,31 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 		$this->assertSame([
 			'capability-discovery',
 			'ai-capability-selection',
+			'model-decision',
+			'action-policy',
+			'tool-execution',
+			'context-compaction',
+			'tool-observation'
+		], $profile->getStageIds());
+	}
+
+
+	public function testAgentSelectedNativeUsesMainAgentSourceControlWithoutPreselectionStage(): void {
+		$profile = (new AgentOrchestratorProfileRepository($this->settingsStore()))->getProfile('agent-selected-native');
+		$config = $profile->getCapabilitySelection();
+
+		$this->assertSame('Agent-selected native tool loop', $profile->getLabel());
+		$this->assertSame(AgentModelDecisionConfig::STRATEGY_NATIVE_CAPABILITY, $profile->getModelDecision()->getStrategy());
+		$this->assertFalse($profile->getModelDecision()->isRepairEnabled());
+		$this->assertSame(32, $profile->getMaxToolLoops());
+		$this->assertFalse($profile->isCapabilitySelectionEnabled());
+		$this->assertFalse($profile->isAiCapabilitySelectionEnabled());
+		$this->assertFalse($config->isEnabled());
+		$this->assertSame(64, $config->getMaxTools());
+		$this->assertSame(8, $config->getMaxSources());
+		$this->assertFalse($config->isSticky());
+		$this->assertSame([
+			'capability-discovery',
 			'model-decision',
 			'action-policy',
 			'tool-execution',

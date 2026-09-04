@@ -19,9 +19,10 @@ namespace MissionBay\Profile;
 
 use AssistantFoundation\Api\IAgentContext;
 use Base3\Api\IOutputSchemaProvider;
+use MissionBay\Api\IAgentCapabilitySourceMetadata;
 use MissionBay\Api\IAgentTool;
 
-final class ToolGuardAgentTool implements IAgentTool, IOutputSchemaProvider {
+final class ToolGuardAgentTool implements IAgentTool, IOutputSchemaProvider, IAgentCapabilitySourceMetadata {
 
 	/**
 	 * @var array<string,bool>
@@ -46,6 +47,30 @@ final class ToolGuardAgentTool implements IAgentTool, IOutputSchemaProvider {
 	public static function getName(): string {
 		// IBase requirement, delegate name is fine but stable.
 		return 'toolguardagenttool';
+	}
+
+	public function getCapabilitySourceId(): string {
+		if ($this->inner instanceof IAgentCapabilitySourceMetadata) {
+			return $this->inner->getCapabilitySourceId();
+		}
+
+		return $this->inner::getName();
+	}
+
+	public function getCapabilitySourceLabel(): string {
+		if ($this->inner instanceof IAgentCapabilitySourceMetadata) {
+			return $this->inner->getCapabilitySourceLabel();
+		}
+
+		return $this->getCapabilitySourceId();
+	}
+
+	public function getCapabilitySourceDescription(): string {
+		if ($this->inner instanceof IAgentCapabilitySourceMetadata) {
+			return $this->inner->getCapabilitySourceDescription();
+		}
+
+		return '';
 	}
 
 	public function getToolDefinitions(): array {

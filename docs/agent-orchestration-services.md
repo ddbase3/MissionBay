@@ -97,6 +97,8 @@ Budget checks and loop-progress detection are enforced by `AgentToolOrchestrator
 
 The model-decision strategies use one general tool contract. MissionBay core prompts do not encode retrieval, ILIAS, administration, or other domain-specific workflows. Tool descriptions, schemas, returned identifiers, limitations, and explicit next-step fields define the runtime contract for each capability.
 
+Tool failures are part of that contract evidence. A retry should first interpret the failure and materially change the next attempt when the previous call failed validation, schema, field, syntax, or unsupported-operation checks. Cosmetic rephrasing of an equivalent failed call is not progress. Likewise, a tool missing from one per-iteration selection is not evidence that the capability is globally unavailable. User-facing unavailability claims require runtime or authoritative tool evidence.
+
 The model is instructed to:
 
 - establish tool-owned facts and identifiers through available authoritative tools instead of guessing;
@@ -135,6 +137,8 @@ A custom implementation should normally replace one of these services through pr
 The orchestrator uses visible conversation history to preserve user intent, references, corrections and the active subject. This is intentionally different from using history as runtime evidence.
 
 Previous assistant statements are not authoritative facts. In particular, an earlier assistant claim that a plugin is inactive, a job completed, or a setting has a value does not verify that state. When the user asks to check, verify, re-check or confirm a current runtime state and an authoritative read capability is available, the orchestrator must obtain fresh tool evidence.
+
+Authoritative observations must also be internally consistent. If two tool observations materially conflict on a fact required for the answer, the agent should investigate the contradiction when another eligible call can reasonably resolve it. A newer authoritative observation overrides an earlier assistant claim, but conflicting authoritative tool evidence is not silently merged or guessed away.
 
 Short, elliptical, misspelled or ambiguous follow-ups are resolved against the immediate active conversation topic before the agent invents a new domain or entity. This preserves conversational continuity without turning assistant text into a source of truth.
 

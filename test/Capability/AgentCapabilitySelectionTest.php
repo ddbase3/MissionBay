@@ -405,14 +405,54 @@ final class AgentCapabilitySelectionTest extends TestCase {
 		$this->assertStringContainsString('dependency-complete source set', $model->getMessages()[0]['content']);
 		$this->assertStringContainsString('Earlier assistant statements are context only', $model->getMessages()[0]['content']);
 		$this->assertStringContainsString('immediate active subject', $model->getMessages()[0]['content']);
+		$this->assertStringContainsString('explicitly names, requests, or restricts work to a tool source or capability', $model->getMessages()[0]['content']);
 		$this->assertStringContainsString('user: Is ReadSpeaker active and is Igor2Base available?', $model->getMessages()[1]['content']);
-		$this->assertStringContainsString('assistant: ReadSpeaker is active.', $model->getMessages()[1]['content']);
-		$this->assertSame(1, substr_count($model->getMessages()[1]['content'], 'assistant: ReadSpeaker is active.'));
 		$this->assertStringContainsString('user: Disable ReadSpeaker and run Igor2Base.', $model->getMessages()[1]['content']);
+		$this->assertStringNotContainsString('assistant: ReadSpeaker is active.', $model->getMessages()[1]['content']);
 		$this->assertStringNotContainsString('You are an ILIAS assistant.', $model->getMessages()[1]['content']);
 		$this->assertStringNotContainsString('"plugin":"ReadSpeaker"', $model->getMessages()[1]['content']);
 		$this->assertStringContainsString('"source_id":"plugins"', $model->getMessages()[1]['content']);
 		$this->assertStringContainsString('"source_id":"cron-jobs"', $model->getMessages()[1]['content']);
+	}
+
+	public function testSemanticSourceSelectionKeepsCurrentAndTwoPreviousUserTurnsWithoutAssistantNoise(): void {
+		$catalog = new AgentCapabilityCatalog([
+			$this->capability('report_rows', 'Query structured reporting data.', ['reporting', 'query'], 20, 'reporting'),
+			$this->capability('list_courses', 'List courses administratively.', ['courses', 'list'], 20, 'course-admin')
+		]);
+		$model = $this->recordingChatModel('{"selected_sources":["reporting"]}');
+		$selector = new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector());
+
+		$selection = $selector->select(
+			$catalog,
+			new AgentCapabilitySelectionRequest(
+				iteration: 1,
+				contextText: 'user: Gib mir fünf Kurse.',
+				config: new AgentCapabilitySelectionConfig(
+					maxTools: 8,
+					selectAllThreshold: 0,
+					semanticCandidateTools: 8,
+					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
+					maxSources: 4
+				),
+				model: $model,
+				messages: [
+					['role' => 'user', 'content' => 'Nutze das Reporting Tool.'],
+					['role' => 'assistant', 'content' => 'Reporting ist nicht verfügbar.'],
+					['role' => 'user', 'content' => 'Reporting only.'],
+					['role' => 'assistant', 'content' => 'Ich nehme Kursverwaltung.'],
+					['role' => 'user', 'content' => 'Gib mir fünf Kurse.']
+				]
+			)
+		);
+
+		$this->assertSame(['report_rows'], $selection->getToolNames());
+		$routerInput = $model->getMessages()[1]['content'];
+		$this->assertStringContainsString('user: Nutze das Reporting Tool.', $routerInput);
+		$this->assertStringContainsString('user: Reporting only.', $routerInput);
+		$this->assertStringContainsString('user: Gib mir fünf Kurse.', $routerInput);
+		$this->assertStringNotContainsString('Reporting ist nicht verfügbar.', $routerInput);
+		$this->assertStringNotContainsString('Ich nehme Kursverwaltung.', $routerInput);
 	}
 
 	public function testSemanticSourceSelectionAllowsAnEmptySelectionForNormalConversation(): void {

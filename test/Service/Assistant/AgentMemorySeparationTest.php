@@ -197,11 +197,13 @@ final class AgentMemorySeparationTest extends TestCase {
 
 		$this->assertTrue($task['has_history']);
 		$this->assertSame(4, $task['history_message_count']);
-		$this->assertStringNotContainsString('Fu ruft tut.', $task['selection_prompt']);
-		$this->assertStringContainsString('Verstanden.', $task['selection_prompt']);
+		$this->assertStringContainsString('Fu ruft tut.', $task['selection_prompt']);
 		$this->assertStringContainsString('Prüfe die Plugins.', $task['selection_prompt']);
-		$this->assertStringContainsString('OrgUnits ist aktiv.', $task['selection_prompt']);
+		$this->assertStringNotContainsString('Verstanden.', $task['selection_prompt']);
+		$this->assertStringNotContainsString('OrgUnits ist aktiv.', $task['selection_prompt']);
 		$this->assertStringContainsString('opaque request 17', $task['selection_prompt']);
+		$this->assertSame(2, substr_count($task['selection_prompt'], 'User:'));
+		$this->assertStringContainsString('Current user request:', $task['selection_prompt']);
 		$this->assertArrayNotHasKey('history_only', $task);
 		$this->assertArrayNotHasKey('conversation_recall', $task);
 		$this->assertArrayNotHasKey('follow_up', $task);

@@ -27,8 +27,10 @@ use Base3\Api\IOutputSchemaProvider;
 use Base3\Event\Api\IEventManager;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentBatchTool;
+use MissionBay\Api\IAgentCapabilitySourceMetadata;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Api\IAgentMutationGuardedTool;
+use MissionBay\Api\IAgentResource;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Api\IConfirmableAgentTool;
 use MissionBay\Audit\AgentToolAuditContext;
@@ -46,7 +48,7 @@ use MissionBay\Event\MissionBayToolStartedEvent;
  * The wrapper is also the canonical execution audit boundary for configured
  * tools, independent from the orchestrator or transport that invokes it.
  */
-class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentBatchTool, IConfirmableAgentTool, IOutputSchemaProvider {
+class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgentBatchTool, IConfirmableAgentTool, IOutputSchemaProvider, IAgentCapabilitySourceMetadata {
 
 	private ?IAgentTool $tool = null;
 	private bool $enabled = true;
@@ -56,6 +58,9 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 	private string $category = '';
 	private array $tags = [];
 	private ?int $priority = null;
+	private string $capabilitySourceId = '';
+	private string $capabilitySourceLabel = '';
+	private string $capabilitySourceDescription = '';
 
 	/**
 	 * @var array<string,string> Effective tool name => original tool name
@@ -81,6 +86,28 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 
 	public function getDescription(): string {
 		return 'Wraps one agent tool and exposes configured tool metadata, including optional namespacing.';
+	}
+
+	public function setCapabilitySourceMetadata(string $id, string $label = '', string $description = ''): void {
+		$this->capabilitySourceId = trim($id);
+		$this->capabilitySourceLabel = trim($label);
+		$this->capabilitySourceDescription = trim($description);
+	}
+
+	public function getCapabilitySourceId(): string {
+		return $this->capabilitySourceId !== '' ? $this->capabilitySourceId : $this->getId();
+	}
+
+	public function getCapabilitySourceLabel(): string {
+		if ($this->capabilitySourceLabel !== '') {
+			return $this->capabilitySourceLabel;
+		}
+
+		return $this->capabilitySourceId !== '' ? $this->capabilitySourceId : $this->getId();
+	}
+
+	public function getCapabilitySourceDescription(): string {
+		return $this->capabilitySourceDescription;
 	}
 
 	/**
@@ -115,6 +142,9 @@ class ConfiguredAgentToolResource extends AbstractAgentResource implements IAgen
 
 		if (!empty($resources['tool'][0]) && $resources['tool'][0] instanceof IAgentTool) {
 			$this->tool = $resources['tool'][0];
+			if ($this->capabilitySourceDescription === '' && $resources['tool'][0] instanceof IAgentResource) {
+				$this->capabilitySourceDescription = trim($resources['tool'][0]->getDescription());
+			}
 		}
 	}
 

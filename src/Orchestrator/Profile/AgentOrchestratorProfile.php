@@ -66,7 +66,7 @@ final class AgentOrchestratorProfile {
 			throw new \InvalidArgumentException('Source-complete capability selection requires the AI capability selection stage.');
 		}
 		if (
-			$this->modelDecision->getStrategy() === AgentModelDecisionConfig::STRATEGY_NATIVE
+			$this->modelDecision->usesNativeStreaming()
 			&& $this->semanticVerificationEnabled
 		) {
 			throw new \InvalidArgumentException(

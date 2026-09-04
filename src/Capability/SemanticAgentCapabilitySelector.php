@@ -240,7 +240,15 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 		}
 
 		$candidateJson = $this->encodePayload($payload);
-		$contextText = trim($request->getContextText());
+		$userContext = $this->buildSourceContext($request->getMessages(), '');
+		$runtimeContext = trim($request->getContextText());
+		$contextText = $userContext;
+		if ($runtimeContext !== '' && $runtimeContext !== $userContext) {
+			$contextText = trim($userContext . "\nCurrent turn execution context:\n" . $runtimeContext);
+		}
+		if ($contextText === '') {
+			$contextText = $runtimeContext;
+		}
 		$maxCharacters = $config->getSemanticMaxPromptCharacters();
 		$fixedCharacters = strlen($candidateJson) + 3000;
 		$availableContextCharacters = max(1000, $maxCharacters - $fixedCharacters);
@@ -254,6 +262,8 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 					'Select only callable tool function names from the supplied candidate list.',
 					'Choose the smallest dependency-complete set for the current user request and the tool steps that can reasonably be anticipated now.',
 					'Cover every independent factual need and requested action in the current user turn.',
+					'If the current user explicitly names, requests, or restricts work to a tool or capability and a matching candidate exists, treat that as a routing constraint. Select that capability and do not substitute an unrelated one, except for prerequisite capabilities required to complete the request.',
+					'Preserve an explicit tool or capability routing instruction from recent user messages when the current request is a follow-up that still depends on it. The current user message overrides any conflicting older routing instruction.',
 					'Use recent conversation only to resolve intent, references, corrections, and the immediate active subject. For short, elliptical, misspelled, or ambiguous follow-ups, prefer the current active topic unless the user clearly changes it.',
 					'Earlier assistant statements are not factual evidence. A request to check or verify a current runtime state still requires an authoritative capability when one is available.',
 					'If a likely action or lookup depends on an identifier, state, candidate, schema, or other value not already available, include an available capability that can establish that prerequisite.',
@@ -294,6 +304,8 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 					'Select complete registered tool sources, not individual functions.',
 					'Each selected source exposes its complete registered function set to the next model decision. Candidate metadata may show only representative functions when the catalog is large; function_count remains the total source size.',
 					'Choose the smallest dependency-complete source set that covers every independent factual need and requested action in the current user turn.',
+					'If the current user explicitly names, requests, or restricts work to a tool source or capability and a matching candidate source exists, treat that as a routing constraint. Select that source and do not substitute an unrelated source, except for prerequisite sources required to complete the request.',
+					'Preserve an explicit source or capability routing instruction from recent user messages when the current request is a follow-up that still depends on it. The current user message overrides any conflicting older routing instruction.',
 					'If an operation is likely to depend on identifiers, state, candidates, schemas, or other information supplied by another source, include that prerequisite source as well.',
 					'Prefer the source that owns or authoritatively establishes the requested domain fact or action instead of a generic substitute.',
 					'The current user message is authoritative. Use older messages only to resolve follow-up references.',
@@ -324,7 +336,7 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 			}
 
 			$role = strtolower(trim((string)($message['role'] ?? '')));
-			if (!in_array($role, ['user', 'assistant'], true)) {
+			if ($role !== 'user') {
 				continue;
 			}
 
@@ -333,7 +345,7 @@ final class SemanticAgentCapabilitySelector implements IAgentCapabilitySelector 
 				continue;
 			}
 
-			$row = $role . ': ' . $this->limitText(trim((string)$content), 1000);
+			$row = 'user: ' . $this->limitText(trim((string)$content), 1000);
 			if ($rows !== [] && $rows[array_key_last($rows)] === $row) {
 				continue;
 			}
