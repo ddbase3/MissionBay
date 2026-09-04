@@ -33,6 +33,10 @@ class OpenAiChatModel extends OpenAiCompatibleChatModel {
 		return true;
 	}
 
+	protected function getMaxTokensPayloadKey(): string {
+		return 'max_completion_tokens';
+	}
+
 	protected function getDefaultEndpoint(): string {
 		return 'https://api.openai.com';
 	}

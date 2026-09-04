@@ -87,6 +87,69 @@ final class AbstractChatCompletionModelStreamingToolsTest extends TestCase {
 		$this->assertSame($messages, $provider->payload['messages'] ?? null);
 	}
 
+	public function testMistralPayloadUsesMaxTokensParameter(): void {
+		$provider = new CapturingStreamingProvider(false);
+		$model = new MistralChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
+		$model->setOptions([
+			'model' => 'mistral-medium-2508',
+			'endpoint' => 'https://example.test',
+			'apikey' => 'test-key',
+			'max_tokens' => 4000
+		]);
+
+		$model->raw([
+			['role' => 'user', 'content' => 'Hello']
+		]);
+
+		$this->assertSame(4000, $provider->payload['max_tokens'] ?? null);
+		$this->assertArrayNotHasKey('max_completion_tokens', $provider->payload);
+	}
+
+	public function testOpenAiCompatiblePayloadUsesMaxTokensParameter(): void {
+		$provider = new CapturingStreamingProvider(false);
+		$model = new OpenAiCompatibleChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
+		$model->setOptions([
+			'model' => 'compatible-model',
+			'endpoint' => 'https://example.test',
+			'apikey' => 'test-key',
+			'max_tokens' => 2048
+		]);
+
+		$model->raw([
+			['role' => 'user', 'content' => 'Hello']
+		]);
+
+		$this->assertSame(2048, $provider->payload['max_tokens'] ?? null);
+		$this->assertArrayNotHasKey('max_completion_tokens', $provider->payload);
+	}
+
+	public function testOpenAiPayloadUsesMaxCompletionTokensParameter(): void {
+		$provider = new CapturingStreamingProvider(false);
+		$model = new OpenAiChatModel(
+			new SingleProviderClassMap($provider),
+			new AiProviderRequestEventDispatcher(new EventManager())
+		);
+		$model->setOptions([
+			'model' => 'gpt-5.4-mini',
+			'endpoint' => 'https://example.test',
+			'apikey' => 'test-key',
+			'max_tokens' => 5000
+		]);
+
+		$model->raw([
+			['role' => 'user', 'content' => 'Hello']
+		]);
+
+		$this->assertSame(5000, $provider->payload['max_completion_tokens'] ?? null);
+		$this->assertArrayNotHasKey('max_tokens', $provider->payload);
+	}
+
 	public function testStreamingPayloadKeepsToolDefinitionsAndSerializesEmptyPropertiesAsObject(): void {
 		$provider = new CapturingStreamingProvider();
 		$model = new MistralChatModel(

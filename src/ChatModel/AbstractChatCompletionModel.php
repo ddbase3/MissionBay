@@ -78,6 +78,13 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		return false;
 	}
 
+	/**
+	 * Returns the provider request field used for the normalized max_tokens option.
+	 */
+	protected function getMaxTokensPayloadKey(): string {
+		return 'max_tokens';
+	}
+
 	public function setOptions(array $options): void {
 		$this->options = array_merge($this->options, $options);
 
@@ -177,7 +184,7 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 
 		$maxTokens = $this->getNullableIntOption('max_tokens');
 		if($maxTokens !== null) {
-			$payload['max_tokens'] = $maxTokens;
+			$payload[$this->getMaxTokensPayloadKey()] = $maxTokens;
 		}
 
 		$topP = $this->getNullableFloatOption('top_p');
