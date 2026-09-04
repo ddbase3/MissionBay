@@ -156,6 +156,7 @@ final class AgentMemoryProfileResolverTest extends TestCase {
 						public function appendNodeHistory(string $nodeId, array $message): void {}
 						public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool { return false; }
 						public function resetNodeHistory(string $nodeId): void {}
+						public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
 						public function getPriority(): int { return 80; }
 					},
 					'testcontextcontributor', 'testdualtoolcontext' => new class('context') extends AbstractAgentResource implements IAgentContextContributor {

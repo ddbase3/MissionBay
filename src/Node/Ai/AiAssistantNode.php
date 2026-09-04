@@ -20,13 +20,22 @@ namespace MissionBay\Node\Ai;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentEventSink;
 use AssistantFoundation\Api\IAiChatModel;
+use AssistantFoundation\Dto\AgentExecutionState;
+use AssistantFoundation\Dto\AgentExecutionStatus;
+use AssistantFoundation\Dto\AgentResult;
+use AssistantFoundation\Dto\AgentResultState;
+use AssistantFoundation\Dto\AgentSuspensionState;
 use AssistantRuntime\Service\AgentEventDispatcher;
 use MissionBay\Agent\AgentNodePort;
 use MissionBay\Api\IAgentAssistantFallbackBuilder;
 use MissionBay\Api\IAgentAssistantFinalResponseService;
 use MissionBay\Api\IAgentAssistantMemoryService;
 use MissionBay\Api\IAgentAssistantTurnService;
+use MissionBay\Api\IAgentStateContext;
+use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use MissionBay\Exception\AgentRunCancelledException;
+use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Assistant node for both buffered and incremental agent execution.
@@ -119,6 +128,8 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 	public function execute(array $inputs, array $resources, IAgentContext $context): array {
 		$eventSink = AgentEventDispatcher::fromContext($context);
 		$assistantId = $this->createAssistantMessageId();
+		$turnResources = null;
+		$turnResult = null;
 
 		try {
 			$turnResources = $this->buildTurnResources($resources, 'Missing required chat model.');
@@ -153,6 +164,10 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				$this->buildEventCallback($eventSink)
 			);
 
+			if ($turnResult->isCancelled() || $this->isCancellationRequested($eventSink)) {
+				return $this->handleCancelledTurn($context, $turnResult, $turnResources);
+			}
+
 			if ($turnResult->isSuspended()) {
 				return $this->handleSuspendedTurn($context, $eventSink, $turnResult);
 			}
@@ -167,6 +182,10 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 					'reason' => $turnResult->getFailureCode(),
 					'message' => $turnResult->getFailureMessage()
 				]);
+			}
+
+			if ($this->isCancellationRequested($eventSink)) {
+				return $this->handleCancelledTurn($context, $turnResult, $turnResources);
 			}
 
 			[$finalContent, $responseWarning, $streamStatus] = $this->createFinalResponse(
@@ -202,7 +221,13 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 
 			return $output;
 		}
+		catch (AgentRunCancelledException $e) {
+			return $this->handleCancelledTurn($context, $turnResult, $turnResources);
+		}
 		catch (\Throwable $e) {
+			if ($this->isCancellationRequested($eventSink)) {
+				return $this->handleCancelledTurn($context, $turnResult, $turnResources);
+			}
 			$this->logError($e->getMessage());
 			$userMessage = 'Es ist ein technischer Fehler aufgetreten. Die Anfrage konnte nicht vollständig abgeschlossen werden.';
 			AgentEventDispatcher::emit($eventSink, 'token', ['text' => $userMessage]);
@@ -326,6 +351,9 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 			try {
 				return [$this->finalResponseService->createDirectResponse($model, $turnResult), '', 'complete'];
 			}
+			catch (AgentRunCancelledException $e) {
+				throw $e;
+			}
 			catch (\Throwable $e) {
 				$this->logError('Direct final response failed: ' . $e->getMessage());
 				return [$this->buildFailureFallback($turnResult), 'fallback_direct_response_error', 'fallback_direct_response_error'];
@@ -337,12 +365,22 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				$model,
 				$turnResult,
 				function(string $delta) use ($eventSink): void {
+					if ($eventSink->isCancelled()) {
+						throw new AgentRunCancelledException();
+					}
 					AgentEventDispatcher::emit($eventSink, 'token', ['text' => $delta]);
 				},
 				function(array $meta) use ($eventSink): void {
+					if ($eventSink->isCancelled()) {
+						throw new AgentRunCancelledException();
+					}
 					AgentEventDispatcher::emit($eventSink, 'meta', $meta);
 				}
 			);
+
+			if ($eventSink->isCancelled()) {
+				throw new AgentRunCancelledException();
+			}
 
 			if (trim($finalContent) !== '') {
 				return [$finalContent, '', 'complete'];
@@ -351,6 +389,9 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 			$this->logError('Streaming response completed without visible content. Starting one buffered recovery request.');
 			try {
 				$recoveredContent = $this->finalResponseService->createDirectResponse($model, $turnResult);
+			}
+			catch (AgentRunCancelledException $e) {
+				throw $e;
 			}
 			catch (\Throwable $e) {
 				$this->logError('Buffered final-response recovery failed: ' . $e->getMessage());
@@ -368,12 +409,120 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 			AgentEventDispatcher::emit($eventSink, 'token', ['text' => $recoveredContent]);
 			return [$recoveredContent, $status === 'fallback_empty_stream' ? $status : '', $status];
 		}
+		catch (AgentRunCancelledException $e) {
+			throw $e;
+		}
 		catch (\Throwable $e) {
 			$this->logError('Streaming final response failed: ' . $e->getMessage());
 			$finalContent = $this->buildFailureFallback($turnResult);
 			AgentEventDispatcher::emit($eventSink, 'token', ['text' => $finalContent]);
 			return [$finalContent, 'fallback_stream_error', 'fallback_stream_error'];
 		}
+	}
+
+
+	private function handleCancelledTurn(
+		IAgentContext $context,
+		?AgentAssistantTurnResult $turnResult,
+		?AgentAssistantTurnResources $turnResources
+	): array {
+		$this->markPersistedUserMessageCancelled($context, $turnResources);
+		if ($turnResult !== null) {
+			$this->storeModelResults($context, $turnResult);
+		}
+		$this->finalizeCancelledResult($context, $turnResult);
+
+		return [
+			'status' => AgentExecutionStatus::CANCELLED,
+			'tool_calls' => $turnResult?->getToolCalls() ?? []
+		];
+	}
+
+	private function markPersistedUserMessageCancelled(
+		IAgentContext $context,
+		?AgentAssistantTurnResources $turnResources
+	): void {
+		if (!$turnResources instanceof AgentAssistantTurnResources) {
+			return;
+		}
+
+		$messageId = trim((string)$context->getVar('agent_persisted_user_message_id'));
+		$nodeId = trim((string)$context->getVar('agent_persisted_user_message_node_id'));
+		if ($messageId === '' || $nodeId === '') {
+			return;
+		}
+
+		$this->memoryService->updateVisibleMessageMetadata(
+			$turnResources->getMemories(),
+			$nodeId,
+			$messageId,
+			['status' => AgentExecutionStatus::CANCELLED],
+			$this->logger
+		);
+	}
+
+	private function finalizeCancelledResult(
+		IAgentContext $context,
+		?AgentAssistantTurnResult $turnResult
+	): void {
+		if (!$context instanceof IAgentStateContext) {
+			return;
+		}
+
+		$previousResult = $turnResult?->getAgentResult() ?? $context->getResult();
+		$state = $previousResult?->getState() ?? $context->getState();
+		$currentExecution = $state->getExecution();
+		$execution = new AgentExecutionState(
+			status: AgentExecutionStatus::CANCELLED,
+			phase: $currentExecution?->getPhase() ?? '',
+			iteration: $currentExecution?->getIteration() ?? 0,
+			maxIterations: $currentExecution?->getMaxIterations() ?? 0,
+			callIndex: $currentExecution?->getCallIndex() ?? 0,
+			actions: $currentExecution?->getActions() ?? [],
+			actionDecisions: $currentExecution?->getActionDecisions() ?? [],
+			executedToolCalls: $currentExecution?->getExecutedToolCalls() ?? [],
+			modelResults: $turnResult?->getModelResults() ?? ($currentExecution?->getModelResults() ?? []),
+			stageTrace: $currentExecution?->getStageTrace() ?? [],
+			capabilitySelections: $currentExecution?->getCapabilitySelections() ?? [],
+			toolContractValidations: $currentExecution?->getToolContractValidations() ?? [],
+			toolCacheRecords: $currentExecution?->getToolCacheRecords() ?? [],
+			progressAssessments: $currentExecution?->getProgressAssessments() ?? []
+		);
+		$currentResultState = $state->getResult();
+		$resultState = new AgentResultState(
+			completed: false,
+			finalAssistantMessage: null,
+			finalOutputContent: '',
+			finalResponseMode: AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
+			resultVerifications: $currentResultState?->getResultVerifications() ?? [],
+			continuationDecisions: $currentResultState?->getContinuationDecisions() ?? [],
+			finalResponseInstruction: '',
+			failureCode: '',
+			failureMessage: '',
+			failureDetail: []
+		);
+		$state = $state
+			->withExecution($execution)
+			->withSuspension(new AgentSuspensionState(
+				suspended: false,
+				status: AgentExecutionStatus::CANCELLED
+			))
+			->withResult($resultState);
+		$result = new AgentResult(
+			status: AgentExecutionStatus::CANCELLED,
+			state: $state,
+			output: [],
+			metadata: $previousResult?->getMetadata() ?? []
+		);
+
+		$context->setState($state);
+		$context->finish($result);
+		$context->setVar('agent_state', $state->toArray());
+		$context->setVar('agent_result', $result->toArray());
+	}
+
+	private function isCancellationRequested(?IAgentEventSink $eventSink): bool {
+		return $eventSink !== null && $eventSink->isCancelled();
 	}
 
 	private function buildFailureFallback(AgentAssistantTurnResult $turnResult): string {

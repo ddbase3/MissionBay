@@ -30,6 +30,29 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 		}
 	}
 
+	public function testMessageMetadataCanBeUpdatedWithoutChangingMessageContent(): void {
+		$session = new SessionMemorySessionStub('test-session');
+		$resource = $this->resource($session, 'preset-main');
+		$resource->init([], $this->context('chatbot-main', 'conversation-one'));
+		$resource->appendNodeHistory('assistant', [
+			'id' => 'u1',
+			'role' => 'user',
+			'content' => 'Cancelled question'
+		]);
+
+		$this->assertTrue($resource->updateNodeHistoryMessageMetadata(
+			'assistant',
+			'u1',
+			['status' => 'cancelled', 'content' => 'must not replace']
+		));
+		$this->assertSame([[
+			'id' => 'u1',
+			'role' => 'user',
+			'content' => 'Cancelled question',
+			'status' => 'cancelled'
+		]], $resource->loadNodeHistory('assistant'));
+	}
+
 	public function testDifferentChannelsAndConversationsAreIsolated(): void {
 		$session = new SessionMemorySessionStub('test-session');
 		$main = $this->resource($session, 'preset-main');

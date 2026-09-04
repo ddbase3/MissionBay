@@ -378,9 +378,20 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
+		return $this->updateNodeHistoryMessageMetadata($nodeId, $messageId, [
+			'feedback' => $feedback
+		]);
+	}
+
+	public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool {
 		$row = $this->requireCurrentConversationRow();
 		$nodeId = $this->requireNodeId($nodeId);
 		$messageId = $this->requireMessageId($messageId);
+		unset($metadata['id'], $metadata['role'], $metadata['content']);
+		if ($metadata === []) {
+			return false;
+		}
+
 		$messageRow = $this->database->singleQuery(
 			'SELECT message_key, payload FROM ' . self::MESSAGE_TABLE
 			. ' WHERE conversation_key=' . $this->quote((string)$row['conversation_key'])
@@ -392,8 +403,10 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			return false;
 		}
 
-		$payload = $this->decodePayload($messageRow['payload'] ?? null);
-		$payload['feedback'] = $feedback;
+		$payload = array_merge(
+			$this->decodePayload($messageRow['payload'] ?? null),
+			$metadata
+		);
 		$encoded = $this->encodePayload($payload);
 		$messageKey = (string)($messageRow['message_key'] ?? '');
 		$this->database->nonQuery(
@@ -412,7 +425,13 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		}
 		$verifiedPayload = $this->decodePayload($verified['payload'] ?? null);
 
-		return array_key_exists('feedback', $verifiedPayload) && $verifiedPayload['feedback'] === $feedback;
+		foreach ($metadata as $key => $value) {
+			if (!array_key_exists($key, $verifiedPayload) || $verifiedPayload[$key] !== $value) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	public function resetNodeHistory(string $nodeId): void {

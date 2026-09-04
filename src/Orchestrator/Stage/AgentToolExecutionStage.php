@@ -18,7 +18,9 @@
 namespace MissionBay\Orchestrator\Stage;
 
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
 use AssistantFoundation\Api\IAgentStage;
+use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentStageTraceEntry;
 use AssistantFoundation\Dto\AgentToolContractValidation;
@@ -229,6 +231,24 @@ final class AgentToolExecutionStage implements IAgentStage {
 		}
 
 		foreach ($toolCalls as $call) {
+			if ($this->isCancellationRequested($context)) {
+				return AgentStageResult::patch([
+					AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
+					AgentToolLoopContextKeys::TOOL_RESULTS => $toolResults,
+					AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => $executedToolCalls,
+					AgentToolLoopContextKeys::CALL_INDEX => $callIndex,
+					AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::CANCELLED,
+					AgentToolLoopContextKeys::SUSPENDED => false,
+					AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
+					AgentToolLoopContextKeys::RESUME_HANDLE => '',
+					AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
+					AgentToolLoopContextKeys::COMPLETED => false,
+					AgentToolLoopContextKeys::FAILURE_CODE => '',
+					AgentToolLoopContextKeys::FAILURE_MESSAGE => '',
+					AgentToolLoopContextKeys::FAILURE_DETAIL => []
+				]);
+			}
+
 			$assignedCallIndex = (int)($toolCallIndexes[$call->getId()] ?? 0);
 
 			if ($assignedCallIndex > 0) {
@@ -260,6 +280,13 @@ final class AgentToolExecutionStage implements IAgentStage {
 			AgentToolLoopContextKeys::CALL_INDEX => $callIndex,
 			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
 		]);
+	}
+
+
+	private function isCancellationRequested(IAgentContext $context): bool {
+		$sink = $context->getVar(IAgentEventSink::CONTEXT_KEY);
+
+		return $sink instanceof IAgentEventSink && $sink->isCancelled();
 	}
 
 	private function hasFailure(IAgentContext $context): bool {

@@ -26,6 +26,7 @@ use MissionBay\Api\IAgentAssistantToolSetupFactory;
 use MissionBay\Api\IAgentAssistantTurnService;
 use MissionBay\Capability\AgentCapabilityDiscoveryService;
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
 use AssistantFoundation\Dto\AgentCapabilityCatalog;
 use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentResume;
@@ -35,6 +36,7 @@ use MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
 use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
 use MissionBay\Dto\Assistant\PreparedAgentResume;
+use MissionBay\Exception\AgentRunCancelledException;
 use MissionBay\Orchestrator\AgentStagePipelineResolver;
 use MissionBay\Orchestrator\AgentStateSynchronizer;
 use MissionBay\Orchestrator\AgentToolOrchestrator;
@@ -100,8 +102,11 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			contextContributorCount: count($resources->getContextContributors()),
 			resume: $resume !== null
 		);
+		$this->throwIfCancelled($context);
 
 		$historyMessages = [];
+		$context->setVar('agent_persisted_user_message_id', '');
+		$context->setVar('agent_persisted_user_message_node_id', '');
 		$userMessage = $preparedResume !== null
 			? $this->resolveResumeUserMessage($preparedResume)
 			: $this->messageFactory->createUserMessage($prompt);
@@ -119,6 +124,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				$historyMessages = $this->memoryService->buildInitialMessages('', $memories, $nodeId, $logger);
 				$prepareTiming['memory_history_ms'] = $this->durationMs($startedAt);
 				array_shift($historyMessages);
+				$this->throwIfCancelled($context);
 			}
 			$task = $this->normalizeTask($prompt, $historyMessages);
 
@@ -127,6 +133,11 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			// runtime failure in this turn.
 			if ($options->isMemoryWriteEnabled()) {
 				$this->memoryService->appendVisibleMessage($memories, $nodeId, $userMessage, $logger);
+				$messageId = trim((string)($userMessage['id'] ?? ''));
+				if ($messageId !== '') {
+					$context->setVar('agent_persisted_user_message_id', $messageId);
+					$context->setVar('agent_persisted_user_message_node_id', $nodeId);
+				}
 			}
 		}
 
@@ -171,6 +182,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$capabilityDiscovery = null;
 
 		if ($toolsEnabled) {
+			$this->throwIfCancelled($context);
 			$startedAt = hrtime(true);
 			$capabilityDiscovery = $this->capabilityDiscoveryService->discover(
 				$tools,
@@ -178,6 +190,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				$context
 			);
 			$prepareTiming['capability_discovery_ms'] = $this->durationMs($startedAt);
+			$this->throwIfCancelled($context);
 
 			foreach ($capabilityDiscovery->getErrors() as $error) {
 				$this->logError($logger, $error);
@@ -201,6 +214,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				$context
 			);
 			$prepareTiming['tool_setup_ms'] = $this->durationMs($startedAt);
+			$this->throwIfCancelled($context);
 
 			if ($toolSetup->wasProfileUnavailable()) {
 				$this->logError($logger, 'Requested profiles cannot be fulfilled. Falling back to default behavior.');
@@ -245,6 +259,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 				$logger
 			);
 			$prepareTiming['context_contribution_ms'] = $this->durationMs($startedAt);
+			$this->throwIfCancelled($context);
 
 			if ($contextMessages !== []) {
 				array_splice($messages, 1, 0, $contextMessages);
@@ -258,6 +273,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$prepareTiming['agent_message_count'] = count($messages);
 		$prepareTiming['tool_definition_count'] = count($toolDefs);
 		$context->setVar('agent_turn_prepare_timing', $prepareTiming);
+		$this->throwIfCancelled($context);
 
 		if (!$toolsEnabled) {
 			$this->storeSkippedOrchestratorContext($context, $messages, $logger);
@@ -280,6 +296,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			$options->getStageIds(),
 			$capabilityDiscovery instanceof AgentCapabilityDiscoveryResult ? $capabilityDiscovery->getStageMounts() : []
 		);
+		$this->throwIfCancelled($context);
 		$orchestrationResult = $this->orchestrator->run(
 			$model,
 			$messages,
@@ -304,7 +321,7 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		$this->storeOrchestratorContext($context, $orchestrationResult, $logger);
 
 		$fallbackContent = null;
-		if (!$orchestrationResult->isCompleted() && !$orchestrationResult->isSuspended()) {
+		if (!$orchestrationResult->isCompleted() && !$orchestrationResult->isSuspended() && !$orchestrationResult->isCancelled()) {
 			$this->logError($logger, 'Tool phase did not complete: ' . $orchestrationResult->getFailureCode() . ' ' . $orchestrationResult->getFailureMessage());
 			$fallbackContent = $this->fallbackBuilder->build($orchestrationResult);
 		}
@@ -320,6 +337,13 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 			completed: $orchestrationResult->isCompleted(),
 			fallbackContent: $fallbackContent
 		);
+	}
+
+	private function throwIfCancelled(IAgentContext $context): void {
+		$eventSink = $context->getVar(IAgentEventSink::CONTEXT_KEY);
+		if ($eventSink instanceof IAgentEventSink && $eventSink->isCancelled()) {
+			throw new AgentRunCancelledException();
+		}
 	}
 
 	private function applyTurnContext(IAgentContext $context, string $assistantMessageId, ?ILogger $logger): string {

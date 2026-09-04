@@ -17,6 +17,7 @@
 
 namespace MissionBay\Service\Assistant;
 
+use AssistantFoundation\Dto\AgentExecutionStatus;
 use MissionBay\Api\IAgentAssistantMessageFactory;
 
 final class AgentAssistantMessageFactory implements IAgentAssistantMessageFactory {
@@ -68,6 +69,10 @@ final class AgentAssistantMessageFactory implements IAgentAssistantMessageFactor
 
 	public function isVisibleHistoryEntry(mixed $entry): bool {
 		if (!is_array($entry) || !isset($entry['role'])) {
+			return false;
+		}
+
+		if (strtolower(trim((string)($entry['status'] ?? ''))) === AgentExecutionStatus::CANCELLED) {
 			return false;
 		}
 

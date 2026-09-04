@@ -121,6 +121,16 @@ final class SuggestionsMemoryServiceDouble implements IAgentAssistantMemoryServi
 		$this->appendCalls++;
 	}
 
+	public function updateVisibleMessageMetadata(
+		array $memories,
+		string $nodeId,
+		string $messageId,
+		array $metadata,
+		?ILogger $logger = null
+	): bool {
+		return false;
+	}
+
 	public function getAppendCalls(): int {
 		return $this->appendCalls;
 	}

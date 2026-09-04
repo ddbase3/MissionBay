@@ -18,6 +18,7 @@
 namespace MissionBay\Orchestrator;
 
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
 use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Api\IAiChatModel;
 use AssistantFoundation\Dto\AgentAction;
@@ -159,11 +160,13 @@ class AgentToolOrchestrator {
 			$modelDecisionConfig ?? AgentModelDecisionConfig::simple()
 		);
 		$this->stateSynchronizer->synchronize($context);
+		$this->applyCancellationIfRequested($context);
 
 		$resumePending = $resume !== null;
 
 		try {
-			if ($resumePending) {
+			$this->applyCancellationIfRequested($context);
+			if ($resumePending && !$this->isCancelled($context)) {
 				if ($this->actionResumeService === null) {
 					throw new \RuntimeException(
 						'Agent resume requires an AgentActionResumeService implementation.'
@@ -178,8 +181,14 @@ class AgentToolOrchestrator {
 				($resumePending || $this->getInt($context, AgentToolLoopContextKeys::ITERATION) < $maxLoops) &&
 				!$this->isCompleted($context) &&
 				!$this->isSuspended($context) &&
+				!$this->isCancelled($context) &&
 				!$this->hasFailure($context)
 			) {
+				$this->applyCancellationIfRequested($context);
+				if ($this->isCancelled($context)) {
+					break;
+				}
+
 				if ($resumePending) {
 					$resumePending = false;
 				} else {
@@ -196,7 +205,8 @@ class AgentToolOrchestrator {
 				}
 
 				foreach ($effectiveStages as $stage) {
-					if ($this->hasFailure($context) || $this->isSuspended($context)) {
+					$this->applyCancellationIfRequested($context);
+					if ($this->hasFailure($context) || $this->isSuspended($context) || $this->isCancelled($context)) {
 						break;
 					}
 
@@ -215,6 +225,7 @@ class AgentToolOrchestrator {
 				if (
 					$context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_FINAL
 					&& !$this->hasFailure($context)
+					&& !$this->isCancelled($context)
 				) {
 					$this->applyStageResult(
 						$context,
@@ -223,7 +234,7 @@ class AgentToolOrchestrator {
 				}
 			}
 
-			if (!$this->isCompleted($context) && !$this->isSuspended($context) && !$this->hasFailure($context)) {
+			if (!$this->isCompleted($context) && !$this->isSuspended($context) && !$this->isCancelled($context) && !$this->hasFailure($context)) {
 				$this->logError($effectiveLogger, 'Tool phase stopped due to max loop limit: ' . $maxLoops . '.');
 
 				$this->applyStageResult($context, AgentStageResult::patch([
@@ -556,6 +567,7 @@ class AgentToolOrchestrator {
 			$context->setVar($key, $value);
 		}
 
+		$this->applyCancellationIfRequested($context);
 		$this->stateSynchronizer->synchronize($context);
 	}
 
@@ -663,6 +675,10 @@ class AgentToolOrchestrator {
 		return $context->getVar(AgentToolLoopContextKeys::SUSPENDED) === true;
 	}
 
+	private function isCancelled(IAgentContext $context): bool {
+		return $context->getVar(AgentToolLoopContextKeys::EXECUTION_STATUS) === AgentExecutionStatus::CANCELLED;
+	}
+
 	private function hasFailure(IAgentContext $context): bool {
 		return (string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '') !== '';
 	}
@@ -673,6 +689,9 @@ class AgentToolOrchestrator {
 
 	private function resolveExecutionStatus(IAgentContext $context): string {
 		$status = (string)($context->getVar(AgentToolLoopContextKeys::EXECUTION_STATUS) ?? '');
+		if ($status === AgentExecutionStatus::CANCELLED) {
+			return AgentExecutionStatus::CANCELLED;
+		}
 		if (AgentExecutionStatus::isSuspended($status)) {
 			return $status;
 		}
@@ -684,6 +703,31 @@ class AgentToolOrchestrator {
 		return $this->isCompleted($context)
 			? AgentExecutionStatus::COMPLETED
 			: AgentExecutionStatus::RUNNING;
+	}
+
+
+	private function applyCancellationIfRequested(IAgentContext $context): void {
+		if ($this->isCancelled($context) || !$this->isCancellationRequested($context)) {
+			return;
+		}
+
+		$context->setVar(AgentToolLoopContextKeys::EXECUTION_STATUS, AgentExecutionStatus::CANCELLED);
+		$context->setVar(AgentToolLoopContextKeys::SUSPENDED, false);
+		$context->setVar(AgentToolLoopContextKeys::INTERACTION_REQUESTS, []);
+		$context->setVar(AgentToolLoopContextKeys::SUSPENSION, null);
+		$context->setVar(AgentToolLoopContextKeys::RESUME_HANDLE, '');
+		$context->setVar(AgentToolLoopContextKeys::PENDING_TOOL_CALLS, []);
+		$context->setVar(AgentToolLoopContextKeys::FINAL_RESPONSE_MODE, AgentToolLoopContextKeys::FINAL_RESPONSE_NONE);
+		$context->setVar(AgentToolLoopContextKeys::COMPLETED, false);
+		$context->setVar(AgentToolLoopContextKeys::FAILURE_CODE, '');
+		$context->setVar(AgentToolLoopContextKeys::FAILURE_MESSAGE, '');
+		$context->setVar(AgentToolLoopContextKeys::FAILURE_DETAIL, []);
+	}
+
+	private function isCancellationRequested(IAgentContext $context): bool {
+		$sink = $context->getVar(IAgentEventSink::CONTEXT_KEY);
+
+		return $sink instanceof IAgentEventSink && $sink->isCancelled();
 	}
 
 	private function restoreSuspensionState(IAgentContext $context, AgentSuspension $suspension): void {

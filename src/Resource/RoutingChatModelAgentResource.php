@@ -24,6 +24,7 @@ use Base3\Logger\Api\ILogger;
 use MissionBay\Agent\AgentNodeDock;
 use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentConfigValueResolver;
+use MissionBay\Exception\AgentRunCancelledException;
 use MissionBay\Api\IAgentResource;
 
 /**
@@ -379,6 +380,9 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 					$this->resetHealth($selected);
 					return $res;
 				} catch (\Throwable $e) {
+					if ($e instanceof AgentRunCancelledException) {
+						throw $e;
+					}
 					$this->markFailure($selected, $op, $e);
 				}
 			}
@@ -409,6 +413,9 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 				return $res;
 
 			} catch (\Throwable $e) {
+				if ($e instanceof AgentRunCancelledException) {
+					throw $e;
+				}
 				$lastError = $e;
 				$this->markFailure($idx, $op, $e);
 				continue;

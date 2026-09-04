@@ -300,6 +300,12 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
+		return $this->updateNodeHistoryMessageMetadata($nodeId, $messageId, [
+			'feedback' => $feedback
+		]);
+	}
+
+	public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool {
 		$conversation = $this->requireCurrentConversation();
 		$nodeId = $this->requireNodeId($nodeId);
 		$channel = $this->channel();
@@ -308,11 +314,16 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 			return false;
 		}
 
+		unset($metadata['id'], $metadata['role'], $metadata['content']);
+		if ($metadata === []) {
+			return false;
+		}
+
 		foreach ($history as &$entry) {
 			if (!is_array($entry) || (string)($entry['id'] ?? '') !== $messageId) {
 				continue;
 			}
-			$entry['feedback'] = $feedback;
+			$entry = array_merge($entry, $metadata);
 			unset($entry);
 			$channel['conversations'][$conversation->getId()]['nodes'][$nodeId] = $history;
 			$channel['conversations'][$conversation->getId()]['updated_at'] = $this->now();

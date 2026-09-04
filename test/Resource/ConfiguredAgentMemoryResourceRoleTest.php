@@ -50,6 +50,7 @@ final class ConfiguredAgentMemoryResourceRoleTest extends TestCase {
 			public function appendNodeHistory(string $nodeId, array $message): void {}
 			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool { return false; }
 			public function resetNodeHistory(string $nodeId): void {}
+			public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
 			public function getPriority(): int { return 100; }
 		};
 
@@ -85,5 +86,6 @@ final class ConfiguredMemoryTestStub implements IAgentConversationMemory {
 	public function appendNodeHistory(string $nodeId, array $message): void { $this->writes++; }
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool { return true; }
 	public function resetNodeHistory(string $nodeId): void {}
+	public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
 	public function getPriority(): int { return 15; }
 }

@@ -74,6 +74,30 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$this->assertSame(0, $database->errorStateCalls);
 	}
 
+	public function testMessageMetadataCanBeUpdatedWithoutChangingMessageContent(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$resource->init([], $this->context('chatbot-main'));
+		$resource->createConversation('conversation-one');
+		$resource->appendNodeHistory('assistant', [
+			'id' => 'message-one',
+			'role' => 'user',
+			'content' => 'Cancelled question'
+		]);
+
+		$this->assertTrue($resource->updateNodeHistoryMessageMetadata(
+			'assistant',
+			'message-one',
+			['status' => 'cancelled', 'content' => 'must not replace']
+		));
+		$this->assertSame([[
+			'id' => 'message-one',
+			'role' => 'user',
+			'content' => 'Cancelled question',
+			'status' => 'cancelled'
+		]], $resource->loadNodeHistory('assistant'));
+	}
+
 	public function testManualTitleIsNotOverwrittenAndDeleteRemovesConversation(): void {
 		$database = new ConversationDatabaseStub();
 		$resource = $this->resource($database, null, 'session-one');

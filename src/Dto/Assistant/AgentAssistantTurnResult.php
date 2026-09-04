@@ -130,6 +130,10 @@ final class AgentAssistantTurnResult {
 		return $this->orchestrationResult?->isSuspended() ?? false;
 	}
 
+	public function isCancelled(): bool {
+		return $this->getExecutionStatus() === AgentExecutionStatus::CANCELLED;
+	}
+
 	/** @return array<int,AgentInteractionRequest> */
 	public function getInteractionRequests(): array {
 		return $this->orchestrationResult?->getInteractionRequests() ?? [];

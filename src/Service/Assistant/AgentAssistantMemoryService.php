@@ -17,6 +17,7 @@
 
 namespace MissionBay\Service\Assistant;
 
+use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Api\IAgentMemory;
 use Base3\Logger\Api\ILogger;
 use MissionBay\Api\IAgentAssistantMemoryService;
@@ -86,6 +87,31 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 		}
 	}
 
+	public function updateVisibleMessageMetadata(
+		array $memories,
+		string $nodeId,
+		string $messageId,
+		array $metadata,
+		?ILogger $logger = null
+	): bool {
+		$updated = false;
+		foreach ($memories as $memory) {
+			if (!$memory instanceof IAgentConversationMemory || !$this->roleResolver->isConversationMemory($memory)) {
+				continue;
+			}
+
+			$updated = $this->safeUpdateMessageMetadata(
+				$memory,
+				$nodeId,
+				$messageId,
+				$metadata,
+				$logger
+			) || $updated;
+		}
+
+		return $updated;
+	}
+
 	/**
 	 * @param array<int,IAgentMemory> $memories
 	 * @return array<int,IAgentMemory>
@@ -131,6 +157,22 @@ final class AgentAssistantMemoryService implements IAgentAssistantMemoryService 
 		}
 		catch (\Throwable $e) {
 			$this->logError($logger, 'Conversation memory appendNodeHistory failed for ' . $memory::class . ': ' . $e->getMessage());
+		}
+	}
+
+	private function safeUpdateMessageMetadata(
+		IAgentConversationMemory $memory,
+		string $nodeId,
+		string $messageId,
+		array $metadata,
+		?ILogger $logger
+	): bool {
+		try {
+			return $memory->updateNodeHistoryMessageMetadata($nodeId, $messageId, $metadata);
+		}
+		catch (\Throwable $e) {
+			$this->logError($logger, 'Conversation memory updateNodeHistoryMessageMetadata failed for ' . $memory::class . ': ' . $e->getMessage());
+			return false;
 		}
 	}
 

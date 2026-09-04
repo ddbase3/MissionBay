@@ -135,6 +135,12 @@ class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAg
 			: false;
 	}
 
+	public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool {
+		return $this->canWrite()
+			? $this->requireMemory()->updateNodeHistoryMessageMetadata($nodeId, $messageId, $metadata)
+			: false;
+	}
+
 	public function resetNodeHistory(string $nodeId): void {
 		if ($this->canWrite()) {
 			$this->requireMemory()->resetNodeHistory($nodeId);

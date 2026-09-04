@@ -54,6 +54,7 @@ final class AgentMemorySeparationTest extends TestCase {
 			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
 				return false;
 			}
+			public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
 
 			public function resetNodeHistory(string $nodeId): void {
 			}
@@ -86,6 +87,7 @@ final class AgentMemorySeparationTest extends TestCase {
 			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
 				return false;
 			}
+			public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
 
 			public function resetNodeHistory(string $nodeId): void {
 			}
@@ -133,6 +135,7 @@ final class AgentMemorySeparationTest extends TestCase {
 			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
 				return false;
 			}
+			public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
 
 			public function resetNodeHistory(string $nodeId): void {
 			}

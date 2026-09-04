@@ -40,4 +40,16 @@ interface IAgentAssistantMemoryService {
 	 * @param array<string,mixed> $message
 	 */
 	public function appendVisibleMessage(array $memories, string $nodeId, array $message, ?ILogger $logger = null): void;
+
+	/**
+	 * @param array<int,IAgentMemory> $memories
+	 * @param array<string,mixed> $metadata
+	 */
+	public function updateVisibleMessageMetadata(
+		array $memories,
+		string $nodeId,
+		string $messageId,
+		array $metadata,
+		?ILogger $logger = null
+	): bool;
 }

@@ -7,9 +7,12 @@
 namespace MissionBay\Orchestrator\Decision;
 
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
+use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentStageResult;
 use MissionBay\Api\IAgentModelDecisionStrategy;
 use MissionBay\Dto\Assistant\AgentExecutionLedger;
+use MissionBay\Exception\AgentRunCancelledException;
 use MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
 use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
@@ -63,12 +66,19 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 			? AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_STREAMED
 			: AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_BUFFERED;
 
+		if ($this->isCancellationRequested($context)) {
+			return $this->cancelledResult($runtime['model_results'], $publishedContent, $delivery);
+		}
+
 		try {
 			$result = $this->streamModel(
 				$runtime['model'],
 				$messages,
 				$modelToolDefinitions,
-				function(string $delta) use (&$receivedContent, &$publishedContent, &$toolCallObserved, $liveDelivery, $runtime): void {
+				function(string $delta) use (&$receivedContent, &$publishedContent, &$toolCallObserved, $liveDelivery, $runtime, $context): void {
+					if ($this->isCancellationRequested($context)) {
+						throw new AgentRunCancelledException();
+					}
 					$receivedContent .= $delta;
 					if (!$liveDelivery || $toolCallObserved) {
 						return;
@@ -76,14 +86,23 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 					$publishedContent .= $delta;
 					$this->emitEvent($runtime['event_callback'], 'token', ['text' => $delta]);
 				},
-				function(array $meta) use (&$toolCallObserved, $runtime): void {
+				function(array $meta) use (&$toolCallObserved, $runtime, $context): void {
+					if ($this->isCancellationRequested($context)) {
+						throw new AgentRunCancelledException();
+					}
 					$toolCallObserved = $toolCallObserved || $this->containsToolCallMetadata($meta);
 					$this->emitEvent($runtime['event_callback'], 'meta', $meta);
 				},
 				$runtime['model_results']
 			);
 		}
+		catch (AgentRunCancelledException $e) {
+			return $this->cancelledResult($runtime['model_results'], $publishedContent, $delivery);
+		}
 		catch (\Throwable $e) {
+			if ($this->isCancellationRequested($context)) {
+				return $this->cancelledResult($runtime['model_results'], $publishedContent, $delivery);
+			}
 			$this->logError($runtime['logger'], 'Native model stream failed: ' . $e->getMessage());
 
 			if ($publishedContent !== '') {
@@ -112,6 +131,10 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 			}
 
 			return $this->recoverModelFailure($context, $e, $runtime['model_results']);
+		}
+
+		if ($this->isCancellationRequested($context)) {
+			return $this->cancelledResult($runtime['model_results'], $publishedContent, $delivery);
 		}
 
 		$toolCalls = $result->getToolCalls();
@@ -177,6 +200,34 @@ final class NativeAgentModelDecisionStrategy extends AbstractAgentModelDecisionS
 			finalOutputContent: $content,
 			finalOutputDelivery: $delivery
 		);
+	}
+
+
+	/** @param array<int,array<string,mixed>> $modelResults */
+	private function cancelledResult(array $modelResults, string $publishedContent, string $delivery): AgentStageResult {
+		return AgentStageResult::patch([
+			AgentToolLoopContextKeys::MODEL_RESULTS => $modelResults,
+			AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT => $publishedContent,
+			AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY => $publishedContent !== ''
+				? $delivery
+				: AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_NONE,
+			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
+			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::CANCELLED,
+			AgentToolLoopContextKeys::SUSPENDED => false,
+			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
+			AgentToolLoopContextKeys::RESUME_HANDLE => '',
+			AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::FAILURE_CODE => '',
+			AgentToolLoopContextKeys::FAILURE_MESSAGE => '',
+			AgentToolLoopContextKeys::FAILURE_DETAIL => []
+		]);
+	}
+
+	private function isCancellationRequested(IAgentContext $context): bool {
+		$sink = $context->getVar(IAgentEventSink::CONTEXT_KEY);
+
+		return $sink instanceof IAgentEventSink && $sink->isCancelled();
 	}
 
 	/** @param array<int,array<string,mixed>> $toolDefinitions */

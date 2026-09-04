@@ -216,7 +216,7 @@ class AgentToolOrchestratorResult {
 	}
 
 	public function canGenerateFinalResponse(): bool {
-		if ($this->isSuspended()) {
+		if ($this->isSuspended() || $this->isCancelled()) {
 			return false;
 		}
 
@@ -372,6 +372,10 @@ class AgentToolOrchestratorResult {
 
 	public function isSuspended(): bool {
 		return AgentExecutionStatus::isSuspended($this->executionStatus);
+	}
+
+	public function isCancelled(): bool {
+		return $this->executionStatus === AgentExecutionStatus::CANCELLED;
 	}
 
 	public function isAwaitingApproval(): bool {

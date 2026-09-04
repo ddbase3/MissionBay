@@ -18,6 +18,7 @@
 namespace MissionBay\Orchestrator\Service;
 
 use AssistantFoundation\Api\IAgentContext;
+use AssistantFoundation\Api\IAgentEventSink;
 use AssistantFoundation\Api\IAgentSuspensionRepository;
 use AssistantFoundation\Dto\AgentAction;
 use AssistantFoundation\Dto\AgentActionReview;
@@ -26,6 +27,8 @@ use AssistantFoundation\Dto\AgentExecutionStatus;
 use AssistantFoundation\Dto\AgentInteractionRequest;
 use AssistantFoundation\Dto\AgentStageResult;
 use AssistantFoundation\Dto\AgentSuspension;
+use AssistantFoundation\Dto\AgentSuspensionClaim;
+use AssistantFoundation\Dto\AgentSuspensionResolution;
 use AssistantFoundation\Dto\AgentSuspensionScope;
 use AssistantFoundation\Dto\AgentToolResult;
 use AssistantFoundation\Dto\AiToolCall;
@@ -57,6 +60,10 @@ final class AgentActionReviewService {
 	}
 
 	public function review(IAgentContext $context, array $projectedPatch = []): AgentStageResult {
+		if ($this->isCancellationRequested($context)) {
+			return $this->cancelled($projectedPatch);
+		}
+
 		$candidates = $projectedPatch[AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES]
 			?? $context->getVar(AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES);
 		if (!is_array($candidates) || $candidates === []) {
@@ -202,6 +209,10 @@ final class AgentActionReviewService {
 			scopeId: $scopeId !== '' ? $scopeId : $suspensionId
 		);
 
+		if ($this->isCancellationRequested($context)) {
+			return $this->cancelled($projectedPatch);
+		}
+
 		try {
 			$resumeHandle = $this->suspensionRepository->create($suspension, $this->suspensionTtlSeconds);
 		} catch (AgentSuspensionRepositoryException $e) {
@@ -216,6 +227,11 @@ final class AgentActionReviewService {
 				'Agent suspension could not be persisted.',
 				['type' => get_class($e), 'message' => $e->getMessage()]
 			);
+		}
+
+		if ($this->isCancellationRequested($context)) {
+			$this->consumeCancelledSuspension($resumeHandle);
+			return $this->cancelled($projectedPatch);
 		}
 
 		foreach ($requests as $request) {
@@ -252,6 +268,28 @@ final class AgentActionReviewService {
 			'preflight_rejection_count' => $preflightRejectionCount,
 			'ttl_seconds' => $this->suspensionTtlSeconds
 		]);
+	}
+
+	private function consumeCancelledSuspension(string $resumeHandle): void {
+		$claim = $this->suspensionRepository->claim($resumeHandle);
+		try {
+			$this->suspensionRepository->consume(
+				$claim,
+				new AgentSuspensionResolution([], 'user_cancellation', gmdate('c'))
+			);
+		}
+		catch (\Throwable $exception) {
+			$this->releaseCancellationClaim($claim);
+			throw $exception;
+		}
+	}
+
+	private function releaseCancellationClaim(AgentSuspensionClaim $claim): void {
+		try {
+			$this->suspensionRepository->release($claim);
+		}
+		catch (\Throwable) {
+		}
 	}
 
 	private function createPreflightRejectedResult(
@@ -519,6 +557,31 @@ final class AgentActionReviewService {
 			}
 		}
 		return $result;
+	}
+
+
+	/** @param array<string,mixed> $projectedPatch */
+	private function cancelled(array $projectedPatch): AgentStageResult {
+		return AgentStageResult::patch(array_merge($projectedPatch, [
+			AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES => [],
+			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
+			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME_HANDLE => '',
+			AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
+			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::CANCELLED,
+			AgentToolLoopContextKeys::SUSPENDED => false,
+			AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
+			AgentToolLoopContextKeys::COMPLETED => false,
+			AgentToolLoopContextKeys::FAILURE_CODE => '',
+			AgentToolLoopContextKeys::FAILURE_MESSAGE => '',
+			AgentToolLoopContextKeys::FAILURE_DETAIL => []
+		]));
+	}
+
+	private function isCancellationRequested(IAgentContext $context): bool {
+		$sink = $context->getVar(IAgentEventSink::CONTEXT_KEY);
+
+		return $sink instanceof IAgentEventSink && $sink->isCancelled();
 	}
 
 	private function createSuspensionId(): string {
