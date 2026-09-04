@@ -218,7 +218,7 @@ final class AgentOrchestratorProfileRepository {
 				'description' => 'Neuron-like native tool loop with AI-selected complete tool sources for large capability catalogs and direct terminal streaming.',
 				'enabled' => true,
 				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
-				'max_tool_loops' => 10,
+				'max_tool_loops' => 24,
 				'model_decision' => AgentModelDecisionConfig::native()->toArray(),
 				'optional_stages' => [
 					'capability-discovery' => true,
@@ -231,7 +231,7 @@ final class AgentOrchestratorProfileRepository {
 					'enabled' => true,
 					'strategy' => 'hybrid',
 					'max_tools' => 16,
-					'max_sources' => 8,
+					'max_sources' => 16,
 					'selection_unit' => AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
 					'select_all_threshold' => 12,
 					'semantic_candidate_tools' => 64,
