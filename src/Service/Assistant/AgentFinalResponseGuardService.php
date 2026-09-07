@@ -77,10 +77,12 @@ final class AgentFinalResponseGuardService {
 					'Do not answer the original task and do not call any external tool.',
 					'Call the supplied verdict function exactly once.',
 					'Validate every mutation-related claim in the draft against the ledger, including turns that contain successful mutation calls.',
-					'Use verdict=replace when the draft states or implies an action succeeded, a post-condition is verified, or a current state is established beyond what the corresponding successful_mutation_calls result actually supports.',
+					'A successful mutation call is authoritative execution proof for every fact explicitly returned by its result. Do not require a follow-up query before stating such command outcomes.',
+					'For example, removed=true or status=removed supports saying that the requested removal succeeded, and added=true or status=added supports saying that the requested addition succeeded. These are execution-result claims, not claims of independent post-condition verification.',
+					'Use verdict=replace only when the draft goes beyond the corresponding successful_mutation_calls result, for example by claiming independent verification, a broader current state, or another successful action that the returned evidence does not establish.',
 					'For multiple requested mutations, validate each claimed outcome individually. One successful call does not prove that other requested changes succeeded.',
 					'Approval, intent, prior assistant statements, attempted calls, failed calls, and cached mutation results are not execution proof.',
-					'Use verdict=accept only when every mutation-related claim is supported by the authoritative ledger and the draft does not overstate verification.',
+					'Use verdict=accept when every mutation-related claim is supported by the authoritative ledger. A separate read-back verification is not required for claims that merely restate the successful mutation result, as long as the draft does not claim independent verification.',
 					'When replacing, write a concise safe response in the same language as the draft and preserve useful non-conflicting information.'
 				])
 			],
