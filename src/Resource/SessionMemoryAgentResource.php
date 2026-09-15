@@ -40,13 +40,14 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	private const CHUNK_KEY_PREFIX = 'base3_missionbay_conversation_memory_chunk_';
 	private const FORMAT = 'php-serialize-base64-v2';
 	private const CHUNK_SIZE = 700;
+	private const MAX_CHUNKS = 10000;
 
 	private ?ILogger $logger = null;
 	private ?AgentConversationScope $scope = null;
 	private string $namespace = 'default';
 	private int $max = 20;
-	private int $maxConversations = 50;
 	private int $priority = 80;
+	private bool $trimHistory = false;
 
 	public function __construct(
 		private readonly ISession $session,
@@ -77,15 +78,14 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 				],
 				'max' => [
 					'type' => 'integer',
-					'description' => 'Maximum number of visible messages stored per conversation and node.',
+					'description' => 'Maximum number of visible messages retained per conversation and node when trimming is enabled.',
 					'default' => 20,
 					'minimum' => 2
 				],
-				'max_conversations' => [
-					'type' => 'integer',
-					'description' => 'Maximum number of conversations stored per owner and channel.',
-					'default' => 50,
-					'minimum' => 1
+				'trim' => [
+					'type' => 'boolean',
+					'description' => 'Whether node history is trimmed to the configured maximum.',
+					'default' => false
 				],
 				'priority' => [
 					'type' => 'integer',
@@ -115,8 +115,8 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$namespace = trim((string)($this->resolver->resolveValue($config['namespace'] ?? null) ?? 'default'));
 		$this->namespace = $namespace !== '' ? $namespace : 'default';
 		$this->max = max(2, (int)($this->resolver->resolveValue($config['max'] ?? null) ?? 20));
-		$this->maxConversations = max(1, (int)($this->resolver->resolveValue($config['max_conversations'] ?? null) ?? 50));
 		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 80);
+		$this->trimHistory = $this->toBool($this->resolver->resolveValue($config['trim'] ?? null), false);
 	}
 
 	public function init(array $resources, IAgentContext $context): void {
@@ -131,7 +131,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	public function bindConversationScope(AgentConversationScope $scope): void {
 		$this->scope = $scope;
-		$this->ensureChannel();
 
 		if ($scope->hasConversationId()) {
 			$conversation = $this->getConversation($scope->getConversationId());
@@ -158,7 +157,9 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 		usort($conversations, static function(AgentConversation $left, AgentConversation $right): int {
 			$result = strcmp($right->getLastActiveAt(), $left->getLastActiveAt());
-			return $result !== 0 ? $result : strcmp($right->getCreatedAt(), $left->getCreatedAt());
+			if ($result !== 0) return $result;
+			$result = strcmp($right->getCreatedAt(), $left->getCreatedAt());
+			return $result !== 0 ? $result : strcmp($right->getId(), $left->getId());
 		});
 
 		return $conversations;
@@ -182,14 +183,11 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		string $openingMessage = ''
 	): AgentConversation {
 		$conversationId = $conversationId === null || trim($conversationId) === ''
-			? $this->createTechnicalId('conversation')
+			? $this->createPublicId('conversation')
 			: $this->requireConversationId($conversationId);
 
 		if ($this->getConversation($conversationId) !== null) {
 			throw new \RuntimeException('Conversation already exists: ' . $conversationId);
-		}
-		if (count($this->listConversations()) >= $this->maxConversations) {
-			throw new \RuntimeException('Conversation limit reached for this session channel.');
 		}
 
 		$now = $this->now();
@@ -235,9 +233,12 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		}
 
 		$channel = $this->channel();
-		$channel['conversations'][$conversationId]['title'] = $this->normalizeTitle($title);
-		$channel['conversations'][$conversationId]['title_source'] = $titleSource;
-		$channel['conversations'][$conversationId]['updated_at'] = $this->now();
+		$row = $channel['conversations'][$conversationId];
+		$row['title'] = $this->normalizeTitle($title);
+		$row['title_source'] = $titleSource;
+		$row['updated_at'] = $this->now();
+		AgentConversation::fromArray($row);
+		$channel['conversations'][$conversationId] = $row;
 		$this->setChannel($channel);
 
 		return $this->requireConversation($conversationId);
@@ -286,17 +287,38 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	public function appendNodeHistory(string $nodeId, array $message): void {
 		$conversation = $this->requireCurrentConversation();
 		$nodeId = $this->requireNodeId($nodeId);
+		$messageId = $this->normalizeMessageId($message['id'] ?? null);
+		$role = trim((string)($message['role'] ?? ''));
+		$content = (string)($message['content'] ?? '');
+		$extra = $message;
+		unset($extra['id'], $extra['role'], $extra['content']);
+
 		$channel = $this->channel();
 		$history = $channel['conversations'][$conversation->getId()]['nodes'][$nodeId] ?? [];
 		$history = is_array($history) ? array_values($history) : [];
-		$history[] = $message;
+		foreach ($history as $entry) {
+			if (is_array($entry) && (string)($entry['id'] ?? '') === $messageId) {
+				throw new \RuntimeException('Conversation message already exists: ' . $messageId);
+			}
+		}
+
+		$storedMessage = [
+			'id' => $messageId,
+			'role' => $role,
+			'content' => $content
+		];
+		if ($extra !== []) {
+			$storedMessage = array_merge($storedMessage, $extra);
+		}
+		$history[] = $storedMessage;
 		$this->trimNodeHistory($history);
+
 		$now = $this->now();
 		$channel['conversations'][$conversation->getId()]['nodes'][$nodeId] = $history;
 		$channel['conversations'][$conversation->getId()]['updated_at'] = $now;
 		$channel['conversations'][$conversation->getId()]['last_active_at'] = $now;
 		$this->setChannel($channel);
-		$this->log('appended message for ' . $nodeId);
+		$this->log('appended message for ' . $nodeId . ' (message_id=' . $messageId . ')');
 	}
 
 	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
@@ -308,6 +330,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool {
 		$conversation = $this->requireCurrentConversation();
 		$nodeId = $this->requireNodeId($nodeId);
+		$messageId = $this->requireMessageId($messageId);
 		$channel = $this->channel();
 		$history = $channel['conversations'][$conversation->getId()]['nodes'][$nodeId] ?? null;
 		if (!is_array($history)) {
@@ -326,7 +349,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 			$entry = array_merge($entry, $metadata);
 			unset($entry);
 			$channel['conversations'][$conversation->getId()]['nodes'][$nodeId] = $history;
-			$channel['conversations'][$conversation->getId()]['updated_at'] = $this->now();
 			$this->setChannel($channel);
 			return true;
 		}
@@ -340,7 +362,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$nodeId = $this->requireNodeId($nodeId);
 		$channel = $this->channel();
 		unset($channel['conversations'][$conversation->getId()]['nodes'][$nodeId]);
-		$channel['conversations'][$conversation->getId()]['updated_at'] = $this->now();
 		$this->setChannel($channel);
 		$this->log('reset history for ' . $nodeId);
 	}
@@ -356,10 +377,19 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		}
 
 		return new AgentConversationScope(
-			hash('sha256', 'session:' . $this->session->getId()),
+			$this->resolveOwnerKey(),
 			$channelId,
 			$this->contextString($context, 'conversation_id')
 		);
+	}
+
+	private function resolveOwnerKey(): string {
+		$sessionId = trim($this->session->getId());
+		if ($sessionId === '') {
+			throw new \RuntimeException('Session conversation memory requires a session identity.');
+		}
+
+		return hash('sha256', 'session:' . $sessionId);
 	}
 
 	private function contextString(IAgentContext $context, string $key): string {
@@ -401,30 +431,20 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		}
 	}
 
-	private function ensureChannel(): void {
-		$store = $this->readStore();
-		$key = $this->channelKey();
-		if (is_array($store['channels'][$key] ?? null)) {
-			return;
+	/** @return array<string,mixed> */
+	private function channel(): array {
+		$channel = $this->readStore()['channels'][$this->channelKey()] ?? null;
+		if (is_array($channel)) {
+			return $channel;
 		}
 
 		$scope = $this->requireScope();
-		$store['channels'][$key] = [
+		return [
 			'namespace' => $this->namespace,
-			'resource_id' => $this->id(),
 			'owner_key' => $scope->getOwnerKey(),
 			'channel_id' => $scope->getChannelId(),
 			'conversations' => []
 		];
-		$this->writeStore($store);
-	}
-
-	/** @return array<string,mixed> */
-	private function channel(): array {
-		$this->ensureChannel();
-		$channel = $this->readStore()['channels'][$this->channelKey()] ?? [];
-
-		return is_array($channel) ? $channel : [];
 	}
 
 	/** @param array<string,mixed> $channel */
@@ -439,7 +459,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 		return hash('sha256', implode('|', [
 			$this->namespace,
-			$this->id(),
 			$scope->getOwnerKey(),
 			$scope->getChannelId()
 		]));
@@ -447,32 +466,41 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	/** @return array<string,mixed> */
 	private function readStore(): array {
-		if ($this->session->get(self::FORMAT_KEY) !== self::FORMAT) {
+		$hasFormat = $this->session->has(self::FORMAT_KEY);
+		$hasChunkCount = $this->session->has(self::CHUNK_COUNT_KEY);
+		if (!$hasFormat && !$hasChunkCount) {
 			return ['channels' => []];
 		}
+		if (!$hasFormat || !$hasChunkCount || $this->session->get(self::FORMAT_KEY) !== self::FORMAT) {
+			throw new \RuntimeException('Session conversation memory contains an invalid store format.');
+		}
 
-		$count = (int)$this->session->get(self::CHUNK_COUNT_KEY, 0);
-		if ($count < 1 || $count > 10000) {
-			return ['channels' => []];
+		$countValue = $this->session->get(self::CHUNK_COUNT_KEY);
+		if (!is_int($countValue) && !(is_string($countValue) && ctype_digit($countValue))) {
+			throw new \RuntimeException('Session conversation memory contains an invalid chunk count.');
+		}
+		$count = (int)$countValue;
+		if ($count < 1 || $count > self::MAX_CHUNKS) {
+			throw new \RuntimeException('Session conversation memory contains an invalid chunk count.');
 		}
 
 		$encoded = '';
 		for ($index = 0; $index < $count; $index++) {
 			$chunk = $this->session->get($this->chunkKey($index));
 			if (!is_string($chunk)) {
-				return ['channels' => []];
+				throw new \RuntimeException('Session conversation memory contains an incomplete store.');
 			}
 			$encoded .= $chunk;
 		}
 
 		$serialized = base64_decode($encoded, true);
 		if (!is_string($serialized)) {
-			return ['channels' => []];
+			throw new \RuntimeException('Session conversation memory contains invalid encoded data.');
 		}
 
 		$store = @unserialize($serialized, ['allowed_classes' => false]);
 		if (!is_array($store) || !is_array($store['channels'] ?? null)) {
-			return ['channels' => []];
+			throw new \RuntimeException('Session conversation memory contains invalid serialized data.');
 		}
 
 		return $store;
@@ -480,16 +508,28 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	/** @param array<string,mixed> $store */
 	private function writeStore(array $store): void {
-		$oldCount = max(0, (int)$this->session->get(self::CHUNK_COUNT_KEY, 0));
-		for ($index = 0; $index < $oldCount; $index++) {
-			$this->session->remove($this->chunkKey($index));
+		$chunks = str_split(base64_encode(serialize($store)), self::CHUNK_SIZE);
+		$count = count($chunks);
+		if ($count < 1 || $count > self::MAX_CHUNKS) {
+			throw new \RuntimeException('Session conversation memory exceeds the supported session store size.');
 		}
 
-		$chunks = str_split(base64_encode(serialize($store)), self::CHUNK_SIZE);
-		$this->session->set(self::FORMAT_KEY, self::FORMAT);
-		$this->session->set(self::CHUNK_COUNT_KEY, count($chunks));
+		$oldCountValue = $this->session->get(self::CHUNK_COUNT_KEY, 0);
+		$oldCount = is_int($oldCountValue) || (is_string($oldCountValue) && ctype_digit($oldCountValue))
+			? min(self::MAX_CHUNKS, max(0, (int)$oldCountValue))
+			: 0;
+
 		foreach ($chunks as $index => $chunk) {
 			$this->session->set($this->chunkKey((int)$index), $chunk);
+		}
+		for ($index = $count; $index < $oldCount; $index++) {
+			$this->session->remove($this->chunkKey($index));
+		}
+		$this->session->set(self::CHUNK_COUNT_KEY, $count);
+		$this->session->set(self::FORMAT_KEY, self::FORMAT);
+
+		if ($this->readStore() !== $store) {
+			throw new \RuntimeException('Session conversation memory could not be verified after writing.');
 		}
 	}
 
@@ -515,6 +555,20 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		return $nodeId;
 	}
 
+	private function normalizeMessageId(mixed $messageId): string {
+		$messageId = is_scalar($messageId) ? trim((string)$messageId) : '';
+		return $messageId !== '' ? $this->requireMessageId($messageId) : $this->createPublicId('message');
+	}
+
+	private function requireMessageId(string $messageId): string {
+		$messageId = trim($messageId);
+		if ($messageId === '' || strlen($messageId) > 100) {
+			throw new \InvalidArgumentException('Invalid conversation message id.');
+		}
+
+		return $messageId;
+	}
+
 	private function normalizeTitle(string $title, string $now = ''): string {
 		$title = trim($title);
 		if ($title === '') {
@@ -533,7 +587,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		return substr($value, 0, $maxLength);
 	}
 
-	private function createTechnicalId(string $prefix): string {
+	private function createPublicId(string $prefix): string {
 		return $prefix . '-' . bin2hex(random_bytes(20));
 	}
 
@@ -543,9 +597,19 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	/** @param array<int,mixed> $history */
 	private function trimNodeHistory(array &$history): void {
-		if (count($history) > $this->max) {
+		if ($this->trimHistory && count($history) > $this->max) {
 			$history = array_values(array_slice($history, -$this->max));
 		}
+	}
+
+	private function toBool(mixed $value, bool $default): bool {
+		if ($value === null || $value === '') return $default;
+		if (is_bool($value)) return $value;
+		if (is_int($value)) return $value !== 0;
+		$value = strtolower(trim((string)$value));
+		if (in_array($value, ['1', 'true', 'yes', 'on'], true)) return true;
+		if (in_array($value, ['0', 'false', 'no', 'off'], true)) return false;
+		return $default;
 	}
 
 	private function log(string $message): void {
