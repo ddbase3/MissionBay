@@ -407,8 +407,9 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 	/** @param array<string,mixed> $context */
 	private function warn(string $message, array $context = []): void {
 		$detail = $context === [] ? '' : ' ' . (string)json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-		$this->warnings[] = $message . $detail;
+		$log = $message . $detail;
+		$this->warnings[] = $log;
 		$context['scope'] = self::LOG_SCOPE;
-		$this->logger->logLevel(ILogger::WARNING, $message, $context);
+		$this->logger->logLevel(ILogger::WARNING, $log, $context);
 	}
 }
