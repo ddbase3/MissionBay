@@ -319,6 +319,9 @@ See [docs/jobs.md](docs/jobs.md).
 
 ## Documentation map
 
+* [Frequently Asked Questions](docs/faq.md)
+* [Privacy and data processing](PRIVACY.md)
+
 ### Core MissionBay
 
 * [docs/overview.md](docs/overview.md)
