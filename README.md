@@ -315,6 +315,8 @@ See [docs/events-hooks-and-auditing.md](docs/events-hooks-and-auditing.md).
 
 `ScheduledAgentRunnerJob` is the MissionBay background job for configured agents. It is discoverable through the BASE3 worker system and reads agent definitions from the `agent` Settings Store group while using the framework job configuration for activation and scheduling behavior.
 
+`MissionBayToolUseCleanupJob` removes tool-use audit rows after they have remained unchanged for 24 hours. It uses the BASE3 daily-window policy and runs at most once per day between 02:00 and 04:00.
+
 See [docs/jobs.md](docs/jobs.md).
 
 ## Documentation map

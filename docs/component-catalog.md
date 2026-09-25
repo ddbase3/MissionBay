@@ -230,6 +230,7 @@ This catalog is derived from the current source tree. It lists discoverable tech
 | Technical name | Class | File |
 | --- | --- | --- |
 | `scheduledagentrunnerjob` | `ScheduledAgentRunnerJob` | `src/Job/ScheduledAgentRunnerJob.php` |
+| `missionbaytoolusecleanupjob` | `MissionBayToolUseCleanupJob` | `src/Job/MissionBayToolUseCleanupJob.php` |
 
 ## Notes
 

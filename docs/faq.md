@@ -1048,9 +1048,9 @@ A project can attach its own listener to persist action audit events.
 
 ## 84. Does MissionBay automatically delete old audit and usage rows?
 
-No general automatic retention cleanup for `base3_missionbay_tooluse` or `base3_missionbay_ai_usage` was identified in this source package.
+`base3_missionbay_tooluse` has a dedicated cleanup job. `MissionBayToolUseCleanupJob` removes rows once both `created_at` and `updated_at` are older than 24 hours. It uses the BASE3 daily-window policy and runs at most once per day between 02:00 and 04:00. The job is active by default and can be disabled through the normal `job` configuration.
 
-Installations should define retention according to their operational, security, and privacy requirements.
+No general automatic retention cleanup for `base3_missionbay_ai_usage` is defined here.
 
 ## 85. Which database tables can MissionBay create or use directly?
 
@@ -1311,10 +1311,11 @@ allowallagentactionpolicy
 mutationapprovalagentactionpolicy
 ```
 
-Current MissionBay job:
+Current MissionBay jobs:
 
 ```text
 scheduledagentrunnerjob
+missionbaytoolusecleanupjob
 ```
 
 The active action policy and job execution behavior still depend on final runtime composition and settings.

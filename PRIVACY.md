@@ -564,7 +564,7 @@ The table contains:
 
 This is a high-sensitivity audit table. It is not limited to token counts or redacted analytics.
 
-No automatic retention cleanup for this table was identified in the current MissionBay source.
+`MissionBayToolUseCleanupJob` deletes rows whose `created_at` and `updated_at` are both older than 24 hours. The job uses the BASE3 daily-window policy and runs at most once per day between 02:00 and 04:00 when the worker reaches the job. It is active by default and can be disabled through the normal `job` configuration.
 
 ## 20. AI usage table
 
@@ -1067,7 +1067,7 @@ The following table summarizes the main MissionBay-owned persistent tables visib
 | --- | --- | --- | --- |
 | `base3_missionbay_conversation` | Conversation metadata and optional opening message. | Personal/conversational. | No. |
 | `base3_missionbay_conversation_message` | Full user/assistant messages and extra payload metadata. | High. | No. |
-| `base3_missionbay_tooluse` | Prompt, tool args/results/errors, user identity, trace data. | Very high. | No. |
+| `base3_missionbay_tooluse` | Prompt, tool args/results/errors, user identity, trace data. | Very high. | Yes, 24-hour cleanup through `MissionBayToolUseCleanupJob`. |
 | `base3_missionbay_ai_usage` | User identity, provider/model, token usage, provider metadata. | Medium to high. | No. |
 | `base3_missionbay_userpref_def` | Preference definitions and templates. | Usually configuration, potentially sensitive. | No. |
 | `base3_missionbay_userpref_value` | User/session preference values. | Personal. | No general time cleanup found. |
@@ -1094,7 +1094,7 @@ Relevant lifecycles are split across features:
 - tool-result cache entries have explicit TTLs;
 - normal durable suspensions have a short TTL in the shared runtime repository;
 - replay markers outlive the suspension for the configured replay period;
-- tool audit rows have no automatic cleanup identified here;
+- tool audit rows are removed by `MissionBayToolUseCleanupJob` after they have remained unchanged for 24 hours;
 - AI usage rows have no automatic cleanup identified here;
 - user preference values remain until changed/unset or host cleanup;
 - focus rows have no automatic cleanup identified here;
