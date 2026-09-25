@@ -50,20 +50,6 @@
       "nullable": true
     },
     {
-      "name": "user_id",
-      "type": "integer",
-      "label": "User ID",
-      "required": true,
-      "sensitive": true
-    },
-    {
-      "name": "user_login",
-      "type": "string",
-      "label": "User",
-      "required": true,
-      "sensitive": true
-    },
-    {
       "name": "request_context",
       "type": "string",
       "label": "Request context",

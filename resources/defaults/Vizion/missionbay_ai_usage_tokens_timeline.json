@@ -87,14 +87,6 @@
       }
     },
     {
-      "alias": "user_login",
-      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "user_login" },
-      "config": {
-        "label": "User",
-        "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "User", "width": 150 }
-      }
-    },
-    {
       "alias": "request_context",
       "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "request_context" },
       "config": {

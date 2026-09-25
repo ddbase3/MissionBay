@@ -57,11 +57,6 @@
       "config": { "label": "Model", "sortable": true, "width": 220, "filter": { "enabled": true, "visibility": "always", "type": "text", "match": "contains", "placeholder": "Model", "width": 170 } }
     },
     {
-      "alias": "user_login",
-      "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "user_login" },
-      "config": { "label": "User", "sortable": true, "width": 200, "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "User", "width": 160 } }
-    },
-    {
       "alias": "request_context",
       "element": { "type": "fld", "table": "base3_missionbay_ai_usage", "field": "request_context" },
       "config": { "label": "Context", "sortable": true, "width": 150, "filter": { "enabled": true, "visibility": "optional", "type": "text", "match": "contains", "placeholder": "Context", "width": 150 } }

@@ -21,7 +21,7 @@ use Base3\Settings\Api\ISettingsStore;
 
 final class AiUsageReportingSettingsSeeder {
 
-	private const DEFAULTS_VERSION = 1;
+	private const DEFAULTS_VERSION = 2;
 
 	public function __construct(
 		private readonly ISettingsStore $settingsStore,
@@ -30,17 +30,27 @@ final class AiUsageReportingSettingsSeeder {
 
 	public function seed(): void {
 		$meta = $this->settingsStore->get(AiUsageReportingSettings::GROUP_META, AiUsageReportingSettings::META_DEFAULTS, []);
-		if((int)($meta['version'] ?? 0) >= self::DEFAULTS_VERSION) {
+		$currentVersion = (int)($meta['version'] ?? 0);
+		if($currentVersion >= self::DEFAULTS_VERSION) {
 			return;
 		}
 
+		$replaceExisting = $currentVersion > 0;
+
 		$this->seedDirectory(
 			AiUsageReportingSettings::GROUP_DATAHAWK_SOURCE,
-			$this->pluginRoot . '/resources/defaults/DataHawk/source'
+			$this->pluginRoot . '/resources/defaults/DataHawk/source',
+			$replaceExisting
 		);
 		$this->seedDirectory(
 			AiUsageReportingSettings::GROUP_VIZION,
-			$this->pluginRoot . '/resources/defaults/Vizion'
+			$this->pluginRoot . '/resources/defaults/Vizion',
+			$replaceExisting
+		);
+
+		$this->settingsStore->remove(
+			AiUsageReportingSettings::GROUP_VIZION,
+			'missionbay_ai_usage_users'
 		);
 
 		$this->settingsStore->set(AiUsageReportingSettings::GROUP_META, AiUsageReportingSettings::META_DEFAULTS, [
@@ -49,13 +59,13 @@ final class AiUsageReportingSettingsSeeder {
 		$this->settingsStore->save();
 	}
 
-	private function seedDirectory(string $group, string $directory): void {
+	private function seedDirectory(string $group, string $directory, bool $replaceExisting): void {
 		$files = glob(rtrim($directory, DIRECTORY_SEPARATOR . '/\\') . DIRECTORY_SEPARATOR . '*.json') ?: [];
 		sort($files);
 
 		foreach($files as $file) {
 			$name = pathinfo($file, PATHINFO_FILENAME);
-			if($name === '' || $this->settingsStore->has($group, $name)) {
+			if($name === '' || (!$replaceExisting && $this->settingsStore->has($group, $name))) {
 				continue;
 			}
 
