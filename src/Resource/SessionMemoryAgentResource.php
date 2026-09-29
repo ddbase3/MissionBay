@@ -262,6 +262,48 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$this->log('deleted conversation ' . $conversationId);
 	}
 
+	public function deleteConversationsByOwnerKey(string $ownerKey): void {
+		$ownerKey = $this->requireOwnerKey($ownerKey);
+		$store = $this->readStore();
+		$changed = false;
+
+		foreach ($store['channels'] as $channelKey => $channel) {
+			if (!is_array($channel) || (string)($channel['owner_key'] ?? '') !== $ownerKey) {
+				continue;
+			}
+			unset($store['channels'][$channelKey]);
+			$changed = true;
+		}
+
+		if ($changed) {
+			$this->writeStore($store);
+		}
+		if ($this->scope?->getOwnerKey() === $ownerKey) {
+			$this->scope = null;
+		}
+	}
+
+	public function deleteConversationsByChannel(string $channelId): void {
+		$channelId = $this->requireChannelId($channelId);
+		$store = $this->readStore();
+		$changed = false;
+
+		foreach ($store['channels'] as $channelKey => $channel) {
+			if (!is_array($channel) || (string)($channel['channel_id'] ?? '') !== $channelId) {
+				continue;
+			}
+			unset($store['channels'][$channelKey]);
+			$changed = true;
+		}
+
+		if ($changed) {
+			$this->writeStore($store);
+		}
+		if ($this->scope?->getChannelId() === $channelId) {
+			$this->scope = null;
+		}
+	}
+
 	public function touchConversation(string $conversationId): AgentConversation {
 		$conversationId = $this->requireConversationId($conversationId);
 		$this->requireConversation($conversationId);
@@ -389,7 +431,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 			throw new \RuntimeException('Session conversation memory requires a session identity.');
 		}
 
-		return hash('sha256', 'session:' . $sessionId);
+		return AgentConversationScope::ownerKeyForSession($sessionId);
 	}
 
 	private function contextString(IAgentContext $context, string $key): string {
@@ -535,6 +577,24 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	private function chunkKey(int $index): string {
 		return self::CHUNK_KEY_PREFIX . str_pad((string)$index, 5, '0', STR_PAD_LEFT);
+	}
+
+	private function requireOwnerKey(string $ownerKey): string {
+		$ownerKey = trim($ownerKey);
+		if (preg_match('/^[a-f0-9]{64}$/', $ownerKey) !== 1) {
+			throw new \InvalidArgumentException('Invalid conversation owner key.');
+		}
+
+		return $ownerKey;
+	}
+
+	private function requireChannelId(string $channelId): string {
+		$channelId = trim($channelId);
+		if ($channelId === '' || strlen($channelId) > 191 || preg_match('/^[A-Za-z0-9._:-]+$/', $channelId) !== 1) {
+			throw new \InvalidArgumentException('Invalid conversation channel id.');
+		}
+
+		return $channelId;
 	}
 
 	private function requireConversationId(string $conversationId): string {

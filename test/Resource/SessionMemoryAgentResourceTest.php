@@ -3,6 +3,7 @@
 namespace MissionBay\Test\Resource;
 
 use AssistantFoundation\Dto\AgentConversation;
+use AssistantFoundation\Dto\AgentConversationScope;
 use Base3\Session\Api\ISession;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Context\AgentContext;
@@ -123,6 +124,48 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 		$resource->deleteConversation($first->getId());
 		$this->assertNull($resource->getConversation($first->getId()));
 		$this->assertSame($second->getId(), $resource->getActiveConversation()?->getId());
+	}
+
+	public function testBulkDeleteByChannelKeepsOtherChannels(): void {
+		$session = new SessionMemorySessionStub('test-session');
+		$main = $this->resource($session, 'preset-main');
+		$main->init([], $this->context('chatbot-main'));
+		$main->createConversation('conversation-main');
+
+		$secondary = $this->resource($session, 'preset-main');
+		$secondary->init([], $this->context('chatbot-secondary'));
+		$secondary->createConversation('conversation-secondary');
+
+		$main->deleteConversationsByChannel('chatbot-main');
+
+		$mainCheck = $this->resource($session, 'preset-main');
+		$mainCheck->init([], $this->context('chatbot-main'));
+		$secondaryCheck = $this->resource($session, 'preset-main');
+		$secondaryCheck->init([], $this->context('chatbot-secondary'));
+
+		$this->assertSame([], $mainCheck->listConversations());
+		$this->assertCount(1, $secondaryCheck->listConversations());
+	}
+
+	public function testBulkDeleteByOwnerRemovesAllOwnedChannels(): void {
+		$session = new SessionMemorySessionStub('test-session');
+		$main = $this->resource($session, 'preset-main');
+		$main->init([], $this->context('chatbot-main'));
+		$main->createConversation('conversation-main');
+
+		$secondary = $this->resource($session, 'preset-main');
+		$secondary->init([], $this->context('chatbot-secondary'));
+		$secondary->createConversation('conversation-secondary');
+
+		$main->deleteConversationsByOwnerKey(AgentConversationScope::ownerKeyForSession('test-session'));
+
+		$mainCheck = $this->resource($session, 'preset-main');
+		$mainCheck->init([], $this->context('chatbot-main'));
+		$secondaryCheck = $this->resource($session, 'preset-main');
+		$secondaryCheck->init([], $this->context('chatbot-secondary'));
+
+		$this->assertSame([], $mainCheck->listConversations());
+		$this->assertSame([], $secondaryCheck->listConversations());
 	}
 
 	public function testInvalidRenameDoesNotPersistInvalidConversationState(): void {

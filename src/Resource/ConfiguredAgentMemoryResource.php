@@ -114,6 +114,14 @@ class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAg
 		$this->requireMemory()->deleteConversation($conversationId);
 	}
 
+	public function deleteConversationsByOwnerKey(string $ownerKey): void {
+		$this->memory?->deleteConversationsByOwnerKey($ownerKey);
+	}
+
+	public function deleteConversationsByChannel(string $channelId): void {
+		$this->memory?->deleteConversationsByChannel($channelId);
+	}
+
 	public function touchConversation(string $conversationId): AgentConversation {
 		$this->requireWrite();
 		return $this->requireMemory()->touchConversation($conversationId);

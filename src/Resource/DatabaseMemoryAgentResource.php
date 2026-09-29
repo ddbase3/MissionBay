@@ -277,6 +277,50 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$this->log('deleted conversation ' . $conversationId);
 	}
 
+	public function deleteConversationsByOwnerKey(string $ownerKey): void {
+		$ownerKey = $this->requireOwnerKey($ownerKey);
+		$this->database->connect();
+		$this->database->nonQuery(
+			'DELETE FROM ' . self::CONVERSATION_TABLE
+			. ' WHERE owner_key=' . $this->quote($ownerKey)
+		);
+
+		$remaining = $this->database->singleQuery(
+			'SELECT conversation_key FROM ' . self::CONVERSATION_TABLE
+			. ' WHERE owner_key=' . $this->quote($ownerKey)
+			. ' LIMIT 1'
+		);
+		if (is_array($remaining)) {
+			throw new \RuntimeException('Conversations could not be verified as deleted for owner.');
+		}
+
+		if ($this->scope?->getOwnerKey() === $ownerKey) {
+			$this->scope = null;
+		}
+	}
+
+	public function deleteConversationsByChannel(string $channelId): void {
+		$channelId = $this->requireChannelId($channelId);
+		$this->database->connect();
+		$this->database->nonQuery(
+			'DELETE FROM ' . self::CONVERSATION_TABLE
+			. ' WHERE channel_id=' . $this->quote($channelId)
+		);
+
+		$remaining = $this->database->singleQuery(
+			'SELECT conversation_key FROM ' . self::CONVERSATION_TABLE
+			. ' WHERE channel_id=' . $this->quote($channelId)
+			. ' LIMIT 1'
+		);
+		if (is_array($remaining)) {
+			throw new \RuntimeException('Conversations could not be verified as deleted for channel.');
+		}
+
+		if ($this->scope?->getChannelId() === $channelId) {
+			$this->scope = null;
+		}
+	}
+
 	public function touchConversation(string $conversationId): AgentConversation {
 		$conversationId = $this->requireConversationId($conversationId);
 		$row = $this->requireConversationRow($conversationId);
@@ -523,7 +567,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 	private function resolveOwnerKey(): string {
 		$userId = $this->accesscontrol->getUserId();
 		if ($userId !== null && trim((string)$userId) !== '' && trim((string)$userId) !== '0') {
-			return hash('sha256', 'user:' . trim((string)$userId));
+			return AgentConversationScope::ownerKeyForUser(trim((string)$userId));
 		}
 
 		if (!$this->session->started() && !$this->session->start()) {
@@ -534,7 +578,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			throw new \RuntimeException('Database conversation memory requires a user or session identity.');
 		}
 
-		return hash('sha256', 'session:' . $sessionId);
+		return AgentConversationScope::ownerKeyForSession($sessionId);
 	}
 
 	private function contextString(IAgentContext $context, string $key): string {
@@ -670,6 +714,24 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 
 	private function nullableQuote(string $value): string {
 		return $value === '' ? 'NULL' : $this->quote($value);
+	}
+
+	private function requireOwnerKey(string $ownerKey): string {
+		$ownerKey = trim($ownerKey);
+		if (preg_match('/^[a-f0-9]{64}$/', $ownerKey) !== 1) {
+			throw new \InvalidArgumentException('Invalid conversation owner key.');
+		}
+
+		return $ownerKey;
+	}
+
+	private function requireChannelId(string $channelId): string {
+		$channelId = trim($channelId);
+		if ($channelId === '' || strlen($channelId) > 191 || preg_match('/^[A-Za-z0-9._:-]+$/', $channelId) !== 1) {
+			throw new \InvalidArgumentException('Invalid conversation channel id.');
+		}
+
+		return $channelId;
 	}
 
 	private function requireConversationId(string $conversationId): string {

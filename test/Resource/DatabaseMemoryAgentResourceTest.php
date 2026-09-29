@@ -2,6 +2,7 @@
 
 namespace MissionBay\Test\Resource;
 
+use AssistantFoundation\Dto\AgentConversationScope;
 use Base3\Accesscontrol\Api\IAccesscontrol;
 use Base3\Database\Api\IDatabase;
 use Base3\Session\Api\ISession;
@@ -117,6 +118,44 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$resource->deleteConversation('conversation-one');
 		$this->assertNull($resource->getConversation('conversation-one'));
 		$this->assertSame([], $database->messages);
+	}
+
+	public function testBulkDeleteRemovesAllConversationsForOwner(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$resource->init([], $this->context('chatbot-main'));
+		$resource->createConversation('conversation-one');
+		$resource->appendNodeHistory('assistant', ['id' => 'message-one', 'role' => 'user', 'content' => 'Stored']);
+
+		$ownerKey = AgentConversationScope::ownerKeyForUser(42);
+		$resource->deleteConversationsByOwnerKey($ownerKey);
+
+		$this->assertNull($database->conversation);
+		$this->assertSame([], $database->messages);
+		$this->assertTrue($this->containsQuery($database->queries, 'DELETE FROM base3_missionbay_conversation WHERE owner_key='));
+	}
+
+	public function testBulkDeleteRemovesAllConversationsForChannel(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$resource->init([], $this->context('chatbot-main'));
+		$resource->createConversation('conversation-one');
+
+		$resource->deleteConversationsByChannel('chatbot-main');
+
+		$this->assertNull($database->conversation);
+		$this->assertTrue($this->containsQuery($database->queries, 'DELETE FROM base3_missionbay_conversation WHERE channel_id='));
+	}
+
+	/** @param array<int,string> $queries */
+	private function containsQuery(array $queries, string $needle): bool {
+		foreach ($queries as $query) {
+			if (str_contains($query, $needle)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public function testConversationScopeRequiresStableChannelId(): void {
