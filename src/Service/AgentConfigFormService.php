@@ -287,7 +287,10 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'agent_component_presets' => $this->filterPresetOptionsWithoutCapability($componentPresets, 'chatmodel'),
 			'capability_component_options' => $this->listCapabilityComponentOptions(),
 			'export_catalog' => $this->buildExportCatalog(),
-			'translations' => $this->getTranslations()
+			'translations' => $this->getTranslations(),
+			'chatbot_resources' => is_array($options['chatbot_resources'] ?? null)
+				? $options['chatbot_resources']
+				: []
 		];
 	}
 

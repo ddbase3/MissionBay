@@ -15,6 +15,8 @@ $capabilitySources = is_array($values['capability_sources'] ?? null) ? $values['
 $capabilitySelection = is_array($values['capability_selection'] ?? null) ? $values['capability_selection'] : [];
 $exportCatalog = is_array($agentConfigForm['export_catalog'] ?? null) ? $agentConfigForm['export_catalog'] : [];
 $translations = is_array($agentConfigForm['translations'] ?? null) ? $agentConfigForm['translations'] : [];
+$chatbotResources = is_array($agentConfigForm['chatbot_resources'] ?? null) ? $agentConfigForm['chatbot_resources'] : [];
+$chatbotResourcesEnabled = !empty($chatbotResources['enabled']);
 $formId = (string)($agentConfigForm['form_id'] ?? 'base3_agent_config');
 $rootId = $formId . '_agent_config_section';
 $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -86,6 +88,79 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 			<div><textarea id="<?php echo $e($formId); ?>_system" name="system_prompt" class="base3-agent-config-system-prompt"><?php echo $e($values['system_prompt']??''); ?></textarea></div>
 		</div>
 	</div>
+
+<?php if ($chatbotResourcesEnabled) {
+	$resourcesRootId = $formId . '_chatbot_resources';
+	$resourcesModuleUrl = (string)($chatbotResources['module_url'] ?? '');
+	$resourcesCssUrl = (string)($chatbotResources['css_url'] ?? '');
+	$resourcesEndpoints = is_array($chatbotResources['endpoints'] ?? null) ? $chatbotResources['endpoints'] : [];
+	$resourcesMaxFileSize = max(1, (int)($chatbotResources['max_file_size'] ?? 50 * 1024 * 1024));
+	$resourcesSectionLabel = trim((string)($chatbotResources['section_label'] ?? '')) ?: 'Resources';
+	$resourcesHelp = trim((string)($chatbotResources['help'] ?? ''));
+?>
+<?php if ($resourcesCssUrl !== '') { ?>
+	<link rel="stylesheet" href="<?php echo $e($resourcesCssUrl); ?>" />
+<?php } ?>
+	<div class="base3-agent-config-section base3-chatbot-resources-section">
+		<h3><?php echo $e($resourcesSectionLabel); ?></h3>
+<?php if ($resourcesHelp !== '') { ?>
+		<p class="base3-agent-config-help"><?php echo $e($resourcesHelp); ?></p>
+<?php } ?>
+		<div id="<?php echo $e($resourcesRootId); ?>" data-base3-chatbot-resources></div>
+	</div>
+<?php if ($resourcesModuleUrl !== '' && $resourcesEndpoints !== []) { ?>
+<script type="module">
+import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($resourcesModuleUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
+(function() {
+	var target = document.getElementById(<?php echo json_encode($resourcesRootId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>);
+	if (!target || target.getAttribute('data-filemanager-ready') === '1') {
+		return;
+	}
+
+	var chatbotRoot = target.closest('[data-base3-chatbot-config-root="1"]');
+	if (!chatbotRoot) {
+		return;
+	}
+
+	target.setAttribute('data-filemanager-ready', '1');
+	var adapter = new HttpFileManagerAdapter({
+		baseUrl: globalThis.location ? globalThis.location.href : '/',
+		endpoints: <?php echo json_encode($resourcesEndpoints, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
+	});
+	var options = {
+		mode: 'collection',
+		adapter: adapter,
+		deleteOnRemove: true,
+		upload: {
+			maxFileSize: <?php echo $resourcesMaxFileSize; ?>,
+			chunkSize: 8 * 1024 * 1024,
+			maxParallelFiles: 3,
+			maxParallelChunks: 2,
+			retryLimit: 3
+		}
+	};
+
+	if (chatbotRoot.tagName && chatbotRoot.tagName.toLowerCase() === 'form') {
+		options.form = {
+			form: chatbotRoot,
+			name: 'chatbot_resources'
+		};
+	}
+
+	var manager = new FileManager(target, options);
+	manager.init();
+	chatbotRoot.__base3ChatbotResourcesFileManager = manager;
+
+	adapter.list('').then(function(result) {
+		manager.setItems(result && Array.isArray(result.items) ? result.items : []);
+	}).catch(function(error) {
+		manager.setState({ error: error && error.message ? error.message : String(error) });
+	});
+})();
+</script>
+<?php } ?>
+<?php } ?>
 
 	<div class="base3-agent-config-section">
 		<h3><?php echo $e($t('profiles_section', 'Profiles')); ?></h3>
