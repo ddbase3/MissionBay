@@ -18,6 +18,7 @@
 namespace MissionBay\Transport;
 
 use AssistantFoundation\Api\IAiProvider;
+use AssistantFoundation\Exception\AiProviderRequestException;
 
 class OpenAiCompatibleTransport implements IAiProvider {
 
@@ -90,8 +91,10 @@ class OpenAiCompatibleTransport implements IAiProvider {
 		curl_close($ch);
 
 		if($httpCode < 200 || $httpCode >= 300) {
-			throw new \RuntimeException(
-				'OpenAI-compatible transport request failed with status ' . $httpCode . ': ' . (string)$result
+			throw new AiProviderRequestException(
+				'OpenAI-compatible transport request failed with status ' . $httpCode . ': ' . (string)$result,
+				$httpCode,
+				(string)$result
 			);
 		}
 
@@ -164,13 +167,15 @@ class OpenAiCompatibleTransport implements IAiProvider {
 		curl_close($ch);
 
 		if($httpCode < 200 || $httpCode >= 300) {
-			throw new \RuntimeException(
-				'OpenAI-compatible transport streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500)
+			throw new AiProviderRequestException(
+				'OpenAI-compatible transport streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500),
+				$httpCode,
+				$responseBuffer
 			);
 		}
 	}
 
-	private function buildUrl(string $path): string {
+	protected function buildUrl(string $path): string {
 		return ChatCompletionEndpointResolver::resolve(
 			(string)($this->options['endpoint'] ?? ''),
 			$path
@@ -181,11 +186,11 @@ class OpenAiCompatibleTransport implements IAiProvider {
 	 * @param array<string,mixed> $options
 	 * @return array<int,string>
 	 */
-	private function buildHeaders(array $options): array {
+	protected function buildHeaders(array $options, bool $includeJsonContentType = true): array {
 		$authType = strtolower(trim((string)($options['auth_type'] ?? $this->options['auth_type'] ?? 'bearer')));
 		$headerName = trim((string)($options['auth_header_name'] ?? $this->options['auth_header_name'] ?? ''));
 		$secret = trim((string)($options['apikey'] ?? $this->options['apikey'] ?? ''));
-		$headers = ['Content-Type: application/json'];
+		$headers = $includeJsonContentType ? ['Content-Type: application/json'] : [];
 
 		if($authType !== 'none') {
 			if($secret === '') {
@@ -236,7 +241,7 @@ class OpenAiCompatibleTransport implements IAiProvider {
 	/**
 	 * @param array<string,mixed> $options
 	 */
-	private function resolveTimeout(array $options): int {
+	protected function resolveTimeout(array $options): int {
 		$timeout = (int)($options['timeout'] ?? $this->options['timeout'] ?? 60);
 
 		return $timeout > 0 ? $timeout : 60;
@@ -245,7 +250,7 @@ class OpenAiCompatibleTransport implements IAiProvider {
 	/**
 	 * @param array<string,mixed> $options
 	 */
-	private function resolveConnectTimeout(array $options): int {
+	protected function resolveConnectTimeout(array $options): int {
 		$timeout = (int)($options['connect_timeout'] ?? $this->options['connect_timeout'] ?? 15);
 
 		return $timeout > 0 ? $timeout : 15;

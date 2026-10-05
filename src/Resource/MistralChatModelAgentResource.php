@@ -67,7 +67,7 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		$this->temperatureConfig = $config['temperature'] ?? null;
 		$this->maxtokensConfig   = $config['maxtokens'] ?? null;
 
-		$model     = $this->resolver->resolveValue($this->modelConfig) ?? 'mistral-small-latest';
+		$model     = $this->resolver->resolveValue($this->modelConfig) ?? 'mistral-medium-3-5';
 		$apikey    = $this->resolver->resolveValue($this->apikeyConfig);
 		$endpoint  = $this->resolver->resolveValue($this->endpointConfig);
 		$temp      = $this->resolver->resolveValue($this->temperatureConfig);

@@ -144,6 +144,8 @@ use MissionBay\Profile\AgentContextProfileResolver;
 use MissionBay\Profile\AgentMemoryProfileResolver;
 use MissionBay\Profile\AgentToolProfileResolver;
 use MissionBay\Service\AgentComponentFlowBuilder;
+use MissionBay\Service\AiProviderFileOwnerCleanupService;
+use MissionBay\Service\AiProviderFileReferenceStateRepository;
 use MissionBay\Service\AgentComponentPresetCatalog;
 use MissionBay\Service\AgentComponentPresetFlowExpander;
 use MissionBay\Service\AgentComponentPresetMaterializer;
@@ -225,6 +227,14 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(ISettingsStore::class),
 				$c->get(IClassMap::class),
 				$c->get(IAgentConfigValueResolver::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AiProviderFileReferenceStateRepository::class, fn($c) => new AiProviderFileReferenceStateRepository(
+				$c->get(IStateStore::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(AiProviderFileOwnerCleanupService::class, fn($c) => new AiProviderFileOwnerCleanupService(
+				$c->get(AiProviderFileReferenceStateRepository::class),
+				$c->get(ConfiguredServiceRuntimeResolver::class),
+				$c->get(ISettingsStore::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IConfiguredParserServiceResolver::class, fn($c) => new ConfiguredParserServiceResolver(
 				$c->get(ConfiguredServiceRuntimeResolver::class)

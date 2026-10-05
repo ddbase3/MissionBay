@@ -62,7 +62,7 @@ final class MistralChatServiceDriverDefinition implements IServiceDriverDefiniti
 				'model' => [
 					'type' => 'string',
 					'label' => 'Model',
-					'default' => 'mistral-medium-2508',
+					'default' => 'mistral-medium-3-5',
 					'required' => true
 				],
 				'temperature' => [
@@ -88,7 +88,7 @@ final class MistralChatServiceDriverDefinition implements IServiceDriverDefiniti
 		return [
 			'serviceType' => 'llm',
 			'driver' => 'mistral-chat',
-			'model' => 'mistral-medium-2508',
+			'model' => 'mistral-medium-3-5',
 			'enabled' => true,
 			'options' => [
 				'temperature' => 0.3,

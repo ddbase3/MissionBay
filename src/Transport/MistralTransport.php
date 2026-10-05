@@ -17,9 +17,11 @@
 
 namespace MissionBay\Transport;
 
-use AssistantFoundation\Api\IAiProvider;
+use AssistantFoundation\Api\IAiFileProvider;
+use AssistantFoundation\Dto\AiFileResource;
+use AssistantFoundation\Exception\AiProviderRequestException;
 
-class MistralTransport implements IAiProvider {
+class MistralTransport implements IAiFileProvider {
 
 	/**
 	 * @var array<string,mixed>
@@ -90,7 +92,11 @@ class MistralTransport implements IAiProvider {
 		curl_close($ch);
 
 		if($httpCode < 200 || $httpCode >= 300) {
-			throw new \RuntimeException('Mistral transport request failed with status ' . $httpCode . ': ' . (string)$result);
+			throw new AiProviderRequestException(
+				'Mistral transport request failed with status ' . $httpCode . ': ' . (string)$result,
+				$httpCode,
+				(string)$result
+			);
 		}
 
 		if(trim((string)$result) === '') {
@@ -160,10 +166,88 @@ class MistralTransport implements IAiProvider {
 		curl_close($ch);
 
 		if($httpCode < 200 || $httpCode >= 300) {
-			throw new \RuntimeException(
-				'Mistral transport streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500)
+			throw new AiProviderRequestException(
+				'Mistral transport streaming request failed with status ' . $httpCode . ': ' . substr($responseBuffer, 0, 500),
+				$httpCode,
+				$responseBuffer
 			);
 		}
+	}
+
+	public function uploadFile(
+		string $path,
+		AiFileResource $file,
+		array $fields = [],
+		array $options = []
+	): array {
+		$url = $this->buildUrl($path);
+		$headers = $this->buildHeaders($options, false);
+		$timeout = $this->resolveTimeout($options);
+		$connectTimeout = $this->resolveConnectTimeout($options);
+		$postFields = [];
+
+		foreach($fields as $key => $value) {
+			if(!is_scalar($value)) {
+				throw new \InvalidArgumentException('Mistral multipart field must be scalar: ' . (string)$key);
+			}
+			$postFields[(string)$key] = (string)$value;
+		}
+
+		$tempPath = tempnam(sys_get_temp_dir(), 'base3_mistral_');
+		if(!is_string($tempPath) || $tempPath === '') {
+			throw new \RuntimeException('Could not create temporary file for Mistral upload.');
+		}
+
+		try {
+			if(file_put_contents($tempPath, $file->getContent()) === false) {
+				throw new \RuntimeException('Could not write temporary file for Mistral upload.');
+			}
+
+			$postFields['file'] = new \CURLFile(
+				$tempPath,
+				$file->getMimeType(),
+				$file->getName()
+			);
+
+			$ch = curl_init($url);
+			curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+			curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+			curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $connectTimeout);
+			curl_setopt($ch, CURLOPT_POST, true);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
+
+			$result = curl_exec($ch);
+
+			if($result === false) {
+				$error = curl_error($ch);
+				curl_close($ch);
+				throw new \RuntimeException('Mistral file upload failed: ' . $error);
+			}
+
+			$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+			curl_close($ch);
+		}
+		finally {
+			if(is_file($tempPath)) {
+				unlink($tempPath);
+			}
+		}
+
+		if($httpCode < 200 || $httpCode >= 300) {
+			throw new AiProviderRequestException(
+				'Mistral file upload failed with status ' . $httpCode . ': ' . (string)$result,
+				$httpCode,
+				(string)$result
+			);
+		}
+
+		$data = json_decode((string)$result, true);
+		if(!is_array($data)) {
+			throw new \RuntimeException('Invalid JSON response from Mistral file upload.');
+		}
+
+		return $data;
 	}
 
 	private function buildUrl(string $path): string {
@@ -213,17 +297,15 @@ class MistralTransport implements IAiProvider {
 	 * @param array<string,mixed> $options
 	 * @return array<int,string>
 	 */
-	private function buildHeaders(array $options): array {
+	private function buildHeaders(array $options, bool $includeJsonContentType = true): array {
 		$apiKey = trim((string)($options['apikey'] ?? $this->options['apikey'] ?? ''));
 
 		if($apiKey === '') {
 			throw new \RuntimeException('Missing API key for Mistral transport.');
 		}
 
-		$headers = [
-			'Content-Type: application/json',
-			'Authorization: Bearer ' . $apiKey
-		];
+		$headers = $includeJsonContentType ? ['Content-Type: application/json'] : [];
+		$headers[] = 'Authorization: Bearer ' . $apiKey;
 
 		foreach(($options['headers'] ?? []) as $header) {
 			if(is_string($header) && trim($header) !== '') {

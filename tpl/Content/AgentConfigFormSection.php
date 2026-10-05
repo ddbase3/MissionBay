@@ -95,6 +95,7 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 	$resourcesCssUrl = (string)($chatbotResources['css_url'] ?? '');
 	$resourcesEndpoints = is_array($chatbotResources['endpoints'] ?? null) ? $chatbotResources['endpoints'] : [];
 	$resourcesMaxFileSize = max(1, (int)($chatbotResources['max_file_size'] ?? 50 * 1024 * 1024));
+	$resourcesAccept = trim((string)($chatbotResources['accept'] ?? ''));
 	$resourcesSectionLabel = trim((string)($chatbotResources['section_label'] ?? '')) ?: 'Resources';
 	$resourcesHelp = trim((string)($chatbotResources['help'] ?? ''));
 ?>
@@ -133,6 +134,7 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 		adapter: adapter,
 		deleteOnRemove: true,
 		upload: {
+			accept: <?php echo json_encode($resourcesAccept, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
 			maxFileSize: <?php echo $resourcesMaxFileSize; ?>,
 			chunkSize: 8 * 1024 * 1024,
 			maxParallelFiles: 3,

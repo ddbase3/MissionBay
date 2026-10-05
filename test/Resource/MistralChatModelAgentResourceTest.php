@@ -46,7 +46,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 		$r->setConfig([]);
 
 		$opts = $r->getOptions();
-		$this->assertSame('mistral-small-latest', $opts['model']);
+		$this->assertSame('mistral-medium-3-5', $opts['model']);
 		$this->assertNull($opts['apikey']);
 		$this->assertSame('https://api.mistral.ai/v1/chat/completions', $opts['endpoint']);
 		$this->assertSame(0.3, $opts['temperature']);
