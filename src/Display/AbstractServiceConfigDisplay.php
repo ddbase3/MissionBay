@@ -104,7 +104,7 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 	}
 
 	protected function handleHtml(): string {
-		$this->view->setPath(DIR_PLUGIN . 'MissionBay');
+		$this->view->setPath(dirname(__DIR__, 2));
 		$this->view->setTemplate($this->getTemplate());
 
 		$this->view->assign('instanceId', $this->getInstancePrefix() . '-' . uniqid());

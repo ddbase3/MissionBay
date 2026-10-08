@@ -43,7 +43,7 @@ final class KnowledgeAgentMemoryAdminDisplay implements IDisplay {
 	}
 
 	private function handleHtml(): string {
-		$this->view->setPath(DIR_PLUGIN . 'MissionBay');
+		$this->view->setPath(dirname(__DIR__, 2));
 		$this->view->setTemplate('Display/KnowledgeAgentMemoryAdminDisplay.php');
 
 		$this->view->assign(

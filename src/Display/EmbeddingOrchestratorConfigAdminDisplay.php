@@ -47,7 +47,7 @@ final class EmbeddingOrchestratorConfigAdminDisplay implements IDisplay {
 			return $this->handleJson($final);
 		}
 
-		$this->view->setPath(DIR_PLUGIN . 'MissionBay');
+		$this->view->setPath(dirname(__DIR__, 2));
 		$this->view->setTemplate('Display/EmbeddingOrchestratorConfigAdminDisplay.php');
 		$this->view->assign('service', $this->linkTargetService->getLink([
 			'name' => self::getName(),

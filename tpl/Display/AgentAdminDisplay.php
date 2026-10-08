@@ -480,7 +480,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                                 <p class="agent-admin-help"><?php echo $mbTextEsc('settingsstore_name_inside_the_fixed_group', 'SettingsStore name inside the fixed group'); ?> <code><?php echo $e($settingsGroup); ?></code>. Existing records keep their ID while editing.</p>
                         </div>
                 </div>
-<?php include DIR_PLUGIN . 'MissionBay/tpl/Content/AgentFormFields.php'; ?>
+<?php include dirname(__DIR__) . '/Content/AgentFormFields.php'; ?>
         </form>
 </div>
 

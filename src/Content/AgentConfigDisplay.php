@@ -82,7 +82,7 @@ class AgentConfigDisplay implements IDisplay {
                         $this->loadSettings($context)
                 );
 
-                $this->view->setPath(DIR_PLUGIN . 'MissionBay');
+                $this->view->setPath(dirname(__DIR__, 2));
                 $this->view->setTemplate('Content/AgentConfigDisplay.php');
 
                 $this->view->assign('title', $context['title']);

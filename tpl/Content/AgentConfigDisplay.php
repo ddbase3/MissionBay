@@ -114,7 +114,7 @@
                         <code><?php echo $e($name); ?></code>
                 </div>
 
-<?php include DIR_PLUGIN . 'MissionBay/tpl/Content/AgentFormFields.php'; ?>
+<?php include dirname(__DIR__) . '/Content/AgentFormFields.php'; ?>
 
                 <div class="base3-agent-config-actions">
                         <div class="base3-agent-config-messages" data-base3-agent-config-display-messages>

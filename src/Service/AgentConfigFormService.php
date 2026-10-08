@@ -264,7 +264,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 	}
 
 	public function getTemplate(): string {
-		return DIR_PLUGIN . 'MissionBay/tpl/Content/AgentConfigFormSection.php';
+		return dirname(__DIR__, 2) . '/tpl/Content/AgentConfigFormSection.php';
 	}
 
 	public function getTemplateData(array $values, array $options = []): array {
@@ -306,10 +306,10 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$language = 'en';
 		}
 
-		$fallback = $this->readTranslationFile(DIR_PLUGIN . 'MissionBay/lang/AgentConfigForm/en.ini');
+		$fallback = $this->readTranslationFile(dirname(__DIR__, 2) . '/lang/AgentConfigForm/en.ini');
 		$current = $language === 'en'
 			? []
-			: $this->readTranslationFile(DIR_PLUGIN . 'MissionBay/lang/AgentConfigForm/' . $language . '.ini');
+			: $this->readTranslationFile(dirname(__DIR__, 2) . '/lang/AgentConfigForm/' . $language . '.ini');
 		$this->translations = array_merge($fallback, $current);
 		return $this->translations;
 	}
