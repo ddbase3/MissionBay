@@ -29,18 +29,10 @@ use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
  * Session-backed conversation metadata and visible message history.
- *
- * The complete store is encoded into scalar chunks because host session
- * adapters are not required to preserve nested arrays reliably.
  */
 class SessionMemoryAgentResource extends AbstractAgentResource implements IAgentConversationMemory, ISchemaProvider {
 
-	private const FORMAT_KEY = 'base3_missionbay_conversation_memory_format';
-	private const CHUNK_COUNT_KEY = 'base3_missionbay_conversation_memory_chunk_count';
-	private const CHUNK_KEY_PREFIX = 'base3_missionbay_conversation_memory_chunk_';
-	private const FORMAT = 'php-serialize-base64-v2';
-	private const CHUNK_SIZE = 700;
-	private const MAX_CHUNKS = 10000;
+	private const SESSION_KEY = 'base3_missionbay_conversation_memory';
 
 	private ?ILogger $logger = null;
 	private ?AgentConversationScope $scope = null;
@@ -508,41 +500,13 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	/** @return array<string,mixed> */
 	private function readStore(): array {
-		$hasFormat = $this->session->has(self::FORMAT_KEY);
-		$hasChunkCount = $this->session->has(self::CHUNK_COUNT_KEY);
-		if (!$hasFormat && !$hasChunkCount) {
+		if (!$this->session->has(self::SESSION_KEY)) {
 			return ['channels' => []];
 		}
-		if (!$hasFormat || !$hasChunkCount || $this->session->get(self::FORMAT_KEY) !== self::FORMAT) {
-			throw new \RuntimeException('Session conversation memory contains an invalid store format.');
-		}
 
-		$countValue = $this->session->get(self::CHUNK_COUNT_KEY);
-		if (!is_int($countValue) && !(is_string($countValue) && ctype_digit($countValue))) {
-			throw new \RuntimeException('Session conversation memory contains an invalid chunk count.');
-		}
-		$count = (int)$countValue;
-		if ($count < 1 || $count > self::MAX_CHUNKS) {
-			throw new \RuntimeException('Session conversation memory contains an invalid chunk count.');
-		}
-
-		$encoded = '';
-		for ($index = 0; $index < $count; $index++) {
-			$chunk = $this->session->get($this->chunkKey($index));
-			if (!is_string($chunk)) {
-				throw new \RuntimeException('Session conversation memory contains an incomplete store.');
-			}
-			$encoded .= $chunk;
-		}
-
-		$serialized = base64_decode($encoded, true);
-		if (!is_string($serialized)) {
-			throw new \RuntimeException('Session conversation memory contains invalid encoded data.');
-		}
-
-		$store = @unserialize($serialized, ['allowed_classes' => false]);
+		$store = $this->session->get(self::SESSION_KEY);
 		if (!is_array($store) || !is_array($store['channels'] ?? null)) {
-			throw new \RuntimeException('Session conversation memory contains invalid serialized data.');
+			throw new \RuntimeException('Session conversation memory contains invalid store data.');
 		}
 
 		return $store;
@@ -550,33 +514,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	/** @param array<string,mixed> $store */
 	private function writeStore(array $store): void {
-		$chunks = str_split(base64_encode(serialize($store)), self::CHUNK_SIZE);
-		$count = count($chunks);
-		if ($count < 1 || $count > self::MAX_CHUNKS) {
-			throw new \RuntimeException('Session conversation memory exceeds the supported session store size.');
-		}
-
-		$oldCountValue = $this->session->get(self::CHUNK_COUNT_KEY, 0);
-		$oldCount = is_int($oldCountValue) || (is_string($oldCountValue) && ctype_digit($oldCountValue))
-			? min(self::MAX_CHUNKS, max(0, (int)$oldCountValue))
-			: 0;
-
-		foreach ($chunks as $index => $chunk) {
-			$this->session->set($this->chunkKey((int)$index), $chunk);
-		}
-		for ($index = $count; $index < $oldCount; $index++) {
-			$this->session->remove($this->chunkKey($index));
-		}
-		$this->session->set(self::CHUNK_COUNT_KEY, $count);
-		$this->session->set(self::FORMAT_KEY, self::FORMAT);
-
-		if ($this->readStore() !== $store) {
-			throw new \RuntimeException('Session conversation memory could not be verified after writing.');
-		}
-	}
-
-	private function chunkKey(int $index): string {
-		return self::CHUNK_KEY_PREFIX . str_pad((string)$index, 5, '0', STR_PAD_LEFT);
+		$this->session->set(self::SESSION_KEY, $store);
 	}
 
 	private function requireOwnerKey(string $ownerKey): string {

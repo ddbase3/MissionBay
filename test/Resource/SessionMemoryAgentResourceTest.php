@@ -12,7 +12,7 @@ use PHPUnit\Framework\TestCase;
 
 final class SessionMemoryAgentResourceTest extends TestCase {
 
-	public function testConversationRoundTripUsesOnlyScalarSessionChunks(): void {
+	public function testConversationRoundTripUsesSingleSessionValue(): void {
 		$session = new SessionMemorySessionStub('test-session');
 		$first = $this->resource($session, 'preset-main');
 		$first->init([], $this->context('chatbot-main', 'conversation-one'));
@@ -26,9 +26,8 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 			['id' => 'u1', 'role' => 'user', 'content' => 'First question'],
 			['id' => 'a1', 'role' => 'assistant', 'content' => 'First answer']
 		], $second->loadNodeHistory('assistant'));
-		foreach ($session->values as $value) {
-			$this->assertTrue(is_scalar($value), 'Session memory must persist only scalar chunk values.');
-		}
+		$this->assertSame(['base3_missionbay_conversation_memory'], array_keys($session->values));
+		$this->assertIsArray($session->values['base3_missionbay_conversation_memory']);
 	}
 
 	public function testMessageMetadataCanBeUpdatedWithoutChangingMessageContent(): void {
@@ -275,7 +274,7 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 		$resource = $this->resource($session, 'preset-main');
 		$resource->init([], $this->context('chatbot-main'));
 		$resource->createConversation('conversation-one');
-		$session->set('base3_missionbay_conversation_memory_chunk_00000', 'not-base64!');
+		$session->set('base3_missionbay_conversation_memory', 'invalid-store');
 
 		$this->expectException(\RuntimeException::class);
 		$resource->listConversations();
