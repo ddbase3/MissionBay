@@ -253,6 +253,11 @@ class AgentToolOrchestrator {
 
 			return $this->buildResult($context);
 		} finally {
+			try {
+				$this->logRunTimings($effectiveLogger, $context);
+			} catch (\Throwable) {
+				// Timing diagnostics must not change the outcome of agent execution.
+			}
 			$this->restoreRuntimeContext($context, $runtimeSnapshot);
 		}
 	}
@@ -954,6 +959,78 @@ class AgentToolOrchestrator {
 		}
 
 		return $default;
+	}
+
+	/**
+	 * Writes one timing summary for the current orchestration run without
+	 * persisting prompts, arguments, tool results, or stage metadata.
+	 */
+	private function logRunTimings(?ILogger $logger, IAgentContext $context): void {
+		if ($logger === null) {
+			return;
+		}
+
+		$startedAt = $context->getVar(AgentToolLoopContextKeys::RUN_STARTED_AT);
+		if (!is_int($startedAt)) {
+			return;
+		}
+
+		$orchestratorMs = max(0.0, round((hrtime(true) - $startedAt) / 1000000, 3));
+		$prepareTiming = $context->getVar('agent_turn_prepare_timing');
+		$preparation = [];
+		foreach ([
+			'memory_history_ms',
+			'capability_discovery_ms',
+			'tool_setup_ms',
+			'context_contribution_ms',
+			'total_before_orchestrator_ms'
+		] as $key) {
+			$value = is_array($prepareTiming) ? ($prepareTiming[$key] ?? null) : null;
+			if (is_int($value) || is_float($value)) {
+				$preparation[$key] = $value;
+			}
+		}
+
+		$stageTrace = $context->getVar(AgentToolLoopContextKeys::STAGE_TRACE);
+		$stages = [];
+		foreach (is_array($stageTrace) ? $stageTrace : [] as $entry) {
+			if (!$entry instanceof AgentStageTraceEntry) {
+				continue;
+			}
+			$stages[] = [
+				'iteration' => $entry->getIteration(),
+				'stage' => $entry->getStageId(),
+				'status' => $entry->getStatus(),
+				'duration_ms' => $entry->getDurationMs()
+			];
+		}
+
+		$modelResults = $context->getVar(AgentToolLoopContextKeys::MODEL_RESULTS);
+		$modelDurations = [];
+		foreach (is_array($modelResults) ? $modelResults : [] as $result) {
+			if (!is_array($result)) {
+				continue;
+			}
+			$duration = $result['duration_ms'] ?? null;
+			$modelDurations[] = is_int($duration) || is_float($duration) ? $duration : null;
+		}
+
+		$toolCalls = $context->getVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS);
+		$prepareMs = $preparation['total_before_orchestrator_ms'] ?? null;
+		$summary = [
+			'preparation_ms' => $preparation,
+			'orchestrator_ms' => $orchestratorMs,
+			'preparation_plus_orchestrator_ms' => $prepareMs === null ? null : round($prepareMs + $orchestratorMs, 3),
+			'iterations' => $this->getInt($context, AgentToolLoopContextKeys::ITERATION),
+			'executed_tool_calls' => is_array($toolCalls) ? count($toolCalls) : 0,
+			'model_result_durations_ms' => $modelDurations,
+			'stages' => $stages
+		];
+
+		$message = json_encode($summary, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
+		if (is_string($message)) {
+			$this->log($logger, '[TIMING] ' . $message);
+		}
 	}
 
 	private function log(?ILogger $logger, string $message): void {

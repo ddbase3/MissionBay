@@ -495,7 +495,7 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				self::DEFAULT_AGENT_STAGE_IDS
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentToolOrchestrator::class, fn($c) => new AgentToolOrchestrator(
-				null,
+				$c->get(ILogger::class),
 				null,
 				null,
 				$c->get(AgentActionResumeService::class),
