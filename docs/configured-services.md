@@ -57,6 +57,7 @@ MissionBay currently contains driver definitions for:
 ```text
 mistralchatservicedriverdefinition
 openaichatservicedriverdefinition
+openairesponseschatservicedriverdefinition
 openaicompatiblechatservicedriverdefinition
 ```
 
@@ -105,6 +106,14 @@ openaitexttospeechdriverdefinition
 ```
 
 The complete current catalog is in [component-catalog.md](component-catalog.md).
+
+## OpenAI Responses chat services
+
+For GPT-6 models using reasoning with function tools, select `openai-responses` in the LLM service definition. Reuse the OpenAI HTTP connection, with the base URL `https://api.openai.com`, and set the model to the model ID granted to your account. The driver uses the `/v1/responses` endpoint, `store: false`, function tools, optional PDF file references, streaming, and `max_output_tokens`.
+
+The driver-specific service options are `maxTokens` (counts reasoning and visible output tokens) and `reasoningEffort` (`none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`, subject to model support). Defaults are `8192` and `medium`. `reasoningEffort` is mapped to `reasoning.effort`, not sent as `reasoning_effort`. `temperature` and `topP` are not sent by this driver, including when a copied service preset still contains those legacy fields.
+
+The agent message adapter preserves provider-returned reasoning and function items only within an active function-tool continuation, including the opaque encrypted reasoning content emitted by stateless Responses. The existing configured LLM service and tool-stage ownership are unchanged. There is no automatic driver switching, additional context database, or request fallback to Chat Completions.
 
 ## OpenAI-compatible services
 

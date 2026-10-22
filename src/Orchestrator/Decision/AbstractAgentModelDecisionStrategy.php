@@ -103,7 +103,7 @@ abstract class AbstractAgentModelDecisionStrategy {
 		// Text accompanying tool calls is control-phase output. It may already have
 		// been streamed as progress, but it must not enter assistant history or
 		// compete with structured review stages.
-		$assistantResult = new AiChatResult('', $toolCalls, $result->getMetadata());
+		$assistantResult = new AiChatResult('', $toolCalls, $result->getMetadata(), $result->getRaw());
 		$messages[] = AgentChatMessageAdapter::assistantMessage($assistantResult);
 
 		$existing = $context->getVar(AgentToolLoopContextKeys::MODEL_DECISION_ASSESSMENTS);

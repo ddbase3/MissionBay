@@ -74,6 +74,12 @@ MissionBay currently ships built-in definitions for its existing OpenAI, OpenAI-
 
 A specialty plugin can therefore provide another driver without adding a branch to MissionBay. The plugin contributes its definition and runtime implementation under the technical names declared by the definition.
 
+## OpenAI Responses driver
+
+`openai-responses` is a separate `llm` service driver implemented by `OpenAiResponsesChatModel` and declared by `OpenAiResponsesChatServiceDriverDefinition`. It reuses the existing `OpenAiTransport`, AI file methods and `IAiChatModel` result contract. Only the provider wire format differs: `input` instead of `messages`, Responses function schema fields instead of nested Chat Completions functions, `max_output_tokens` instead of `max_completion_tokens`, and typed SSE events instead of `choices[0].delta` events.
+
+Native Responses function calls and their `call_id` are converted to the existing provider-neutral `AiToolCall` and MissionBay tool observation messages. For `store: false`, the original reasoning/function output items are replayed with tool results so reasoning remains available in the current function-tool round. Temperature and Top P are omitted for reasoning models; `reasoningEffort` maps to the `reasoning.effort` object. Existing OpenAI Chat and other compatible drivers are not changed.
+
 ## Provider transport boundary
 
 Provider transports implement `AssistantFoundation\Api\IAiProvider`. Model and service adapters depend on provider-neutral Foundation contracts wherever the exchanged DTOs are provider-neutral.

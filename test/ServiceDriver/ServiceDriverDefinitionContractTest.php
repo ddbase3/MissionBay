@@ -10,6 +10,7 @@ use MissionBay\ServiceDriver\MistralSpeechToTextDriverDefinition;
 use MissionBay\ServiceDriver\MistralTextToSpeechDriverDefinition;
 use MissionBay\ServiceDriver\MistralWebSearchServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiChatServiceDriverDefinition;
+use MissionBay\ServiceDriver\OpenAiResponsesChatServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiCompatibleChatServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiCompatibleEmbeddingServiceDriverDefinition;
 use MissionBay\ServiceDriver\OpenAiCompatibleImageServiceDriverDefinition;
@@ -36,6 +37,7 @@ final class ServiceDriverDefinitionContractTest extends TestCase {
 			'mistral text-to-speech' => [MistralTextToSpeechDriverDefinition::class],
 			'mistral web search' => [MistralWebSearchServiceDriverDefinition::class],
 			'openai chat' => [OpenAiChatServiceDriverDefinition::class],
+			'openai responses' => [OpenAiResponsesChatServiceDriverDefinition::class],
 			'openai compatible chat' => [OpenAiCompatibleChatServiceDriverDefinition::class],
 			'openai compatible embedding' => [OpenAiCompatibleEmbeddingServiceDriverDefinition::class],
 			'openai compatible image' => [OpenAiCompatibleImageServiceDriverDefinition::class],

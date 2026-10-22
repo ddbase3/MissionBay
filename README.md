@@ -207,6 +207,9 @@ Current service groups are:
 
 See [docs/configured-services.md](docs/configured-services.md) and [docs/service-drivers.md](docs/service-drivers.md).
 
+For GPT-6 and other OpenAI reasoning models using native function tools, configure the `openai-responses` driver with the existing OpenAI HTTP connection. It sends requests to `/v1/responses` and supports stateless streaming, multi-step function calls, PDF file references and `reasoningEffort` (default `medium`). Its request does not send `temperature` or `top_p`, even if those fields remain populated on a copied LLM preset. Existing `openai-chat` and `openai-compatible` services continue to use Chat Completions unchanged.
+
+
 ## Retrieval and indexing
 
 MissionBay separates a logical collection key from a physical vector-store collection name.

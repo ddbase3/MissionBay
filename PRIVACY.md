@@ -635,6 +635,9 @@ Depending on the active agent stage, a request can contain:
 
 The exact data sent depends on the concrete model adapter and request type.
 
+The `openai-responses` chat driver uses `/v1/responses` with `store: false` and does not request provider-side response storage. This setting does not establish the provider's actual retention, logging, or processing region. While a tool call is in progress, the existing MissionBay message stack can carry opaque encrypted reasoning items and function-call records returned by OpenAI; these items are replayed with the matching tool results. They do not contain publicly readable reasoning text. If an in-progress tool turn is frozen by durable approval, these items may also be included in its existing server-side suspension state and follow that state's lifecycle. The driver does not create another reasoning store or persist a new remote conversation ID.
+
+
 For every external provider, the installation should document:
 
 - provider and product;

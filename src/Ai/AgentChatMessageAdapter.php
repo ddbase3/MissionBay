@@ -43,9 +43,50 @@ final class AgentChatMessageAdapter {
 				static fn(AiToolCall $toolCall): array => self::toolCall($toolCall),
 				$result->getToolCalls()
 			);
+
+			$items = self::responseToolItems($result->getRaw());
+			if($items !== []) {
+				$message['response_items'] = $items;
+			}
 		}
 
 		return $message;
+	}
+
+	/**
+	 * Retains provider response items needed for a stateless function continuation.
+	 * Text from the control phase is intentionally not added to assistant history.
+	 *
+	 * @return array<int,array<string,mixed>>
+	 */
+	private static function responseToolItems(mixed $raw): array {
+		if(!is_array($raw)) {
+			return [];
+		}
+
+		$output = is_array($raw['output'] ?? null) ? $raw['output'] : [];
+		if($output === []) {
+			foreach(array_reverse($raw) as $event) {
+				if(!is_array($event) || ($event['event'] ?? '') !== 'meta') {
+					continue;
+				}
+				$response = $event['full'] ?? null;
+				if(is_array($response) && is_array($response['output'] ?? null)) {
+					$output = $response['output'];
+					break;
+				}
+			}
+		}
+
+		$items = [];
+		foreach($output as $item) {
+			if(!is_array($item) || !in_array((string)($item['type'] ?? ''), ['reasoning', 'function_call'], true)) {
+				continue;
+			}
+			$items[] = $item;
+		}
+
+		return $items;
 	}
 
 	/**
