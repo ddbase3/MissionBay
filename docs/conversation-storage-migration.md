@@ -52,7 +52,7 @@ Chatbot context already carries `chatbot_config_group`/`chatbot_config_name`. Ne
 
 New encryption algorithms are `ICrypt` implementations registered by the BASE3 classmap; built-in methods are owned by `Base3Framework`, not MissionBay. `SodiumCrypt` uses `xchacha20poly1305-v1`. The legacy `aes-256-cbc-legacy-v1` method remains available for existing cipher data; CBC does not authenticate ciphertext and should **not** be chosen for new sensitive chat data.
 
-`IConfigValueResolver` is reused through `IAgentConfigValueResolver`. The `keys` map references deployment-protected secrets; no key bytes are stored with messages:
+`IConfigValueResolver` is reused through `IAgentConfigValueResolver`. The `keys` map references deployment-protected secrets; no key bytes are stored with messages. **The example below is the complete database-memory preset `config` object** (not the contents of the nested `encryption` editor field):
 
 ```json
 {
@@ -66,6 +66,8 @@ New encryption algorithms are `ICrypt` implementations registered by the BASE3 c
   }
 }
 ```
+
+When editing only the `encryption` property in a schema-driven editor, enter just `method`, `key_id` and `keys` inside that property, without a second outer `encryption` object. An incorrectly nested configuration (`config.encryption.encryption.method`) now raises an error rather than defaulting silently to `none`. Leaving the entire `encryption` property absent, using `{}` or explicitly setting `method` to `none` is the supported plaintext default. Test both newly created conversations and appended messages after changing the preset; historical rows retain their original encryption metadata.
 
 The `file` and `env` key-reference shape must follow the installed BASE3 `IConfigValueModeResolver` implementation. Keep secret material outside the webroot and outside database-backed UI settings. Protect backups and operator access. Rotation requires retaining previous key IDs and sources for as long as corresponding ciphertext exists, or a separately verified re-encryption procedure. A missing key, unknown method or failed integrity check is an error, **never a fallback to plaintext**.
 

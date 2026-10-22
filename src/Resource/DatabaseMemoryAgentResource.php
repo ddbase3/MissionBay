@@ -64,7 +64,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		?string $id = null
 	) {
 		parent::__construct($id);
-		$this->cipher = new ConversationContentCipher($resolver, $classmap);
+		$this->cipher = new ConversationContentCipher($resolver, $classmap, $translation);
 	}
 
 	public static function getName(): string {

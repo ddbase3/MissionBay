@@ -169,12 +169,16 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		if ($withSodium) {
 			$classmap->method('getInstancesByInterface')->willReturn([new SodiumCrypt()]);
 		}
+		$translation = $this->createMock(\Base3\Translation\Api\ITranslation::class);
+		$translation->method('translate')->willReturnCallback(
+			static fn (string $set, string $section, string $key): string => $key
+		);
 		$resource = new DatabaseMemoryAgentResource(
 			$database,
 			new DatabaseMemoryConfigResolverStub(),
 			$userManager,
 			$classmap,
-			$this->createMock(\Base3\Translation\Api\ITranslation::class),
+			$translation,
 			'memory-main'
 		);
 		$resource->setConfig($config);
@@ -229,6 +233,75 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$resource->createConversation('conversation-zero');
 		$this->assertSame('user', $database->conversation['owner_type']);
 		$this->assertSame('0', $database->conversation['owner_id']);
+	}
+
+	public function testNestedEncryptionConfigurationIsRejectedBeforePlaintextCanBeWritten(): void {
+		$database = new ConversationDatabaseStub();
+		$config = [
+			'encryption' => [
+				'encryption' => [
+					'method' => 'xchacha20poly1305-v1',
+					'key_id' => 'chat-test-2026',
+					'keys' => ['chat-test-2026' => ['mode' => 'fixed', 'value' => str_repeat('a', 64)]]
+				]
+			]
+		];
+
+		try {
+			$this->resource($database, 42, 'session-one', $config, true);
+			$this->fail('Nested encryption configuration must not disable encryption silently.');
+		}
+		catch (\InvalidArgumentException $exception) {
+			$this->assertSame('invalid_nesting', $exception->getMessage());
+			$this->assertSame([], $database->queries);
+		}
+	}
+
+	public function testMisspelledEncryptionSettingsAreRejected(): void {
+		$database = new ConversationDatabaseStub();
+
+		$this->expectException(\InvalidArgumentException::class);
+		$this->resource($database, 42, 'session-one', [
+			'encryption' => [
+				'methd' => 'xchacha20poly1305-v1',
+				'key_id' => 'chat-test-2026'
+			]
+		], true);
+	}
+
+	public function testInlineFixedKeyResolverEncryptsNewConversationAndMessage(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one', [
+			'encryption' => [
+				'method' => 'xchacha20poly1305-v1',
+				'key_id' => 'test-key',
+				'keys' => [
+					'test-key' => ['mode' => 'fixed', 'value' => str_repeat('a', 64)]
+				]
+			]
+		], true);
+		$resource->init([], $this->context('chatbot-main'));
+		$resource->createConversation('encrypted', 'Private title', openingMessage: 'Private opening');
+		$resource->appendNodeHistory('assistant', [
+			'id' => 'message-one', 'role' => 'user', 'content' => 'Private message'
+		]);
+
+		$this->assertSame('xchacha20poly1305-v1', $database->conversation['encryption_method']);
+		$this->assertStringStartsWith('v1:', $database->conversation['title']);
+		$this->assertStringStartsWith('v1:', array_values($database->messages)[0]['content']);
+		$this->assertSame('Private message', $resource->loadNodeHistory('assistant')[0]['content']);
+	}
+
+	public function testDefaultUnencryptedMemoryRemainsExplicitlySupported(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one', [
+			'encryption' => ['method' => 'none']
+		]);
+		$resource->init([], $this->context('chatbot-main'));
+		$resource->createConversation('unencrypted', 'Normal title');
+
+		$this->assertSame('none', $database->conversation['encryption_method']);
+		$this->assertSame('Normal title', $database->conversation['title']);
 	}
 
 	public function testEncryptedConversationAndMessagesAreReadableButNotPlaintextInDatabase(): void {
@@ -317,7 +390,7 @@ final class ConversationDatabaseStub implements IDatabase {
 				'message_id' => $values[3],
 				'role' => $values[4],
 				'content' => $values[5],
-				'payload' => $values[6],
+				'payload' => $values[6] === '' ? null : $values[6],
 				'encryption_method' => $values[7],
 				'encryption_key_id' => $values[8] === '' ? null : $values[8],
 				'created_at' => $values[9]
@@ -466,6 +539,11 @@ final class ConversationDatabaseStub implements IDatabase {
 }
 
 final class DatabaseMemoryConfigResolverStub implements IAgentConfigValueResolver {
-	public function resolveValue(array|string|int|float|bool|null $config): mixed { return $config; }
+	public function resolveValue(array|string|int|float|bool|null $config): mixed {
+		if (is_array($config) && ($config['mode'] ?? null) === 'fixed') {
+			return $config['value'] ?? null;
+		}
+		return $config;
+	}
 }
 

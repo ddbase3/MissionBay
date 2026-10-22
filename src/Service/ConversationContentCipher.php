@@ -19,6 +19,7 @@ namespace MissionBay\Service;
 
 use Base3\Api\IClassMap;
 use Base3\Crypt\Api\ICrypt;
+use Base3\Translation\Api\ITranslation;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
@@ -34,28 +35,64 @@ final class ConversationContentCipher {
 
 	public function __construct(
 		private readonly IAgentConfigValueResolver $resolver,
-		private readonly IClassMap $classmap
+		private readonly IClassMap $classmap,
+		private readonly ITranslation $translation
 	) {}
 
-	/** @param array<string,mixed> $configuration */
+	/**
+	 * Configure the write policy without silently disabling requested encryption.
+	 *
+	 * Only an absent/empty encryption object or explicit method=none permits
+	 * plaintext writes. An unrecognized or incorrectly nested object fails
+	 * before any conversations can be persisted with the wrong policy.
+	 *
+	 * @param array<string,mixed> $configuration Encryption settings without an outer encryption wrapper
+	 * @return void
+	 * @throws \InvalidArgumentException When the configuration structure is invalid
+	 * @throws \RuntimeException When the encryption method or key is unavailable
+	 */
 	public function setConfig(array $configuration): void {
-		$method = trim((string)($configuration['method'] ?? 'none'));
-		$this->writeMethod = $method !== '' ? $method : 'none';
+		if (array_key_exists('encryption', $configuration)) {
+			throw new \InvalidArgumentException(
+				$this->translation->translate('ConversationMemory', 'database', 'invalid_nesting')
+			);
+		}
+		foreach (array_keys($configuration) as $setting) {
+			if (!in_array($setting, ['method', 'key_id', 'keys'], true)) {
+				throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'unknown_setting'));
+			}
+		}
+		if ($configuration !== [] && !array_key_exists('method', $configuration)) {
+			throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'missing_method'));
+		}
+		if (array_key_exists('method', $configuration)
+			&& (!is_string($configuration['method']) || trim($configuration['method']) === '')) {
+			throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'invalid_method'));
+		}
+		if (array_key_exists('key_id', $configuration)
+			&& !is_string($configuration['key_id']) && $configuration['key_id'] !== null) {
+			throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'invalid_key_id'));
+		}
+
+		$method = $configuration['method'] ?? 'none';
 		$keyId = trim((string)($configuration['key_id'] ?? ''));
-		$this->writeKeyId = $keyId !== '' ? $keyId : null;
+		$keyId = $keyId !== '' ? $keyId : null;
 		$definitions = $configuration['keys'] ?? [];
 		if (!is_array($definitions)) {
 			throw new \InvalidArgumentException('Conversation encryption keys must be an ID-to-source map.');
 		}
-		$this->keyDefinitions = $definitions;
-
-		if ($this->writeMethod !== 'none') {
-			if ($this->writeKeyId === null) {
+		if ($method !== 'none') {
+			if ($keyId === null) {
 				throw new \InvalidArgumentException('Encrypted conversations require a key ID.');
 			}
-			$this->method($this->writeMethod);
-			$this->key($this->writeKeyId);
+			$this->method($method);
+			// Resolve and validate the key before changing the active write policy.
+			$this->key($keyId, $definitions);
 		}
+
+		$this->writeMethod = $method;
+		$this->writeKeyId = $keyId;
+		$this->keyDefinitions = $definitions;
 	}
 
 	public function getWriteMethod(): string {
@@ -102,11 +139,12 @@ final class ConversationContentCipher {
 		return $matched;
 	}
 
-	private function key(string $keyId): string {
-		if (!array_key_exists($keyId, $this->keyDefinitions)) {
+	private function key(string $keyId, ?array $definitions = null): string {
+		$definitions ??= $this->keyDefinitions;
+		if (!array_key_exists($keyId, $definitions)) {
 			throw new \RuntimeException('Conversation encryption key source is not available: ' . $keyId);
 		}
-		$definition = $this->keyDefinitions[$keyId];
+		$definition = $definitions[$keyId];
 		if (!is_array($definition) && !is_string($definition) && !is_int($definition)
 			&& !is_float($definition) && !is_bool($definition) && $definition !== null) {
 			throw new \InvalidArgumentException('Invalid conversation encryption key source definition.');
