@@ -21,6 +21,7 @@ use Base3\Configuration\Api\IConfiguration;
 use Base3\Database\Api\IDatabase;
 use Base3\Worker\Api\IPolicyControlledJob;
 use Base3\Worker\Policy\PolicyControlledJobTrait;
+use MissionBay\ToolUse\ToolUseRetention;
 
 /**
  * MissionBayToolUseCleanupJob
@@ -32,8 +33,6 @@ final class MissionBayToolUseCleanupJob implements IPolicyControlledJob {
 
 	use PolicyControlledJobTrait;
 
-	private const TABLE = 'base3_missionbay_tooluse';
-	private const RETENTION_HOURS = 24;
 	private const DELETE_BATCH = 100000;
 	private const DEFAULT_ACTIVE = 1;
 	private const DEFAULT_PRIORITY = 1;
@@ -75,11 +74,11 @@ final class MissionBayToolUseCleanupJob implements IPolicyControlledJob {
 			return 'DB not connected';
 		}
 
-		if(!$this->toolUseTableExists()) {
-			return 'Skip (' . self::TABLE . ' does not exist)';
+		if(!ToolUseRetention::tableExists($this->database)) {
+			return 'Skip (' . ToolUseRetention::TABLE . ' does not exist)';
 		}
 
-		$cutoff = $this->cutoffUtcSqlString();
+		$cutoff = ToolUseRetention::cutoffUtc(ToolUseRetention::CLEANUP_HOURS);
 		$this->deleteOldToolUse($cutoff);
 		$this->markRun();
 
@@ -95,23 +94,11 @@ final class MissionBayToolUseCleanupJob implements IPolicyControlledJob {
 	}
 
 	private function deleteOldToolUse(string $cutoff): void {
-		$escapedCutoff = $this->database->escape($cutoff);
-
 		$this->database->nonQuery(
-			"DELETE FROM `" . self::TABLE . "`
-			WHERE `created_at` < '" . $escapedCutoff . "'
-				AND `updated_at` < '" . $escapedCutoff . "'
+			"DELETE FROM `" . ToolUseRetention::TABLE . "`
+			WHERE " . ToolUseRetention::expiredWhere($this->database, $cutoff) . "
 			ORDER BY `created_at` ASC, `id` ASC
 			LIMIT " . self::DELETE_BATCH
 		);
-	}
-
-	private function cutoffUtcSqlString(): string {
-		return gmdate('Y-m-d H:i:s', time() - (self::RETENTION_HOURS * 3600));
-	}
-
-	private function toolUseTableExists(): bool {
-		$row = $this->database->singleQuery("SHOW TABLES LIKE '" . self::TABLE . "'");
-		return !empty($row);
 	}
 }

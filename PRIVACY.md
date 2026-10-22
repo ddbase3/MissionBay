@@ -1370,3 +1370,16 @@ external network integrations
 ```
 
 A secure deployment should configure, authorize, minimize, retain, and delete data at the boundary that owns it. MissionBay already separates these concerns technically. The deployment should preserve those boundaries rather than copying the same data or responsibility into parallel fallback paths.
+
+
+### Tool-use retention diagnostic
+
+`ToolUseLogRetentionDiagnosticCheck` is an additional read-only audit of the existing tool-use retention. On demand, it counts rows in `base3_missionbay_tooluse` where **both** `created_at` and `updated_at` are older than 48 hours. This count and the fixed 48-hour threshold can be shown to an authorized administrator, with a failure recommendation to verify `MissionBayToolUseCleanupJob` and the worker. The diagnostic does not select prompts, tool arguments, user information or other row contents, and it does not save results or trigger deletion. No new table, migration or outbound recipient is introduced. The existing 24-hour cleanup remains unchanged; availability and schedule of the host worker still determine the actual deletion time.
+
+### Read-only transport diagnostics
+
+`ExternalConnectionTransportDiagnosticCheck` reads existing MissionBay connection configuration records through `ISettingsStore` and inspects URL schemes for enabled remote HTTP connections. It performs no network request, resolves no credentials and does not modify configuration. Its report contains only aggregate counts of inspected, insecure and unparseable connections, without identifiers, URLs, credentials or query-string content. The diagnostic cannot establish actual TLS certificate validity, provider location, provider retention, or contractual compliance. Results are displayed through the protected BASE3 diagnostics UI and may be copied manually via the browser clipboard.
+
+### AI usage reporting feature audience (2026-10-22)
+
+`AiUsageReportsFeature` declares `feature/aiusagereportsfeature` with the BASE3 `development` group as the default audience. The host's authorization service and feature configuration determine the effective permitted audience. The Lab navigation consults that decision before exposing the AI Usage tab. The feature definition creates no separate usage-log storage, user mapping or access-control database and changes no AI usage retention. Raw reporting outputs must remain protected by their own active reporting backend; removing a navigation tab does not prevent a direct report request.

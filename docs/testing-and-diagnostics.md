@@ -76,3 +76,18 @@ All use the same repositories and collection definition as runtime code.
 8. Only then debug the agent stage or tool implementation.
 
 This order follows the actual composition path and avoids creating diagnostic fallback behavior inside runtime services.
+
+
+### Tool-use retention diagnostic
+
+`ToolUseLogRetentionDiagnosticCheck` implements the new framework `IDiagnosticCheck` contract for the `privacydiagnosticscope` scope. It is discovered through `IClassMap` and executed on demand by `IDiagnosticRunner`. It queries only an aggregate count of records older than 48 hours (both `created_at` and `updated_at`), never returns the contents of an audit log or a user identifier, and never changes records. The threshold leaves time for the existing `MissionBayToolUseCleanupJob` to remove rows older than 24 hours in its nightly window. Both use `ToolUseRetention` for the common timestamp predicate.
+
+States: `passed` when the count is zero; `failed` when greater than zero; `not_applicable` if the table is absent; `error` if the query cannot be evaluated. For failure the translated recommendation tells operators to verify the cleanup job and worker. Translations are in `lang/DiagnosticChecks/de.ini` and `en.ini`. This diagnostic does not replace or activate the cleanup job.
+
+### External HTTP transport diagnostic
+
+`ExternalConnectionTransportDiagnosticCheck` inspects enabled HTTP connection settings without initiating network requests or resolving secrets. It counts remote endpoints that are configured without `https`, ignores disabled/non-HTTP connections and local loopback connections, and warns on active HTTP connections with unparseable or missing URLs. Results contain only aggregate counts, never endpoint URLs, query parameters or secrets. It checks the configured transport scheme only, not certificate validity or the external provider's processing location. All visible texts belong to MissionBay's `lang/DiagnosticChecks` catalogs.
+
+### AI usage reporting feature
+
+`AiUsageReportsFeature` is classmap-discoverable and owns the `feature/aiusagereportsfeature` permission. Its default audience is the logical BASE3 `development` group, with effective audience decisions delegated to the active `IAuthorizationService`. The MissionBay-owned feature translations are in `lang/Features/`. The ILIAS Lab administration uses the decision to include or omit the AI Usage main tab. This navigation filter does not, on its own, protect other direct reporting entry points; the active reporting backend is responsible for server-side data access authorization.

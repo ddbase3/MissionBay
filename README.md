@@ -393,3 +393,16 @@ When extending MissionBay:
 ## License
 
 GPL-3.0.
+
+
+### Tool-use privacy diagnostic
+
+The `ToolUseLogRetentionDiagnosticCheck` is an independent, classmap-discoverable `IDiagnosticCheck` under the privacy scope. It reports only a count of rows older than 48 hours and supplies translated advice to inspect `MissionBayToolUseCleanupJob`. Cleanup continues to run on the existing 24-hour policy; the check does not delete any records. See `docs/testing-and-diagnostics.md`.
+
+### HTTPS diagnostic for configured remote connections
+
+The privacy diagnostics scope now includes `ExternalConnectionTransportDiagnosticCheck` in addition to tool-use log retention. It inspects the enabled HTTP connections in the existing `ISettingsStore` group `connection`, reports aggregate results and never opens a network connection or includes secrets/URLs in the output. Remote connections must have an HTTPS URL to pass; loopback development endpoints are not treated as remote.
+
+### Feature-based AI usage visibility
+
+`MissionBay\Feature\AiUsageReportsFeature` declares `feature/aiusagereportsfeature`. It uses the logical BASE3 `development` group as its default audience and supplies labels through MissionBay-owned translations. Host navigation can hide the AI usage tab on a denied authorization decision. The underlying reporting executor must still authorize direct report and data requests independently of the tab.
