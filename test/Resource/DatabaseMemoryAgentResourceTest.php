@@ -3,9 +3,11 @@
 namespace MissionBay\Test\Resource;
 
 use AssistantFoundation\Dto\AgentConversationScope;
-use Base3\Accesscontrol\Api\IAccesscontrol;
+use Base3\Api\IClassMap;
+use Base3\Usermanager\Api\IUsermanager;
+use Base3\Usermanager\User;
+use Base3\Crypt\Sodium\SodiumCrypt;
 use Base3\Database\Api\IDatabase;
-use Base3\Session\Api\ISession;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Context\AgentContext;
 use MissionBay\Resource\DatabaseMemoryAgentResource;
@@ -13,21 +15,12 @@ use PHPUnit\Framework\TestCase;
 
 final class DatabaseMemoryAgentResourceTest extends TestCase {
 
-	public function testConstructorCreatesOnlyCanonicalTables(): void {
+	public function testConstructorDoesNotCreateOrAlterTables(): void {
 		$database = new ConversationDatabaseStub();
-		new DatabaseMemoryAgentResource(
-			$database,
-			new DatabaseMemoryConfigResolverStub(),
-			new DatabaseMemoryAccesscontrolStub(42),
-			new DatabaseMemorySessionStub('session-one'),
-			'memory-main'
-		);
-
-		$this->assertCount(2, $database->createQueries);
-		$this->assertStringContainsString('CREATE TABLE IF NOT EXISTS base3_missionbay_conversation ', $database->createQueries[0]);
-		$this->assertStringContainsString('CREATE TABLE IF NOT EXISTS base3_missionbay_conversation_message ', $database->createQueries[1]);
-		$this->assertStringNotContainsString('ALTER TABLE', implode("\n", $database->queries));
-		$this->assertStringNotContainsString('AUTO_INCREMENT', implode("\n", $database->queries));
+		$resource = $this->resource($database, 42, 'session-one');
+		$resource->init([], $this->context('chatbot-main'));
+		$this->assertSame([], $database->queries);
+		$this->assertSame([], $database->createQueries);
 	}
 
 	public function testConversationAndMessagesUsePreGeneratedKeysWithoutUnsupportedDatabaseMethods(): void {
@@ -66,7 +59,9 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 				'content' => 'Stored'
 			]
 		], $resource->loadNodeHistory('assistant'));
-		$this->assertSame(hash('sha256', 'user:42'), $database->conversation['owner_key'] ?? null);
+		$this->assertSame('user', $database->conversation['owner_type'] ?? null);
+		$this->assertSame('42', $database->conversation['owner_id'] ?? null);
+		$this->assertArrayNotHasKey('owner_key', $database->conversation ?? []);
 		$this->assertSame('chatbot-main', $database->conversation['channel_id'] ?? null);
 		$this->assertMatchesRegularExpression('/^[a-f0-9]{40}$/', (string)($database->conversation['conversation_key'] ?? ''));
 		$this->assertSame(0, $database->transactionCalls);
@@ -101,7 +96,7 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 
 	public function testManualTitleIsNotOverwrittenAndDeleteRemovesConversation(): void {
 		$database = new ConversationDatabaseStub();
-		$resource = $this->resource($database, null, 'session-one');
+		$resource = $this->resource($database, 42, 'session-one');
 		$resource->init([], $this->context('chatbot-main'));
 		$resource->createConversation('conversation-one', 'Temporary', openingMessage: 'Hello');
 		$manual = $resource->renameConversation('conversation-one', 'Manual title');
@@ -113,7 +108,8 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 
 		$this->assertSame('Manual title', $manual->getTitle());
 		$this->assertSame('Manual title', $automatic->getTitle());
-		$this->assertSame(hash('sha256', 'session:session-one'), $database->conversation['owner_key'] ?? null);
+		$this->assertSame('user', $database->conversation['owner_type'] ?? null);
+		$this->assertSame('42', $database->conversation['owner_id'] ?? null);
 
 		$resource->deleteConversation('conversation-one');
 		$this->assertNull($resource->getConversation('conversation-one'));
@@ -127,12 +123,11 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$resource->createConversation('conversation-one');
 		$resource->appendNodeHistory('assistant', ['id' => 'message-one', 'role' => 'user', 'content' => 'Stored']);
 
-		$ownerKey = AgentConversationScope::ownerKeyForUser(42);
-		$resource->deleteConversationsByOwnerKey($ownerKey);
+		$resource->deleteConversationsByOwner('user', '42');
 
 		$this->assertNull($database->conversation);
 		$this->assertSame([], $database->messages);
-		$this->assertTrue($this->containsQuery($database->queries, 'DELETE FROM base3_missionbay_conversation WHERE owner_key='));
+		$this->assertTrue($this->containsQuery($database->queries, 'DELETE FROM base3_missionbay_conversation WHERE (owner_type='));
 	}
 
 	public function testBulkDeleteRemovesAllConversationsForChannel(): void {
@@ -163,16 +158,101 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 
 		$this->expectException(\RuntimeException::class);
 		$resource->init([], new AgentContext());
+		$resource->listConversations();
 	}
 
-	private function resource(ConversationDatabaseStub $database, mixed $userId, string $sessionId): DatabaseMemoryAgentResource {
-		return new DatabaseMemoryAgentResource(
+	private function resource(ConversationDatabaseStub $database, mixed $userId, string $sessionId, array $config = [], bool $withSodium = false): DatabaseMemoryAgentResource {
+		$userManager = $this->createMock(IUsermanager::class);
+		$user = $userId === null ? null : User::fromArray(['id' => $userId]);
+		$userManager->method('getUser')->willReturn($user);
+		$classmap = $this->createMock(IClassMap::class);
+		if ($withSodium) {
+			$classmap->method('getInstancesByInterface')->willReturn([new SodiumCrypt()]);
+		}
+		$resource = new DatabaseMemoryAgentResource(
 			$database,
 			new DatabaseMemoryConfigResolverStub(),
-			new DatabaseMemoryAccesscontrolStub($userId),
-			new DatabaseMemorySessionStub($sessionId),
+			$userManager,
+			$classmap,
+			$this->createMock(\Base3\Translation\Api\ITranslation::class),
 			'memory-main'
 		);
+		$resource->setConfig($config);
+		return $resource;
+	}
+
+	public function testAnonymousUseOfDatabaseMemoryIsRejectedWithoutWrites(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, null, 'session-one');
+		$resource->init([], $this->context('chatbot-main'));
+		$this->expectException(\RuntimeException::class);
+		$resource->createConversation('conversation-one');
+	}
+
+	public function testLegacyOwnerIsReassignedFromKnownNativeId(): void {
+		$database = new ConversationDatabaseStub();
+		$database->conversation = [
+			'conversation_key' => str_repeat('b', 40),
+			'owner_key' => hash('sha256', 'user:42'),
+			'owner_type' => null, 'owner_id' => null,
+			'channel_id' => 'chatbot-main', 'memory_namespace' => 'default',
+			'conversation_id' => 'conversation-legacy',
+			'title' => 'Earlier conversation', 'title_source' => 'temporary',
+			'opening_message' => null, 'encryption_method' => 'none', 'encryption_key_id' => null,
+			'created_at' => '2026-08-20 10:00:00.000000',
+			'updated_at' => '2026-08-20 10:00:00.000000',
+			'last_active_at' => '2026-08-20 10:00:00.000000'
+		];
+		$resource = $this->resource($database, 42, 'session-one');
+		$resource->init([], $this->context('chatbot-main'));
+		$this->assertSame('Earlier conversation', $resource->listConversations()[0]->getTitle());
+		$this->assertSame('user', $database->conversation['owner_type']);
+		$this->assertSame('42', $database->conversation['owner_id']);
+	}
+
+	public function testChatbotSourceIsSavedForGlobalObjectDiagnostics(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$context = $this->context('chatbot-main');
+		$context->setVar('chatbot_config_group', 'chatbot');
+		$context->setVar('chatbot_config_name', 'example');
+		$resource->init([], $context);
+		$resource->createConversation('conversation-sourced');
+		$this->assertSame('chatbot', $database->conversation['chatbot_config_group']);
+		$this->assertSame('example', $database->conversation['chatbot_config_name']);
+	}
+
+	public function testHostDefinedNativeUserIdZeroIsNotMistakenForAnonymous(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 0, 'session-one');
+		$resource->init([], $this->context('chatbot-main'));
+		$resource->createConversation('conversation-zero');
+		$this->assertSame('user', $database->conversation['owner_type']);
+		$this->assertSame('0', $database->conversation['owner_id']);
+	}
+
+	public function testEncryptedConversationAndMessagesAreReadableButNotPlaintextInDatabase(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one', [
+			'encryption' => [
+				'method' => 'xchacha20poly1305-v1',
+				'key_id' => 'key-2026',
+				'keys' => ['key-2026' => str_repeat('s', 48)]
+			]
+		], true);
+		$resource->init([], $this->context('chatbot-main'));
+		$conversation = $resource->createConversation('conversation-one', 'Private title', openingMessage: 'Private opening');
+		$resource->appendNodeHistory('assistant', ['id' => 'msg1', 'role' => 'user', 'content' => 'Private content', 'tag' => 'private metadata']);
+
+		$this->assertSame('Private title', $conversation->getTitle());
+		$this->assertSame('Private opening', $conversation->getOpeningMessage());
+		$this->assertNotSame('Private title', $database->conversation['title']);
+		$this->assertNotSame('Private opening', $database->conversation['opening_message']);
+		$this->assertSame('xchacha20poly1305-v1', $database->conversation['encryption_method']);
+		$this->assertNotSame('Private content', array_values($database->messages)[0]['content']);
+		$this->assertNotSame('{"tag":"private metadata"}', array_values($database->messages)[0]['payload']);
+		$this->assertSame('Private content', $resource->loadNodeHistory('assistant')[0]['content']);
+		$this->assertSame('private metadata', $resource->loadNodeHistory('assistant')[0]['tag']);
 	}
 
 	private function context(string $channelId): AgentContext {
@@ -210,16 +290,21 @@ final class ConversationDatabaseStub implements IDatabase {
 			$values = $this->values($query);
 			$this->conversation = [
 				'conversation_key' => $values[0],
-				'owner_key' => $values[1],
-				'channel_id' => $values[2],
-				'memory_namespace' => $values[3],
-				'conversation_id' => $values[4],
-				'title' => $values[5],
-				'title_source' => $values[6],
-				'opening_message' => $values[7],
-				'created_at' => $values[8],
-				'updated_at' => $values[9],
-				'last_active_at' => $values[10]
+				'owner_type' => $values[1],
+				'owner_id' => $values[2],
+				'channel_id' => $values[3],
+				'memory_namespace' => $values[4],
+				'conversation_id' => $values[5],
+				'chatbot_config_group' => $values[6],
+				'chatbot_config_name' => $values[7],
+				'title' => $values[8],
+				'title_source' => $values[9],
+				'opening_message' => $values[10],
+				'encryption_method' => $values[11],
+				'encryption_key_id' => $values[12] === '' ? null : $values[12],
+				'created_at' => $values[13],
+				'updated_at' => $values[14],
+				'last_active_at' => $values[15]
 			];
 			return;
 		}
@@ -233,8 +318,18 @@ final class ConversationDatabaseStub implements IDatabase {
 				'role' => $values[4],
 				'content' => $values[5],
 				'payload' => $values[6],
-				'created_at' => $values[7]
+				'encryption_method' => $values[7],
+				'encryption_key_id' => $values[8] === '' ? null : $values[8],
+				'created_at' => $values[9]
 			];
+			return;
+		}
+		if (str_starts_with($query, 'UPDATE base3_missionbay_conversation SET owner_type=')) {
+			$old = $this->conditionValue($query, 'owner_key');
+			if (($this->conversation['owner_type'] ?? null) === null && ($this->conversation['owner_key'] ?? null) === $old) {
+				$this->conversation['owner_type'] = $this->conditionValue($query, 'owner_type');
+				$this->conversation['owner_id'] = $this->conditionValue($query, 'owner_id');
+			}
 			return;
 		}
 		if (str_starts_with($query, 'UPDATE base3_missionbay_conversation SET title=')) {
@@ -274,14 +369,23 @@ final class ConversationDatabaseStub implements IDatabase {
 
 	public function singleQuery(string $query): ?array {
 		$this->queries[] = $query;
+		if (str_contains($query, 'WHERE owner_type IS NULL AND owner_key=')) {
+			if (($this->conversation['owner_type'] ?? null) === null
+				&& ($this->conversation['owner_key'] ?? null) === $this->conditionValue($query, 'owner_key')) {
+				return $this->conversation;
+			}
+			return null;
+		}
 		if (str_contains($query, 'FROM base3_missionbay_conversation ')) {
 			if ($this->conversation === null) return null;
 			$id = $this->conditionValue($query, 'conversation_id');
-			$owner = $this->conditionValue($query, 'owner_key');
+			$ownerType = $this->conditionValue($query, 'owner_type');
+			$ownerId = $this->conditionValue($query, 'owner_id');
 			$channel = $this->conditionValue($query, 'channel_id');
 			$namespace = $this->conditionValue($query, 'memory_namespace');
 			if ($id !== '' && $this->conversation['conversation_id'] !== $id) return null;
-			if ($owner !== '' && $this->conversation['owner_key'] !== $owner) return null;
+			if ($ownerType !== '' && $this->conversation['owner_type'] !== $ownerType) return null;
+			if ($ownerId !== '' && $this->conversation['owner_id'] !== $ownerId) return null;
 			if ($channel !== '' && $this->conversation['channel_id'] !== $channel) return null;
 			if ($namespace !== '' && $this->conversation['memory_namespace'] !== $namespace) return null;
 			return $this->conversation;
@@ -290,15 +394,15 @@ final class ConversationDatabaseStub implements IDatabase {
 			$key = $this->conditionValue($query, 'message_key');
 			return isset($this->messages[$key]) ? ['message_key' => $key] : null;
 		}
-		if (str_contains($query, 'SELECT message_key, payload FROM base3_missionbay_conversation_message')) {
+		if (str_contains($query, 'SELECT message_key, payload, encryption_method, encryption_key_id FROM base3_missionbay_conversation_message')) {
 			foreach ($this->messages as $message) {
 				if ($message['message_id'] === $this->conditionValue($query, 'message_id')) return $message;
 			}
 			return null;
 		}
-		if (str_contains($query, 'SELECT payload FROM base3_missionbay_conversation_message')) {
+		if (str_contains($query, 'SELECT payload, encryption_method, encryption_key_id FROM base3_missionbay_conversation_message')) {
 			$key = $this->conditionValue($query, 'message_key');
-			return isset($this->messages[$key]) ? ['payload' => $this->messages[$key]['payload']] : null;
+			return isset($this->messages[$key]) ? $this->messages[$key] : null;
 		}
 		return null;
 	}
@@ -365,21 +469,3 @@ final class DatabaseMemoryConfigResolverStub implements IAgentConfigValueResolve
 	public function resolveValue(array|string|int|float|bool|null $config): mixed { return $config; }
 }
 
-final class DatabaseMemoryAccesscontrolStub implements IAccesscontrol {
-	public function __construct(private readonly mixed $userId) {}
-	public function getUserId() { return $this->userId; }
-	public function authenticate(): void {}
-}
-
-final class DatabaseMemorySessionStub implements ISession {
-	private bool $started = false;
-	public function __construct(private readonly string $id) {}
-	public function started(): bool { return $this->started; }
-	public function getId(): string { return $this->id; }
-	public function start(): bool { $this->started = true; return true; }
-	public function destroy(): bool { $this->started = false; return true; }
-	public function get(string $key, mixed $default = null): mixed { return $default; }
-	public function set(string $key, mixed $value): void {}
-	public function has(string $key): bool { return false; }
-	public function remove(string $key): void {}
-}

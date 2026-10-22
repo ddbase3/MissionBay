@@ -114,12 +114,12 @@ class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAg
 		$this->requireMemory()->deleteConversation($conversationId);
 	}
 
-	public function deleteConversationsByOwnerKey(string $ownerKey): void {
-		$this->memory?->deleteConversationsByOwnerKey($ownerKey);
+	public function deleteConversationsByOwner(string $ownerType, string $ownerId): void {
+		$this->requireLifecycleMemory()->deleteConversationsByOwner($ownerType, $ownerId);
 	}
 
 	public function deleteConversationsByChannel(string $channelId): void {
-		$this->memory?->deleteConversationsByChannel($channelId);
+		$this->requireLifecycleMemory()->deleteConversationsByChannel($channelId);
 	}
 
 	public function touchConversation(string $conversationId): AgentConversation {
@@ -172,6 +172,14 @@ class ConfiguredAgentMemoryResource extends AbstractAgentResource implements IAg
 
 	public function isWriteEnabled(): bool {
 		return $this->canWrite();
+	}
+
+	/** Lifecycle deletion is permitted on a read/write-disabled memory, but never silently skipped. */
+	private function requireLifecycleMemory(): IAgentConversationMemory {
+		if (!$this->memory instanceof IAgentConversationMemory) {
+			throw new \RuntimeException('Configured conversation memory is unavailable for lifecycle deletion.');
+		}
+		return $this->memory;
 	}
 
 	private function requireMemory(): IAgentConversationMemory {

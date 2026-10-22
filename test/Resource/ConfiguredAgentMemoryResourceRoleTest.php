@@ -18,7 +18,7 @@ final class ConfiguredAgentMemoryResourceRoleTest extends TestCase {
 		$wrapper = new ConfiguredAgentMemoryResource($this->resolver(), 'configured-conversation');
 		$wrapper->init(['memory' => [$underlying]], new AgentContext());
 
-		$scope = new AgentConversationScope(str_repeat('a', 64), 'chatbot-main', 'conversation-1');
+		$scope = new AgentConversationScope('user', '42', 'chatbot-main', 'conversation-1');
 		$wrapper->bindConversationScope($scope);
 
 		$this->assertSame($scope, $underlying->scope);
@@ -41,6 +41,25 @@ final class ConfiguredAgentMemoryResourceRoleTest extends TestCase {
 		$this->assertSame(0, $underlying->writes);
 		$this->expectException(\RuntimeException::class);
 		$wrapper->createConversation();
+	}
+
+	public function testLifecycleDeletionBypassesReadWriteSwitchesWithoutSilentlySkipping(): void {
+		$underlying = new ConfiguredMemoryTestStub();
+		$wrapper = new ConfiguredAgentMemoryResource($this->resolver(), 'configured-archival');
+		$wrapper->setConfig(['read_enabled' => false, 'write_enabled' => false]);
+		$wrapper->init(['memory' => [$underlying]], new AgentContext());
+		$wrapper->deleteConversationsByOwner('user', '42');
+		$wrapper->deleteConversationsByChannel('chatbot-main');
+		$this->assertSame([['user', '42']], $underlying->deletedOwners);
+		$this->assertSame(['chatbot-main'], $underlying->deletedChannels);
+	}
+
+	public function testLifecycleDeletionWithoutMemoryFailsExplicitly(): void {
+		$wrapper = new ConfiguredAgentMemoryResource($this->resolver(), 'configured-missing');
+		$wrapper->setConfig(['enabled' => false]);
+		$wrapper->init([], new AgentContext());
+		$this->expectException(\RuntimeException::class);
+		$wrapper->deleteConversationsByOwner('user', '42');
 	}
 
 	public function testGenericAgentMemoryIsRejected(): void {
@@ -70,6 +89,8 @@ final class ConfiguredAgentMemoryResourceRoleTest extends TestCase {
 final class ConfiguredMemoryTestStub implements IAgentConversationMemory {
 
 	public int $writes = 0;
+	public array $deletedOwners = [];
+	public array $deletedChannels = [];
 	public ?AgentConversationScope $scope = null;
 
 	public static function getName(): string { return 'configuredmemoryteststub'; }
@@ -81,8 +102,8 @@ final class ConfiguredMemoryTestStub implements IAgentConversationMemory {
 	public function activateConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
 	public function renameConversation(string $conversationId, string $title, string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL): AgentConversation { throw new \RuntimeException(); }
 	public function deleteConversation(string $conversationId): void {}
-	public function deleteConversationsByOwnerKey(string $ownerKey): void {}
-	public function deleteConversationsByChannel(string $channelId): void {}
+	public function deleteConversationsByOwner(string $ownerType, string $ownerId): void { $this->deletedOwners[] = [$ownerType, $ownerId]; }
+	public function deleteConversationsByChannel(string $channelId): void { $this->deletedChannels[] = $channelId; }
 	public function touchConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
 	public function loadNodeHistory(string $nodeId): array { return [['role' => 'user', 'content' => 'Stored']]; }
 	public function appendNodeHistory(string $nodeId, array $message): void { $this->writes++; }

@@ -156,7 +156,7 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 		$secondary->init([], $this->context('chatbot-secondary'));
 		$secondary->createConversation('conversation-secondary');
 
-		$main->deleteConversationsByOwnerKey(AgentConversationScope::ownerKeyForSession('test-session'));
+		$main->deleteConversationsByOwner('session', AgentConversationScope::ownerIdForSession('test-session'));
 
 		$mainCheck = $this->resource($session, 'preset-main');
 		$mainCheck->init([], $this->context('chatbot-main'));
@@ -165,6 +165,14 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 
 		$this->assertSame([], $mainCheck->listConversations());
 		$this->assertSame([], $secondaryCheck->listConversations());
+	}
+
+	public function testDeletionOfAnotherSessionIsRejectedExplicitly(): void {
+		$session = new SessionMemorySessionStub('current-session');
+		$memory = $this->resource($session, 'preset-main');
+		$memory->init([], $this->context('chatbot-main'));
+		$this->expectException(\RuntimeException::class);
+		$memory->deleteConversationsByOwner('session', AgentConversationScope::ownerIdForSession('other-session'));
 	}
 
 	public function testInvalidRenameDoesNotPersistInvalidConversationState(): void {
@@ -308,6 +316,7 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 
 		$this->expectException(\RuntimeException::class);
 		$resource->init([], new AgentContext());
+		$resource->listConversations();
 	}
 
 	public function testConversationScopeRequiresStableSessionIdentity(): void {
@@ -315,6 +324,7 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 
 		$this->expectException(\RuntimeException::class);
 		$resource->init([], $this->context('chatbot-main'));
+		$resource->listConversations();
 	}
 
 	/** @param array<string,mixed> $config */

@@ -21,27 +21,35 @@ use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentConversationMemory;
 use AssistantFoundation\Dto\AgentConversation;
 use AssistantFoundation\Dto\AgentConversationScope;
-use Base3\Accesscontrol\Api\IAccesscontrol;
+use Base3\Api\IClassMap;
+use Base3\Api\ISchemaProvider;
+use Base3\Crypt\Api\ICrypt;
+use Base3\Translation\Api\ITranslation;
+use Base3\Usermanager\Api\IUsermanager;
 use Base3\Database\Api\IDatabase;
 use Base3\Logger\Api\ILogger;
-use Base3\Session\Api\ISession;
+use MissionBay\Service\ConversationContentCipher;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 /**
  * Database-backed conversation metadata and visible message history.
  *
+ * Tables are created and upgraded only by the MissionBay migration provider.
  * Storage keys are generated before INSERT operations. The implementation does
  * not use transactions, insertId(), affectedRows(), or database error-state
- * methods so it remains compatible with the BASE3 ILIAS database adapter.
+ * methods so it remains compatible with minimal BASE3 IDatabase implementations.
  */
-class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgentConversationMemory {
+class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgentConversationMemory, ISchemaProvider {
 
 	private const CONVERSATION_TABLE = 'base3_missionbay_conversation';
 	private const MESSAGE_TABLE = 'base3_missionbay_conversation_message';
 
 	private ?ILogger $logger = null;
 	private ?AgentConversationScope $scope = null;
+	private ?IAgentContext $context = null;
+	private readonly ConversationContentCipher $cipher;
+	private ?string $legacyBackfilledOwnerId = null;
 	private string $namespace = 'default';
 	private int $max = 20;
 	private int $priority = 80;
@@ -50,12 +58,13 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 	public function __construct(
 		private readonly IDatabase $database,
 		private readonly IAgentConfigValueResolver $resolver,
-		private readonly IAccesscontrol $accesscontrol,
-		private readonly ISession $session,
+		private readonly IUsermanager $usermanager,
+		private readonly IClassMap $classmap,
+		private readonly ITranslation $translation,
 		?string $id = null
 	) {
 		parent::__construct($id);
-		$this->ensureTables();
+		$this->cipher = new ConversationContentCipher($resolver, $classmap);
 	}
 
 	public static function getName(): string {
@@ -64,6 +73,65 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 
 	public function getDescription(): string {
 		return 'Provides persistent multi-conversation history through IDatabase.';
+	}
+
+	public function getSchema(): array {
+		$methods = ['none'];
+		foreach ($this->classmap->getInstancesByInterface(ICrypt::class) as $candidate) {
+			if ($candidate instanceof ICrypt) {
+				$methods[] = $candidate->getMethod();
+			}
+		}
+		$methods = array_values(array_unique($methods));
+		sort($methods);
+
+		return [
+			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
+			'type' => 'object',
+			'properties' => [
+				'namespace' => [
+					'type' => 'string',
+					'description' => $this->translation->translate('ConversationMemory', 'database', 'namespace'),
+					'default' => 'default'
+				],
+				'max' => [
+					'type' => 'integer',
+					'description' => $this->translation->translate('ConversationMemory', 'database', 'max'),
+					'default' => 20, 'minimum' => 2
+				],
+				'trim' => [
+					'type' => 'boolean',
+					'description' => $this->translation->translate('ConversationMemory', 'database', 'trim'),
+					'default' => false
+				],
+				'priority' => [
+					'type' => 'integer',
+					'description' => $this->translation->translate('ConversationMemory', 'database', 'priority'),
+					'default' => 80
+				],
+				'encryption' => [
+					'type' => 'object',
+					'description' => $this->translation->translate('ConversationMemory', 'database', 'encryption'),
+					'properties' => [
+						'method' => [
+							'type' => 'string', 'enum' => $methods, 'default' => 'none',
+							'description' => $this->translation->translate('ConversationMemory', 'database', 'method')
+						],
+						'key_id' => [
+							'type' => 'string',
+							'description' => $this->translation->translate('ConversationMemory', 'database', 'key_id')
+						],
+						'keys' => [
+							'type' => 'object',
+							'additionalProperties' => true,
+							'description' => $this->translation->translate('ConversationMemory', 'database', 'keys')
+						]
+					],
+					'default' => ['method' => 'none']
+				]
+			],
+			'required' => []
+		];
 	}
 
 	public function getDockDefinitions(): array {
@@ -86,6 +154,10 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$this->max = max(2, (int)($this->resolver->resolveValue($config['max'] ?? null) ?? 20));
 		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 80);
 		$this->trimHistory = $this->toBool($this->resolver->resolveValue($config['trim'] ?? null), false);
+		if (array_key_exists('encryption', $config) && !is_array($config['encryption'])) {
+			throw new \InvalidArgumentException('Invalid database conversation encryption configuration.');
+		}
+		$this->cipher->setConfig($config['encryption'] ?? []);
 	}
 
 	public function init(array $resources, IAgentContext $context): void {
@@ -94,12 +166,19 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			$this->logger = $logger;
 		}
 
-		$this->bindConversationScope($this->scopeFromContext($context));
-		$this->log('initialized');
+		// The preset materializer also initializes the router's unused child.
+		// Only resolve and bind this scope when the database branch is selected.
+		$this->context = $context;
 	}
 
 	public function bindConversationScope(AgentConversationScope $scope): void {
+		if ($scope->getOwnerType() !== AgentConversationScope::OWNER_USER
+			|| $scope->getOwnerId() !== $this->requireCurrentUserId()) {
+			throw new \RuntimeException('Database conversation memory requires the current authenticated user.');
+		}
 		$this->scope = $scope;
+		$this->backfillLegacyOwner($scope->getOwnerId());
+		$this->backfillSourceReference($scope->getChannelId());
 		if (!$scope->hasConversationId()) {
 			return;
 		}
@@ -117,9 +196,10 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$scope = $this->requireScope();
 		$this->database->connect();
 		$rows = $this->database->multiQuery(
-			'SELECT conversation_id, title, title_source, opening_message, created_at, updated_at, last_active_at'
+			'SELECT conversation_id, title, title_source, opening_message, encryption_method, encryption_key_id, created_at, updated_at, last_active_at'
 			. ' FROM ' . self::CONVERSATION_TABLE
-			. ' WHERE owner_key=' . $this->quote($scope->getOwnerKey())
+			. ' WHERE owner_type=' . $this->quote($scope->getOwnerType())
+			. ' AND owner_id=' . $this->quote($scope->getOwnerId())
 			. ' AND channel_id=' . $this->quote($scope->getChannelId())
 			. ' AND memory_namespace=' . $this->quote($this->namespace)
 			. ' ORDER BY last_active_at DESC, created_at DESC, conversation_id DESC'
@@ -172,18 +252,27 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			'last_active_at' => $now
 		]);
 
+		$method = $this->cipher->getWriteMethod();
+		$keyId = $method === 'none' ? null : $this->cipher->getWriteKeyId();
+		$configGroup = $this->context instanceof IAgentContext ? $this->contextString($this->context, 'chatbot_config_group') : '';
+		$configName = $this->context instanceof IAgentContext ? $this->contextString($this->context, 'chatbot_config_name') : '';
 		$this->database->connect();
 		$this->database->nonQuery(
 			'INSERT INTO ' . self::CONVERSATION_TABLE
-			. ' (conversation_key, owner_key, channel_id, memory_namespace, conversation_id, title, title_source, opening_message, created_at, updated_at, last_active_at) VALUES ('
+			. ' (conversation_key, owner_type, owner_id, channel_id, memory_namespace, conversation_id, chatbot_config_group, chatbot_config_name, title, title_source, opening_message, encryption_method, encryption_key_id, created_at, updated_at, last_active_at) VALUES ('
 			. $this->quote($storageKey) . ', '
-			. $this->quote($scope->getOwnerKey()) . ', '
+			. $this->quote($scope->getOwnerType()) . ', '
+			. $this->quote($scope->getOwnerId()) . ', '
 			. $this->quote($scope->getChannelId()) . ', '
 			. $this->quote($this->namespace) . ', '
 			. $this->quote($conversationId) . ', '
-			. $this->quote($title) . ', '
+			. $this->nullableQuote($configGroup) . ', '
+			. $this->nullableQuote($configName) . ', '
+			. $this->quote($this->cipher->encode($title, $method, $keyId)) . ', '
 			. $this->quote($titleSource) . ', '
-			. $this->nullableQuote($openingMessage) . ', '
+			. $this->nullableEncrypted($openingMessage, $method, $keyId) . ', '
+			. $this->quote($method) . ', '
+			. ($keyId === null ? 'NULL' : $this->quote($keyId)) . ', '
 			. $this->quote($now) . ', '
 			. $this->quote($now) . ', '
 			. $this->quote($now) . ')'
@@ -223,7 +312,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			'id' => $conversationId,
 			'title' => $title,
 			'title_source' => $titleSource,
-			'opening_message' => (string)($row['opening_message'] ?? ''),
+			'opening_message' => $this->decryptedNullable($row['opening_message'] ?? null, $row),
 			'created_at' => (string)($row['created_at'] ?? ''),
 			'updated_at' => $this->now(),
 			'last_active_at' => (string)($row['last_active_at'] ?? '')
@@ -232,14 +321,14 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$now = $this->now();
 		$this->database->nonQuery(
 			'UPDATE ' . self::CONVERSATION_TABLE
-			. ' SET title=' . $this->quote($title)
+			. ' SET title=' . $this->quote($this->cipher->encode($title, $this->rowMethod($row), $this->rowKeyId($row)))
 			. ', title_source=' . $this->quote($titleSource)
 			. ', updated_at=' . $this->quote($now)
 			. ' WHERE conversation_key=' . $this->quote((string)$row['conversation_key'])
 		);
 
 		$updated = $this->requireConversationRow($conversationId);
-		if ((string)$updated['title'] !== $title || (string)$updated['title_source'] !== $titleSource) {
+		if ($this->decryptRowField((string)$updated['title'], $updated) !== $title || (string)$updated['title_source'] !== $titleSource) {
 			throw new \RuntimeException('Conversation title could not be verified after update.');
 		}
 
@@ -272,29 +361,35 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 
 		$scope = $this->requireScope();
 		if ($scope->getConversationId() === $conversationId) {
-			$this->scope = new AgentConversationScope($scope->getOwnerKey(), $scope->getChannelId());
+			$this->scope = new AgentConversationScope($scope->getOwnerType(), $scope->getOwnerId(), $scope->getChannelId());
 		}
 		$this->log('deleted conversation ' . $conversationId);
 	}
 
-	public function deleteConversationsByOwnerKey(string $ownerKey): void {
-		$ownerKey = $this->requireOwnerKey($ownerKey);
+	public function deleteConversationsByOwner(string $ownerType, string $ownerId): void {
+		if (!in_array($ownerType, [AgentConversationScope::OWNER_USER, AgentConversationScope::OWNER_SESSION], true)
+			|| $ownerId === '' || strlen($ownerId) > 191) {
+			throw new \InvalidArgumentException('Invalid conversation owner.');
+		}
+		// Lifecycle deletion also works after the owner has been deleted in the host.
+		$legacyKey = $ownerType === AgentConversationScope::OWNER_USER
+			? hash('sha256', 'user:' . $ownerId)
+			: $ownerId;
+		$condition = '(owner_type=' . $this->quote($ownerType)
+			. ' AND owner_id=' . $this->quote($ownerId) . ')'
+			. ' OR (owner_type IS NULL AND owner_key=' . $this->quote($legacyKey) . ')';
 		$this->database->connect();
 		$this->database->nonQuery(
-			'DELETE FROM ' . self::CONVERSATION_TABLE
-			. ' WHERE owner_key=' . $this->quote($ownerKey)
+			'DELETE FROM ' . self::CONVERSATION_TABLE . ' WHERE ' . $condition
 		);
-
 		$remaining = $this->database->singleQuery(
 			'SELECT conversation_key FROM ' . self::CONVERSATION_TABLE
-			. ' WHERE owner_key=' . $this->quote($ownerKey)
-			. ' LIMIT 1'
+			. ' WHERE ' . $condition . ' LIMIT 1'
 		);
 		if (is_array($remaining)) {
 			throw new \RuntimeException('Conversations could not be verified as deleted for owner.');
 		}
-
-		if ($this->scope?->getOwnerKey() === $ownerKey) {
+		if ($this->scope?->getOwnerType() === $ownerType && $this->scope->getOwnerId() === $ownerId) {
 			$this->scope = null;
 		}
 	}
@@ -344,7 +439,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$row = $this->requireCurrentConversationRow();
 		$nodeId = $this->requireNodeId($nodeId);
 		$rows = $this->database->multiQuery(
-			'SELECT message_id, role, content, payload'
+			'SELECT message_id, role, content, payload, encryption_method, encryption_key_id'
 			. ' FROM ' . self::MESSAGE_TABLE
 			. ' WHERE conversation_key=' . $this->quote((string)$row['conversation_key'])
 			. ' AND node_id=' . $this->quote($nodeId)
@@ -359,9 +454,9 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			$message = [
 				'id' => (string)($messageRow['message_id'] ?? ''),
 				'role' => (string)($messageRow['role'] ?? ''),
-				'content' => (string)($messageRow['content'] ?? '')
+				'content' => $this->decryptRowField((string)($messageRow['content'] ?? ''), $messageRow)
 			];
-			$payload = $this->decodePayload($messageRow['payload'] ?? null);
+			$payload = $this->decodePayload($this->decryptedNullable($messageRow['payload'] ?? null, $messageRow));
 			$history[] = $payload !== [] ? array_merge($message, $payload) : $message;
 		}
 
@@ -382,16 +477,20 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$messageKey = $this->createStorageKey();
 		$now = $this->now();
 
+		$method = $this->cipher->getWriteMethod();
+		$keyId = $method === 'none' ? null : $this->cipher->getWriteKeyId();
 		$this->database->nonQuery(
 			'INSERT INTO ' . self::MESSAGE_TABLE
-			. ' (message_key, conversation_key, node_id, message_id, role, content, payload, created_at) VALUES ('
+			. ' (message_key, conversation_key, node_id, message_id, role, content, payload, encryption_method, encryption_key_id, created_at) VALUES ('
 			. $this->quote($messageKey) . ', '
 			. $this->quote((string)$row['conversation_key']) . ', '
 			. $this->quote($nodeId) . ', '
 			. $this->quote($messageId) . ', '
 			. $this->quote($role) . ', '
-			. $this->quote($content) . ', '
-			. ($payload === null ? 'NULL' : $this->quote($payload)) . ', '
+			. $this->quote($this->cipher->encode($content, $method, $keyId)) . ', '
+			. ($payload === null ? 'NULL' : $this->quote($this->cipher->encode($payload, $method, $keyId))) . ', '
+			. $this->quote($method) . ', '
+			. ($keyId === null ? 'NULL' : $this->quote($keyId)) . ', '
 			. $this->quote($now) . ')'
 		);
 
@@ -437,7 +536,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		}
 
 		$messageRow = $this->database->singleQuery(
-			'SELECT message_key, payload FROM ' . self::MESSAGE_TABLE
+			'SELECT message_key, payload, encryption_method, encryption_key_id FROM ' . self::MESSAGE_TABLE
 			. ' WHERE conversation_key=' . $this->quote((string)$row['conversation_key'])
 			. ' AND node_id=' . $this->quote($nodeId)
 			. ' AND message_id=' . $this->quote($messageId)
@@ -448,26 +547,26 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		}
 
 		$payload = array_merge(
-			$this->decodePayload($messageRow['payload'] ?? null),
+			$this->decodePayload($this->decryptedNullable($messageRow['payload'] ?? null, $messageRow)),
 			$metadata
 		);
 		$encoded = $this->encodePayload($payload);
 		$messageKey = (string)($messageRow['message_key'] ?? '');
 		$this->database->nonQuery(
 			'UPDATE ' . self::MESSAGE_TABLE
-			. ' SET payload=' . $this->quote($encoded)
+			. ' SET payload=' . $this->quote($this->cipher->encode($encoded, $this->rowMethod($messageRow), $this->rowKeyId($messageRow)))
 			. ' WHERE message_key=' . $this->quote($messageKey)
 		);
 
 		$verified = $this->database->singleQuery(
-			'SELECT payload FROM ' . self::MESSAGE_TABLE
+			'SELECT payload, encryption_method, encryption_key_id FROM ' . self::MESSAGE_TABLE
 			. ' WHERE message_key=' . $this->quote($messageKey)
 			. ' LIMIT 1'
 		);
 		if (!is_array($verified)) {
 			return false;
 		}
-		$verifiedPayload = $this->decodePayload($verified['payload'] ?? null);
+		$verifiedPayload = $this->decodePayload($this->decryptedNullable($verified['payload'] ?? null, $verified));
 
 		foreach ($metadata as $key => $value) {
 			if (!array_key_exists($key, $verifiedPayload) || $verifiedPayload[$key] !== $value) {
@@ -503,53 +602,6 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		return $this->priority;
 	}
 
-	private function ensureTables(): void {
-		$this->database->connect();
-		$this->database->nonQuery(
-			'CREATE TABLE IF NOT EXISTS ' . self::CONVERSATION_TABLE . ' ('
-			. 'conversation_key CHAR(40) NOT NULL,'
-			. ' owner_key CHAR(64) NOT NULL,'
-			. ' channel_id VARCHAR(191) NOT NULL,'
-			. ' memory_namespace VARCHAR(100) NOT NULL,'
-			. ' conversation_id VARCHAR(100) NOT NULL,'
-			. ' title VARCHAR(255) NOT NULL,'
-			. ' title_source VARCHAR(20) NOT NULL,'
-			. ' opening_message LONGTEXT NULL,'
-			. ' created_at DATETIME(6) NOT NULL,'
-			. ' updated_at DATETIME(6) NOT NULL,'
-			. ' last_active_at DATETIME(6) NOT NULL,'
-			. ' PRIMARY KEY (conversation_key),'
-			. ' UNIQUE KEY uq_mb_conversation_scope (owner_key, channel_id, memory_namespace, conversation_id),'
-			. ' KEY idx_mb_conversation_active (owner_key, channel_id, memory_namespace, last_active_at)'
-			. ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
-		);
-		$this->database->nonQuery(
-			'CREATE TABLE IF NOT EXISTS ' . self::MESSAGE_TABLE . ' ('
-			. 'message_key CHAR(40) NOT NULL,'
-			. ' conversation_key CHAR(40) NOT NULL,'
-			. ' node_id VARCHAR(100) NOT NULL,'
-			. ' message_id VARCHAR(100) NOT NULL,'
-			. ' role VARCHAR(50) NOT NULL,'
-			. ' content LONGTEXT NOT NULL,'
-			. ' payload LONGTEXT NULL,'
-			. ' created_at DATETIME(6) NOT NULL,'
-			. ' PRIMARY KEY (message_key),'
-			. ' UNIQUE KEY uq_mb_conversation_message (conversation_key, node_id, message_id),'
-			. ' KEY idx_mb_conversation_node (conversation_key, node_id, created_at, message_key),'
-			. ' CONSTRAINT fk_mb_conversation_message FOREIGN KEY (conversation_key)'
-			. ' REFERENCES ' . self::CONVERSATION_TABLE . ' (conversation_key) ON DELETE CASCADE'
-			. ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
-		);
-		$this->database->singleQuery(
-			'SELECT conversation_key, owner_key, channel_id, memory_namespace, conversation_id,'
-			. ' title, title_source, opening_message, created_at, updated_at, last_active_at'
-			. ' FROM ' . self::CONVERSATION_TABLE . ' WHERE 1=0'
-		);
-		$this->database->singleQuery(
-			'SELECT message_key, conversation_key, node_id, message_id, role, content, payload, created_at'
-			. ' FROM ' . self::MESSAGE_TABLE . ' WHERE 1=0'
-		);
-	}
 
 	private function scopeFromContext(IAgentContext $context): AgentConversationScope {
 		$channelId = $this->contextString($context, 'conversation_channel_id');
@@ -558,27 +610,61 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		}
 
 		return new AgentConversationScope(
-			$this->resolveOwnerKey(),
+			AgentConversationScope::OWNER_USER,
+			$this->requireCurrentUserId(),
 			$channelId,
 			$this->contextString($context, 'conversation_id')
 		);
 	}
 
-	private function resolveOwnerKey(): string {
-		$userId = $this->accesscontrol->getUserId();
-		if ($userId !== null && trim((string)$userId) !== '' && trim((string)$userId) !== '0') {
-			return AgentConversationScope::ownerKeyForUser(trim((string)$userId));
+	private function requireCurrentUserId(): string {
+		$user = $this->usermanager->getUser();
+		$id = $user !== null && (is_string($user->id) || is_int($user->id))
+			? (string)$user->id : '';
+		if (trim($id) === '' || strlen($id) > 191) {
+			throw new \RuntimeException('Database conversation memory requires an authenticated native user ID.');
 		}
+		return $id;
+	}
 
-		if (!$this->session->started() && !$this->session->start()) {
-			throw new \RuntimeException('Database conversation memory could not start the session.');
+	private function backfillLegacyOwner(string $userId): void {
+		if ($this->legacyBackfilledOwnerId === $userId) {
+			return;
 		}
-		$sessionId = trim($this->session->getId());
-		if ($sessionId === '') {
-			throw new \RuntimeException('Database conversation memory requires a user or session identity.');
+		$this->database->connect();
+		$legacyHash = hash('sha256', 'user:' . $userId);
+		$this->database->nonQuery(
+			'UPDATE ' . self::CONVERSATION_TABLE
+			. ' SET owner_type=' . $this->quote(AgentConversationScope::OWNER_USER)
+			. ', owner_id=' . $this->quote($userId)
+			. ' WHERE owner_type IS NULL AND owner_key=' . $this->quote($legacyHash)
+		);
+		$unresolved = $this->database->singleQuery(
+			'SELECT conversation_key FROM ' . self::CONVERSATION_TABLE
+			. ' WHERE owner_type IS NULL AND owner_key=' . $this->quote($legacyHash) . ' LIMIT 1'
+		);
+		if (is_array($unresolved)) {
+			throw new \RuntimeException('Legacy conversation owner migration could not be verified.');
 		}
+		$this->legacyBackfilledOwnerId = $userId;
+	}
 
-		return AgentConversationScope::ownerKeyForSession($sessionId);
+	private function backfillSourceReference(string $channelId): void {
+		if (!$this->context instanceof IAgentContext) {
+			return;
+		}
+		$group = $this->contextString($this->context, 'chatbot_config_group');
+		$name = $this->contextString($this->context, 'chatbot_config_name');
+		if ($group === '' || $name === '' || strlen($group) > 191 || strlen($name) > 191) {
+			return;
+		}
+		$this->database->nonQuery(
+			'UPDATE ' . self::CONVERSATION_TABLE
+			. ' SET chatbot_config_group=' . $this->quote($group)
+			. ', chatbot_config_name=' . $this->quote($name)
+			. ' WHERE channel_id=' . $this->quote($channelId)
+			. ' AND (chatbot_config_group IS NULL OR chatbot_config_name IS NULL)'
+		);
 	}
 
 	private function contextString(IAgentContext $context, string $key): string {
@@ -593,9 +679,10 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$this->database->connect();
 
 		return $this->database->singleQuery(
-			'SELECT conversation_key, conversation_id, title, title_source, opening_message, created_at, updated_at, last_active_at'
+			'SELECT conversation_key, conversation_id, title, title_source, opening_message, encryption_method, encryption_key_id, created_at, updated_at, last_active_at'
 			. ' FROM ' . self::CONVERSATION_TABLE
-			. ' WHERE owner_key=' . $this->quote($scope->getOwnerKey())
+			. ' WHERE owner_type=' . $this->quote($scope->getOwnerType())
+			. ' AND owner_id=' . $this->quote($scope->getOwnerId())
 			. ' AND channel_id=' . $this->quote($scope->getChannelId())
 			. ' AND memory_namespace=' . $this->quote($this->namespace)
 			. ' AND conversation_id=' . $this->quote($conversationId)
@@ -636,9 +723,15 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 
 	private function requireScope(): AgentConversationScope {
 		if (!$this->scope instanceof AgentConversationScope) {
-			throw new \RuntimeException('Conversation scope has not been bound.');
+			if (!$this->context instanceof IAgentContext) {
+				throw new \RuntimeException('Conversation scope has not been bound.');
+			}
+			$this->bindConversationScope($this->scopeFromContext($this->context));
 		}
-
+		if ($this->scope->getOwnerType() !== AgentConversationScope::OWNER_USER
+			|| $this->scope->getOwnerId() !== $this->requireCurrentUserId()) {
+			throw new \RuntimeException('Database conversation scope no longer matches the current user.');
+		}
 		return $this->scope;
 	}
 
@@ -646,9 +739,9 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 	private function conversationFromRow(array $row): AgentConversation {
 		return AgentConversation::fromArray([
 			'id' => $row['conversation_id'] ?? '',
-			'title' => $row['title'] ?? '',
+			'title' => $this->decryptRowField((string)($row['title'] ?? ''), $row),
 			'title_source' => $row['title_source'] ?? AgentConversation::TITLE_SOURCE_TEMPORARY,
-			'opening_message' => $row['opening_message'] ?? '',
+			'opening_message' => $this->decryptedNullable($row['opening_message'] ?? null, $row),
 			'created_at' => $row['created_at'] ?? '',
 			'updated_at' => $row['updated_at'] ?? '',
 			'last_active_at' => $row['last_active_at'] ?? ''
@@ -708,6 +801,31 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		return $encoded;
 	}
 
+	/** @param array<string,mixed> $row */
+	private function rowMethod(array $row): string {
+		return (string)($row['encryption_method'] ?? 'none');
+	}
+
+	/** @param array<string,mixed> $row */
+	private function rowKeyId(array $row): ?string {
+		$id = $row['encryption_key_id'] ?? null;
+		return is_string($id) && $id !== '' ? $id : null;
+	}
+
+	/** @param array<string,mixed> $row */
+	private function decryptRowField(string $value, array $row): string {
+		return $this->cipher->decode($value, $this->rowMethod($row), $this->rowKeyId($row));
+	}
+
+	/** @param array<string,mixed> $row */
+	private function decryptedNullable(mixed $value, array $row): string {
+		return $value === null ? '' : $this->decryptRowField((string)$value, $row);
+	}
+
+	private function nullableEncrypted(string $value, string $method, ?string $keyId): string {
+		return $value === '' ? 'NULL' : $this->quote($this->cipher->encode($value, $method, $keyId));
+	}
+
 	private function quote(string $value): string {
 		return "'" . $this->database->escape($value) . "'";
 	}
@@ -716,14 +834,6 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		return $value === '' ? 'NULL' : $this->quote($value);
 	}
 
-	private function requireOwnerKey(string $ownerKey): string {
-		$ownerKey = trim($ownerKey);
-		if (preg_match('/^[a-f0-9]{64}$/', $ownerKey) !== 1) {
-			throw new \InvalidArgumentException('Invalid conversation owner key.');
-		}
-
-		return $ownerKey;
-	}
 
 	private function requireChannelId(string $channelId): string {
 		$channelId = trim($channelId);

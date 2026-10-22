@@ -151,7 +151,7 @@ final class AgentMemoryProfileResolverTest extends TestCase {
 						public function activateConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
 						public function renameConversation(string $conversationId, string $title, string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL): AgentConversation { throw new \RuntimeException(); }
 						public function deleteConversation(string $conversationId): void {}
-						public function deleteConversationsByOwnerKey(string $ownerKey): void {}
+						public function deleteConversationsByOwner(string $ownerType, string $ownerId): void {}
 						public function deleteConversationsByChannel(string $channelId): void {}
 						public function touchConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
 						public function loadNodeHistory(string $nodeId): array { return []; }

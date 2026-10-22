@@ -36,6 +36,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	private ?ILogger $logger = null;
 	private ?AgentConversationScope $scope = null;
+	private ?IAgentContext $context = null;
 	private string $namespace = 'default';
 	private int $max = 20;
 	private int $priority = 80;
@@ -47,7 +48,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		?string $id = null
 	) {
 		parent::__construct($id);
-		$this->ensureStarted();
 	}
 
 	public static function getName(): string {
@@ -117,11 +117,16 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 			$this->logger = $logger;
 		}
 
-		$this->bindConversationScope($this->scopeFromContext($context));
-		$this->log('initialized');
+		$this->context = $context;
+		// The router materializes both child resources. No session is activated here.
 	}
 
 	public function bindConversationScope(AgentConversationScope $scope): void {
+		$this->ensureStarted();
+		if ($scope->getOwnerType() !== AgentConversationScope::OWNER_SESSION
+			|| $scope->getOwnerId() !== $this->resolveOwnerId()) {
+			throw new \RuntimeException('Session memory can only access the current anonymous session.');
+		}
 		$this->scope = $scope;
 
 		if ($scope->hasConversationId()) {
@@ -247,20 +252,23 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$this->setChannel($channel);
 		if ($this->requireScope()->getConversationId() === $conversationId) {
 			$this->scope = new AgentConversationScope(
-				$this->requireScope()->getOwnerKey(),
+				AgentConversationScope::OWNER_SESSION,
+				$this->requireScope()->getOwnerId(),
 				$this->requireScope()->getChannelId()
 			);
 		}
 		$this->log('deleted conversation ' . $conversationId);
 	}
 
-	public function deleteConversationsByOwnerKey(string $ownerKey): void {
-		$ownerKey = $this->requireOwnerKey($ownerKey);
+	public function deleteConversationsByOwner(string $ownerType, string $ownerId): void {
+		if ($ownerType !== AgentConversationScope::OWNER_SESSION || $ownerId !== $this->resolveOwnerId()) {
+			throw new \RuntimeException('Session memory can only delete the currently accessible session.');
+		}
 		$store = $this->readStore();
 		$changed = false;
 
 		foreach ($store['channels'] as $channelKey => $channel) {
-			if (!is_array($channel) || (string)($channel['owner_key'] ?? '') !== $ownerKey) {
+			if (!is_array($channel) || (string)($channel['owner_id'] ?? ($channel['owner_key'] ?? '')) !== $ownerId) {
 				continue;
 			}
 			unset($store['channels'][$channelKey]);
@@ -270,7 +278,12 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		if ($changed) {
 			$this->writeStore($store);
 		}
-		if ($this->scope?->getOwnerKey() === $ownerKey) {
+		foreach ($this->readStore()['channels'] as $channel) {
+			if (is_array($channel) && (string)($channel['owner_id'] ?? ($channel['owner_key'] ?? '')) === $ownerId) {
+				throw new \RuntimeException('Session conversations could not be verified as deleted.');
+			}
+		}
+		if ($this->scope?->getOwnerId() === $ownerId) {
 			$this->scope = null;
 		}
 	}
@@ -411,19 +424,21 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		}
 
 		return new AgentConversationScope(
-			$this->resolveOwnerKey(),
+			AgentConversationScope::OWNER_SESSION,
+			$this->resolveOwnerId(),
 			$channelId,
 			$this->contextString($context, 'conversation_id')
 		);
 	}
 
-	private function resolveOwnerKey(): string {
+	private function resolveOwnerId(): string {
+		$this->ensureStarted();
 		$sessionId = trim($this->session->getId());
 		if ($sessionId === '') {
 			throw new \RuntimeException('Session conversation memory requires a session identity.');
 		}
 
-		return AgentConversationScope::ownerKeyForSession($sessionId);
+		return AgentConversationScope::ownerIdForSession($sessionId);
 	}
 
 	private function contextString(IAgentContext $context, string $key): string {
@@ -453,7 +468,14 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 	private function requireScope(): AgentConversationScope {
 		if (!$this->scope instanceof AgentConversationScope) {
-			throw new \RuntimeException('Conversation scope has not been bound.');
+			if (!$this->context instanceof IAgentContext) {
+				throw new \RuntimeException('Conversation scope has not been bound.');
+			}
+			$this->bindConversationScope($this->scopeFromContext($this->context));
+		}
+		if ($this->scope->getOwnerType() !== AgentConversationScope::OWNER_SESSION
+			|| $this->scope->getOwnerId() !== $this->resolveOwnerId()) {
+			throw new \RuntimeException('Session conversation scope no longer matches the current session.');
 		}
 
 		return $this->scope;
@@ -475,7 +497,8 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 		$scope = $this->requireScope();
 		return [
 			'namespace' => $this->namespace,
-			'owner_key' => $scope->getOwnerKey(),
+			'owner_type' => $scope->getOwnerType(),
+			'owner_id' => $scope->getOwnerId(),
 			'channel_id' => $scope->getChannelId(),
 			'conversations' => []
 		];
@@ -493,7 +516,7 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 
 		return hash('sha256', implode('|', [
 			$this->namespace,
-			$scope->getOwnerKey(),
+			$scope->getOwnerId(),
 			$scope->getChannelId()
 		]));
 	}
@@ -515,15 +538,6 @@ class SessionMemoryAgentResource extends AbstractAgentResource implements IAgent
 	/** @param array<string,mixed> $store */
 	private function writeStore(array $store): void {
 		$this->session->set(self::SESSION_KEY, $store);
-	}
-
-	private function requireOwnerKey(string $ownerKey): string {
-		$ownerKey = trim($ownerKey);
-		if (preg_match('/^[a-f0-9]{64}$/', $ownerKey) !== 1) {
-			throw new \InvalidArgumentException('Invalid conversation owner key.');
-		}
-
-		return $ownerKey;
 	}
 
 	private function requireChannelId(string $channelId): string {

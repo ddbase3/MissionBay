@@ -67,11 +67,11 @@ MissionBay can receive or derive:
 - login names;
 - session IDs or session-derived identities;
 - request context;
-- conversation owner hashes;
+- authenticated host-native conversation user IDs and temporary legacy owner hashes;
 - user- or session-scoped preference identities; and
 - user- or session-scoped focus or knowledge identities.
 
-Different features intentionally use different identity representations. For example, database conversation memory stores a SHA-256 owner key, while the AI usage and tool audit tables contain explicit user IDs and login names.
+Different features intentionally use different identity representations. After the conversation schema migration, new database conversations contain `owner_type=user` and the unmodified native `owner_id`. Historical hash-only rows remain until attributed or removed. The treatment of identity in AI usage and tool audits is separately defined by those subsystems.
 
 ### 3.3 Tool arguments, results, and errors
 
@@ -305,63 +305,39 @@ The session data can include:
 
 Retention follows the active session implementation and session lifetime. MissionBay does not independently know how long the host keeps session data.
 
-### 8.2 Database conversation memory
+### 8.2 Database conversation memory and migration
 
-`DatabaseMemoryAgentResource` stores data in:
+`DatabaseMemoryAgentResource` stores persistent data in `base3_missionbay_conversation` and `base3_missionbay_conversation_message`. It refuses anonymous actors even when configured directly. `RoutedConversationMemoryAgentResource` connects exactly one agent-memory slot to an authenticated database child and an anonymous session child, choosing the branch by `IUsermanager::getUser()`; it does not access either child's storage until selected.
 
-```text
-base3_missionbay_conversation
-base3_missionbay_conversation_message
-```
+The migration DDL currently targets MySQL/MariaDB-compatible `IDatabase` implementations; it does not assume an ILIAS host or imply database availability in standalone installations. The application selects whether database migrations are active through `IMigrationRunner`.
 
-`base3_missionbay_conversation` contains:
+`MissionBayConversationMigrationProvider` owns an immutable versioned schema migration. This migration adds readable `owner_type` and native `owner_id`, `chatbot_config_group` and `chatbot_config_name`, and `encryption_method`/`encryption_key_id` to conversations and messages. Conversation titles and opening messages are stored with each conversation's encryption metadata. Message content and serialized payload are stored with the corresponding message's metadata. New unencrypted rows use `none` and a null key ID. Existing rows remain unencrypted and accessible; no records are deleted or automatically encrypted by migration.
 
-- `conversation_key`;
-- `owner_key`;
-- `channel_id`;
-- `memory_namespace`;
-- `conversation_id`;
-- `title`;
-- `title_source`;
-- `opening_message`;
-- creation/update timestamps; and
-- last-active timestamp.
+The historic `owner_key` column is retained **temporarily** for old hash-only rows (`SHA256('user:' + native ID)` or `SHA256('session:' + native session ID)`). On access by a known authenticated user, matching old rows are attributed to that user's real ID. Unrecognized rows cannot reliably be reversed to users, especially after native user deletion. They are counted as unresolved by system-wide diagnostics; an explicit resolution and deletion policy is still required. Native user IDs may identify people and therefore require confidentiality, restricted access and transparent retention/deletion practices. No raw session tokens are newly persisted in the database.
 
-`base3_missionbay_conversation_message` contains:
+The chat object reference is recorded where the trusted execution context carries the chatbot settings group/name. Older rows may be backfilled only on encounter of their original channel. Agent conversations without a chatbot source do not necessarily refer to a chat object.
 
-- message key;
-- conversation key;
-- node ID;
-- message ID;
-- role;
-- full message content;
-- optional serialized payload metadata; and
-- creation time.
+### 8.3 Encryption methods and key sources
 
-The payload can include feedback or other message metadata supplied by the surrounding assistant integration.
+Persistent database chat encryption is **opt-in**, not enabled by default. Configured methods are `ICrypt` implementations registered by BASE3, with algorithms supplied by Base3Framework. The recommended authenticated scheme is `xchacha20poly1305-v1`. The legacy AES-CBC scheme is available for compatibility but does not provide authenticated integrity protection.
 
-### 8.3 Conversation owner representation
+`ConversationContentCipher` selects the stored per-row method and key ID to decrypt; it encrypts all four content-bearing fields (`title`, `opening_message`, `content`, `payload`). The key source resolves through `IAgentConfigValueResolver` and BASE3 config-value modes such as a protected file or environment variable. Key IDs and method names are persisted, never key bytes. No fallback to plaintext is allowed when a key is missing or ciphertext is invalid. A deployment must protect secret paths, backups, key rotation, revoked-key handling and application-server memory. Older ciphertext needs the original key until deliberately re-encrypted or deleted.
 
-Database memory derives `owner_key` as a SHA-256 hash from either:
+This is **application-side encryption at rest**, not end-to-end encryption. The server decrypts for authorized processing; future sharing requires an independent `IAuthorizationService` access decision, not user possession of the storage key. The session backend, external provider requests, logs, vector stores, tool payloads and backup copies are not automatically protected by this database encryption setting.
 
-- the authenticated user ID, or
-- the active session ID when no authenticated user identity is available.
+### 8.4 Deletion and retention
 
-This avoids storing the raw session ID in the conversation owner column. The hash is still a stable scoped identifier and should not be considered anonymous data in the presence of the underlying identity source.
+Deletion of a conversation removes its row and, through `ON DELETE CASCADE`, its messages. `IAgentConversationMemory::deleteConversationsByOwner('user', nativeId)` also deletes historical hash-only rows for that **known** ID, including after the user is removed from the host. The ILIAS `deleteUser` integration updates its existing event handler to call this interface with the original trusted ID. Other host systems must supply their own authorized lifecycle integration. Normal access to database conversations still requires the current authenticated owner.
 
-### 8.4 Conversation deletion and retention
+The database resource does not implement a global time-based conversation retention job. Per-node trimming when enabled is not an overall privacy retention policy. Anonymous session expiration and physical cleanup depend on `ISession` storage. Deleting a live row does not necessarily remove its copies from backups, logs, external AI providers or downstream tools. Each deployment must specify retention, deletion verification, access rights and backup expiry.
 
-Deleting a conversation removes its conversation row and cascades deletion to its message rows.
+### 8.5 Read-only installation-wide privacy diagnostics
 
-`DatabaseMemoryAgentResource` does not implement a general time-based retention job. Optional trimming can limit per-node history when explicitly enabled, but trimming is not a substitute for an installation-wide retention policy.
+`ConversationMissingUserDiagnosticCheck` enumerates stored user-owner IDs and queries the active BASE3 `IUsermanager`; it exports only counts. `getUserById()` returning null means either absent **or unsupported**, so an unresolvable account produces a **warning**, not an unproven assertion of deletion. Historic rows with unknown owners also produce warnings.
 
-A concrete deployment should define:
+`ConversationMissingChatObjectDiagnosticCheck` checks stored chatbot group/name references through `ISettingsStore::has()`. A missing reference is a **failed** check with aggregate orphan conversation/message counts; legacy rows without a source reference are **warnings**. Both checks inspect the full persistent store rather than the current session. They cannot prove native deletion across all backends or session-backend garbage collection.
 
-- maximum conversation age;
-- whether users can delete their own conversations;
-- whether deletion must also remove copies from logs, backups, or external providers;
-- how inactive anonymous-session conversations are handled; and
-- whether conversation export is required by the host application.
+For technical setup and the unresolved legacy migration process, see [docs/conversation-storage-migration.md](docs/conversation-storage-migration.md).
 
 ## 9. Conversation write timing and failure behavior
 
