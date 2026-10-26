@@ -7,6 +7,8 @@ use Base3\Api\IClassMap;
 use Base3\Usermanager\Api\IUsermanager;
 use Base3\Usermanager\User;
 use Base3\Crypt\Sodium\SodiumCrypt;
+use CredentialFoundation\Api\IEncryptionProfileService;
+use CredentialFoundation\Dto\EncryptionKeyMaterial;
 use Base3\Database\Api\IDatabase;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Context\AgentContext;
@@ -161,7 +163,7 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$resource->listConversations();
 	}
 
-	private function resource(ConversationDatabaseStub $database, mixed $userId, string $sessionId, array $config = [], bool $withSodium = false): DatabaseMemoryAgentResource {
+	private function resource(ConversationDatabaseStub $database, mixed $userId, string $sessionId, array $config = [], bool $withSodium = false, ?IEncryptionProfileService $encryption = null): DatabaseMemoryAgentResource {
 		$userManager = $this->createMock(IUsermanager::class);
 		$user = $userId === null ? null : User::fromArray(['id' => $userId]);
 		$userManager->method('getUser')->willReturn($user);
@@ -173,12 +175,17 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$translation->method('translate')->willReturnCallback(
 			static fn (string $set, string $section, string $key): string => $key
 		);
+		if ($encryption === null) {
+			$encryption = $this->createMock(IEncryptionProfileService::class);
+			$encryption->method('getWriteKey')->willReturn(null);
+		}
 		$resource = new DatabaseMemoryAgentResource(
 			$database,
 			new DatabaseMemoryConfigResolverStub(),
 			$userManager,
 			$classmap,
 			$translation,
+			$encryption,
 			'memory-main'
 		);
 		$resource->setConfig($config);
@@ -235,68 +242,34 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$this->assertSame('0', $database->conversation['owner_id']);
 	}
 
-	public function testNestedEncryptionConfigurationIsRejectedBeforePlaintextCanBeWritten(): void {
+	public function testEncryptionConfigurationIsOwnedByKeyHarbor(): void {
 		$database = new ConversationDatabaseStub();
-		$config = [
-			'encryption' => [
-				'encryption' => [
-					'method' => 'xchacha20poly1305-v1',
-					'key_id' => 'chat-test-2026',
-					'keys' => ['chat-test-2026' => ['mode' => 'fixed', 'value' => str_repeat('a', 64)]]
-				]
-			]
-		];
-
-		try {
-			$this->resource($database, 42, 'session-one', $config, true);
-			$this->fail('Nested encryption configuration must not disable encryption silently.');
-		}
-		catch (\InvalidArgumentException $exception) {
-			$this->assertSame('invalid_nesting', $exception->getMessage());
-			$this->assertSame([], $database->queries);
-		}
+		$resource = $this->resource($database, 42, 'session-one');
+		$this->assertArrayNotHasKey('encryption', $resource->getSchema()['properties']);
+		$this->assertSame([], $database->queries);
 	}
 
-	public function testMisspelledEncryptionSettingsAreRejected(): void {
+	public function testManagedProfileEncryptsConversationAndMessages(): void {
 		$database = new ConversationDatabaseStub();
-
-		$this->expectException(\InvalidArgumentException::class);
-		$this->resource($database, 42, 'session-one', [
-			'encryption' => [
-				'methd' => 'xchacha20poly1305-v1',
-				'key_id' => 'chat-test-2026'
-			]
-		], true);
-	}
-
-	public function testInlineFixedKeyResolverEncryptsNewConversationAndMessage(): void {
-		$database = new ConversationDatabaseStub();
-		$resource = $this->resource($database, 42, 'session-one', [
-			'encryption' => [
-				'method' => 'xchacha20poly1305-v1',
-				'key_id' => 'test-key',
-				'keys' => [
-					'test-key' => ['mode' => 'fixed', 'value' => str_repeat('a', 64)]
-				]
-			]
-		], true);
+		$service = $this->managedEncryption(['key-2026' => str_repeat('s', 48)], 'key-2026');
+		$resource = $this->resource($database, 42, 'session-one', [], true, $service);
 		$resource->init([], $this->context('chatbot-main'));
 		$resource->createConversation('encrypted', 'Private title', openingMessage: 'Private opening');
 		$resource->appendNodeHistory('assistant', [
-			'id' => 'message-one', 'role' => 'user', 'content' => 'Private message'
+			'id' => 'message-one', 'role' => 'user', 'content' => 'Private message', 'tag' => 'private metadata'
 		]);
 
 		$this->assertSame('xchacha20poly1305-v1', $database->conversation['encryption_method']);
+		$this->assertSame('key-2026', $database->conversation['encryption_key_id']);
 		$this->assertStringStartsWith('v1:', $database->conversation['title']);
 		$this->assertStringStartsWith('v1:', array_values($database->messages)[0]['content']);
 		$this->assertSame('Private message', $resource->loadNodeHistory('assistant')[0]['content']);
+		$this->assertSame('private metadata', $resource->loadNodeHistory('assistant')[0]['tag']);
 	}
 
-	public function testDefaultUnencryptedMemoryRemainsExplicitlySupported(): void {
+	public function testDefaultUnassignedMemoryRemainsUnencrypted(): void {
 		$database = new ConversationDatabaseStub();
-		$resource = $this->resource($database, 42, 'session-one', [
-			'encryption' => ['method' => 'none']
-		]);
+		$resource = $this->resource($database, 42, 'session-one');
 		$resource->init([], $this->context('chatbot-main'));
 		$resource->createConversation('unencrypted', 'Normal title');
 
@@ -304,28 +277,72 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$this->assertSame('Normal title', $database->conversation['title']);
 	}
 
-	public function testEncryptedConversationAndMessagesAreReadableButNotPlaintextInDatabase(): void {
+	public function testHistoricalKeyRemainsUsableAfterRemovingCurrentAssignment(): void {
 		$database = new ConversationDatabaseStub();
-		$resource = $this->resource($database, 42, 'session-one', [
-			'encryption' => [
-				'method' => 'xchacha20poly1305-v1',
-				'key_id' => 'key-2026',
-				'keys' => ['key-2026' => str_repeat('s', 48)]
-			]
-		], true);
-		$resource->init([], $this->context('chatbot-main'));
-		$conversation = $resource->createConversation('conversation-one', 'Private title', openingMessage: 'Private opening');
-		$resource->appendNodeHistory('assistant', ['id' => 'msg1', 'role' => 'user', 'content' => 'Private content', 'tag' => 'private metadata']);
+		$keys = ['old-key' => str_repeat('o', 48)];
+		$encrypted = $this->resource($database, 42, 'session-one', [], true, $this->managedEncryption($keys, 'old-key'));
+		$encrypted->init([], $this->context('chatbot-main'));
+		$encrypted->createConversation('historical', 'Historic private title', openingMessage: 'Historic greeting');
+		$encrypted->appendNodeHistory('assistant', ['id' => 'msg1', 'role' => 'user', 'content' => 'Historic private content']);
 
-		$this->assertSame('Private title', $conversation->getTitle());
-		$this->assertSame('Private opening', $conversation->getOpeningMessage());
-		$this->assertNotSame('Private title', $database->conversation['title']);
-		$this->assertNotSame('Private opening', $database->conversation['opening_message']);
-		$this->assertSame('xchacha20poly1305-v1', $database->conversation['encryption_method']);
-		$this->assertNotSame('Private content', array_values($database->messages)[0]['content']);
-		$this->assertNotSame('{"tag":"private metadata"}', array_values($database->messages)[0]['payload']);
-		$this->assertSame('Private content', $resource->loadNodeHistory('assistant')[0]['content']);
-		$this->assertSame('private metadata', $resource->loadNodeHistory('assistant')[0]['tag']);
+		$readingService = $this->managedEncryption($keys);
+		$reading = $this->resource($database, 42, 'session-one', [], true, $readingService);
+		$reading->init([], $this->context('chatbot-main'));
+		$this->assertSame('Historic private title', $reading->getConversation('historical')->getTitle());
+		$this->assertSame('Historic private content', $reading->loadNodeHistory('assistant')[0]['content']);
+	}
+
+	public function testKeyRotationKeepsOldMessagesAndUsesNewWriteKey(): void {
+		$database = new ConversationDatabaseStub();
+		$keys = ['old-key' => str_repeat('o', 48), 'new-key' => str_repeat('n', 48)];
+		$oldResource = $this->resource($database, 42, 'session-one', [], true, $this->managedEncryption($keys, 'old-key'));
+		$oldResource->init([], $this->context('chatbot-main'));
+		$oldResource->createConversation('rotation', 'Rotation test');
+		$oldResource->appendNodeHistory('assistant', ['id' => 'old', 'role' => 'user', 'content' => 'Old content']);
+
+		$newResource = $this->resource($database, 42, 'session-one', [], true, $this->managedEncryption($keys, 'new-key'));
+		$newResource->init([], $this->context('chatbot-main'));
+		$this->assertSame('Rotation test', $newResource->getConversation('rotation')->getTitle());
+		$newResource->appendNodeHistory('assistant', ['id' => 'new', 'role' => 'assistant', 'content' => 'New content']);
+		$this->assertSame(['Old content', 'New content'], array_column($newResource->loadNodeHistory('assistant'), 'content'));
+		$this->assertSame(['old-key', 'new-key'], array_column($database->messages, 'encryption_key_id'));
+	}
+
+	public function testBrokenAssignedProfileCannotWritePlaintext(): void {
+		$database = new ConversationDatabaseStub();
+		$service = $this->createMock(IEncryptionProfileService::class);
+		$service->method('getWriteKey')->willThrowException(new \RuntimeException('Encryption profile is missing.'));
+		$resource = $this->resource($database, 42, 'session-one', [], false, $service);
+		$resource->init([], $this->context('chatbot-main'));
+
+		$this->expectException(\RuntimeException::class);
+		try {
+			$resource->createConversation('would-be-plaintext', 'Secret');
+		} finally {
+			$this->assertNull($database->conversation);
+		}
+	}
+
+	public function testResourceSchemaHasNoLocalEncryptionSettings(): void {
+		$resource = $this->resource(new ConversationDatabaseStub(), 42, 'session-one');
+		$this->assertArrayNotHasKey('encryption', $resource->getSchema()['properties']);
+	}
+
+	/** @param array<string,string> $keys */
+	private function managedEncryption(array $keys, ?string $activeKey = null): IEncryptionProfileService {
+		$service = $this->createMock(IEncryptionProfileService::class);
+		$service->method('getWriteKey')->willReturn(
+			$activeKey === null ? null : new EncryptionKeyMaterial('xchacha20poly1305-v1', $activeKey, $keys[$activeKey])
+		);
+		$service->method('getReadKey')->willReturnCallback(
+			static function(string $method, string $keyId) use ($keys): string {
+				if ($method !== 'xchacha20poly1305-v1' || !isset($keys[$keyId])) {
+					throw new \RuntimeException('Historical encryption key is unavailable.');
+				}
+				return $keys[$keyId];
+			}
+		);
+		return $service;
 	}
 
 	private function context(string $channelId): AgentContext {

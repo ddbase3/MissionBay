@@ -71,7 +71,7 @@ final class AgentComponentPresetFlowExpander implements IAgentComponentPresetFlo
 		array &$warnings
 	): string {
 		if(!empty($resolving[$presetId])) {
-			$resourceId = $resourceIds[$presetId] ?? $this->buildResourceId($presetId);
+			$resourceId = $resourceIds[$presetId] ?? self::getResourceIdForPreset($presetId);
 			$warnings[] = 'Circular preset dock reference detected: ' . $presetId;
 			return $resourceId;
 		}
@@ -80,7 +80,7 @@ final class AgentComponentPresetFlowExpander implements IAgentComponentPresetFlo
 			return $resourceIds[$presetId];
 		}
 
-		$resourceId = $this->buildResourceId($presetId);
+		$resourceId = self::getResourceIdForPreset($presetId);
 		$resourceIds[$presetId] = $resourceId;
 
 		if($this->resourceExists($flow, $resourceId)) {
@@ -182,7 +182,8 @@ final class AgentComponentPresetFlowExpander implements IAgentComponentPresetFlo
 		return false;
 	}
 
-	private function buildResourceId(string $presetId): string {
+	/** Canonical configured preset resource ID used by every flow and target provider. */
+	public static function getResourceIdForPreset(string $presetId): string {
 		$id = trim('preset_' . $presetId);
 		$id = (string)preg_replace('/[^A-Za-z0-9_]+/', '_', $id);
 		$id = trim($id, '_');

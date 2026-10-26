@@ -19,106 +19,64 @@ namespace MissionBay\Service;
 
 use Base3\Api\IClassMap;
 use Base3\Crypt\Api\ICrypt;
-use Base3\Translation\Api\ITranslation;
-use MissionBay\Api\IAgentConfigValueResolver;
+use CredentialFoundation\Api\IEncryptionProfileService;
 
 /**
- * Selects framework-owned encryption methods for persisted conversation fields.
- * No encryption keys or plaintext content are written to logs or metadata.
+ * Encrypts and decrypts persisted conversation fields using BASE3 crypt methods.
+ *
+ * KeyHarbor owns encryption profiles, their active write keys and historical
+ * key sources. This class only selects the recorded method and applies ICrypt.
+ * No key material or plaintext is persisted in metadata or logged here.
  */
 final class ConversationContentCipher {
 
-	private string $writeMethod = 'none';
-	private ?string $writeKeyId = null;
-	/** @var array<string,array|string|int|float|bool|null> */
-	private array $keyDefinitions = [];
-
 	public function __construct(
-		private readonly IAgentConfigValueResolver $resolver,
-		private readonly IClassMap $classmap,
-		private readonly ITranslation $translation
+		private readonly IEncryptionProfileService $encryption,
+		private readonly IClassMap $classmap
 	) {}
 
 	/**
-	 * Configure the write policy without silently disabling requested encryption.
+	 * Encrypt a field using the method and key ID that will be stored with its row.
+	 * A historical row can retain its original method/key after an assignment change.
 	 *
-	 * Only an absent/empty encryption object or explicit method=none permits
-	 * plaintext writes. An unrecognized or incorrectly nested object fails
-	 * before any conversations can be persisted with the wrong policy.
-	 *
-	 * @param array<string,mixed> $configuration Encryption settings without an outer encryption wrapper
-	 * @return void
-	 * @throws \InvalidArgumentException When the configuration structure is invalid
-	 * @throws \RuntimeException When the encryption method or key is unavailable
+	 * @param string $plaintext Plaintext field value
+	 * @param string $method Versioned method identifier or none
+	 * @param string|null $keyId Persisted key ID, null for unencrypted fields
+	 * @return string Ciphertext or original plaintext when the row is unencrypted
+	 * @throws \RuntimeException If the method, historical key or crypt operation fails
 	 */
-	public function setConfig(array $configuration): void {
-		if (array_key_exists('encryption', $configuration)) {
-			throw new \InvalidArgumentException(
-				$this->translation->translate('ConversationMemory', 'database', 'invalid_nesting')
-			);
-		}
-		foreach (array_keys($configuration) as $setting) {
-			if (!in_array($setting, ['method', 'key_id', 'keys'], true)) {
-				throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'unknown_setting'));
-			}
-		}
-		if ($configuration !== [] && !array_key_exists('method', $configuration)) {
-			throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'missing_method'));
-		}
-		if (array_key_exists('method', $configuration)
-			&& (!is_string($configuration['method']) || trim($configuration['method']) === '')) {
-			throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'invalid_method'));
-		}
-		if (array_key_exists('key_id', $configuration)
-			&& !is_string($configuration['key_id']) && $configuration['key_id'] !== null) {
-			throw new \InvalidArgumentException($this->translation->translate('ConversationMemory', 'database', 'invalid_key_id'));
-		}
-
-		$method = $configuration['method'] ?? 'none';
-		$keyId = trim((string)($configuration['key_id'] ?? ''));
-		$keyId = $keyId !== '' ? $keyId : null;
-		$definitions = $configuration['keys'] ?? [];
-		if (!is_array($definitions)) {
-			throw new \InvalidArgumentException('Conversation encryption keys must be an ID-to-source map.');
-		}
-		if ($method !== 'none') {
-			if ($keyId === null) {
-				throw new \InvalidArgumentException('Encrypted conversations require a key ID.');
-			}
-			$this->method($method);
-			// Resolve and validate the key before changing the active write policy.
-			$this->key($keyId, $definitions);
-		}
-
-		$this->writeMethod = $method;
-		$this->writeKeyId = $keyId;
-		$this->keyDefinitions = $definitions;
-	}
-
-	public function getWriteMethod(): string {
-		return $this->writeMethod;
-	}
-
-	public function getWriteKeyId(): ?string {
-		return $this->writeKeyId;
-	}
-
 	public function encode(string $plaintext, string $method, ?string $keyId): string {
 		if ($method === 'none') {
 			$this->requireUnencryptedKey($keyId);
 			return $plaintext;
 		}
 
-		return $this->method($method)->encrypt($plaintext, $this->key($this->requireKeyId($keyId)));
+		return $this->method($method)->encrypt(
+			$plaintext,
+			$this->encryption->getReadKey($method, $this->requireKeyId($keyId))
+		);
 	}
 
+	/**
+	 * Decode a persisted field solely from its stored method and key ID.
+	 * Current consumer assignments do not influence historical decryption.
+	 *
+	 * @param string $ciphertext Persisted field value
+	 * @param string $method Persisted method or none
+	 * @param string|null $keyId Persisted historical key ID
+	 * @return string Original plaintext
+	 * @throws \RuntimeException If the method, key or authenticated decryption fails
+	 */
 	public function decode(string $ciphertext, string $method, ?string $keyId): string {
 		if ($method === 'none') {
 			$this->requireUnencryptedKey($keyId);
 			return $ciphertext;
 		}
 
-		return $this->method($method)->decrypt($ciphertext, $this->key($this->requireKeyId($keyId)));
+		return $this->method($method)->decrypt(
+			$ciphertext,
+			$this->encryption->getReadKey($method, $this->requireKeyId($keyId))
+		);
 	}
 
 	private function method(string $method): ICrypt {
@@ -137,24 +95,6 @@ final class ConversationContentCipher {
 		}
 
 		return $matched;
-	}
-
-	private function key(string $keyId, ?array $definitions = null): string {
-		$definitions ??= $this->keyDefinitions;
-		if (!array_key_exists($keyId, $definitions)) {
-			throw new \RuntimeException('Conversation encryption key source is not available: ' . $keyId);
-		}
-		$definition = $definitions[$keyId];
-		if (!is_array($definition) && !is_string($definition) && !is_int($definition)
-			&& !is_float($definition) && !is_bool($definition) && $definition !== null) {
-			throw new \InvalidArgumentException('Invalid conversation encryption key source definition.');
-		}
-		$key = $this->resolver->resolveValue($definition);
-		if (!is_string($key) || $key === '') {
-			throw new \RuntimeException('Conversation encryption key source produced no secret: ' . $keyId);
-		}
-
-		return $key;
 	}
 
 	private function requireKeyId(?string $keyId): string {

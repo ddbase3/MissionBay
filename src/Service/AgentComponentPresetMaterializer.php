@@ -110,7 +110,7 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 	}
 
 	private function materializePresetResource(string $presetId, IAgentContext $context): ?IAgentResource {
-		$resourceId = $this->buildResourceId($presetId);
+		$resourceId = AgentComponentPresetFlowExpander::getResourceIdForPreset($presetId);
 
 		if(isset($this->resources[$resourceId])) {
 			return $this->resources[$resourceId];
@@ -194,7 +194,7 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 					$target = $this->materializePresetResource($targetId, $context);
 				}
 				else {
-					$knownResourceId = $this->buildResourceId($targetId);
+					$knownResourceId = AgentComponentPresetFlowExpander::getResourceIdForPreset($targetId);
 					$target = $this->resources[$targetId] ?? $this->resources[$knownResourceId] ?? null;
 				}
 
@@ -379,10 +379,6 @@ final class AgentComponentPresetMaterializer implements IAgentComponentPresetMat
 		}
 
 		return !in_array(strtolower(trim((string)$value)), ['0', 'false', 'no', 'off'], true);
-	}
-
-	private function buildResourceId(string $presetId): string {
-		return $this->sanitizeId('preset_' . $presetId);
 	}
 
 	private function buildWrapperId(string $prefix, string $presetId): string {

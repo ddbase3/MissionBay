@@ -23,7 +23,6 @@ use AssistantFoundation\Dto\AgentConversation;
 use AssistantFoundation\Dto\AgentConversationScope;
 use Base3\Api\IClassMap;
 use Base3\Api\ISchemaProvider;
-use Base3\Crypt\Api\ICrypt;
 use Base3\Translation\Api\ITranslation;
 use Base3\Usermanager\Api\IUsermanager;
 use Base3\Database\Api\IDatabase;
@@ -31,6 +30,7 @@ use Base3\Logger\Api\ILogger;
 use MissionBay\Service\ConversationContentCipher;
 use MissionBay\Agent\AgentNodeDock;
 use MissionBay\Api\IAgentConfigValueResolver;
+use CredentialFoundation\Api\IEncryptionProfileService;
 
 /**
  * Database-backed conversation metadata and visible message history.
@@ -61,10 +61,11 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		private readonly IUsermanager $usermanager,
 		private readonly IClassMap $classmap,
 		private readonly ITranslation $translation,
+		private readonly IEncryptionProfileService $encryption,
 		?string $id = null
 	) {
 		parent::__construct($id);
-		$this->cipher = new ConversationContentCipher($resolver, $classmap, $translation);
+		$this->cipher = new ConversationContentCipher($encryption, $classmap);
 	}
 
 	public static function getName(): string {
@@ -75,16 +76,15 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		return 'Provides persistent multi-conversation history through IDatabase.';
 	}
 
-	public function getSchema(): array {
-		$methods = ['none'];
-		foreach ($this->classmap->getInstancesByInterface(ICrypt::class) as $candidate) {
-			if ($candidate instanceof ICrypt) {
-				$methods[] = $candidate->getMethod();
-			}
-		}
-		$methods = array_values(array_unique($methods));
-		sort($methods);
+	/**
+	 * Identifies one runtime memory resource in the central encryption registry.
+	 * The namespace disambiguates MissionBay consumers from other providers.
+	 */
+	public static function encryptionTargetId(string $resourceId): string {
+		return 'missionbay:' . $resourceId;
+	}
 
+	public function getSchema(): array {
 		return [
 			'$schema' => 'https://json-schema.org/draft-2020-12/schema',
 			'type' => 'object',
@@ -108,26 +108,6 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 					'type' => 'integer',
 					'description' => $this->translation->translate('ConversationMemory', 'database', 'priority'),
 					'default' => 80
-				],
-				'encryption' => [
-					'type' => 'object',
-					'description' => $this->translation->translate('ConversationMemory', 'database', 'encryption'),
-					'properties' => [
-						'method' => [
-							'type' => 'string', 'enum' => $methods, 'default' => 'none',
-							'description' => $this->translation->translate('ConversationMemory', 'database', 'method')
-						],
-						'key_id' => [
-							'type' => 'string',
-							'description' => $this->translation->translate('ConversationMemory', 'database', 'key_id')
-						],
-						'keys' => [
-							'type' => 'object',
-							'additionalProperties' => true,
-							'description' => $this->translation->translate('ConversationMemory', 'database', 'keys')
-						]
-					],
-					'default' => ['method' => 'none']
 				]
 			],
 			'required' => []
@@ -154,10 +134,6 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$this->max = max(2, (int)($this->resolver->resolveValue($config['max'] ?? null) ?? 20));
 		$this->priority = (int)($this->resolver->resolveValue($config['priority'] ?? null) ?? 80);
 		$this->trimHistory = $this->toBool($this->resolver->resolveValue($config['trim'] ?? null), false);
-		if (array_key_exists('encryption', $config) && !is_array($config['encryption'])) {
-			throw new \InvalidArgumentException('Invalid database conversation encryption configuration.');
-		}
-		$this->cipher->setConfig($config['encryption'] ?? []);
 	}
 
 	public function init(array $resources, IAgentContext $context): void {
@@ -252,8 +228,9 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			'last_active_at' => $now
 		]);
 
-		$method = $this->cipher->getWriteMethod();
-		$keyId = $method === 'none' ? null : $this->cipher->getWriteKeyId();
+		$writeKey = $this->encryption->getWriteKey(self::encryptionTargetId($this->getId()));
+		$method = $writeKey?->getMethod() ?? 'none';
+		$keyId = $writeKey?->getKeyId();
 		$configGroup = $this->context instanceof IAgentContext ? $this->contextString($this->context, 'chatbot_config_group') : '';
 		$configName = $this->context instanceof IAgentContext ? $this->contextString($this->context, 'chatbot_config_name') : '';
 		$this->database->connect();
@@ -477,8 +454,9 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$messageKey = $this->createStorageKey();
 		$now = $this->now();
 
-		$method = $this->cipher->getWriteMethod();
-		$keyId = $method === 'none' ? null : $this->cipher->getWriteKeyId();
+		$writeKey = $this->encryption->getWriteKey(self::encryptionTargetId($this->getId()));
+		$method = $writeKey?->getMethod() ?? 'none';
+		$keyId = $writeKey?->getKeyId();
 		$this->database->nonQuery(
 			'INSERT INTO ' . self::MESSAGE_TABLE
 			. ' (message_key, conversation_key, node_id, message_id, role, content, payload, encryption_method, encryption_key_id, created_at) VALUES ('

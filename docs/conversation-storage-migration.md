@@ -16,7 +16,7 @@ Conceptual component presets in `agent-component-preset`:
     "docks": {"authenticated": ["conversation-database"], "anonymous": ["conversation-session"]}
   },
   {"id": "conversation-database", "type": "databasememoryagentresource", "enabled": true,
-   "config": {"namespace": "default", "encryption": {"method": "none"}}, "docks": {}},
+   "config": {"namespace": "default"}, "docks": {}},
   {"id": "conversation-session", "type": "sessionmemoryagentresource", "enabled": true,
    "config": {"namespace": "default"}, "docks": {}}
 ]
@@ -46,32 +46,30 @@ The scheme cannot automatically invert hashes for **already deleted** users or e
 
 Chatbot context already carries `chatbot_config_group`/`chatbot_config_name`. New database conversations record them. When the original chatbot channel is encountered again, older records in that channel can be associated with the same trusted configuration reference; other historic references remain unknown. Non-chatbot agent conversations do not necessarily refer to a chatbot settings object.
 
-## Optional encryption of persisted content
+## Optional encryption of persisted content with KeyHarbor
 
-**Default: `encryption.method=none`.** No existing chat is re-encrypted by the schema migration, and administrators must opt in to encryption explicitly. Each conversation has its own method/key metadata for `title` and `opening_message`; each message has separate method/key metadata for `content` and serialized `payload`. A new encrypted message may be appended to an old unencrypted conversation. Reading always uses the row's **stored** method, never the current write default. Existing encrypted rows still require their original key after a policy change.
+**Default: no assigned encryption profile.** The `DatabaseMemoryAgentResource` has no local encryption settings. Its configured component preset is discoverable through `DatabaseMemoryEncryptionTargetProvider`, which implements the shared `CredentialFoundation\Api\IEncryptionTargetProvider` contract. KeyHarbor shows the configured memory preset and lets an administrator assign an existing encryption profile. The current assignment is stored **only** by KeyHarbor. Resource IDs are derived from the canonical preset-flow resource ID and namespaced as `missionbay:<runtime-resource-id>` to avoid confusing targets with other providers. Renaming a preset changes this identity; review its assignment before using the renamed resource.
 
-New encryption algorithms are `ICrypt` implementations registered by the BASE3 classmap; built-in methods are owned by `Base3Framework`, not MissionBay. `SodiumCrypt` uses `xchacha20poly1305-v1`. The legacy `aes-256-cbc-legacy-v1` method remains available for existing cipher data; CBC does not authenticate ciphertext and should **not** be chosen for new sensitive chat data.
-
-`IConfigValueResolver` is reused through `IAgentConfigValueResolver`. The `keys` map references deployment-protected secrets; no key bytes are stored with messages. **The example below is the complete database-memory preset `config` object** (not the contents of the nested `encryption` editor field):
+To enable encryption for `conversation-database`, create an encryption profile under **BASE3 administration / Credentials / Encryption**, add its method and key source, and assign that profile to the **Conversation Database** target. For example, the KeyHarbor profile might have ID `chat-conversation-encryption`, method `xchacha20poly1305-v1`, active key ID `chat-test-2026`, and a source of type `fixed`, `env`, `file`, or `configuration`. The preset's `config` itself stays simply:
 
 ```json
 {
-  "encryption": {
-    "method": "xchacha20poly1305-v1",
-    "key_id": "chat-2026",
-    "keys": {
-      "chat-2026": {"mode": "file", "path": "/etc/base3/secrets/chat-2026"},
-      "chat-old": {"mode": "env", "name": "BASE3_CHAT_OLD_KEY"}
-    }
-  }
+  "namespace": "default",
+  "max": 20,
+  "trim": false,
+  "priority": 80
 }
 ```
 
-When editing only the `encryption` property in a schema-driven editor, enter just `method`, `key_id` and `keys` inside that property, without a second outer `encryption` object. An incorrectly nested configuration (`config.encryption.encryption.method`) now raises an error rather than defaulting silently to `none`. Leaving the entire `encryption` property absent, using `{}` or explicitly setting `method` to `none` is the supported plaintext default. Test both newly created conversations and appended messages after changing the preset; historical rows retain their original encryption metadata.
+**Historical encryption keys:** Existing encrypted records require their historical key IDs and **original secrets** in KeyHarbor. The central service requires globally unique key IDs across profiles. Reusing a key ID with different key material cannot decrypt old ciphertext. KeyHarbor does not import historical secrets automatically. Do not delete external secret files or environment variables while their ciphertext is still needed.
 
-The `file` and `env` key-reference shape must follow the installed BASE3 `IConfigValueModeResolver` implementation. Keep secret material outside the webroot and outside database-backed UI settings. Protect backups and operator access. Rotation requires retaining previous key IDs and sources for as long as corresponding ciphertext exists, or a separately verified re-encryption procedure. A missing key, unknown method or failed integrity check is an error, **never a fallback to plaintext**.
+Each conversation has its own method/key metadata for `title` and `opening_message`; each message has separate method/key metadata for `content` and serialized `payload`. A new encrypted message may be appended to an old unencrypted conversation. Reading always uses each row's **stored** method and key ID via `IEncryptionProfileService::getReadKey()`; it never depends on the current target assignment. A removed or changed assignment cannot make encrypted rows readable without their original key. New writes resolve the assigned active profile through `IEncryptionProfileService::getWriteKey()`; invalid assignments or missing key sources throw rather than writing plaintext.
 
-Encryption is server-side at rest, **not** end-to-end encryption. Authorized server-side sharing can decrypt for another permitted user if sharing is later implemented; permission decisions belong solely to `IAuthorizationService`. Encryption does not automatically protect content in session backends, logs, configured providers, model requests or backups.
+New encryption algorithms are `ICrypt` implementations registered by the BASE3 classmap; built-in methods are owned by `Base3Framework`, not MissionBay. `SodiumCrypt` uses `xchacha20poly1305-v1`. The legacy `aes-256-cbc-legacy-v1` method remains available to read existing ciphertext; CBC does not authenticate ciphertext and should **not** be selected for new sensitive chat data.
+
+The discoverable target list covers **stored database-memory component presets**. Ad hoc flow resources that were not configured as presets do not appear in the central list and should not be assumed to have an assignment. An unassigned target continues to write plaintext by design; verify the assignment in KeyHarbor before processing sensitive data. Missing profile IDs and inaccessible historical keys are errors, never reasons to write a requested encrypted record in plaintext.
+
+Encryption is server-side at rest, **not** end-to-end encryption. Authorized server-side sharing may decrypt for another permitted user if sharing is later implemented; permission decisions belong solely to `IAuthorizationService`. Encryption does not automatically protect content in session backends, logs, configured providers, model requests or backups. The database resource does not query conversation history to decide whether a key may be removed. KeyHarbor warns on destructive key changes but cannot establish absence of historical references in every consumer.
 
 ## Privacy diagnostic interpretation
 

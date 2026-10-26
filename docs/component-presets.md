@@ -125,3 +125,7 @@ These are different concerns. Do not merge them into one giant preset structure.
 ## Administration
 
 `AgentComponentPresetAdminDisplay` edits presets. `AgentComponentPresetTestAdminDisplay` materializes and tests configured components without requiring them to be attached to a production agent first.
+
+## Encryption-capable database-memory presets
+
+The `databasememoryagentresource` is configured like any other component preset, but its encryption policy is managed by KeyHarbor instead of an inline schema field. `DatabaseMemoryEncryptionTargetProvider` publishes the actual configured presets as targets through `IEncryptionTargetProvider`. The target ID uses the same runtime ID as `AgentComponentPresetFlowExpander`; it does not depend on an additional copy of the configuration. KeyHarbor owns each target-to-profile assignment, with no duplicate setting on the preset. Historical ciphertext still requires the original key ID and secret in KeyHarbor. Choose the intended write profile under the Credentials administration tab.
