@@ -152,6 +152,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			|| $scope->getOwnerId() !== $this->requireCurrentUserId()) {
 			throw new \RuntimeException('Database conversation memory requires the current authenticated user.');
 		}
+		$this->requireChatbotSourceReference($scope->getChannelId());
 		$this->scope = $scope;
 		$this->backfillLegacyOwner($scope->getOwnerId());
 		$this->backfillSourceReference($scope->getChannelId());
@@ -231,8 +232,7 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 		$writeKey = $this->encryption->getWriteKey(self::encryptionTargetId($this->getId()));
 		$method = $writeKey?->getMethod() ?? 'none';
 		$keyId = $writeKey?->getKeyId();
-		$configGroup = $this->context instanceof IAgentContext ? $this->contextString($this->context, 'chatbot_config_group') : '';
-		$configName = $this->context instanceof IAgentContext ? $this->contextString($this->context, 'chatbot_config_name') : '';
+		[$configGroup, $configName] = $this->requireChatbotSourceReference($scope->getChannelId());
 		$this->database->connect();
 		$this->database->nonQuery(
 			'INSERT INTO ' . self::CONVERSATION_TABLE
@@ -625,6 +625,24 @@ class DatabaseMemoryAgentResource extends AbstractAgentResource implements IAgen
 			throw new \RuntimeException('Legacy conversation owner migration could not be verified.');
 		}
 		$this->legacyBackfilledOwnerId = $userId;
+	}
+
+	/**
+	 * A persisted chatbot channel must be attributable to one configured instance.
+	 * Non-chatbot channels, including scheduled agents, do not require a chatbot reference.
+	 *
+	 * @return array{0:string,1:string}
+	 */
+	private function requireChatbotSourceReference(string $channelId): array {
+		$group = $this->context instanceof IAgentContext
+			? $this->contextString($this->context, 'chatbot_config_group') : '';
+		$name = $this->context instanceof IAgentContext
+			? $this->contextString($this->context, 'chatbot_config_name') : '';
+		if (str_starts_with($channelId, 'chatbot:')
+			&& ($group === '' || $name === '' || strlen($group) > 191 || strlen($name) > 191)) {
+			throw new \RuntimeException($this->translation->translate('ConversationMemory', 'database', 'invalid_source_reference'));
+		}
+		return [$group, $name];
 	}
 
 	private function backfillSourceReference(string $channelId): void {
