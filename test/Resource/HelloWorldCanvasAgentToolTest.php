@@ -15,110 +15,13 @@ use AssistantFoundation\Api\IAgentMemory;
 class HelloWorldCanvasAgentToolTest extends TestCase {
 
 	private function makeContext(array $vars = []): IAgentContext {
-		$memory = new class implements IAgentMemory {
-			private array $history = [];
+		$memory = new HelloWorldCanvasAgentToolTestDouble1();
 
-			public static function getName(): string {
-				return 'testagentmemory';
-			}
-
-			public function loadNodeHistory(string $nodeId): array {
-				return $this->history[$nodeId] ?? [];
-			}
-
-			public function appendNodeHistory(string $nodeId, array $message): void {
-				$this->history[$nodeId] ??= [];
-				$this->history[$nodeId][] = $message;
-			}
-
-			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-				if (empty($this->history[$nodeId])) {
-					return false;
-				}
-
-				foreach ($this->history[$nodeId] as &$msg) {
-					if (($msg['id'] ?? null) === $messageId) {
-						$msg['feedback'] = $feedback;
-						return true;
-					}
-				}
-
-				return false;
-			}
-
-			public function resetNodeHistory(string $nodeId): void {
-				$this->history[$nodeId] = [];
-			}
-
-			public function getPriority(): int {
-				return 0;
-			}
-		};
-
-		return new class($vars, $memory) implements IAgentContext {
-			private array $vars;
-			private IAgentMemory $memory;
-
-			public function __construct(array $vars, IAgentMemory $memory) {
-				$this->vars = $vars;
-				$this->memory = $memory;
-			}
-
-			public static function getName(): string {
-				return 'testagentcontext';
-			}
-
-			public function getMemory(): IAgentMemory {
-				return $this->memory;
-			}
-
-			public function setMemory(IAgentMemory $memory): void {
-				$this->memory = $memory;
-			}
-
-			public function setVar(string $key, mixed $value): void {
-				$this->vars[$key] = $value;
-			}
-
-			public function getVar(string $key): mixed {
-				return $this->vars[$key] ?? null;
-			}
-
-			public function forgetVar(string $key): void {
-				unset($this->vars[$key]);
-			}
-
-			public function listVars(): array {
-				return array_keys($this->vars);
-			}
-		};
+		return new HelloWorldCanvasAgentToolTestDouble2($vars, $memory);
 	}
 
 	private function makeFakeSink(bool $cancelled = false, bool $throwOnEmit = false): object {
-		return new class($cancelled, $throwOnEmit) implements IAgentEventSink {
-			public array $events = [];
-			private bool $cancelled;
-			private bool $throwOnEmit;
-
-			public function __construct(bool $cancelled, bool $throwOnEmit) {
-				$this->cancelled = $cancelled;
-				$this->throwOnEmit = $throwOnEmit;
-			}
-
-			public function emit(AgentExecutionEvent $event): void {
-				if ($this->throwOnEmit) {
-					throw new \RuntimeException('push failed');
-				}
-				$this->events[] = [
-					'event' => $event->getName(),
-					'data' => $event->getPayload()
-				];
-			}
-
-			public function isCancelled(): bool {
-				return $this->cancelled;
-			}
-		};
+		return new HelloWorldCanvasAgentToolTestDouble3($cancelled, $throwOnEmit);
 	}
 
 	public function testGetName(): void {
@@ -259,3 +162,9 @@ class HelloWorldCanvasAgentToolTest extends TestCase {
 		$this->assertStringContainsString('Failed to push canvas events: push failed', (string)($res['error'] ?? ''));
 	}
 }
+
+require_once __DIR__ . '/HelloWorldCanvasAgentToolTestDouble1.php';
+
+require_once __DIR__ . '/HelloWorldCanvasAgentToolTestDouble2.php';
+
+require_once __DIR__ . '/HelloWorldCanvasAgentToolTestDouble3.php';

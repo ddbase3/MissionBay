@@ -14,23 +14,10 @@ use PHPUnit\Framework\TestCase;
 final class OpenAiResponsesChatModelTest extends TestCase {
 
 	private function makeModel(IAiProvider $provider): OpenAiResponsesChatModel {
-		$map = $this->createMock(IClassMap::class);
-		$events = new AiProviderRequestEventDispatcher($this->createMock(IEventManager::class));
+		$map = $this->createStub(IClassMap::class);
+		$events = new AiProviderRequestEventDispatcher($this->createStub(IEventManager::class));
 
-		return new class($map, $events, $provider) extends OpenAiResponsesChatModel {
-
-			public function __construct(
-				IClassMap $classMap,
-				AiProviderRequestEventDispatcher $events,
-				private readonly IAiProvider $testProvider
-			) {
-				parent::__construct($classMap, $events);
-			}
-
-			protected function getProvider(): IAiProvider {
-				return $this->testProvider;
-			}
-		};
+		return new OpenAiResponsesChatModelTestDouble1($map, $events, $provider);
 	}
 
 	public function testCreatesResponsesPayloadWithoutUnsupportedSamplingOptions(): void {
@@ -304,3 +291,5 @@ final class OpenAiResponsesChatModelTest extends TestCase {
 	}
 
 }
+
+require_once __DIR__ . '/OpenAiResponsesChatModelTestDouble1.php';

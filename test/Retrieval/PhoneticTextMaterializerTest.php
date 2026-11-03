@@ -15,7 +15,7 @@ final class PhoneticTextMaterializerTest extends TestCase {
 	public function testMaterializerUsesSelectedEncodersAndSkipsNoise(): void {
 		$cologne = new ColognePhoneticEncoder();
 		$soundex = new SoundexPhoneticEncoder();
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$classMap->method('getInstanceByInterfaceName')->willReturnCallback(
 			static function(string $interface, string $name) use ($cologne, $soundex): ?IPhoneticEncoder {
 				if($interface !== IPhoneticEncoder::class) return null;
@@ -27,7 +27,7 @@ final class PhoneticTextMaterializerTest extends TestCase {
 			}
 		);
 
-		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition = $this->createStub(IRetrievalCollectionDefinition::class);
 		$definition->method('getPhoneticEncoderNames')->willReturnCallback(
 			static fn(string $collectionKey, array $context = []): array => ($context['lang'] ?? '') === 'de'
 				? [ColognePhoneticEncoder::getName()]

@@ -7,31 +7,7 @@ namespace MissionBay\Resource;
  * (avoid "Cannot redeclare curl_init()" regardless of load order)
  */
 if (!class_exists(FakeCurlState::class, false)) {
-	final class FakeCurlState {
-
-		public static int $errno = 0;
-		public static string $error = '';
-		public static int $httpCode = 200;
-		public static mixed $execResult = null;
-
-		private static array $options = [];
-
-		public static function reset(): void {
-			self::$errno = 0;
-			self::$error = '';
-			self::$httpCode = 200;
-			self::$execResult = null;
-			self::$options = [];
-		}
-
-		public static function setOpt(int $opt, mixed $value): void {
-			self::$options[$opt] = $value;
-		}
-
-		public static function getOpt(int $opt): mixed {
-			return self::$options[$opt] ?? null;
-		}
-	}
+	
 }
 
 if (!function_exists(__NAMESPACE__ . '\curl_init')) {
@@ -98,21 +74,7 @@ class QdrantVectorSearchTest extends TestCase {
 	}
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new QdrantVectorSearchTestDouble1($map);
 	}
 
 	public function testGetNameAndDescription(): void {
@@ -167,3 +129,7 @@ class QdrantVectorSearchTest extends TestCase {
 		$this->assertSame(['x' => 2], $out[1]['payload']);
 	}
 }
+
+require_once __DIR__ . '/FakeCurlState.php';
+
+require_once __DIR__ . '/QdrantVectorSearchTestDouble1.php';

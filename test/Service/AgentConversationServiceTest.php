@@ -80,68 +80,9 @@ final class AgentConversationServiceTest extends TestCase {
 	}
 }
 
-final class ConversationPresetMaterializerDouble implements IAgentComponentPresetMaterializer {
-
-	public function __construct(private readonly SessionMemoryAgentResource $memory) {}
-
-	public function createContext(array $vars = []): IAgentContext {
-		return new AgentContext(null, $vars);
-	}
-
-	public function materialize(string $presetId, IAgentContext $context): AgentComponentPresetMaterialization {
-		$this->memory->init([], $context);
-		return new AgentComponentPresetMaterialization(
-			$presetId,
-			['id' => $presetId, 'type' => SessionMemoryAgentResource::getName()],
-			$this->memory,
-			null,
-			$this->memory,
-			null,
-			['memory']
-		);
-	}
-}
-
-final class ConversationSessionDouble implements ISession {
-	private array $values = [];
-	private bool $started = false;
-	public function started(): bool { return $this->started; }
-	public function getId(): string { return 'session-one'; }
-	public function start(): bool { $this->started = true; return true; }
-	public function destroy(): bool { $this->values = []; $this->started = false; return true; }
-	public function get(string $key, mixed $default = null): mixed { return $this->values[$key] ?? $default; }
-	public function set(string $key, mixed $value): void { $this->values[$key] = $value; }
-	public function has(string $key): bool { return array_key_exists($key, $this->values); }
-	public function remove(string $key): void { unset($this->values[$key]); }
-}
-
-final class ConversationConfigValueResolverDouble implements IAgentConfigValueResolver {
-	public function resolveValue(array|string|int|float|bool|null $config): mixed { return $config; }
-}
-
-final class ConversationSettingsStoreDouble implements ISettingsStore {
-	public function __construct(private array $groups) {}
-	public function get(string $group, string $name, array $default = []): array { return $this->groups[$group][$name] ?? $default; }
-	public function set(string $group, string $name, array $settings): void { $this->groups[$group][$name] = $settings; }
-	public function has(string $group, string $name): bool { return isset($this->groups[$group][$name]); }
-	public function remove(string $group, string $name): void { unset($this->groups[$group][$name]); }
-	public function getGroup(string $group): array { return $this->groups[$group] ?? []; }
-	public function save(): void {}
-	public function reload(): void {}
-}
-
-final class ConversationPresetRepositoryDouble implements IAgentComponentPresetRepository {
-	public function __construct(private array $presets) {}
-	public function getPresets(): array { return $this->presets; }
-	public function getPreset(string $id, array $default = []): array { return $this->presets[$id] ?? $default; }
-	public function hasPreset(string $id): bool { return isset($this->presets[$id]); }
-	public function savePreset(string $id, array $preset): void { $this->presets[$id] = $preset; }
-	public function removePreset(string $id): void { unset($this->presets[$id]); }
-}
-
-final class ConversationResourceFactoryDouble implements IAgentResourceFactory {
-	public function __construct(private readonly SessionMemoryAgentResource $memory) {}
-	public function createResource(string $type): ?IAgentResource {
-		return $type === SessionMemoryAgentResource::getName() ? $this->memory : null;
-	}
-}
+require_once __DIR__ . '/ConversationPresetMaterializerDouble.php';
+require_once __DIR__ . '/ConversationSessionDouble.php';
+require_once __DIR__ . '/ConversationConfigValueResolverDouble.php';
+require_once __DIR__ . '/ConversationSettingsStoreDouble.php';
+require_once __DIR__ . '/ConversationPresetRepositoryDouble.php';
+require_once __DIR__ . '/ConversationResourceFactoryDouble.php';

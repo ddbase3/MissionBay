@@ -68,9 +68,10 @@ final class AgentSemanticVerificationStageTest extends TestCase {
 		$this->assertSame('answer', $verification->getMetadata()['recommendation']);
 		$this->assertSame(0.91, $verification->getMetadata()['confidence']);
 		$this->assertSame(30, $patch[AgentToolLoopContextKeys::MODEL_RESULTS][0]['usage']['total_tokens']);
-		$this->assertSame('valid', $result->getMetadata()['parse_status']);
-		$this->assertArrayNotHasKey(AgentToolLoopContextKeys::PHASE, $patch);
-		$this->assertArrayNotHasKey(AgentToolLoopContextKeys::COMPLETED, $patch);
+		$this->assertSame('valid', $result->getMetadata()['verification']['parse_status']);
+		$this->assertSame(AgentToolLoopContextKeys::PHASE_FINAL, $patch[AgentToolLoopContextKeys::PHASE]);
+		$this->assertTrue($patch[AgentToolLoopContextKeys::COMPLETED]);
+		$this->assertCount(1, $patch[AgentToolLoopContextKeys::CONTINUATION_DECISIONS]);
 	}
 
 	public function testVerifierReceivesAllCommittedObservationsAndNoCurrentResultSet(): void {
@@ -166,7 +167,7 @@ final class AgentSemanticVerificationStageTest extends TestCase {
 
 		$this->assertSame(AgentResultVerification::VERDICT_INCONCLUSIVE, $verification->getVerdict());
 		$this->assertSame('invalid_semantic_verifier_response', $verification->getIssues()[0]['code']);
-		$this->assertSame('invalid', $result->getMetadata()['parse_status']);
+		$this->assertSame('invalid', $result->getMetadata()['verification']['parse_status']);
 		$this->assertArrayNotHasKey(AgentToolLoopContextKeys::FAILURE_CODE, $result->getPatch());
 	}
 
@@ -221,52 +222,4 @@ final class AgentSemanticVerificationStageTest extends TestCase {
 	}
 }
 
-final class SemanticVerificationQueueModel implements IAiChatModel {
-
-	use NormalizedChatModelTrait;
-
-	/** @var array<int,mixed> */
-	private array $responses;
-
-	/** @var array<int,array{0:array<int,array<string,mixed>>,1:array<int,array<string,mixed>>}> */
-	private array $calls = [];
-
-	/**
-	 * @param array<int,mixed> $responses
-	 */
-	public function __construct(array $responses) {
-		$this->responses = $responses;
-	}
-
-	public function chat(array $messages): string {
-		return '';
-	}
-
-	public function raw(array $messages, array $tools = []): mixed {
-		$this->calls[] = [$messages, $tools];
-		$response = array_shift($this->responses);
-
-		if ($response instanceof \Throwable) {
-			throw $response;
-		}
-
-		return $response;
-	}
-
-	/**
-	 * @return array<int,array{0:array<int,array<string,mixed>>,1:array<int,array<string,mixed>>}>
-	 */
-	public function getCalls(): array {
-		return $this->calls;
-	}
-
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
-	}
-
-	public function setOptions(array $options): void {
-	}
-
-	public function getOptions(): array {
-		return [];
-	}
-}
+require_once __DIR__ . '/SemanticVerificationQueueModel.php';

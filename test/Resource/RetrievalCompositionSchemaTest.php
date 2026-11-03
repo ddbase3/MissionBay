@@ -25,12 +25,15 @@ use MissionBay\Resource\RetrievalAgentTool;
 use MissionBay\Resource\RoutingChatModelAgentResource;
 use MissionBay\Retrieval\DefaultRetrievalCollectionDefinition;
 use MissionBay\Retrieval\PhoneticTextMaterializer;
+use Base3\State\Api\IStateStore;
+use MissionBay\Service\AiProviderFileReferenceStateRepository;
+use ResourceFoundation\Api\IManagedFileStorageService;
 use PHPUnit\Framework\TestCase;
 
 final class RetrievalCompositionSchemaTest extends TestCase {
 
 	public function testRetrievalPublishesConfigSchemaAndComposableDocks(): void {
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$definition = $this->defaultDefinition();
 		$resource = new RetrievalAgentTool(
 			$this->resolver(),
@@ -65,7 +68,7 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 
 
 	public function testRetrievalToolDefinitionsMakeSearchModeAndContextReferenceExplicit(): void {
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$definition = $this->defaultDefinition();
 		$resource = new RetrievalAgentTool(
 			$this->resolver(),
@@ -160,7 +163,7 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 	}
 
 	public function testRetrievalFilterHelpReturnsDomainOwnedDescriptionsAndExamples(): void {
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$definition = $this->defaultDefinition();
 		$resource = new RetrievalAgentTool(
 			$this->resolver(),
@@ -172,7 +175,7 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 		$help = $resource->callTool(
 			'retrieval_filter_help',
 			[],
-			$this->createMock(IAgentContext::class)
+			$this->createStub(IAgentContext::class)
 		);
 
 		$this->assertSame('default', $help['collection_key']);
@@ -191,30 +194,14 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 
 
 	public function testPhoneticModeRoutesPhrasesToPhoneticPhraseConstraints(): void {
-		$encoder = new class implements IPhoneticEncoder {
-			public static function getName(): string {
-				return 'testphoneticencoder';
-			}
+		$encoder = new RetrievalCompositionSchemaTestDouble1();
 
-			public function getAlgorithm(): string {
-				return 'test';
-			}
-
-			public function getVersion(): string {
-				return 'v1';
-			}
-
-			public function encode(string $token): string {
-				return mb_substr(mb_strtolower(trim($token)), 0, 1);
-			}
-		};
-
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$classMap->method('getInstanceByInterfaceName')
 			->with(IPhoneticEncoder::class, 'testphoneticencoder')
 			->willReturn($encoder);
 
-		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition = $this->createStub(IRetrievalCollectionDefinition::class);
 		$definition->method('getBackendCollectionName')->with('default')->willReturn('content_v2');
 		$definition->method('getPhoneticEncoderNames')->with('default', [])->willReturn(['testphoneticencoder']);
 		$definition->method('getAgentFilterSchema')->with('default')->willReturn([]);
@@ -236,7 +223,7 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 			new PhoneticTextMaterializer($classMap, $definition),
 			'retrieval'
 		);
-		$context = $this->createMock(IAgentContext::class);
+		$context = $this->createStub(IAgentContext::class);
 		$resource->init(['vectorstore' => [$index]], $context);
 
 		$result = $resource->callTool('retrieval_search', [
@@ -250,11 +237,17 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 
 	public function testConfiguredLeafResourcesExposeEnabledServiceIds(): void {
 		$settingsStore = $this->settingsStore();
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$resolver = $this->resolver();
 
 		$runtimeResolver = new ConfiguredServiceRuntimeResolver($settingsStore, $classMap, $resolver);
-		$chat = new ConfiguredChatModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'chat');
+		$stateStore = $this->createStub(IStateStore::class);
+		$managedFileStorage = $this->createStub(IManagedFileStorageService::class);
+		$chat = new ConfiguredChatModelAgentResource(
+			$resolver, $settingsStore, $runtimeResolver,
+			$stateStore, $managedFileStorage,
+			new AiProviderFileReferenceStateRepository($stateStore), 'chat'
+		);
 		$embedding = new ConfiguredEmbeddingModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'embedding');
 		$vectorStore = new ConfiguredVectorStoreAgentResource($resolver, $settingsStore, $runtimeResolver, 'vector');
 
@@ -282,7 +275,7 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 	}
 
 	public function testEmbeddingCacheRemainsComposableInFrontOfConfiguredEmbedding(): void {
-		$database = $this->createMock(\Base3\Database\Api\IDatabase::class);
+		$database = $this->createStub(\Base3\Database\Api\IDatabase::class);
 		$resource = new EmbeddingCacheAgentResource($database, $this->resolver(), 'cache');
 		$docks = $this->docksByName($resource->getDockDefinitions());
 
@@ -293,56 +286,11 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 	}
 
 	private function resolver(): IAgentConfigValueResolver {
-		return new class implements IAgentConfigValueResolver {
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				if(is_array($config) && ($config['mode'] ?? null) === 'fixed') {
-					return $config['value'] ?? null;
-				}
-
-				return $config;
-			}
-		};
+		return new RetrievalCompositionSchemaTestDouble2();
 	}
 
 	private function settingsStore(): ISettingsStore {
-		return new class implements ISettingsStore {
-			private array $groups = [
-				'service-llm' => [
-					'chat-main' => ['id' => 'chat-main', 'serviceType' => 'llm', 'enabled' => true],
-					'chat-disabled' => ['id' => 'chat-disabled', 'serviceType' => 'llm', 'enabled' => false],
-					'wrong-type' => ['id' => 'wrong-type', 'serviceType' => 'embedding', 'enabled' => true]
-				],
-				'service-embedding' => [
-					'embedding-main' => ['id' => 'embedding-main', 'serviceType' => 'embedding', 'enabled' => true]
-				],
-				'service-vectorstore' => [
-					'vector-main' => ['id' => 'vector-main', 'serviceType' => 'vectorstore', 'enabled' => true]
-				]
-			];
-
-			public function get(string $group, string $name, array $default = []): array {
-				return $this->groups[$group][$name] ?? $default;
-			}
-
-			public function set(string $group, string $name, array $settings): void {
-				$this->groups[$group][$name] = $settings;
-			}
-
-			public function has(string $group, string $name): bool {
-				return isset($this->groups[$group][$name]);
-			}
-
-			public function remove(string $group, string $name): void {
-				unset($this->groups[$group][$name]);
-			}
-
-			public function getGroup(string $group): array {
-				return $this->groups[$group] ?? [];
-			}
-
-			public function save(): void {}
-			public function reload(): void {}
-		};
+		return new RetrievalCompositionSchemaTestDouble3();
 	}
 
 	/**
@@ -359,15 +307,17 @@ final class RetrievalCompositionSchemaTest extends TestCase {
 		return $result;
 	}
 	private function defaultDefinition(): DefaultRetrievalCollectionDefinition {
-		$repository = new class implements IRetrievalCollectionConfigRepository {
-			public function getCollections(): array { return ['default' => ['backend_collection' => 'content_v2']]; }
-			public function hasCollection(string $collectionKey): bool { return $collectionKey === 'default'; }
-			public function getBackendCollectionName(string $collectionKey): string { return 'content_v2'; }
-			public function saveCollection(string $collectionKey, string $backendCollection): void {}
-			public function removeCollection(string $collectionKey): void {}
-		};
+		$repository = new RetrievalCompositionSchemaTestDouble4();
 
 		return new DefaultRetrievalCollectionDefinition($repository);
 	}
 
 }
+
+require_once __DIR__ . '/RetrievalCompositionSchemaTestDouble1.php';
+
+require_once __DIR__ . '/RetrievalCompositionSchemaTestDouble2.php';
+
+require_once __DIR__ . '/RetrievalCompositionSchemaTestDouble3.php';
+
+require_once __DIR__ . '/RetrievalCompositionSchemaTestDouble4.php';

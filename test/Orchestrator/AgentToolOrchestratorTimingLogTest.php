@@ -25,7 +25,7 @@ final class AgentToolOrchestratorTimingLogTest extends TestCase {
 
 	public function testPluginCompositionUsesRegisteredLoggerWithoutPerRunLogger(): void {
 		$services = [];
-		$container = $this->createMock(IContainer::class);
+		$container = $this->createStub(IContainer::class);
 		$container->method('set')->willReturnCallback(
 			static function(string $name, mixed $definition) use (&$services, $container): IContainer {
 				$services[$name] = $definition;
@@ -60,7 +60,7 @@ final class AgentToolOrchestratorTimingLogTest extends TestCase {
 		self::assertInstanceOf(AgentToolOrchestrator::class, $orchestrator);
 
 		$result = $orchestrator->run(
-			$this->createMock(IAiChatModel::class),
+			$this->createStub(IAiChatModel::class),
 			[], [], [], new TimingLogTestContext(),
 			stages: [new TimingLogTestStage()]
 		);
@@ -82,7 +82,7 @@ final class AgentToolOrchestratorTimingLogTest extends TestCase {
 				return true;
 			}
 		);
-		$model = $this->createMock(IAiChatModel::class);
+		$model = $this->createStub(IAiChatModel::class);
 		$orchestrator = new AgentToolOrchestrator($logger, stages: [new TimingLogTestStage()]);
 
 		$result = $orchestrator->run($model, [], [], [], $context);
@@ -109,14 +109,14 @@ final class AgentToolOrchestratorTimingLogTest extends TestCase {
 	public function testRecordsFailedStageWithoutReplacingOriginalException(): void {
 		$context = new TimingLogTestContext();
 		$messages = [];
-		$logger = $this->createMock(ILogger::class);
+		$logger = $this->createStub(ILogger::class);
 		$logger->method('log')->willReturnCallback(
 			static function(string $scope, string $message) use (&$messages): bool {
 				$messages[] = $message;
 				return true;
 			}
 		);
-		$model = $this->createMock(IAiChatModel::class);
+		$model = $this->createStub(IAiChatModel::class);
 		$orchestrator = new AgentToolOrchestrator($logger, stages: [new TimingLogTestStage(true)]);
 
 		try {
@@ -134,9 +134,9 @@ final class AgentToolOrchestratorTimingLogTest extends TestCase {
 
 	public function testLoggingFailureDoesNotAbortACompletedRun(): void {
 		$context = new TimingLogTestContext();
-		$logger = $this->createMock(ILogger::class);
+		$logger = $this->createStub(ILogger::class);
 		$logger->method('log')->willThrowException(new \RuntimeException('Logging is unavailable.'));
-		$model = $this->createMock(IAiChatModel::class);
+		$model = $this->createStub(IAiChatModel::class);
 		$orchestrator = new AgentToolOrchestrator($logger, stages: [new TimingLogTestStage()]);
 
 		$result = $orchestrator->run($model, [], [], [], $context);
@@ -147,79 +147,5 @@ final class AgentToolOrchestratorTimingLogTest extends TestCase {
 
 }
 
-final class TimingLogTestStage implements IAgentStage {
-
-	public function __construct(private bool $fails = false) {}
-
-	public static function getName(): string {
-		return 'timinglogteststage';
-	}
-
-	public function id(): string {
-		return 'timing-test-stage';
-	}
-
-	public function name(): string {
-		return 'timing-test-stage';
-	}
-
-	public function getDescription(): string {
-		return 'Stage for timing log regression tests.';
-	}
-
-	public function getAiUsage(): string {
-		return self::AI_USAGE_CONDITIONAL;
-	}
-
-	public function supports(IAgentContext $context): bool {
-		return true;
-	}
-
-	public function process(IAgentContext $context): AgentStageResult {
-		if ($this->fails) {
-			throw new \RuntimeException('timing stage failure');
-		}
-
-		return AgentStageResult::patch([
-			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_FINAL,
-			AgentToolLoopContextKeys::COMPLETED => true,
-			AgentToolLoopContextKeys::MODEL_RESULTS => [[
-				'duration_ms' => 31.25,
-				'extra' => ['secret' => 'private model metadata']
-			]]
-		], ['secret' => 'private stage metadata']);
-	}
-}
-
-final class TimingLogTestContext implements IAgentContext {
-
-	private array $values = [];
-
-	public static function getName(): string {
-		return 'timinglogtestcontext';
-	}
-
-	public function getMemory(): IAgentMemory {
-		throw new \LogicException('Memory is not used by this test.');
-	}
-
-	public function setMemory(IAgentMemory $memory): void {
-		throw new \LogicException('Memory is not used by this test.');
-	}
-
-	public function setVar(string $key, mixed $value): void {
-		$this->values[$key] = $value;
-	}
-
-	public function getVar(string $key): mixed {
-		return $this->values[$key] ?? null;
-	}
-
-	public function forgetVar(string $key): void {
-		unset($this->values[$key]);
-	}
-
-	public function listVars(): array {
-		return array_keys($this->values);
-	}
-}
+require_once __DIR__ . '/TimingLogTestStage.php';
+require_once __DIR__ . '/TimingLogTestContext.php';

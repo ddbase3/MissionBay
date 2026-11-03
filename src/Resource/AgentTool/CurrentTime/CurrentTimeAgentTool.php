@@ -83,11 +83,10 @@ class CurrentTimeAgentTool extends AbstractAgentResource implements IAgentTool {
 		}
 
 		$tzName = $arguments['timezone'] ?? date_default_timezone_get();
-		try {
-			$tz = new \DateTimeZone($tzName);
-		} catch (\Exception $e) {
-			$tz = new \DateTimeZone(date_default_timezone_get());
+		if (!is_string($tzName) || !in_array($tzName, \DateTimeZone::listIdentifiers(\DateTimeZone::ALL_WITH_BC), true)) {
+			$tzName = date_default_timezone_get();
 		}
+		$tz = new \DateTimeZone($tzName);
 
 		$dt = new \DateTime('now', $tz);
 

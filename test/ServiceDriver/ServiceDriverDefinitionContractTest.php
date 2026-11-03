@@ -22,6 +22,7 @@ use MissionBay\ServiceDriver\OpenAiWebSearchServiceDriverDefinition;
 use MissionBay\ServiceDriver\QdrantVectorStoreServiceDriverDefinition;
 use MissionBay\ServiceDriver\UnstructuredParserServiceDriverDefinition;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ServiceDriverDefinitionContractTest extends TestCase {
 
@@ -51,7 +52,7 @@ final class ServiceDriverDefinitionContractTest extends TestCase {
 		];
 	}
 
-	/** @dataProvider definitionClasses */
+	#[DataProvider('definitionClasses')]
 	public function testEveryBuiltInDefinitionUsesTheFoundationContract(string $definitionClass): void {
 		$definition = new $definitionClass();
 
@@ -63,7 +64,7 @@ final class ServiceDriverDefinitionContractTest extends TestCase {
 		$this->assertTrue(interface_exists($definition->getImplementationInterface()));
 	}
 
-	/** @dataProvider definitionClasses */
+	#[DataProvider('definitionClasses')]
 	public function testServiceSchemasDoNotOwnConnectionCredentials(string $definitionClass): void {
 		$definition = new $definitionClass();
 		$schema = $definition->getConfigSchema();

@@ -147,101 +147,17 @@ class CanvasCloseAgentToolTest extends TestCase {
 /**
  * Full IAgentContext stub (matching the provided interface) including IBase::getName().
  */
-class AgentContextStub implements IAgentContext {
 
-	private array $vars = [];
-	private IAgentMemory $memory;
-
-	public function __construct(
-		private ?IAgentEventSink $eventSink
-	) {
-		if ($eventSink !== null) {
-			$this->vars[IAgentEventSink::CONTEXT_KEY] = $eventSink;
-		}
-		$this->memory = new AgentMemoryStub();
-	}
-
-	public static function getName(): string {
-		return 'agentcontextstub';
-	}
-
-	public function getMemory(): IAgentMemory {
-		return $this->memory;
-	}
-
-	public function setMemory(IAgentMemory $memory): void {
-		$this->memory = $memory;
-	}
-
-	public function setVar(string $key, mixed $value): void {
-		$this->vars[$key] = $value;
-	}
-
-	public function getVar(string $key): mixed {
-		return $this->vars[$key] ?? null;
-	}
-
-	public function forgetVar(string $key): void {
-		unset($this->vars[$key]);
-	}
-
-	public function listVars(): array {
-		return array_keys($this->vars);
-	}
-
-}
 
 /**
  * Full IAgentMemory stub including IBase::getName().
  */
-class AgentMemoryStub implements IAgentMemory {
 
-	public static function getName(): string {
-		return 'agentmemorystub';
-	}
-
-	public function loadNodeHistory(string $nodeId): array {
-		return [];
-	}
-
-	public function appendNodeHistory(string $nodeId, array $message): void {
-		return;
-	}
-
-	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		return false;
-	}
-
-	public function resetNodeHistory(string $nodeId): void {
-		return;
-	}
-
-	public function getPriority(): int {
-		return 0;
-	}
-
-}
 
 /**
  * A recording event sink used by CanvasCloseAgentTool tests.
  */
-class AgentEventSinkStub implements IAgentEventSink {
 
-	public bool $disconnected = false;
-	public bool $throwOnPush = false;
-
-	/** @var array<int, array{0:string,1:array<string,mixed>}> */
-	public array $pushed = [];
-
-	public function emit(AgentExecutionEvent $event): void {
-		if ($this->throwOnPush) {
-			throw new \RuntimeException('push failed');
-		}
-		$this->pushed[] = [$event->getName(), $event->getPayload()];
-	}
-
-	public function isCancelled(): bool {
-		return $this->disconnected;
-	}
-
-}
+require_once __DIR__ . '/AgentContextStub.php';
+require_once __DIR__ . '/AgentMemoryStub.php';
+require_once __DIR__ . '/AgentEventSinkStub.php';

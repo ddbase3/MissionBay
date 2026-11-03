@@ -31,7 +31,7 @@ final class ToolUseLogRetentionDiagnosticCheckTest extends TestCase {
 	}
 
 	public function testPassesOnlyAfterAValidEmptyCount(): void {
-		$database = $this->createMock(IDatabase::class);
+		$database = $this->createStub(IDatabase::class);
 		$database->method('connected')->willReturn(true);
 		$database->method('singleQuery')->willReturn(['found' => 1]);
 		$database->method('escape')->willReturnCallback(static fn(string $value): string => $value);
@@ -50,7 +50,7 @@ final class ToolUseLogRetentionDiagnosticCheckTest extends TestCase {
 	}
 
 	public function testDatabaseUnavailableIsAnErrorNotSuccess(): void {
-		$database = $this->createMock(IDatabase::class);
+		$database = $this->createStub(IDatabase::class);
 		$database->method('connected')->willReturn(false);
 		$this->expectException(\RuntimeException::class);
 		(new ToolUseLogRetentionDiagnosticCheck($database))->run();

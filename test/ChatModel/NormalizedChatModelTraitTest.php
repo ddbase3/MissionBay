@@ -13,69 +13,7 @@ final class NormalizedChatModelTraitTest extends TestCase {
 
 	public function testStreamResultReturnsContentMetadataAndReconstructedToolCalls(): void {
 		$events = [];
-		$model = new class($this->createDispatcher($events)) {
-			use NormalizedChatModelTrait;
-
-			public function __construct(AiProviderRequestEventDispatcher $providerRequestEvents) {
-				$this->initializeProviderRequestEvents($providerRequestEvents);
-			}
-
-			public static function getName(): string {
-				return 'normalizedchatmodeltraittest';
-			}
-
-			public function raw(array $messages, array $tools = []): mixed {
-				return [];
-			}
-
-			public function stream(
-				array $messages,
-				array $tools,
-				callable $onData,
-				callable $onMeta = null
-			): void {
-				$onData('I will check.');
-				$onMeta([
-					'event' => 'toolcall',
-					'tool_calls' => [[
-						'index' => 0,
-						'id' => 'call-1',
-						'type' => 'function',
-						'function' => [
-							'name' => 'lookup',
-							'arguments' => '{"query":"'
-						]
-					]]
-				]);
-				$onMeta([
-					'event' => 'toolcall',
-					'tool_calls' => [[
-						'index' => 0,
-						'function' => ['arguments' => 'BASE3"}']
-					]]
-				]);
-				$onMeta([
-					'event' => 'meta',
-					'finish_reason' => 'tool_calls',
-					'full' => [
-						'id' => 'stream-request',
-						'model' => 'stream-test',
-						'usage' => [
-							'prompt_tokens' => 8,
-							'completion_tokens' => 3,
-							'total_tokens' => 11
-						]
-					]
-				]);
-			}
-
-			public function getOptions(): array {
-				return [
-					'provider' => 'test',
-					'model' => 'stream-test'
-				];
-			}
-		};
+		$model = new NormalizedChatModelTraitTestDouble1($this->createDispatcher($events));
 		$deltas = [];
 		$metadataEvents = [];
 
@@ -107,39 +45,7 @@ final class NormalizedChatModelTraitTest extends TestCase {
 
 	public function testStreamResultPreservesTextOnlyCompletion(): void {
 		$events = [];
-		$model = new class($this->createDispatcher($events)) {
-			use NormalizedChatModelTrait;
-
-			public function __construct(AiProviderRequestEventDispatcher $providerRequestEvents) {
-				$this->initializeProviderRequestEvents($providerRequestEvents);
-			}
-
-			public static function getName(): string {
-				return 'normalizedchatmodeltraittest';
-			}
-
-			public function raw(array $messages, array $tools = []): mixed {
-				return [];
-			}
-
-			public function stream(
-				array $messages,
-				array $tools,
-				callable $onData,
-				callable $onMeta = null
-			): void {
-				$onData('Hello');
-				$onData(' world');
-				$onMeta([
-					'event' => 'meta',
-					'finish_reason' => 'stop'
-				]);
-			}
-
-			public function getOptions(): array {
-				return ['provider' => 'test'];
-			}
-		};
+		$model = new NormalizedChatModelTraitTestDouble2($this->createDispatcher($events));
 		$deltas = [];
 
 		$result = $model->streamResult(
@@ -159,37 +65,7 @@ final class NormalizedChatModelTraitTest extends TestCase {
 
 	public function testStreamResultRejectsToolFinishWithoutToolMetadata(): void {
 		$events = [];
-		$model = new class($this->createDispatcher($events)) {
-			use NormalizedChatModelTrait;
-
-			public function __construct(AiProviderRequestEventDispatcher $providerRequestEvents) {
-				$this->initializeProviderRequestEvents($providerRequestEvents);
-			}
-
-			public static function getName(): string {
-				return 'normalizedchatmodeltraittest';
-			}
-
-			public function raw(array $messages, array $tools = []): mixed {
-				return [];
-			}
-
-			public function stream(
-				array $messages,
-				array $tools,
-				callable $onData,
-				callable $onMeta = null
-			): void {
-				$onMeta([
-					'event' => 'meta',
-					'finish_reason' => 'tool_calls'
-				]);
-			}
-
-			public function getOptions(): array {
-				return ['provider' => 'test'];
-			}
-		};
+		$model = new NormalizedChatModelTraitTestDouble3($this->createDispatcher($events));
 
 		$this->expectException(\RuntimeException::class);
 		$this->expectExceptionMessage('did not provide reconstructable tool-call metadata');
@@ -217,3 +93,9 @@ final class NormalizedChatModelTraitTest extends TestCase {
 		return new AiProviderRequestEventDispatcher($eventManager);
 	}
 }
+
+require_once __DIR__ . '/NormalizedChatModelTraitTestDouble1.php';
+
+require_once __DIR__ . '/NormalizedChatModelTraitTestDouble2.php';
+
+require_once __DIR__ . '/NormalizedChatModelTraitTestDouble3.php';

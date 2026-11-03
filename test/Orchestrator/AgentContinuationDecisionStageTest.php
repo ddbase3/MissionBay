@@ -6,7 +6,7 @@ use AssistantFoundation\Dto\AgentContinuationDecision;
 use AssistantFoundation\Dto\AgentResultVerification;
 use MissionBay\Context\AgentContext;
 use MissionBay\Orchestrator\Stage\AgentContinuationDecisionStage;
-use MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
+use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use PHPUnit\Framework\TestCase;
 
@@ -15,7 +15,7 @@ final class AgentContinuationDecisionStageTest extends TestCase {
 	public function testVerifiedAnswerKeepsTerminalDecision(): void {
 		$context = $this->createContext(new AgentResultVerification(
 			iteration: 3,
-			verifier: AgentSemanticVerificationStage::VERIFIER_NAME,
+			verifier: AgentSemanticVerificationService::VERIFIER_NAME,
 			verdict: AgentResultVerification::VERDICT_VERIFIED,
 			summary: 'The plugin detail result answers the status question.',
 			metadata: [
@@ -39,7 +39,7 @@ final class AgentContinuationDecisionStageTest extends TestCase {
 	public function testHighConfidenceContinueReopensToolLoop(): void {
 		$context = $this->createContext(new AgentResultVerification(
 			iteration: 3,
-			verifier: AgentSemanticVerificationStage::VERIFIER_NAME,
+			verifier: AgentSemanticVerificationService::VERIFIER_NAME,
 			verdict: AgentResultVerification::VERDICT_FAILED,
 			summary: 'Activation state is still missing.',
 			issues: [[
@@ -66,7 +66,7 @@ final class AgentContinuationDecisionStageTest extends TestCase {
 	public function testLowConfidenceContinueKeepsTerminalDecision(): void {
 		$context = $this->createContext(new AgentResultVerification(
 			iteration: 3,
-			verifier: AgentSemanticVerificationStage::VERIFIER_NAME,
+			verifier: AgentSemanticVerificationService::VERIFIER_NAME,
 			verdict: AgentResultVerification::VERDICT_FAILED,
 			summary: 'Another lookup might help.',
 			metadata: [
@@ -86,7 +86,7 @@ final class AgentContinuationDecisionStageTest extends TestCase {
 	public function testInconclusiveVerifierKeepsTerminalDecision(): void {
 		$context = $this->createContext(new AgentResultVerification(
 			iteration: 3,
-			verifier: AgentSemanticVerificationStage::VERIFIER_NAME,
+			verifier: AgentSemanticVerificationService::VERIFIER_NAME,
 			verdict: AgentResultVerification::VERDICT_INCONCLUSIVE,
 			summary: 'Semantic verifier returned no valid structured assessment.',
 			metadata: [
@@ -107,7 +107,7 @@ final class AgentContinuationDecisionStageTest extends TestCase {
 	public function testHighConfidenceClarifyKeepsTerminalStateWithClarificationInstruction(): void {
 		$context = $this->createContext(new AgentResultVerification(
 			iteration: 3,
-			verifier: AgentSemanticVerificationStage::VERIFIER_NAME,
+			verifier: AgentSemanticVerificationService::VERIFIER_NAME,
 			verdict: AgentResultVerification::VERDICT_INCONCLUSIVE,
 			summary: 'The requested plugin name is ambiguous.',
 			metadata: [

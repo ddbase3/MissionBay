@@ -413,6 +413,9 @@ final class AiResultNormalizer {
 	private static function extractChatPayload(array $raw): array {
 		if(isset($raw['choices'][0]['message']) && is_array($raw['choices'][0]['message'])) {
 			$message = $raw['choices'][0]['message'];
+			if (!array_key_exists('content', $message) && !is_array($message['tool_calls'] ?? null)) {
+				return ['', [], false];
+			}
 			return [
 				self::stringContent($message['content'] ?? ''),
 				self::normalizeToolCalls($message['tool_calls'] ?? []),
@@ -422,6 +425,9 @@ final class AiResultNormalizer {
 
 		if(isset($raw['message']) && is_array($raw['message'])) {
 			$message = $raw['message'];
+			if (!array_key_exists('content', $message) && !is_array($message['tool_calls'] ?? null)) {
+				return ['', [], false];
+			}
 			return [
 				self::stringContent($message['content'] ?? ''),
 				self::normalizeToolCalls($message['tool_calls'] ?? []),

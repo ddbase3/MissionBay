@@ -14,21 +14,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class GroqChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new GroqChatModelAgentResourceTestDouble1($map);
 	}
 
 	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
@@ -114,15 +100,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'gr5') extends GroqChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return [
-					'choices' => [
-						['message' => ['content' => 'Hello from Groq']]
-					]
-				];
-			}
-		};
+		$r = new GroqChatModelAgentResourceTestDouble2($resolver, $this->providerRequestEvents(), 'gr5');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -180,3 +158,7 @@ class GroqChatModelAgentResourceTest extends TestCase {
 		$this->assertSame([['role' => 'user', 'content' => 'ok']], $normalized);
 	}
 }
+
+require_once __DIR__ . '/GroqChatModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/GroqChatModelAgentResourceTestDouble2.php';

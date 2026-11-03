@@ -10,8 +10,8 @@ use PHPUnit\Framework\TestCase;
 final class MissionBayToolUseCleanupJobTest extends TestCase {
 
 	public function testUsesDailyWindowPolicyAndIsActiveByDefault(): void {
-		$database = $this->createMock(IDatabase::class);
-		$configuration = $this->createMock(IConfiguration::class);
+		$database = $this->createStub(IDatabase::class);
+		$configuration = $this->createStub(IConfiguration::class);
 		$configuration
 			->method('get')
 			->with('job')
@@ -31,8 +31,8 @@ final class MissionBayToolUseCleanupJobTest extends TestCase {
 	}
 
 	public function testConfigurationCanDisableCleanupJob(): void {
-		$database = $this->createMock(IDatabase::class);
-		$configuration = $this->createMock(IConfiguration::class);
+		$database = $this->createStub(IDatabase::class);
+		$configuration = $this->createStub(IConfiguration::class);
 		$configuration
 			->method('get')
 			->with('job')
@@ -49,7 +49,7 @@ final class MissionBayToolUseCleanupJobTest extends TestCase {
 
 	public function testCleanupRequiresCreateAndUpdateToBeOlderThan24Hours(): void {
 		$database = $this->createMock(IDatabase::class);
-		$configuration = $this->createMock(IConfiguration::class);
+		$configuration = $this->createStub(IConfiguration::class);
 
 		$database->expects($this->once())->method('connect');
 		$database->method('connected')->willReturn(true);
@@ -95,7 +95,7 @@ final class MissionBayToolUseCleanupJobTest extends TestCase {
 
 	public function testCleanupSkipsWhenToolUseTableDoesNotExist(): void {
 		$database = $this->createMock(IDatabase::class);
-		$configuration = $this->createMock(IConfiguration::class);
+		$configuration = $this->createStub(IConfiguration::class);
 
 		$database->expects($this->once())->method('connect');
 		$database->method('connected')->willReturn(true);

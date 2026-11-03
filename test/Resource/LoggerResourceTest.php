@@ -3,97 +3,21 @@
 namespace Test\Resource;
 
 use PHPUnit\Framework\TestCase;
-use MissionBay\Resource\LoggerResource;
+use MissionBay\Resource\Logger\Logger\LoggerResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 use Base3\Logger\Api\ILogger;
 
 /**
- * @covers \MissionBay\Resource\LoggerResource
+ * @covers \MissionBay\Resource\Logger\Logger\LoggerResource
  */
 class LoggerResourceTest extends TestCase {
 
 	private function makeResolver(?string $resolvedScope): IAgentConfigValueResolver {
-		return new class($resolvedScope) implements IAgentConfigValueResolver {
-			private ?string $resolvedScope;
-
-			public function __construct(?string $resolvedScope) {
-				$this->resolvedScope = $resolvedScope;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				// For tests we return the injected resolved scope (or null),
-				// independent from $config shape.
-				return $this->resolvedScope;
-			}
-		};
+		return new LoggerResourceTestDouble1($resolvedScope);
 	}
 
 	private function makeLoggerSpy(): object {
-		return new class implements ILogger {
-			public array $calls = [];
-
-			public function emergency(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::EMERGENCY, $message, $context);
-			}
-
-			public function alert(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::ALERT, $message, $context);
-			}
-
-			public function critical(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::CRITICAL, $message, $context);
-			}
-
-			public function error(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::ERROR, $message, $context);
-			}
-
-			public function warning(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::WARNING, $message, $context);
-			}
-
-			public function notice(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::NOTICE, $message, $context);
-			}
-
-			public function info(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::INFO, $message, $context);
-			}
-
-			public function debug(string|\Stringable $message, array $context = []): void {
-				$this->logLevel(ILogger::DEBUG, $message, $context);
-			}
-
-			public function logLevel(string $level, string|\Stringable $message, array $context = []): void {
-				$this->calls[] = [
-					'level' => $level,
-					'message' => (string)$message,
-					'context' => $context,
-				];
-			}
-
-			public function log(string $scope, string $log, ?int $timestamp = null): bool {
-				$this->calls[] = [
-					'legacy' => true,
-					'scope' => $scope,
-					'log' => $log,
-					'timestamp' => $timestamp,
-				];
-				return true;
-			}
-
-			public function getScopes(): array {
-				return ['a', 'b'];
-			}
-
-			public function getNumOfScopes() {
-				return 2;
-			}
-
-			public function getLogs(string $scope, int $num = 50, bool $reverse = true): array {
-				return [['scope' => $scope, 'num' => $num, 'reverse' => $reverse]];
-			}
-		};
+		return new LoggerResourceTestDouble2();
 	}
 
 	public function testGetName(): void {
@@ -178,3 +102,7 @@ class LoggerResourceTest extends TestCase {
 		$this->assertTrue(true);
 	}
 }
+
+require_once __DIR__ . '/LoggerResourceTestDouble1.php';
+
+require_once __DIR__ . '/LoggerResourceTestDouble2.php';

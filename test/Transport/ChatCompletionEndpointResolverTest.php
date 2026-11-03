@@ -4,10 +4,11 @@ namespace MissionBay\Test\Transport;
 
 use MissionBay\Transport\ChatCompletionEndpointResolver;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 final class ChatCompletionEndpointResolverTest extends TestCase {
 
-	/** @dataProvider provideEndpoints */
+	#[DataProvider('provideEndpoints')]
 	public function testResolve(string $endpoint, string $path, string $expected): void {
 		$this->assertSame($expected, ChatCompletionEndpointResolver::resolve($endpoint, $path));
 	}

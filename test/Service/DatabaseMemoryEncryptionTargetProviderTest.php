@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 final class DatabaseMemoryEncryptionTargetProviderTest extends TestCase {
 
 	public function testConfiguredDatabaseMemoryPresetsAreDiscoveredByTheirRuntimeIds(): void {
-		$presets = $this->createMock(IAgentComponentPresetRepository::class);
+		$presets = $this->createStub(IAgentComponentPresetRepository::class);
 		$presets->method('getPresets')->willReturn([
 			'conversation-database' => [
 				'label' => 'Conversation Database', 'type' => DatabaseMemoryAgentResource::getName(), 'config' => []
@@ -33,7 +33,7 @@ final class DatabaseMemoryEncryptionTargetProviderTest extends TestCase {
 	}
 
 	public function testConflictingPresetRuntimeIdsAreRejectedInsteadOfMisassigned(): void {
-		$presets = $this->createMock(IAgentComponentPresetRepository::class);
+		$presets = $this->createStub(IAgentComponentPresetRepository::class);
 		$presets->method('getPresets')->willReturn([
 			'alpha-a' => ['type' => DatabaseMemoryAgentResource::getName()],
 			'alpha_a' => ['type' => DatabaseMemoryAgentResource::getName()]

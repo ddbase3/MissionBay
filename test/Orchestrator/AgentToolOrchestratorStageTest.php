@@ -36,34 +36,38 @@ use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
 use MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
 use MissionBay\Service\Assistant\AgentAssistantMessageFactory;
+use AssistantRuntime\Service\StateStoreAgentSuspensionRepository;
+use Base3\Test\State\StateStoreStub;
+use MissionBay\Orchestrator\Service\AgentActionReviewService;
+use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use PHPUnit\Framework\TestCase;
 
 final class AgentToolOrchestratorStageTest extends TestCase {
+
+	private function createActionPolicyStage(): AgentActionPolicyStage {
+		$fingerprint = new AgentActionFingerprint();
+		return new AgentActionPolicyStage(
+			new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
+			$fingerprint,
+			new AgentActionReviewService($fingerprint, new StateStoreAgentSuspensionRepository(new StateStoreStub())),
+			new AgentToolContractValidationService(),
+			new AgentCapabilitySelectionGuardService(),
+			'action-policy',
+			'action-policy',
+			['allow-all-actions']
+		);
+	}
 
 	/**
 	 * @return array<int,IAgentStage>
 	 */
 	private function createDefaultTestStages(): array {
 		return [
-			new AgentBudgetGuardStage(),
 			new AgentModelDecisionStage(),
-			new AgentActionPolicyStage(
-				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
-				new AgentActionFingerprint(),
-				'action-policy',
-				'action-policy',
-				['allow-all-actions']
-			),
-			new AgentBudgetGuardStage(
-				'tool-budget-guard',
-				'tool-budget-guard',
-				AgentBudgetGuardStage::CHECKPOINT_TOOLS
-			),
+			$this->createActionPolicyStage(),
 			new AgentToolExecutionStage(new RecordingEventManager()),
-			new AgentContextAssessmentStage(),
-			new AgentResultVerificationStage(),
-			new AgentToolObservationStage(),
-			new AgentFinalAnswerStage()
+			new AgentToolObservationStage()
 		];
 	}
 
@@ -75,13 +79,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 			AgentBudgetGuardStage::CHECKPOINT_TOOLS
 		);
 		$modelStage = new AgentModelDecisionStage();
-		$policyStage = new AgentActionPolicyStage(
-			new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
-			new AgentActionFingerprint(),
-			'action-policy',
-			'action-policy',
-			['allow-all-actions']
-		);
+		$policyStage = $this->createActionPolicyStage();
 		$toolStage = new AgentToolExecutionStage(new RecordingEventManager());
 		$assessmentStage = new AgentContextAssessmentStage();
 		$compactionStage = new AgentContextCompactionStage();
@@ -171,7 +169,9 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$this->assertSame('chat', $result->getModelResults()[0]['operation']);
 		$this->assertSame($messages, $result->getMessages());
 		$this->assertSame('done', $result->getFinalAssistantMessage()['content']);
-		$this->assertSame('done', $result->getFinalOutputContent());
+		$this->assertSame('', $result->getFinalOutputContent());
+		$this->assertSame(AgentToolOrchestratorResult::FINAL_RESPONSE_COMPLETE, $result->getFinalResponseMode());
+		$this->assertSame(AgentToolOrchestratorResult::FINAL_OUTPUT_DELIVERY_NONE, $result->getFinalOutputDelivery());
 		$this->assertSame([], $result->getToolCalls());
 		$this->assertSame('system', $model->getCalls()[0][0][0]['role']);
 		$this->assertStringContainsString('TOOL_PHASE_COMPLETE', $model->getCalls()[0][0][0]['content']);
@@ -222,7 +222,9 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$this->assertSame('call-1', $result->getMessages()[2]['tool_call_id']);
 		$this->assertSame('{"found":"BASE3"}', $result->getMessages()[2]['content']);
 		$this->assertSame('final answer', $result->getFinalAssistantMessage()['content']);
-		$this->assertSame('final answer', $result->getFinalOutputContent());
+		$this->assertSame('', $result->getFinalOutputContent());
+		$this->assertSame(AgentToolOrchestratorResult::FINAL_RESPONSE_COMPLETE, $result->getFinalResponseMode());
+		$this->assertSame(AgentToolOrchestratorResult::FINAL_OUTPUT_DELIVERY_NONE, $result->getFinalOutputDelivery());
 		$this->assertCount(1, $result->getResultVerifications());
 		$this->assertInstanceOf(AgentResultVerification::class, $result->getResultVerifications()[0]);
 		$this->assertTrue($result->getResultVerifications()[0]->isVerified());
@@ -270,6 +272,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$context = new AgentContext();
 		$orchestrator = new AgentToolOrchestrator(null, null, [
 			new AgentModelDecisionStage(),
+			$this->createActionPolicyStage(),
 			new AgentToolExecutionStage(new RecordingEventManager()),
 			$enrichmentStage,
 			new AgentToolObservationStage()
@@ -416,13 +419,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$tool = new TerminalAnswerTool();
 		$stages = [
 			new AgentModelDecisionStage(),
-			new AgentActionPolicyStage(
-				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
-				new AgentActionFingerprint(),
-				'action-policy',
-				'action-policy',
-				['allow-all-actions']
-			),
+			$this->createActionPolicyStage(),
 			new AgentToolExecutionStage(new RecordingEventManager()),
 			new AgentContextCompactionStage(minToolResultBytes: 1),
 			new AgentToolObservationStage(),
@@ -464,13 +461,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$tool = new LookupTool();
 		$stages = [
 			new AgentModelDecisionStage(),
-			new AgentActionPolicyStage(
-				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
-				new AgentActionFingerprint(),
-				'action-policy',
-				'action-policy',
-				['allow-all-actions']
-			),
+			$this->createActionPolicyStage(),
 			new AgentToolExecutionStage(new RecordingEventManager()),
 			new AgentToolObservationStage(),
 			new AgentSemanticVerificationStage()
@@ -488,7 +479,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$this->assertFalse($result->hasFailure());
 		$this->assertSame(AgentToolLoopContextKeys::FINAL_RESPONSE_PARTIAL, $result->getFinalResponseMode());
 		$this->assertCount(2, $model->getCalls());
-		$this->assertStringContainsString('available observations', $result->getFinalResponseInstruction());
+		$this->assertStringContainsString('available conversation and tool observations', $result->getFinalResponseInstruction());
 	}
 
 	public function testProviderTerminalAnswerBypassesFinalModelCall(): void {
@@ -562,26 +553,22 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 			}
 		);
 
-		$this->assertCount(9, $result->getStageTrace());
+		$this->assertCount(4, $result->getStageTrace());
 		$this->assertInstanceOf(AgentStageTraceEntry::class, $result->getStageTrace()[0]);
 		$this->assertSame(AgentStageTraceEntry::STATUS_COMPLETED, $result->getStageTrace()[0]->getStatus());
-		$this->assertSame(AgentStageTraceEntry::STATUS_COMPLETED, $result->getStageTrace()[1]->getStatus());
+		$this->assertSame(AgentStageTraceEntry::STATUS_SKIPPED, $result->getStageTrace()[1]->getStatus());
 		$this->assertSame(AgentStageTraceEntry::STATUS_SKIPPED, $result->getStageTrace()[2]->getStatus());
-		$this->assertSame([
-			'stage.started',
-			'stage.finished',
-			'stage.started',
-			'stage.finished',
-			'stage.started',
-			'token',
-			'stage.finished'
-		], array_column($events, 'event'));
-		$this->assertSame(IAgentStage::AI_USAGE_NONE, $events[0]['payload']['ai_usage']);
-		$this->assertSame(IAgentStage::AI_USAGE_REQUIRED, $events[2]['payload']['ai_usage']);
-		$this->assertSame(IAgentStage::AI_USAGE_NONE, $events[4]['payload']['ai_usage']);
-		$this->assertSame('done', $events[5]['payload']['text']);
-		$this->assertCount(1, $result->getBudgetAssessments());
+		$this->assertSame(AgentStageTraceEntry::STATUS_SKIPPED, $result->getStageTrace()[3]->getStatus());
+		$this->assertSame(['stage.started', 'stage.finished'], array_column($events, 'event'));
+		$this->assertSame(IAgentStage::AI_USAGE_REQUIRED, $events[0]['payload']['ai_usage']);
+		$this->assertSame('done', $result->getFinalAssistantMessage()['content']);
+		$this->assertSame('', $result->getFinalOutputContent());
+		$this->assertSame(AgentToolOrchestratorResult::FINAL_RESPONSE_COMPLETE, $result->getFinalResponseMode());
+		$this->assertSame(AgentToolOrchestratorResult::FINAL_OUTPUT_DELIVERY_NONE, $result->getFinalOutputDelivery());
+		$this->assertCount(2, $result->getBudgetAssessments());
 		$this->assertInstanceOf(AgentBudgetAssessment::class, $result->getBudgetAssessments()[0]);
+		$this->assertSame('model', $result->getBudgetAssessments()[0]->getMetadata()['checkpoint']);
+		$this->assertSame('final', $result->getBudgetAssessments()[1]->getMetadata()['checkpoint']);
 	}
 
 
@@ -614,7 +601,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$eventManager = new RecordingEventManager();
 		$tool = new LookupTool();
 		$stages = $this->createDefaultTestStages();
-		$stages[4] = new AgentToolExecutionStage($eventManager);
+		$stages[2] = new AgentToolExecutionStage($eventManager);
 
 		(new AgentToolOrchestrator(null, null, $stages))->run(
 			$model,
@@ -687,199 +674,8 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 	}
 }
 
-
-final class RecordingEventManager implements IEventManager {
-
-	/** @var array<int,object|string> */
-	private array $firedEvents = [];
-
-	public function on(string $event, callable $listener, int $priority = 0): void {
-	}
-
-	public function once(string $event, callable $listener, int $priority = 0): void {
-	}
-
-	public function off(string $event, callable $listener): void {
-	}
-
-	public function fire(object|string $event, ...$args): array {
-		$this->firedEvents[] = $event;
-
-		return [];
-	}
-
-	/** @return array<int,object|string> */
-	public function getFiredEvents(): array {
-		return $this->firedEvents;
-	}
-}
-
-final class QueueChatModel implements IAiChatModel {
-
-	use NormalizedChatModelTrait;
-
-	/**
-	 * @var array<int,mixed>
-	 */
-	private array $responses;
-
-	/**
-	 * @var array<int,array{0:array,1:array}>
-	 */
-	private array $calls = [];
-
-	/**
-	 * @param array<int,mixed> $responses
-	 */
-	public function __construct(array $responses) {
-		$this->responses = $responses;
-	}
-
-	public function chat(array $messages): string {
-		return '';
-	}
-
-	public function raw(array $messages, array $tools = []): mixed {
-		$this->calls[] = [$messages, $tools];
-		$response = array_shift($this->responses);
-
-		if ($response instanceof \Throwable) {
-			throw $response;
-		}
-
-		return $response;
-	}
-
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
-	}
-
-	public function setOptions(array $options): void {
-	}
-
-	public function getOptions(): array {
-		return [];
-	}
-
-	/**
-	 * @return array<int,array{0:array,1:array}>
-	 */
-	public function getCalls(): array {
-		return $this->calls;
-	}
-}
-
-final class LookupTool implements IAgentTool {
-
-	public static function getName(): string {
-		return 'lookuptool';
-	}
-
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Lookup',
-			'function' => [
-				'name' => 'lookup',
-				'description' => 'Looks up one value.',
-				'parameters' => [
-					'type' => 'object',
-					'properties' => []
-				]
-			]
-		]];
-	}
-
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		return [
-			'found' => $arguments['query'] ?? 'default'
-		];
-	}
-}
-
-final class TerminalAnswerTool implements IAgentTool {
-
-	public static function getName(): string {
-		return 'terminalanswertool';
-	}
-
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Terminal Search',
-			'function' => [
-				'name' => 'terminal_search',
-				'description' => 'Returns a provider-produced final answer.',
-				'parameters' => [
-					'type' => 'object',
-					'properties' => []
-				]
-			]
-		]];
-	}
-
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		return [
-			'ok' => true,
-			'answer' => 'The provider already supplied the answer.',
-			'citations' => [['url' => 'https://example.test/source']],
-			'final_answer_ready' => true
-		];
-	}
-}
-
-final class ToolResultEnrichmentStage implements IAgentStage {
-
-	private int $executions = 0;
-
-	public static function getName(): string {
-		return 'toolresultenrichmentstage';
-	}
-
-	public function id(): string {
-		return 'tool-result-enrichment';
-	}
-
-	public function name(): string {
-		return 'tool-result-enrichment';
-	}
-
-	public function getDescription(): string {
-		return 'Enriches test tool results.';
-	}
-
-	public function getAiUsage(): string {
-		return IAgentStage::AI_USAGE_NONE;
-	}
-
-	public function supports(IAgentContext $context): bool {
-		return $context->getVar(AgentToolLoopContextKeys::PHASE) === AgentToolLoopContextKeys::PHASE_AFTER_TOOLS;
-	}
-
-	public function process(IAgentContext $context): AgentStageResult {
-		$this->executions++;
-		$toolResults = $context->getVar(AgentToolLoopContextKeys::TOOL_RESULTS);
-		$enriched = [];
-
-		foreach ($toolResults as $toolResult) {
-			if (!$toolResult instanceof AgentToolResult) {
-				continue;
-			}
-
-			$enriched[] = AgentToolResult::success(
-				$toolResult->getCallId(),
-				$toolResult->getToolName(),
-				$toolResult->getArguments(),
-				'stage enrichment',
-				$toolResult->getMetadata()
-			);
-		}
-
-		return AgentStageResult::patch([
-			AgentToolLoopContextKeys::TOOL_RESULTS => $enriched
-		]);
-	}
-
-	public function getExecutions(): int {
-		return $this->executions;
-	}
-}
+require_once __DIR__ . '/RecordingEventManager.php';
+require_once __DIR__ . '/QueueChatModel.php';
+require_once __DIR__ . '/LookupTool.php';
+require_once __DIR__ . '/TerminalAnswerTool.php';
+require_once __DIR__ . '/ToolResultEnrichmentStage.php';

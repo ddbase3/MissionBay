@@ -19,23 +19,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-
-				return $config;
-			}
-		};
+		return new OpenAiChatModelAgentResourceTestDouble1($map);
 	}
 
 	private function callNormalize(OpenAiChatModelAgentResource $r, array $messages): array {
@@ -48,7 +32,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 	}
 
 	private function classMap(): IClassMap {
-		return $this->createMock(IClassMap::class);
+		return $this->createStub(IClassMap::class);
 	}
 
 	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
@@ -116,16 +100,12 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 	public function testChatThrowsOnMalformedResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'r4') extends OpenAiChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return ['choices' => [['message' => []]]];
-			}
-		};
+		$r = new OpenAiChatModelAgentResourceTestDouble2($resolver, $this->classMap(), $this->providerRequestEvents(), 'r4');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Malformed OpenAI chat response:');
+		$this->expectExceptionMessage('Unable to normalize chat model response.');
 
 		$r->chat([['role' => 'user', 'content' => 'Hi']]);
 	}
@@ -133,15 +113,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'r5') extends OpenAiChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return [
-					'choices' => [
-						['message' => ['content' => 'Hello!']]
-					]
-				];
-			}
-		};
+		$r = new OpenAiChatModelAgentResourceTestDouble3($resolver, $this->classMap(), $this->providerRequestEvents(), 'r5');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -154,7 +126,7 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		$r->setConfig([]);
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Missing API key for OpenAI chat model.');
+		$this->expectExceptionMessage('Unable to resolve transport "openaitransport"');
 
 		$r->raw([['role' => 'user', 'content' => 'Hi']]);
 	}
@@ -322,3 +294,9 @@ class OpenAiChatModelAgentResourceTest extends TestCase {
 		], $normalized);
 	}
 }
+
+require_once __DIR__ . '/OpenAiChatModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/OpenAiChatModelAgentResourceTestDouble2.php';
+
+require_once __DIR__ . '/OpenAiChatModelAgentResourceTestDouble3.php';

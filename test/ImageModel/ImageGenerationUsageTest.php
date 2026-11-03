@@ -115,7 +115,7 @@ final class ImageGenerationUsageTest extends TestCase {
 	}
 
 	private function createClassMap(IAiProvider $provider): IClassMap {
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$classMap->method('getInstanceByInterfaceName')->willReturn($provider);
 		return $classMap;
 	}
@@ -136,51 +136,4 @@ final class ImageGenerationUsageTest extends TestCase {
 	}
 }
 
-final class RecordingImageProvider implements IAiProvider {
-
-	/**
-	 * @var array<string,mixed>
-	 */
-	private array $options = [];
-
-	public string $path = '';
-
-	/**
-	 * @var array<string,mixed>
-	 */
-	public array $payload = [];
-
-	/**
-	 * @var array<string,mixed>
-	 */
-	public array $requestOptions = [];
-
-	/**
-	 * @param array<string,mixed> $response
-	 */
-	public function __construct(
-		private readonly array $response
-	) {}
-
-	public static function getName(): string {
-		return 'recordingimageprovider';
-	}
-
-	public function setOptions(array $options): void {
-		$this->options = array_merge($this->options, $options);
-	}
-
-	public function getOptions(): array {
-		return $this->options;
-	}
-
-	public function request(string $path, array $payload, array $options = []): array {
-		$this->path = $path;
-		$this->payload = $payload;
-		$this->requestOptions = $options;
-		return $this->response;
-	}
-
-	public function stream(string $path, array $payload, callable $onChunk, array $options = []): void {
-	}
-}
+require_once __DIR__ . '/RecordingImageProvider.php';

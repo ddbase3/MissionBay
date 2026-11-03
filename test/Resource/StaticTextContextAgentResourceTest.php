@@ -102,17 +102,8 @@ final class StaticTextContextAgentResourceTest extends TestCase {
 	 * @param array<string,mixed> $map
 	 */
 	private function resolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			/**
-			 * @param array<string,mixed> $map
-			 */
-			public function __construct(private readonly array $map) {}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? (string)json_encode($config) : (string)$config;
-
-				return array_key_exists($key, $this->map) ? $this->map[$key] : $config;
-			}
-		};
+		return new StaticTextContextAgentResourceTestDouble1($map);
 	}
 }
+
+require_once __DIR__ . '/StaticTextContextAgentResourceTestDouble1.php';

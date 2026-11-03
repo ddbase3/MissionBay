@@ -10,35 +10,12 @@ if (
 }
 
 (static function(array $arguments): void {
-	if (!interface_exists('Base3\\Api\\IBase')) {
-		eval(<<<'PHP'
-namespace Base3\Api;
-interface IBase { public static function getName(): string; }
-PHP);
-	}
-	if (!class_exists('Base3\\Event\\BaseEvent')) {
-		eval(<<<'PHP'
-namespace Base3\Event;
-class BaseEvent {}
-PHP);
-	}
-	if (!interface_exists('Base3\\Event\\Api\\IEventManager')) {
-		eval(<<<'PHP'
-namespace Base3\Event\Api;
-interface IEventManager { public function fire(object|string $event, ...$args): array; }
-PHP);
-	}
-	if (!interface_exists('Base3\\Api\\IOutputSchemaProvider')) {
-		eval(<<<'PHP'
-namespace Base3\Api;
-interface IOutputSchemaProvider { public function getOutputSchemas(): array; }
-PHP);
-	}
-
 	$pluginDir = dirname(__DIR__, 3);
+	$frameworkDir = dirname($pluginDir, 2) . '/src';
 	$foundationDir = $arguments[1] ?? dirname($pluginDir) . '/AssistantFoundation/src';
-	spl_autoload_register(static function(string $class) use ($pluginDir, $foundationDir): void {
+	spl_autoload_register(static function(string $class) use ($pluginDir, $foundationDir, $frameworkDir): void {
 		$prefixes = [
+			'Base3\\' => $frameworkDir . '/',
 			'MissionBay\\' => $pluginDir . '/src/',
 			'AssistantFoundation\\' => $foundationDir . '/'
 		];
@@ -53,6 +30,10 @@ PHP);
 			return;
 		}
 	});
+
+	require_once __DIR__ . '/BatchToolSetSmokeDouble1.php';
+	require_once __DIR__ . '/BatchToolSetSmokeDouble2.php';
+	require_once __DIR__ . '/BatchToolSetSmokeDouble4.php';
 
 	$targetDefinition = [
 		'type' => 'function',
@@ -79,37 +60,7 @@ PHP);
 			]
 		]
 	];
-	$targetTool = new class($targetDefinition) implements \MissionBay\Api\IAgentTool, \MissionBay\Api\IAgentMutationGuardedTool {
-		public array $calls = [];
-		public function __construct(private readonly array $definition) {}
-		public static function getName(): string { return 'smokebatchtargettool'; }
-		public function getToolDefinitions(): array { return [$this->definition]; }
-		public function callTool(string $name, array $arguments, \AssistantFoundation\Api\IAgentContext $context): mixed {
-			$this->calls[] = $arguments;
-			return ['ok' => true, 'plugin' => $arguments['plugin'], 'state' => $arguments['state']];
-		}
-		public function captureMutationCommitSnapshot(\AssistantFoundation\Dto\AgentAction $action, string $actionFingerprint, \AssistantFoundation\Api\IAgentContext $context): \AssistantFoundation\Dto\AgentMutationCommitSnapshot {
-			return new \AssistantFoundation\Dto\AgentMutationCommitSnapshot(
-				$action->getId(),
-				$actionFingerprint,
-				['owner' => 'smoke'],
-				['plugin' => 'v1'],
-				metadata: ['plugin' => $action->getInput()['plugin'] ?? '']
-			);
-		}
-		public function getActionReview(\AssistantFoundation\Dto\AgentAction $action, \AssistantFoundation\Dto\AgentMutationCommitSnapshot $snapshot, \AssistantFoundation\Api\IAgentContext $context): \AssistantFoundation\Dto\AgentActionReview {
-			return new \AssistantFoundation\Dto\AgentActionReview(
-				'Confirm smoke plugin state',
-				'Set one plugin state.',
-				['Plugin' => $action->getInput()['plugin'] ?? '', 'State' => $action->getInput()['state'] ?? '']
-			);
-		}
-		public function validateMutationCommit(\AssistantFoundation\Dto\AgentAction $action, \AssistantFoundation\Dto\AgentMutationCommitSnapshot $snapshot, \AssistantFoundation\Api\IAgentContext $context): \AssistantFoundation\Dto\AgentMutationCommitDecision {
-			return ($snapshot->getResourceVersions()['plugin'] ?? '') === 'v1'
-				? \AssistantFoundation\Dto\AgentMutationCommitDecision::allow('Smoke plugin snapshot is current.')
-				: \AssistantFoundation\Dto\AgentMutationCommitDecision::deny(\AssistantFoundation\Dto\AgentMutationCommitDecision::CODE_STALE, 'Smoke plugin snapshot is stale.');
-		}
-	};
+	$targetTool = new \MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble1($targetDefinition);
 
 	$fingerprint = new \MissionBay\Orchestrator\AgentActionFingerprint();
 	$semantics = new \MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics();
@@ -128,12 +79,8 @@ PHP);
 		'runtime_id' => 'smoke-runtime',
 		'conversation_id' => 'smoke-conversation'
 	]);
-	$configResolver = new class implements \MissionBay\Api\IAgentConfigValueResolver {
-		public function resolveValue(array|string|int|float|bool|null $config): mixed { return $config; }
-	};
-	$eventManager = new class implements \Base3\Event\Api\IEventManager {
-		public function fire(object|string $event, ...$args): array { return []; }
-	};
+	$configResolver = new \MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble2();
+	$eventManager = new \Base3\Event\EventManager();
 	$batchWrapper = new \MissionBay\Resource\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-batch');
 	$batchWrapper->setConfig(['namespace' => 'batch']);
 	$batchWrapper->init(['tool' => [$batchTool]], $context);
@@ -243,14 +190,7 @@ PHP);
 		[],
 		gmdate('c')
 	);
-	$resumeRepository = new class implements \AssistantFoundation\Api\IAgentSuspensionRepository {
-		public function create(\AssistantFoundation\Dto\AgentSuspension $suspension, int $ttlSeconds): string { return 'resume-handle'; }
-		public function findPending(string $scopeId): ?\AssistantFoundation\Dto\AgentSuspensionState { return null; }
-		public function findAll(string $scopeId): array { return []; }
-		public function claim(string $resumeHandle): \AssistantFoundation\Dto\AgentSuspensionClaim { throw new \RuntimeException('Not used.'); }
-		public function release(\AssistantFoundation\Dto\AgentSuspensionClaim $claim): void {}
-		public function consume(\AssistantFoundation\Dto\AgentSuspensionClaim $claim, ?\AssistantFoundation\Dto\AgentSuspensionResolution $resolution = null): void {}
-	};
+	$resumeRepository = new \MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble4();
 	$resumeContext = new \MissionBay\Context\AgentContext();
 	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_DEFINITIONS, $definitions);
 	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOLS, $tools);
@@ -356,3 +296,7 @@ PHP);
 
 	echo "MissionBay batch tool set smoke test OK.\n";
 })($argv);
+
+
+
+

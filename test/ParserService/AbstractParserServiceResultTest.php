@@ -79,25 +79,4 @@ final class AbstractParserServiceResultTest extends TestCase {
 	}
 }
 
-final class ResultTestParserService extends AbstractParserService {
-
-	public static function getName(): string {
-		return 'resulttestparserservice';
-	}
-
-	protected function getParserName(): string {
-		return 'result-test';
-	}
-
-	protected function callParserFile(string $filePath, string $filename): array {
-		return [
-			'elements' => [
-				['text' => 'Hello parser'],
-			]
-		];
-	}
-
-	protected function responseToText(array $response): string {
-		return (string)($response['elements'][0]['text'] ?? '');
-	}
-}
+require_once __DIR__ . '/ResultTestParserService.php';

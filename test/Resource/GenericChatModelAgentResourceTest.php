@@ -14,21 +14,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class GenericChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new GenericChatModelAgentResourceTestDouble1($map);
 	}
 
 	private function callNormalize(GenericChatModelAgentResource $r, array $messages): array {
@@ -112,16 +98,12 @@ class GenericChatModelAgentResourceTest extends TestCase {
 	public function testChatThrowsOnMalformedResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'g4') extends GenericChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return ['choices' => [['message' => []]]];
-			}
-		};
+		$r = new GenericChatModelAgentResourceTestDouble2($resolver, $this->providerRequestEvents(), 'g4');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Malformed chat response:');
+		$this->expectExceptionMessage('Unable to normalize chat model response.');
 
 		$r->chat([['role' => 'user', 'content' => 'Hi']]);
 	}
@@ -129,11 +111,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'g5') extends GenericChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return ['choices' => [['message' => ['content' => 'Hello']]]];
-			}
-		};
+		$r = new GenericChatModelAgentResourceTestDouble3($resolver, $this->providerRequestEvents(), 'g5');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -294,53 +272,7 @@ class GenericChatModelAgentResourceTest extends TestCase {
 		$resolver = $this->makeResolver([]);
 		$r = new GenericChatModelAgentResource($resolver, $this->providerRequestEvents(), 'g14');
 
-		$r2 = new class($resolver, $this->providerRequestEvents(), 'g14x') extends GenericChatModelAgentResource {
-			public function runWriteFunction(string $chunk, callable $onData, callable $onMeta = null): int {
-				$fn = function ($ch, $chunk) use ($onData, $onMeta) {
-					$lines = preg_split("/\r\n|\n|\r/", $chunk);
-					foreach ($lines as $line) {
-						$line = trim($line);
-						if ($line === '' || !str_starts_with($line, 'data:')) {
-							continue;
-						}
-						$data = trim(substr($line, 5));
-						if ($data === '[DONE]') {
-							if ($onMeta !== null) {
-								$onMeta(['event' => 'done']);
-							}
-							continue;
-						}
-						$json = json_decode($data, true);
-						if (!is_array($json)) {
-							continue;
-						}
-						$choice = $json['choices'][0] ?? [];
-
-						if (isset($choice['delta']['content'])) {
-							$onData($choice['delta']['content']);
-						}
-
-						if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
-							$onMeta([
-								'event' => 'meta',
-								'finish_reason' => $choice['finish_reason'],
-								'full' => $json
-							]);
-						}
-
-						if (!empty($choice['delta']['tool_calls']) && $onMeta !== null) {
-							$onMeta([
-								'event' => 'toolcall',
-								'tool_calls' => $choice['delta']['tool_calls']
-							]);
-						}
-					}
-					return strlen($chunk);
-				};
-
-				return $fn(null, $chunk);
-			}
-		};
+		$r2 = new GenericChatModelAgentResourceTestDouble4($resolver, $this->providerRequestEvents(), 'g14x');
 
 		$deltas = [];
 		$meta = [];
@@ -371,3 +303,11 @@ class GenericChatModelAgentResourceTest extends TestCase {
 		$this->assertSame('done', $meta[2]['event']);
 	}
 }
+
+require_once __DIR__ . '/GenericChatModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/GenericChatModelAgentResourceTestDouble2.php';
+
+require_once __DIR__ . '/GenericChatModelAgentResourceTestDouble3.php';
+
+require_once __DIR__ . '/GenericChatModelAgentResourceTestDouble4.php';

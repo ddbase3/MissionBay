@@ -152,25 +152,4 @@ final class AgentInteractionResponseResolverTest extends TestCase {
 	}
 }
 
-final class InteractionResolverQueueChatModel implements IAiChatModel {
-	use NormalizedChatModelTrait;
-
-	/** @var array<int,mixed> */
-	private array $responses;
-
-	/** @param array<int,mixed> $responses */
-	public function __construct(array $responses) {
-		$this->responses = $responses;
-	}
-
-	public function chat(array $messages): string { return ''; }
-	public function raw(array $messages, array $tools = []): mixed {
-		if ($this->responses === []) {
-			throw new \RuntimeException('No queued model response available.');
-		}
-		return array_shift($this->responses);
-	}
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {}
-	public function setOptions(array $options): void {}
-	public function getOptions(): array { return []; }
-}
+require_once __DIR__ . '/InteractionResolverQueueChatModel.php';

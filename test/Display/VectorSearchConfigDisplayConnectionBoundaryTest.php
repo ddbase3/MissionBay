@@ -22,7 +22,7 @@ final class VectorSearchConfigDisplayConnectionBoundaryTest extends TestCase {
 			$displayClass->getMethod('settingsTabFeatureName')->invoke($display)
 		);
 
-		$feature = new VectorSearchConfigFeature($this->createMock(ITranslation::class));
+		$feature = new VectorSearchConfigFeature($this->createStub(ITranslation::class));
 		self::assertSame(['group' => 'administration'], $feature->getDefaultAudience());
 		$permissions = $feature->getPermissions();
 		self::assertCount(1, $permissions);

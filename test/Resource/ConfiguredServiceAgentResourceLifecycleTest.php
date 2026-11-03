@@ -14,6 +14,9 @@ use MissionBay\Resource\ConfiguredSearchServiceAgentResource;
 use MissionBay\Resource\ConfiguredVectorSearchAgentResource;
 use MissionBay\Resource\ConfiguredVectorStoreAgentResource;
 use MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\State\Api\IStateStore;
+use MissionBay\Service\AiProviderFileReferenceStateRepository;
+use ResourceFoundation\Api\IManagedFileStorageService;
 use PHPUnit\Framework\TestCase;
 
 final class ConfiguredServiceAgentResourceLifecycleTest extends TestCase {
@@ -35,8 +38,12 @@ final class ConfiguredServiceAgentResourceLifecycleTest extends TestCase {
 		$parserResolver = $this->createMock(IConfiguredParserServiceResolver::class);
 		$parserResolver->expects($this->never())->method('resolve');
 
+		$stateStore = $this->createMock(IStateStore::class);
+		$stateStore->expects($this->never())->method('get');
+		$managedFileStorage = $this->createStub(IManagedFileStorageService::class);
+
 		$resources = [
-			new ConfiguredChatModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'chat'),
+			new ConfiguredChatModelAgentResource($resolver, $settingsStore, $runtimeResolver, $stateStore, $managedFileStorage, new AiProviderFileReferenceStateRepository($stateStore), 'chat'),
 			new ConfiguredEmbeddingModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'embedding'),
 			new ConfiguredImageModelAgentResource($resolver, $settingsStore, $runtimeResolver, 'image'),
 			new ConfiguredParserServiceAgentResource($resolver, $settingsStore, $parserResolver, 'parser'),

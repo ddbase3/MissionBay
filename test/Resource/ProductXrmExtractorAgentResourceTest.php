@@ -58,11 +58,7 @@ class ProductXrmExtractorAgentResourceTest extends TestCase {
 			])
 			->willReturn($entries);
 
-		$r = new class($svc, 'x2') extends ProductXrmExtractorAgentResource {
-			public function loadEntriesPublic(): array {
-				return $this->loadEntries();
-			}
-		};
+		$r = new ProductXrmExtractorAgentResourceTestDouble1($svc, 'x2');
 
 		$out = $r->loadEntriesPublic();
 
@@ -85,11 +81,7 @@ class ProductXrmExtractorAgentResourceTest extends TestCase {
 
 		$svc = $this->createStub(IEntityDataService::class);
 
-		$r = new class($svc, 'x3') extends ProductXrmExtractorAgentResource {
-			public function mapEntriesToItemsPublic(array $entries): array {
-				return $this->mapEntriesToItems($entries);
-			}
-		};
+		$r = new ProductXrmExtractorAgentResourceTestDouble2($svc, 'x3');
 
 		$this->expectException(\ArgumentCountError::class);
 		$r->mapEntriesToItemsPublic($entries);
@@ -115,18 +107,7 @@ class ProductXrmExtractorAgentResourceTest extends TestCase {
 
 		$svc = $this->createStub(IEntityDataService::class);
 
-		$r = new class($svc, 'x4', $entries) extends ProductXrmExtractorAgentResource {
-			private array $entries;
-
-			public function __construct(IEntityDataService $entityDataService, ?string $id, array $entries) {
-				parent::__construct($entityDataService, $id);
-				$this->entries = $entries;
-			}
-
-			protected function loadEntries(): array {
-				return $this->entries;
-			}
-		};
+		$r = new ProductXrmExtractorAgentResourceTestDouble3($svc, 'x4', $entries);
 
 		$this->expectException(\ArgumentCountError::class);
 		$r->extract($this->makeContextStub());
@@ -155,3 +136,9 @@ class ProductXrmExtractorAgentResourceTest extends TestCase {
 		$this->assertTrue(true);
 	}
 }
+
+require_once __DIR__ . '/ProductXrmExtractorAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/ProductXrmExtractorAgentResourceTestDouble2.php';
+
+require_once __DIR__ . '/ProductXrmExtractorAgentResourceTestDouble3.php';

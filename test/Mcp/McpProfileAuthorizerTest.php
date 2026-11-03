@@ -89,7 +89,7 @@ final class McpProfileAuthorizerTest extends TestCase {
 	public function testReturnsForbiddenForMissingServiceGrant(): void {
 		$request = $this->request(['HTTP_AUTHORIZATION' => 'Bearer personal-key']);
 		$repository = new McpToolProfileRepository(new AuthorizerSettingsStore([]));
-		$access = $this->createMock(ICredentialAccess::class);
+		$access = $this->createStub(ICredentialAccess::class);
 		$access->method('getIdentity')->willReturn(CredentialIdentityResult::success('credential-id', 42));
 		$access->method('authorizeService')->willReturn(CredentialAuthenticationResult::failure(
 			CredentialAuthenticationResult::FAILURE_SERVICE_NOT_GRANTED,
@@ -113,7 +113,7 @@ final class McpProfileAuthorizerTest extends TestCase {
 
 	/** @param array<string,mixed> $server */
 	private function request(array $server): IRequest {
-		$request = $this->createMock(IRequest::class);
+		$request = $this->createStub(IRequest::class);
 		$request->method('server')->willReturnCallback(
 			static fn(string $key, mixed $default = null): mixed => $server[$key] ?? $default
 		);
@@ -121,33 +121,4 @@ final class McpProfileAuthorizerTest extends TestCase {
 	}
 }
 
-
-final class AuthorizerSettingsStore implements ISettingsStore {
-
-	/** @param array<string,array<string,array<string,mixed>>> $data */
-	public function __construct(private array $data) {}
-
-	public function get(string $group, string $name, array $default = []): array {
-		return $this->data[$group][$name] ?? $default;
-	}
-
-	public function set(string $group, string $name, array $settings): void {
-		$this->data[$group][$name] = $settings;
-	}
-
-	public function has(string $group, string $name): bool {
-		return isset($this->data[$group][$name]);
-	}
-
-	public function remove(string $group, string $name): void {
-		unset($this->data[$group][$name]);
-	}
-
-	public function getGroup(string $group): array {
-		return $this->data[$group] ?? [];
-	}
-
-	public function save(): void {}
-
-	public function reload(): void {}
-}
+require_once __DIR__ . '/AuthorizerSettingsStore.php';

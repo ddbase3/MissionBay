@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
 final class ConfiguredImageModelAgentResourceTest extends TestCase {
 
 	public function testResolvesMistralDriverAndMapsSchemaOptionsToRuntimeKeys(): void {
-		$settingsStore = $this->createMock(ISettingsStore::class);
+		$settingsStore = $this->createStub(ISettingsStore::class);
 		$settingsStore->method('get')->willReturnCallback(
 			static function(string $group, string $name, array $default = []): array {
 				if($group === 'service-image' && $name === 'mistral_course_images') {
@@ -64,15 +64,7 @@ final class ConfiguredImageModelAgentResourceTest extends TestCase {
 			}
 		);
 
-		$resolver = new class implements IAgentConfigValueResolver {
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				if(is_array($config) && ($config['mode'] ?? null) === 'env') {
-					return 'mistral-test-key';
-				}
-
-				return $config;
-			}
-		};
+		$resolver = new ConfiguredImageModelAgentResourceTestDouble1();
 
 		$capturedOptions = [];
 		$imageModel = $this->createMock(IImageGenerationModel::class);
@@ -83,7 +75,7 @@ final class ConfiguredImageModelAgentResourceTest extends TestCase {
 			});
 
 		$driverDefinition = new MistralImageServiceDriverDefinition();
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$classMap->method('getInstancesByInterface')
 			->with(IServiceDriverDefinition::class)
 			->willReturn([$driverDefinition]);
@@ -114,3 +106,5 @@ final class ConfiguredImageModelAgentResourceTest extends TestCase {
 		$this->assertArrayNotHasKey('size', $capturedOptions);
 	}
 }
+
+require_once __DIR__ . '/ConfiguredImageModelAgentResourceTestDouble1.php';

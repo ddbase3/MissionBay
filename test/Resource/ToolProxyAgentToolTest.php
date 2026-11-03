@@ -15,24 +15,7 @@ use MissionBay\Resource\ToolProxyAgentTool;
 class ToolProxyAgentToolTest extends TestCase {
 
 	private function makeContextWithEventSink(array &$events): IAgentContext {
-		$sink = new class($events) implements IAgentEventSink {
-			private array $events;
-
-			public function __construct(array &$events) {
-				$this->events = &$events;
-			}
-
-			public function emit(AgentExecutionEvent $event): void {
-				$this->events[] = [
-					'event' => $event->getName(),
-					'payload' => $event->getPayload()
-				];
-			}
-
-			public function isCancelled(): bool {
-				return false;
-			}
-		};
+		$sink = new ToolProxyAgentToolTestDouble1($events);
 
 		$context = $this->createStub(IAgentContext::class);
 		$context->method('getVar')->willReturnCallback(function(string $key) use ($sink): mixed {
@@ -43,57 +26,7 @@ class ToolProxyAgentToolTest extends TestCase {
 	}
 
 	private function makeTool(string $fnName, string $category, array $tags, int $priority, mixed $result): IAgentTool {
-		return new class($fnName, $category, $tags, $priority, $result) implements IAgentTool {
-			private string $fnName;
-			private string $category;
-			private array $tags;
-			private int $priority;
-			private mixed $result;
-
-			public function __construct(string $fnName, string $category, array $tags, int $priority, mixed $result) {
-				$this->fnName = $fnName;
-				$this->category = $category;
-				$this->tags = $tags;
-				$this->priority = $priority;
-				$this->result = $result;
-			}
-
-			public static function getName(): string {
-				return 'dummytool';
-			}
-
-			public function getDescription(): string {
-				return 'Dummy tool for ToolProxyAgentTool tests.';
-			}
-
-			public function getToolDefinitions(): array {
-				return [[
-					'type' => 'function',
-					'label' => 'Dummy',
-					'category' => $this->category,
-					'tags' => $this->tags,
-					'priority' => $this->priority,
-					'function' => [
-						'name' => $this->fnName,
-						'description' => 'Does something.',
-						'parameters' => [
-							'type' => 'object',
-							'properties' => [
-								'x' => ['type' => 'string']
-							],
-							'required' => []
-						]
-					]
-				]];
-			}
-
-			public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-				if ($name !== $this->fnName) {
-					throw new \InvalidArgumentException('Unexpected tool call: ' . $name);
-				}
-				return $this->result;
-			}
-		};
+		return new ToolProxyAgentToolTestDouble2($fnName, $category, $tags, $priority, $result);
 	}
 
 	public function testGetName(): void {
@@ -222,27 +155,7 @@ class ToolProxyAgentToolTest extends TestCase {
 
 		$okTool = $this->makeTool('alpha', 'memory', ['prefs'], 10, ['worked' => true]);
 
-		$failTool = new class implements IAgentTool {
-			public static function getName(): string { return 'failtool'; }
-			public function getDescription(): string { return 'Fails.'; }
-			public function getToolDefinitions(): array {
-				return [[
-					'type' => 'function',
-					'label' => 'Fail',
-					'category' => 'memory',
-					'tags' => ['prefs'],
-					'priority' => 10,
-					'function' => [
-						'name' => 'fail',
-						'description' => 'Fails.',
-						'parameters' => ['type' => 'object', 'properties' => [], 'required' => []]
-					]
-				]];
-			}
-			public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-				throw new \RuntimeException('boom');
-			}
-		};
+		$failTool = new ToolProxyAgentToolTestDouble3();
 
 		$r->init(['tools' => [$okTool, $failTool]], $this->createStub(IAgentContext::class));
 
@@ -309,3 +222,9 @@ class ToolProxyAgentToolTest extends TestCase {
 		$this->assertSame(['error' => 'Ambiguous tool name (duplicate). Ensure unique function names behind the proxy.'], $call);
 	}
 }
+
+require_once __DIR__ . '/ToolProxyAgentToolTestDouble1.php';
+
+require_once __DIR__ . '/ToolProxyAgentToolTestDouble2.php';
+
+require_once __DIR__ . '/ToolProxyAgentToolTestDouble3.php';

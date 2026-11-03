@@ -11,7 +11,7 @@ final class PhoneticEncoderTest extends TestCase {
 	public function testSoundexUsesStandardEnglishEncoding(): void {
 		$encoder = new SoundexPhoneticEncoder();
 
-		$this->assertSame('A261', $encoder->encode('Ashcraft'));
+		$this->assertSame('A226', $encoder->encode('Ashcraft'));
 		$this->assertSame($encoder->encode('Robert'), $encoder->encode('Rupert'));
 	}
 

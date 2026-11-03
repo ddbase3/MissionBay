@@ -344,22 +344,5 @@ final class SessionMemoryAgentResourceTest extends TestCase {
 	}
 }
 
-final class SessionMemorySessionStub implements ISession {
-
-	public array $values = [];
-	private bool $started = false;
-
-	public function __construct(private readonly string $id) {}
-	public function started(): bool { return $this->started; }
-	public function getId(): string { return $this->id; }
-	public function start(): bool { $this->started = true; return true; }
-	public function destroy(): bool { $this->started = false; $this->values = []; return true; }
-	public function get(string $key, mixed $default = null): mixed { return $this->values[$key] ?? $default; }
-	public function set(string $key, mixed $value): void { $this->values[$key] = $value; }
-	public function has(string $key): bool { return array_key_exists($key, $this->values); }
-	public function remove(string $key): void { unset($this->values[$key]); }
-}
-
-final class SessionMemoryConfigResolverStub implements IAgentConfigValueResolver {
-	public function resolveValue(array|string|int|float|bool|null $config): mixed { return $config; }
-}
+require_once __DIR__ . '/SessionMemorySessionStub.php';
+require_once __DIR__ . '/SessionMemoryConfigResolverStub.php';

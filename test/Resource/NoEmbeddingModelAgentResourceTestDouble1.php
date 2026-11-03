@@ -1,0 +1,23 @@
+<?php declare(strict_types=1);
+
+namespace Test\Resource;
+
+use PHPUnit\Framework\TestCase;
+use MissionBay\Resource\NoEmbeddingModelAgentResource;
+use MissionBay\Api\IAgentConfigValueResolver;
+
+final class NoEmbeddingModelAgentResourceTestDouble1 implements IAgentConfigValueResolver {
+			private array $map;
+
+			public function __construct(array $map) {
+				$this->map = $map;
+			}
+
+			public function resolveValue(array|string|int|float|bool|null $config): mixed {
+				$key = is_array($config) ? json_encode($config) : (string)$config;
+				if (array_key_exists($key, $this->map)) {
+					return $this->map[$key];
+				}
+				return $config;
+			}
+		}

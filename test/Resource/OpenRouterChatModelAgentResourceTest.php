@@ -14,21 +14,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new OpenRouterChatModelAgentResourceTestDouble1($map);
 	}
 
 	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
@@ -131,15 +117,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'r6') extends OpenRouterChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return [
-					'choices' => [
-						['message' => ['content' => 'Hello Daniel']]
-					]
-				];
-			}
-		};
+		$r = new OpenRouterChatModelAgentResourceTestDouble2($resolver, $this->providerRequestEvents(), 'r6');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -283,11 +261,7 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 
 	public function testHandleStreamPayloadEmitsContentToolCallsAndFinishMetadata(): void {
 		$resolver = $this->makeResolver([]);
-		$resource = new class($resolver, $this->providerRequestEvents(), 'r11') extends OpenRouterChatModelAgentResource {
-			public function emitPayload(array $payload, callable $onData, callable $onMeta = null): void {
-				$this->handleStreamPayload($payload, $onData, $onMeta);
-			}
-		};
+		$resource = new OpenRouterChatModelAgentResourceTestDouble3($resolver, $this->providerRequestEvents(), 'r11');
 		$deltas = [];
 		$metadata = [];
 		$payload = [
@@ -326,3 +300,9 @@ class OpenRouterChatModelAgentResourceTest extends TestCase {
 		$this->assertSame($payload, $metadata[1]['full']);
 	}
 }
+
+require_once __DIR__ . '/OpenRouterChatModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/OpenRouterChatModelAgentResourceTestDouble2.php';
+
+require_once __DIR__ . '/OpenRouterChatModelAgentResourceTestDouble3.php';

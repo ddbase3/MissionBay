@@ -14,21 +14,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class PerplexityChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new PerplexityChatModelAgentResourceTestDouble1($map);
 	}
 
 	private function invokePrivate(object $obj, string $methodName, array $args = []): mixed {
@@ -102,16 +88,12 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testChatThrowsOnMalformedResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'p4') extends PerplexityChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return ['choices' => [['message' => []]]];
-			}
-		};
+		$r = new PerplexityChatModelAgentResourceTestDouble2($resolver, $this->providerRequestEvents(), 'p4');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Malformed Perplexity chat response:');
+		$this->expectExceptionMessage('Unable to normalize chat model response.');
 
 		$r->chat([['role' => 'user', 'content' => 'Hi']]);
 	}
@@ -119,15 +101,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'p5') extends PerplexityChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return [
-					'choices' => [
-						['message' => ['content' => 'Hello']]
-					]
-				];
-			}
-		};
+		$r = new PerplexityChatModelAgentResourceTestDouble3($resolver, $this->providerRequestEvents(), 'p5');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -321,28 +295,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testRawInjectsToolCallsWhenDetectedInText(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'p16') extends PerplexityChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				$data = [
-					'choices' => [
-						['message' => ['content' => 'Tool call: notify("hello")']]
-					]
-				];
-
-				$ref = new \ReflectionClass(PerplexityChatModelAgentResource::class);
-				$m = $ref->getMethod('extractToolCallFromText');
-				$m->setAccessible(true);
-
-				$text = $data['choices'][0]['message']['content'] ?? '';
-				$toolCall = $m->invoke($this, $text);
-
-				if ($toolCall !== null) {
-					$data['choices'][0]['message']['tool_calls'] = [$toolCall];
-				}
-
-				return $data;
-			}
-		};
+		$r = new PerplexityChatModelAgentResourceTestDouble4($resolver, $this->providerRequestEvents(), 'p16');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -355,59 +308,7 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 	public function testStreamingParserEmitsToolcallMetaWhenDeltaContainsPattern(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'p17') extends PerplexityChatModelAgentResource {
-			public function simulateWrite(string $chunk, callable $onData, ?callable $onMeta): void {
-				$lines = preg_split("/\r\n|\n|\r/", $chunk);
-
-				foreach ($lines as $line) {
-					$line = trim($line);
-
-					if ($line === '' || !str_starts_with($line, 'data:')) {
-						continue;
-					}
-
-					$data = trim(substr($line, 5));
-
-					if ($data === '[DONE]') {
-						if ($onMeta !== null) {
-							$onMeta(['event' => 'done']);
-						}
-						continue;
-					}
-
-					$json = json_decode($data, true);
-					if (!is_array($json)) {
-						continue;
-					}
-
-					$choice = $json['choices'][0] ?? [];
-
-					if (isset($choice['delta']['content'])) {
-						$delta = $choice['delta']['content'];
-						$onData($delta);
-
-						$ref = new \ReflectionClass(PerplexityChatModelAgentResource::class);
-						$m = $ref->getMethod('extractToolCallFromText');
-						$m->setAccessible(true);
-
-						$toolCall = $m->invoke($this, $delta);
-						if ($toolCall && $onMeta !== null) {
-							$onMeta([
-								'event' => 'toolcall',
-								'tool_calls' => [$toolCall]
-							]);
-						}
-					}
-
-					if ($onMeta !== null && isset($choice['finish_reason']) && $choice['finish_reason'] !== null) {
-						$onMeta([
-							'event' => 'meta',
-							'finish_reason' => $choice['finish_reason']
-						]);
-					}
-				}
-			}
-		};
+		$r = new PerplexityChatModelAgentResourceTestDouble5($resolver, $this->providerRequestEvents(), 'p17');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -447,3 +348,13 @@ class PerplexityChatModelAgentResourceTest extends TestCase {
 		$this->assertTrue($foundDone);
 	}
 }
+
+require_once __DIR__ . '/PerplexityChatModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/PerplexityChatModelAgentResourceTestDouble2.php';
+
+require_once __DIR__ . '/PerplexityChatModelAgentResourceTestDouble3.php';
+
+require_once __DIR__ . '/PerplexityChatModelAgentResourceTestDouble4.php';
+
+require_once __DIR__ . '/PerplexityChatModelAgentResourceTestDouble5.php';

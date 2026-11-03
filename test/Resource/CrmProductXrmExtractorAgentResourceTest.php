@@ -12,37 +12,7 @@ use ResourceFoundation\Api\IEntityDataService;
 class CrmProductXrmExtractorAgentResourceTest extends TestCase {
 
 	private function makeEntityDataServiceStub(array $entries, array &$lastOptionsRef): IEntityDataService {
-		return new class($entries, $lastOptionsRef) implements IEntityDataService {
-
-			private array $entries;
-			private array $lastOptionsRef;
-
-			public function __construct(array $entries, array &$lastOptionsRef) {
-				$this->entries = $entries;
-				$this->lastOptionsRef = &$lastOptionsRef;
-			}
-
-			public function getEntries(array $options = []): array {
-				$this->lastOptionsRef = $options;
-				return $this->entries;
-			}
-
-			public function getEntry(int|string $id, array $options = []): ?array {
-				return null;
-			}
-
-			public function createEntry(array $data): int|string {
-				return 0;
-			}
-
-			public function updateEntry(int|string $id, array $patch): int|string {
-				return 0;
-			}
-
-			public function deleteEntry(int|string $id): bool {
-				return false;
-			}
-		};
+		return new CrmProductXrmExtractorAgentResourceTestDouble1($entries, $lastOptionsRef);
 	}
 
 	private function newAgentContentItem(array $props): AgentContentItem {
@@ -202,3 +172,5 @@ class CrmProductXrmExtractorAgentResourceTest extends TestCase {
 		$this->assertInstanceOf(AgentContentItem::class, $item);
 	}
 }
+
+require_once __DIR__ . '/CrmProductXrmExtractorAgentResourceTestDouble1.php';

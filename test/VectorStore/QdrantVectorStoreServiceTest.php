@@ -88,7 +88,7 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 
 	public function testPhoneticPhraseConstraintUsesOrderedPhraseFilter(): void {
 		$calls = [];
-		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition = $this->createStub(IRetrievalCollectionDefinition::class);
 		$definition->method('getBackendCollectionName')->with('docs')->willReturn('retrieval_docs_v1');
 		$definition->method('getIndexSchema')->with('docs')->willReturn([
 			'phonetic' => [
@@ -137,7 +137,7 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 
 	public function testInspectPointsUsesLogicalCollectionAndReturnsVectorSummaries(): void {
 		$calls = [];
-		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition = $this->createStub(IRetrievalCollectionDefinition::class);
 		$definition->method('getBackendCollectionName')->with('docs')->willReturn('retrieval_docs_v1');
 
 		$service = $this->createService(
@@ -197,7 +197,7 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 
 	public function testSparseInferenceOptionsAndDatetimeRangeAreForwarded(): void {
 		$calls = [];
-		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition = $this->createStub(IRetrievalCollectionDefinition::class);
 		$definition->method('getBackendCollectionName')->with('test')->willReturn('test_collection');
 		$definition->method('getIndexSchema')->with('test')->willReturn([
 			'lexical' => [
@@ -254,7 +254,7 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 
 	public function testContextUsesExactPointIdReappliesMandatoryFilterAndSortsNeighbors(): void {
 		$calls = [];
-		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition = $this->createStub(IRetrievalCollectionDefinition::class);
 		$definition->method('getBackendCollectionName')->with('docs')->willReturn('retrieval_docs_v1');
 		$definition->method('getContextSchema')->with('docs')->willReturn([
 			'group_field' => 'document_key',
@@ -342,7 +342,7 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 
 	public function testContextRejectsInvalidBackendPointReferenceBeforeHttpCall(): void {
 		$calls = [];
-		$definition = $this->createMock(IRetrievalCollectionDefinition::class);
+		$definition = $this->createStub(IRetrievalCollectionDefinition::class);
 		$definition->method('getBackendCollectionName')->with('docs')->willReturn('retrieval_docs_v1');
 
 		$service = $this->createService($definition, [], $calls);
@@ -373,58 +373,16 @@ final class QdrantVectorStoreServiceTest extends TestCase {
 	): AbstractQdrantVectorStoreService {
 		$calls = [];
 
-		return new class($definition, $responses, $calls) extends AbstractQdrantVectorStoreService {
-
-			private array $responses;
-			private array $calls;
-
-			public function __construct(
-				IRetrievalCollectionDefinition $definition,
-				array $responses,
-				array &$calls
-			) {
-				parent::__construct($definition);
-				$this->responses = $responses;
-				$this->calls = &$calls;
-			}
-
-			public static function getName(): string {
-				return 'testqdrantvectorstoreservice';
-			}
-
-			protected function buildUrl(string $path): string {
-				return rtrim($this->getBaseUrl(), '/') . '/' . ltrim($path, '/');
-			}
-
-			protected function buildHeaders(): array {
-				return ['Content-Type: application/json'];
-			}
-
-			protected function curlJson(string $method, string $url, ?array $body): array {
-				$this->calls[] = [
-					'method' => $method,
-					'url' => $url,
-					'body' => $body
-				];
-
-				return array_shift($this->responses) ?? [
-					'http' => 500,
-					'raw' => '',
-					'error' => 'No test response configured.'
-				];
-			}
-		};
+		return new QdrantVectorStoreServiceTestDouble1($definition, $responses, $calls);
 	}
 	private function defaultDefinition(): DefaultRetrievalCollectionDefinition {
-		$repository = new class implements IRetrievalCollectionConfigRepository {
-			public function getCollections(): array { return ['default' => ['backend_collection' => 'content_v2']]; }
-			public function hasCollection(string $collectionKey): bool { return $collectionKey === 'default'; }
-			public function getBackendCollectionName(string $collectionKey): string { return 'content_v2'; }
-			public function saveCollection(string $collectionKey, string $backendCollection): void {}
-			public function removeCollection(string $collectionKey): void {}
-		};
+		$repository = new QdrantVectorStoreServiceTestDouble2();
 
 		return new DefaultRetrievalCollectionDefinition($repository);
 	}
 
 }
+
+require_once __DIR__ . '/QdrantVectorStoreServiceTestDouble1.php';
+
+require_once __DIR__ . '/QdrantVectorStoreServiceTestDouble2.php';

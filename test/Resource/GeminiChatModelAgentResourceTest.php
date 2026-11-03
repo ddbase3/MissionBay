@@ -14,23 +14,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class GeminiChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : $config;
-
-				if (is_string($key) && array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-
-				return $config;
-			}
-		};
+		return new GeminiChatModelAgentResourceTestDouble1($map);
 	}
 
 	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
@@ -103,34 +87,19 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testChatThrowsOnMalformedOpenAiCompatibleResponse(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new class($resolver, $this->providerRequestEvents(), 'g4') extends GeminiChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return ['choices' => [['message' => []]]]; // missing content
-			}
-		};
+		$r = new GeminiChatModelAgentResourceTestDouble2($resolver, $this->providerRequestEvents(), 'g4');
 
 		$r->setConfig(['apikey' => 'dummy']); // avoid setConfig defaults confusion
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Malformed Gemini(OpenAI-mode) response:');
+		$this->expectExceptionMessage('Unable to normalize chat model response.');
 
 		$r->chat([['role' => 'user', 'content' => 'Hi']]);
 	}
 
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new class($resolver, $this->providerRequestEvents(), 'g5') extends GeminiChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return [
-					'choices' => [
-						[
-							'message' => ['content' => 'Hello from Gemini'],
-							'finish_reason' => 'stop',
-						]
-					]
-				];
-			}
-		};
+		$r = new GeminiChatModelAgentResourceTestDouble3($resolver, $this->providerRequestEvents(), 'g5');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -234,57 +203,7 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 
 	public function testStreamCallsOnDataAndOnMetaWhenFedJsonLines(): void {
 		$resolver = $this->makeResolver([]);
-		$r = new class($resolver, $this->providerRequestEvents(), 'g9') extends GeminiChatModelAgentResource {
-			public function testFeedChunk(string $chunk, callable $onData, ?callable $onMeta): void {
-				$lines = preg_split("/\r\n|\n|\r/", $chunk);
-
-				foreach ($lines as $line) {
-					$line = trim($line);
-					if ($line === '') {
-						continue;
-					}
-
-					$json = json_decode($line, true);
-					if (!is_array($json)) {
-						continue;
-					}
-
-					$candidate = $json['candidates'][0] ?? null;
-					if (!$candidate) {
-						continue;
-					}
-
-					$parts = $candidate['content']['parts'][0] ?? [];
-
-					if (isset($parts['text'])) {
-						$onData($parts['text']);
-					}
-
-					if (isset($parts['functionCall']) && $onMeta !== null) {
-						$onMeta([
-							'event' => 'toolcall',
-							'tool_calls' => [
-								[
-									'id' => 'tool_test', // deterministic for test
-									'type' => 'function',
-									'function' => [
-										'name' => $parts['functionCall']['name'] ?? '',
-										'arguments' => json_encode($parts['functionCall']['args'] ?? []),
-									]
-								]
-							]
-						]);
-					}
-
-					if ($onMeta !== null && isset($candidate['finishReason'])) {
-						$onMeta([
-							'event' => 'meta',
-							'finish_reason' => $candidate['finishReason'],
-						]);
-					}
-				}
-			}
-		};
+		$r = new GeminiChatModelAgentResourceTestDouble4($resolver, $this->providerRequestEvents(), 'g9');
 
 		$dataChunks = [];
 		$metaChunks = [];
@@ -314,3 +233,11 @@ class GeminiChatModelAgentResourceTest extends TestCase {
 		$this->assertSame('stop', $metaChunks[1]['finish_reason']);
 	}
 }
+
+require_once __DIR__ . '/GeminiChatModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/GeminiChatModelAgentResourceTestDouble2.php';
+
+require_once __DIR__ . '/GeminiChatModelAgentResourceTestDouble3.php';
+
+require_once __DIR__ . '/GeminiChatModelAgentResourceTestDouble4.php';

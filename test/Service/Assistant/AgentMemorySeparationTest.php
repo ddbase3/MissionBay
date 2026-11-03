@@ -21,131 +21,11 @@ use PHPUnit\Framework\TestCase;
 final class AgentMemorySeparationTest extends TestCase {
 
 	public function testConversationWritesAndContextContributionsAreSeparated(): void {
-		$conversation = new class implements IAgentConversationMemory {
-			public int $loads = 0;
-			public int $writes = 0;
+		$conversation = new AgentMemorySeparationTestDouble1();
 
-			public static function getName(): string {
-				return 'testconversationmemory';
-			}
+		$genericMemory = new AgentMemorySeparationTestDouble2();
 
-			public function bindConversationScope(AgentConversationScope $scope): void {}
-			public function listConversations(): array { return []; }
-			public function getConversation(string $conversationId): ?AgentConversation { return null; }
-			public function getActiveConversation(): ?AgentConversation { return null; }
-			public function createConversation(?string $conversationId = null, string $title = '', string $titleSource = AgentConversation::TITLE_SOURCE_TEMPORARY, string $openingMessage = ''): AgentConversation { throw new \RuntimeException(); }
-			public function activateConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
-			public function renameConversation(string $conversationId, string $title, string $titleSource = AgentConversation::TITLE_SOURCE_MANUAL): AgentConversation { throw new \RuntimeException(); }
-			public function deleteConversation(string $conversationId): void {}
-			public function deleteConversationsByOwner(string $ownerType, string $ownerId): void {}
-			public function deleteConversationsByChannel(string $channelId): void {}
-			public function touchConversation(string $conversationId): AgentConversation { throw new \RuntimeException(); }
-
-			public function loadNodeHistory(string $nodeId): array {
-				$this->loads++;
-				return [[
-					'role' => 'user',
-					'content' => 'Stored conversation'
-				]];
-			}
-
-			public function appendNodeHistory(string $nodeId, array $message): void {
-				$this->writes++;
-			}
-
-			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-				return false;
-			}
-			public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
-
-			public function resetNodeHistory(string $nodeId): void {
-			}
-
-			public function getPriority(): int {
-				return 20;
-			}
-		};
-
-		$genericMemory = new class implements IAgentMemory {
-			public int $loads = 0;
-			public int $writes = 0;
-
-			public static function getName(): string {
-				return 'testgenericmemory';
-			}
-
-			public function loadNodeHistory(string $nodeId): array {
-				$this->loads++;
-				return [[
-					'role' => 'assistant',
-					'content' => 'Generic memory must not be used as conversation history.'
-				]];
-			}
-
-			public function appendNodeHistory(string $nodeId, array $message): void {
-				$this->writes++;
-			}
-
-			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-				return false;
-			}
-			public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
-
-			public function resetNodeHistory(string $nodeId): void {
-			}
-
-			public function getPriority(): int {
-				return 30;
-			}
-		};
-
-		$contributor = new class implements IAgentMemory, IAgentContextContributor {
-			public int $historyLoads = 0;
-			public int $historyWrites = 0;
-			public int $contributions = 0;
-
-			public static function getName(): string {
-				return 'testcontextcontributor';
-			}
-
-			public function id(): string {
-				return 'context-primary';
-			}
-
-			public function contribute(IAgentContext $context): iterable {
-				$this->contributions++;
-				return [new AgentInstructionBlock(
-					id: 'preferences',
-					content: 'Prefer concise responses.',
-					priority: 5,
-					source: $this->id()
-				)];
-			}
-
-			public function loadNodeHistory(string $nodeId): array {
-				$this->historyLoads++;
-				return [[
-					'role' => 'system',
-					'content' => 'Context contributor history must not be used.'
-				]];
-			}
-
-			public function appendNodeHistory(string $nodeId, array $message): void {
-				$this->historyWrites++;
-			}
-
-			public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-				return false;
-			}
-			public function updateNodeHistoryMessageMetadata(string $nodeId, string $messageId, array $metadata): bool { return false; }
-
-			public function resetNodeHistory(string $nodeId): void {
-			}
-
-			public function getPriority(): int {
-				return 10;
-			}
-		};
+		$contributor = new AgentMemorySeparationTestDouble3();
 
 		$roleResolver = new AgentMemoryRoleResolver();
 		$memoryService = new AgentAssistantMemoryService(
@@ -235,23 +115,7 @@ final class AgentMemorySeparationTest extends TestCase {
 	}
 
 	public function testPureContributorDoesNotNeedMemoryMethods(): void {
-		$contributor = new class implements IAgentContextContributor {
-			public static function getName(): string {
-				return 'testpurecontributor';
-			}
-
-			public function id(): string {
-				return 'pure-context';
-			}
-
-			public function contribute(IAgentContext $context): iterable {
-				return [new AgentInstructionBlock('pure', 'Pure context block')];
-			}
-
-			public function getPriority(): int {
-				return 5;
-			}
-		};
+		$contributor = new AgentMemorySeparationTestDouble4();
 
 		$service = new AgentAssistantContextContributionService(new AgentMemoryRoleResolver());
 
@@ -261,3 +125,11 @@ final class AgentMemorySeparationTest extends TestCase {
 		]], $service->buildMessages([$contributor], new AgentContext()));
 	}
 }
+
+require_once __DIR__ . '/AgentMemorySeparationTestDouble1.php';
+
+require_once __DIR__ . '/AgentMemorySeparationTestDouble2.php';
+
+require_once __DIR__ . '/AgentMemorySeparationTestDouble3.php';
+
+require_once __DIR__ . '/AgentMemorySeparationTestDouble4.php';

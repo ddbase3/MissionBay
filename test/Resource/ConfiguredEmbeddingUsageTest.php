@@ -30,7 +30,7 @@ final class ConfiguredEmbeddingUsageTest extends TestCase {
 			}
 		);
 
-		$provider = $this->createMock(IAiProvider::class);
+		$provider = $this->createStub(IAiProvider::class);
 		$provider->method('request')->willReturn([
 			'data' => [[
 				'index' => 0,
@@ -43,7 +43,7 @@ final class ConfiguredEmbeddingUsageTest extends TestCase {
 		]);
 
 		$driverDefinition = new OpenAiEmbeddingServiceDriverDefinition();
-		$classMap = $this->createMock(IClassMap::class);
+		$classMap = $this->createStub(IClassMap::class);
 		$embeddingModel = new OpenAiEmbeddingModel(
 			$classMap,
 			new AiProviderRequestEventDispatcher($eventManager)
@@ -89,66 +89,14 @@ final class ConfiguredEmbeddingUsageTest extends TestCase {
 	}
 
 	private function resolver(): IAgentConfigValueResolver {
-		return new class implements IAgentConfigValueResolver {
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				if(is_array($config) && ($config['mode'] ?? null) === 'fixed') {
-					return $config['value'] ?? null;
-				}
-				if(is_array($config) && ($config['mode'] ?? null) === 'env') {
-					return 'test-secret';
-				}
-
-				return $config;
-			}
-		};
+		return new ConfiguredEmbeddingUsageTestDouble1();
 	}
 
 	private function settingsStore(): ISettingsStore {
-		return new class implements ISettingsStore {
-			public function get(string $group, string $name, array $default = []): array {
-				if($group === 'service-embedding' && $name === 'embedding-main') {
-					return [
-						'id' => 'embedding-main',
-						'name' => 'Embedding Main',
-						'serviceType' => 'embedding',
-						'connection' => 'openai',
-						'driver' => 'openai-embedding',
-						'model' => 'text-embedding-3-small',
-						'enabled' => true,
-						'options' => []
-					];
-				}
-
-				if($group === 'connection' && $name === 'openai') {
-					return [
-						'id' => 'openai',
-						'name' => 'OpenAI',
-						'type' => 'http',
-						'driver' => 'http',
-						'baseUrl' => 'https://api.openai.com',
-						'auth' => [
-							'type' => 'bearer',
-							'secret' => [
-								'mode' => 'env',
-								'name' => 'OPENAI_API_KEY'
-							]
-						],
-						'timeoutSeconds' => 60,
-						'scope' => 'global',
-						'enabled' => true,
-						'options' => []
-					];
-				}
-
-				return $default;
-			}
-
-			public function set(string $group, string $name, array $settings): void {}
-			public function has(string $group, string $name): bool { return $this->get($group, $name, []) !== []; }
-			public function remove(string $group, string $name): void {}
-			public function getGroup(string $group): array { return []; }
-			public function save(): void {}
-			public function reload(): void {}
-		};
+		return new ConfiguredEmbeddingUsageTestDouble2();
 	}
 }
+
+require_once __DIR__ . '/ConfiguredEmbeddingUsageTestDouble1.php';
+
+require_once __DIR__ . '/ConfiguredEmbeddingUsageTestDouble2.php';

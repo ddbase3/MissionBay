@@ -22,6 +22,7 @@ use AssistantFoundation\Api\IAgentStage;
 use AssistantFoundation\Dto\AgentContinuationDecision;
 use AssistantFoundation\Dto\AgentResultVerification;
 use AssistantFoundation\Dto\AgentStageResult;
+use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
 
 /**
  * AgentContinuationDecisionStage
@@ -181,7 +182,7 @@ final class AgentContinuationDecisionStage implements IAgentStage {
 				continue;
 			}
 
-			if ($verification->getVerifier() !== AgentSemanticVerificationStage::VERIFIER_NAME) {
+			if ($verification->getVerifier() !== AgentSemanticVerificationService::VERIFIER_NAME) {
 				continue;
 			}
 

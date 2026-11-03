@@ -4,17 +4,31 @@ namespace MissionBay\Test\Agent;
 
 use PHPUnit\Framework\TestCase;
 use MissionBay\Agent\AgentConfigValueResolver;
-use Base3\Configuration\Api\IConfiguration;
+use Base3\ConfigValue\Api\IConfigValueModeResolver;
+use Base3\ConfigValue\Mode\ConfigurationConfigValueModeResolver;
+use Base3\ConfigValue\Mode\EnvConfigValueModeResolver;
+use Base3\ConfigValue\Mode\FixedConfigValueModeResolver;
+use Base3\ConfigValue\Resolver\ConfigValueResolver;
+use Base3\Test\Core\ClassMapStub;
 use Base3\Test\Configuration\ConfigurationStub;
 
 final class AgentConfigValueResolverTest extends TestCase {
 
-	private function makeConfig(array $root = []): IConfiguration {
-		return new ConfigurationStub($root);
+	private function makeResolver(array $root = []): AgentConfigValueResolver {
+		$classMap = new ClassMapStub();
+		foreach ([
+			new FixedConfigValueModeResolver(),
+			new EnvConfigValueModeResolver(),
+			new ConfigurationConfigValueModeResolver(new ConfigurationStub($root))
+		] as $modeResolver) {
+			$classMap->registerInstance($modeResolver, interfaces: [IConfigValueModeResolver::class]);
+		}
+
+		return new AgentConfigValueResolver(new ConfigValueResolver($classMap));
 	}
 
 	public function testResolveValueReturnsScalarUnchanged(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig());
+		$r = $this->makeResolver();
 
 		$this->assertSame(null, $r->resolveValue(null));
 		$this->assertSame(true, $r->resolveValue(true));
@@ -25,7 +39,7 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testFixedAndDefaultReturnValue(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig());
+		$r = $this->makeResolver();
 
 		$this->assertSame('a', $r->resolveValue([
 			'mode' => 'fixed',
@@ -43,7 +57,7 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testEnvReturnsValueOrNull(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig());
+		$r = $this->makeResolver();
 
 		$var = 'MB_TEST_ENV_' . bin2hex(random_bytes(4));
 
@@ -66,14 +80,9 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testConfigResolvesFromConfiguration(): void {
-		$config = $this->makeConfig([
-			'openai' => [
-				'apikey' => 'k1',
-				'model' => 'gpt'
-			]
+		$r = $this->makeResolver([
+			'openai' => ['apikey' => 'k1', 'model' => 'gpt']
 		]);
-
-		$r = new AgentConfigValueResolver($config);
 
 		$this->assertSame('k1', $r->resolveValue([
 			'mode' => 'config',
@@ -83,9 +92,9 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testConfigThrowsIfSectionOrKeyMissing(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig([
+		$r = $this->makeResolver([
 			'a' => ['b' => 'c']
-		]));
+		]);
 
 		$this->expectException(\RuntimeException::class);
 		$r->resolveValue([
@@ -95,9 +104,9 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testConfigThrowsIfSectionNotArray(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig([
+		$r = $this->makeResolver([
 			'sec' => 'nope'
-		]));
+		]);
 
 		$this->expectException(\RuntimeException::class);
 		$r->resolveValue([
@@ -108,9 +117,9 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testConfigThrowsIfKeyMissing(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig([
+		$r = $this->makeResolver([
 			'sec' => ['a' => 1]
-		]));
+		]);
 
 		$this->expectException(\RuntimeException::class);
 		$r->resolveValue([
@@ -121,7 +130,7 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testRandomReturnsNullForInvalidOrEmptyValue(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig());
+		$r = $this->makeResolver();
 
 		$this->assertNull($r->resolveValue([
 			'mode' => 'random'
@@ -139,7 +148,7 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testRandomReturnsOneElementFromArray(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig());
+		$r = $this->makeResolver();
 
 		// deterministic: only one possible choice
 		$this->assertSame('x', $r->resolveValue([
@@ -149,7 +158,7 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testUuidReturnsUuidV4String(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig());
+		$r = $this->makeResolver();
 
 		$u1 = $r->resolveValue(['mode' => 'uuid']);
 		$u2 = $r->resolveValue(['mode' => 'uuid']);
@@ -165,10 +174,12 @@ final class AgentConfigValueResolverTest extends TestCase {
 	}
 
 	public function testInheritAndUnknownModeReturnNull(): void {
-		$r = new AgentConfigValueResolver($this->makeConfig());
+		$r = $this->makeResolver();
 
 		$this->assertNull($r->resolveValue(['mode' => 'inherit']));
-		$this->assertNull($r->resolveValue(['mode' => 'something_else']));
-		$this->assertNull($r->resolveValue([])); // defaults to inherit
+		$this->assertSame([], $r->resolveValue([]));
+
+		$this->expectException(\RuntimeException::class);
+		$r->resolveValue(['mode' => 'something_else']);
 	}
 }

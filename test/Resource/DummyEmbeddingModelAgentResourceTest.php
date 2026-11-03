@@ -12,21 +12,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class DummyEmbeddingModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new DummyEmbeddingModelAgentResourceTestDouble1($map);
 	}
 
 	public function testGetName(): void {
@@ -122,3 +108,5 @@ class DummyEmbeddingModelAgentResourceTest extends TestCase {
 		$this->assertSame([0.0, 0.0, 0.0, 0.0], $out[2]);
 	}
 }
+
+require_once __DIR__ . '/DummyEmbeddingModelAgentResourceTestDouble1.php';

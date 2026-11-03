@@ -1,21 +1,12 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Resource;
+namespace MissionBay\Resource\AgentTool\CurrencyConvert;
 
 /**
  * Namespaced override for file_get_contents() to avoid real HTTP calls in tests.
  * PHP resolves file_get_contents() inside MissionBay\Resource\* to this function first.
  */
-final class FakeHttpState {
 
-	public static ?string $lastUrl = null;
-	public static mixed $nextResponse = null; // string|false|null
-
-	public static function reset(): void {
-		self::$lastUrl = null;
-		self::$nextResponse = null;
-	}
-}
 
 function file_get_contents(string $filename, bool $use_include_path = false, $context = null, int $offset = 0, ?int $length = null): string|false {
 	FakeHttpState::$lastUrl = $filename;
@@ -26,8 +17,8 @@ function file_get_contents(string $filename, bool $use_include_path = false, $co
 namespace MissionBay\Resource\Test;
 
 use PHPUnit\Framework\TestCase;
-use MissionBay\Resource\CurrencyConvertAgentTool;
-use MissionBay\Resource\FakeHttpState;
+use MissionBay\Resource\AgentTool\CurrencyConvert\CurrencyConvertAgentTool;
+use MissionBay\Resource\AgentTool\CurrencyConvert\FakeHttpState;
 use MissionBay\Api\IAgentTool;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentMemory;
@@ -194,69 +185,6 @@ class CurrencyConvertAgentToolTest extends TestCase {
 
 }
 
-class CurrencyConvertAgentContextStub implements IAgentContext {
-
-	private array $vars = [];
-	private IAgentMemory $memory;
-
-	public function __construct() {
-		$this->memory = new CurrencyConvertAgentMemoryStub();
-	}
-
-	public static function getName(): string {
-		return 'currencyconvertagentcontextstub';
-	}
-
-	public function getMemory(): IAgentMemory {
-		return $this->memory;
-	}
-
-	public function setMemory(IAgentMemory $memory): void {
-		$this->memory = $memory;
-	}
-
-	public function setVar(string $key, mixed $value): void {
-		$this->vars[$key] = $value;
-	}
-
-	public function getVar(string $key): mixed {
-		return $this->vars[$key] ?? null;
-	}
-
-	public function forgetVar(string $key): void {
-		unset($this->vars[$key]);
-	}
-
-	public function listVars(): array {
-		return array_keys($this->vars);
-	}
-
-}
-
-class CurrencyConvertAgentMemoryStub implements IAgentMemory {
-
-	public static function getName(): string {
-		return 'currencyconvertagentmemorystub';
-	}
-
-	public function loadNodeHistory(string $nodeId): array {
-		return [];
-	}
-
-	public function appendNodeHistory(string $nodeId, array $message): void {
-		return;
-	}
-
-	public function setFeedback(string $nodeId, string $messageId, ?string $feedback): bool {
-		return false;
-	}
-
-	public function resetNodeHistory(string $nodeId): void {
-		return;
-	}
-
-	public function getPriority(): int {
-		return 0;
-	}
-
-}
+require_once __DIR__ . '/FakeHttpState.php';
+require_once __DIR__ . '/CurrencyConvertAgentContextStub.php';
+require_once __DIR__ . '/CurrencyConvertAgentMemoryStub.php';

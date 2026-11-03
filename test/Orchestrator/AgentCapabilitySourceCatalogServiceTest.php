@@ -130,7 +130,7 @@ final class AgentCapabilitySourceCatalogServiceTest extends TestCase {
 			'enabled' => false,
 			'max_tools' => 64,
 			'max_sources' => 8,
-			'semantic_max_prompt_characters' => 2000
+			'semantic_max_prompt_characters' => 8000
 		]);
 		$service = new AgentCapabilitySourceCatalogService();
 		$sources = $service->buildSources($catalog, $tools, $config);
@@ -189,55 +189,4 @@ final class AgentCapabilitySourceCatalogServiceTest extends TestCase {
 	}
 }
 
-final class CapabilitySourceToolDouble implements IAgentTool, IAgentCapabilitySourceMetadata {
-
-	/** @param array<int,string> $functionNames */
-	public function __construct(
-		private readonly string $sourceId,
-		private readonly string $label,
-		private readonly string $description,
-		private readonly array $functionNames
-	) {}
-
-	public static function getName(): string {
-		return 'capabilitySourceToolDouble';
-	}
-
-	public function getCapabilitySourceId(): string {
-		return $this->sourceId;
-	}
-
-	public function getCapabilitySourceLabel(): string {
-		return $this->label;
-	}
-
-	public function getCapabilitySourceDescription(): string {
-		return $this->description;
-	}
-
-	public function getToolDefinitions(): array {
-		$result = [];
-		foreach ($this->functionNames as $name) {
-			$result[] = [
-				'type' => 'function',
-				'readOnlyHint' => true,
-				'mutation' => false,
-				'requiresApproval' => false,
-				'function' => [
-					'name' => $name,
-					'description' => 'Function ' . $name . '.',
-					'parameters' => [
-						'type' => 'object',
-						'properties' => [],
-						'required' => []
-					]
-				]
-			];
-		}
-		return $result;
-	}
-
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		return ['ok' => true, 'name' => $name];
-	}
-}
+require_once __DIR__ . '/CapabilitySourceToolDouble.php';

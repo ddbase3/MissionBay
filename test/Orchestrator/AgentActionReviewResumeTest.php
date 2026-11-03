@@ -28,6 +28,8 @@ use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Service\AgentActionResumeService;
 use MissionBay\Orchestrator\Service\AgentActionReviewService;
 use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
 use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
 use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
@@ -120,7 +122,7 @@ final class AgentActionReviewResumeTest extends TestCase {
 
 
 
-	public function testNativeMutationResumeStreamsTerminalAnswerAfterSingleApprovedExecution(): void {
+	public function testNativeMutationResumeBuffersTerminalAnswerAfterSingleApprovedExecution(): void {
 		$tool = new ApprovalMutationTool();
 		[$orchestrator, $resumeService] = $this->createHarness();
 		$firstResult = $orchestrator->run(
@@ -166,14 +168,12 @@ final class AgentActionReviewResumeTest extends TestCase {
 		$this->assertTrue($secondResult->isCompleted());
 		$this->assertSame(1, $tool->getCallCount());
 		$this->assertSame('Record 42 was updated.', $secondResult->getFinalOutputContent());
-		$this->assertTrue($secondResult->isFinalOutputStreamed());
+		$this->assertFalse($secondResult->isFinalOutputStreamed());
 		$tokenEvents = array_values(array_filter(
 			$events,
 			static fn(array $event): bool => ($event[0] ?? '') === 'token'
 		));
-		$this->assertSame([
-			['token', ['text' => 'Record 42 was updated.']]
-		], $tokenEvents);
+		$this->assertSame([], $tokenEvents);
 		$resolvedEvents = array_values(array_filter(
 			$events,
 			static fn(array $event): bool => ($event[0] ?? '') === 'agent.interaction.resolved'
@@ -744,10 +744,12 @@ final class AgentActionReviewResumeTest extends TestCase {
 					new AllowAllAgentActionPolicy()
 				]),
 				$fingerprint,
+				$reviewService,
+				new AgentToolContractValidationService(),
+				new AgentCapabilitySelectionGuardService(),
 				'action-policy',
 				'action-policy',
-				['mutation-approval-actions', 'allow-all-actions'],
-				$reviewService
+				['mutation-approval-actions', 'allow-all-actions']
 			),
 			new AgentToolExecutionStage($events, mutationCommitGuardService: $commitGuard),
 			new AgentToolObservationStage()
@@ -801,303 +803,10 @@ final class AgentActionReviewResumeTest extends TestCase {
 	}
 }
 
-
-final class InternalMutationTool implements IAgentTool {
-	private int $callCount = 0;
-
-	public static function getName(): string {
-		return 'internalmutationtool';
-	}
-
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Internal write',
-			'readOnlyHint' => false,
-			'mutation' => true,
-			'requiresApproval' => false,
-			'commitGuardRequired' => false,
-			'function' => [
-				'name' => 'internal_write',
-				'description' => 'Writes agent-owned internal state.',
-				'parameters' => [
-					'type' => 'object',
-					'properties' => ['value' => ['type' => 'string']]
-				]
-			]
-		]];
-	}
-
-	public function callTool(string $toolName, array $arguments, IAgentContext $context): mixed {
-		$this->callCount++;
-
-		return ['ok' => true, 'value' => (string)($arguments['value'] ?? '')];
-	}
-
-	public function getCallCount(): int {
-		return $this->callCount;
-	}
-}
-
-final class ApprovalMutationTool implements IAgentTool, IAgentMutationGuardedTool {
-	private int $callCount = 0;
-	private int $version = 1;
-	private bool $authorized = true;
-	/** @var array<string,mixed> */
-	private array $lastArguments = [];
-	public static function getName(): string { return 'approvalmutationtool'; }
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Update record',
-			'annotations' => ['readOnlyHint' => false, 'commitGuardRequired' => true],
-			'function' => [
-				'name' => 'update_record',
-				'description' => 'Updates one record.',
-				'parameters' => [
-					'type' => 'object',
-					'properties' => [
-						'id' => ['type' => 'integer'],
-						'title' => ['type' => 'string']
-					]
-				]
-			]
-		]];
-	}
-	public function captureMutationCommitSnapshot(
-		AgentAction $action,
-		string $actionFingerprint,
-		IAgentContext $context
-	): AgentMutationCommitSnapshot {
-		$id = (string)($action->getInput()['id'] ?? '');
-		return new AgentMutationCommitSnapshot(
-			$action->getId(),
-			$actionFingerprint,
-			['subject' => 'test-user'],
-			['record:' . $id => (string)$this->version],
-			gmdate('c')
-		);
-	}
-	public function getActionReview(
-		AgentAction $action,
-		AgentMutationCommitSnapshot $snapshot,
-		IAgentContext $context
-	): AgentActionReview {
-		return new AgentActionReview(
-			'Update record',
-			'Record ' . (string)($action->getInput()['id'] ?? '') . ' will be updated.',
-			[
-				'Record' => (string)($action->getInput()['id'] ?? ''),
-				'New title' => (string)($action->getInput()['title'] ?? '')
-			]
-		);
-	}
-
-	public function validateMutationCommit(
-		AgentAction $action,
-		AgentMutationCommitSnapshot $snapshot,
-		IAgentContext $context
-	): AgentMutationCommitDecision {
-		if (!$this->authorized) {
-			return AgentMutationCommitDecision::deny(
-				AgentMutationCommitDecision::CODE_UNAUTHORIZED,
-				'Current user is no longer authorized to update this record.'
-			);
-		}
-		$id = (string)($action->getInput()['id'] ?? '');
-		$expected = (string)($snapshot->getResourceVersions()['record:' . $id] ?? '');
-		if ($expected === '' || $expected !== (string)$this->version) {
-			return AgentMutationCommitDecision::deny(
-				AgentMutationCommitDecision::CODE_STALE,
-				'Record version changed after approval.',
-				['expected' => $expected, 'current' => (string)$this->version]
-			);
-		}
-		return AgentMutationCommitDecision::allow('Authorization and record version are still valid.');
-	}
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		$this->callCount++;
-		$this->lastArguments = $arguments;
-		$this->version++;
-		return ['updated' => true, 'record' => $arguments, 'version' => $this->version];
-	}
-	public function getCallCount(): int { return $this->callCount; }
-	/** @return array<string,mixed> */
-	public function getLastArguments(): array { return $this->lastArguments; }
-	public function setVersion(int $version): void { $this->version = $version; }
-	public function setAuthorized(bool $authorized): void { $this->authorized = $authorized; }
-}
-
-final class ApprovalPreflightRejectingMutationTool implements IAgentTool, IAgentMutationGuardedTool {
-	private int $callCount = 0;
-
-	public static function getName(): string { return 'approvalpreflightrejectingmutationtool'; }
-
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Update missing course',
-			'annotations' => ['readOnlyHint' => false, 'commitGuardRequired' => true],
-			'function' => [
-				'name' => 'update_missing_course',
-				'description' => 'Updates one course.',
-				'parameters' => [
-					'type' => 'object',
-					'properties' => ['ref_id' => ['type' => 'integer']]
-				]
-			]
-		]];
-	}
-
-	public function captureMutationCommitSnapshot(
-		AgentAction $action,
-		string $actionFingerprint,
-		IAgentContext $context
-	): AgentMutationCommitSnapshot {
-		throw new \InvalidArgumentException('No active course exists for ref_id 404.');
-	}
-
-	public function getActionReview(
-		AgentAction $action,
-		AgentMutationCommitSnapshot $snapshot,
-		IAgentContext $context
-	): AgentActionReview {
-		throw new \LogicException('Action review must not be reached after a rejected preflight.');
-	}
-
-	public function validateMutationCommit(
-		AgentAction $action,
-		AgentMutationCommitSnapshot $snapshot,
-		IAgentContext $context
-	): AgentMutationCommitDecision {
-		return AgentMutationCommitDecision::allow('Test mutation remains valid.');
-	}
-
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		$this->callCount++;
-		return ['updated' => true];
-	}
-
-	public function getCallCount(): int { return $this->callCount; }
-}
-
-
-final class ApprovalLegacyMutationTool implements IAgentTool {
-	private int $callCount = 0;
-	public function __construct(private readonly bool $commitGuardRequired) {}
-	public static function getName(): string { return 'approvallegacymutationtool'; }
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Legacy update record',
-			'annotations' => [
-				'readOnlyHint' => false,
-				'commitGuardRequired' => $this->commitGuardRequired
-			],
-			'function' => [
-				'name' => 'legacy_update_record',
-				'description' => 'Updates one record through a legacy tool.',
-				'parameters' => ['type' => 'object']
-			]
-		]];
-	}
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		$this->callCount++;
-		return ['updated' => true];
-	}
-	public function getCallCount(): int { return $this->callCount; }
-}
-
-final class ApprovalQueueChatModel implements IAiChatModel {
-	use NormalizedChatModelTrait;
-	/** @var array<int,mixed> */
-	private array $responses;
-	/** @param array<int,mixed> $responses */
-	public function __construct(array $responses) { $this->responses = $responses; }
-	public function chat(array $messages): string { return ''; }
-	public function raw(array $messages, array $tools = []): mixed {
-		if ($this->responses === []) {
-			throw new \RuntimeException('No queued model response available.');
-		}
-		return array_shift($this->responses);
-	}
-	public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
-		$result = $this->complete($messages, $tools);
-		if (!$result->hasToolCalls() && $result->getContent() !== '') {
-			$onData($result->getContent());
-		}
-		return $result;
-	}
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
-		$this->streamResult($messages, $tools, $onData, $onMeta);
-	}
-	public function setOptions(array $options): void {}
-	public function getOptions(): array { return []; }
-}
-
-final class ApprovalSilentEventManager implements IEventManager {
-	/** @var array<int,MissionBayAgentActionAuditEvent> */
-	private array $auditEvents = [];
-	public function on(string $event, callable $listener, int $priority = 0): void {}
-	public function once(string $event, callable $listener, int $priority = 0): void {}
-	public function off(string $event, callable $listener): void {}
-	public function fire(object|string $event, ...$args): array {
-		if ($event instanceof MissionBayAgentActionAuditEvent) {
-			$this->auditEvents[] = $event;
-		}
-		return [];
-	}
-	/** @return array<int,MissionBayAgentActionAuditEvent> */
-	public function getAuditEvents(): array { return $this->auditEvents; }
-}
-
-final class ApprovalMemoryStateStore implements IStateStore {
-	/** @var array<string,array{value:mixed,expires_at:?int}> */
-	private array $values = [];
-
-	public function get(string $key, mixed $default = null): mixed {
-		if (!$this->has($key)) {
-			return $default;
-		}
-		return $this->values[$key]['value'];
-	}
-
-	public function has(string $key): bool {
-		if (!isset($this->values[$key])) {
-			return false;
-		}
-		$expiresAt = $this->values[$key]['expires_at'];
-		if ($expiresAt !== null && $expiresAt <= time()) {
-			unset($this->values[$key]);
-			return false;
-		}
-		return true;
-	}
-
-	public function set(string $key, mixed $value, ?int $ttlSeconds = null): void {
-		$this->values[$key] = [
-			'value' => $value,
-			'expires_at' => $ttlSeconds === null ? null : time() + $ttlSeconds
-		];
-	}
-
-	public function delete(string $key): bool {
-		$exists = $this->has($key);
-		unset($this->values[$key]);
-		return $exists;
-	}
-
-	public function setIfNotExists(string $key, mixed $value, ?int $ttlSeconds = null): bool {
-		if ($this->has($key)) {
-			return false;
-		}
-		$this->set($key, $value, $ttlSeconds);
-		return true;
-	}
-
-	public function listKeys(string $prefix): array {
-		return array_values(array_filter(array_keys($this->values), static fn(string $key): bool => str_starts_with($key, $prefix)));
-	}
-
-	public function flush(): void {}
-}
+require_once __DIR__ . '/InternalMutationTool.php';
+require_once __DIR__ . '/ApprovalMutationTool.php';
+require_once __DIR__ . '/ApprovalPreflightRejectingMutationTool.php';
+require_once __DIR__ . '/ApprovalLegacyMutationTool.php';
+require_once __DIR__ . '/ApprovalQueueChatModel.php';
+require_once __DIR__ . '/ApprovalSilentEventManager.php';
+require_once __DIR__ . '/ApprovalMemoryStateStore.php';

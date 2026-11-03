@@ -227,7 +227,7 @@ final class AgentStagePipelineResolverTest extends TestCase {
 		);
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Configured agent stage could not be resolved: action-policy');
+		$this->expectExceptionMessage('Configured agent stage could not be resolved: model-decision');
 
 		$resolver->resolve(['model-decision', 'action-policy', 'tool-execution', 'tool-observation']);
 	}
@@ -247,84 +247,5 @@ final class AgentStagePipelineResolverTest extends TestCase {
 	}
 }
 
-final class RecordingAgentStageComponentResolver implements IComponentResolver {
-
-	/**
-	 * @var array<string,IAgentStage>
-	 */
-	private array $stages;
-
-	/**
-	 * @var array<int,string>
-	 */
-	private array $requestedIds = [];
-
-	/**
-	 * @param array<string,IAgentStage> $stages
-	 */
-	public function __construct(array $stages) {
-		$this->stages = $stages;
-	}
-
-	public function has(string $interfaceName, string $id): bool {
-		return $interfaceName === IAgentStage::class && isset($this->stages[$id]);
-	}
-
-	public function get(string $interfaceName, string $id): ?IComponent {
-		$this->requestedIds[] = $id;
-
-		if ($interfaceName !== IAgentStage::class) {
-			return null;
-		}
-
-		return $this->stages[$id] ?? null;
-	}
-
-	public function all(string $interfaceName): iterable {
-		if ($interfaceName !== IAgentStage::class) {
-			return [];
-		}
-
-		return array_values($this->stages);
-	}
-
-	/**
-	 * @return array<int,string>
-	 */
-	public function getRequestedIds(): array {
-		return $this->requestedIds;
-	}
-}
-
-final class RecordingResolvedAgentStage implements IAgentStage {
-
-	public function __construct(private readonly string $id) {}
-
-	public static function getName(): string {
-		return 'recordingresolvedagentstage';
-	}
-
-	public function id(): string {
-		return $this->id;
-	}
-
-	public function name(): string {
-		return $this->id;
-	}
-
-	public function getDescription(): string {
-		return 'Test stage.';
-	}
-
-	public function getAiUsage(): string {
-		return IAgentStage::AI_USAGE_NONE;
-	}
-
-	public function supports(IAgentContext $context): bool {
-		return false;
-	}
-
-	public function process(IAgentContext $context): AgentStageResult {
-		return AgentStageResult::none();
-	}
-}
+require_once __DIR__ . '/RecordingAgentStageComponentResolver.php';
+require_once __DIR__ . '/RecordingResolvedAgentStage.php';

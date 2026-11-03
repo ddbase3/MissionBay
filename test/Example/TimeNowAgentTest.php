@@ -22,7 +22,7 @@ final class TimeNowAgentTest extends TestCase {
 	public function testContextCanBeSetAndRetrieved(): void {
 		$agent = new TimeNowAgent();
 
-		$context = new class extends AgentContext {};
+		$context = new TimeNowAgentTestDouble1();
 		$agent->setContext($context);
 
 		$this->assertSame($context, $agent->getContext());
@@ -87,3 +87,5 @@ final class TimeNowAgentTest extends TestCase {
 		$this->assertSame([], $agent->getDependencies());
 	}
 }
+
+require_once __DIR__ . '/TimeNowAgentTestDouble1.php';

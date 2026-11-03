@@ -87,7 +87,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 		$this->assertTrue($profile->isAiCapabilitySelectionEnabled());
 		$this->assertSame(AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE, $config->getSelectionUnit());
 		$this->assertSame(16, $config->getMaxTools());
-		$this->assertSame(8, $config->getMaxSources());
+		$this->assertSame(16, $config->getMaxSources());
 		$this->assertTrue($config->isSticky());
 		$this->assertSame([
 			'capability-discovery',
@@ -199,15 +199,8 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 
 	/** @param array<string,array<string,array<string,mixed>>> $groups */
 	private function settingsStore(array $groups = []): ISettingsStore {
-		return new class($groups) implements ISettingsStore {
-			public function __construct(private array $groups) {}
-			public function get(string $group, string $name, array $default = []): array { return $this->groups[$group][$name] ?? $default; }
-			public function set(string $group, string $name, array $settings): void { $this->groups[$group][$name] = $settings; }
-			public function has(string $group, string $name): bool { return isset($this->groups[$group][$name]); }
-			public function remove(string $group, string $name): void { unset($this->groups[$group][$name]); }
-			public function getGroup(string $group): array { return $this->groups[$group] ?? []; }
-			public function save(): void {}
-			public function reload(): void {}
-		};
+		return new AgentOrchestratorProfileRepositoryTestDouble1($groups);
 	}
 }
+
+require_once __DIR__ . '/AgentOrchestratorProfileRepositoryTestDouble1.php';

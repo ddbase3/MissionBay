@@ -338,7 +338,7 @@ final class AgentCapabilitySelectionTest extends TestCase {
 				contextText: 'Use source A.',
 				config: new AgentCapabilitySelectionConfig(
 					maxTools: 16,
-					selectAllThreshold: 12,
+					selectAllThreshold: 0,
 					semanticCandidateTools: 18,
 					selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
 					maxSources: 8
@@ -602,7 +602,7 @@ final class AgentCapabilitySelectionTest extends TestCase {
 		$this->assertCount(2, $model->getMessages());
 		$this->assertStringContainsString('"source_id":"catalog-source-1","source_name"', $model->getMessages()[1]['content']);
 		$this->assertStringContainsString('"source_id":"catalog-source-80","source_name"', $model->getMessages()[1]['content']);
-		$this->assertStringContainsString('representative_functions', $model->getMessages()[1]['content']);
+		$this->assertStringContainsString('"function_count":1', $model->getMessages()[1]['content']);
 	}
 
 	public function testSemanticSourceSelectionNeverSilentlyCutsASelectedSource(): void {
@@ -613,10 +613,7 @@ final class AgentCapabilitySelectionTest extends TestCase {
 			$this->capability('source_write_1', 'Write one.', ['source'], 20, 'large-source')
 		]);
 
-		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Capability source "large-source" exposes 4 functions but maxTools is 3.');
-
-		(new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector()))->select(
+		$selection = (new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector()))->select(
 			$catalog,
 			new AgentCapabilitySelectionRequest(
 				iteration: 1,
@@ -632,6 +629,7 @@ final class AgentCapabilitySelectionTest extends TestCase {
 				messages: [['role' => 'user', 'content' => 'Use the large source.']]
 			)
 		);
+		$this->assertSame(['source_read_1', 'source_read_2', 'source_read_3', 'source_write_1'], $selection->getToolNames());
 	}
 
 	private function capability(
@@ -667,57 +665,14 @@ final class AgentCapabilitySelectionTest extends TestCase {
 	}
 
 	private function recordingChatModel(string $content): IAiChatModel {
-		return new class($content) implements IAiChatModel {
-			private array $messages = [];
-			private array $options = [];
-
-			public function __construct(private readonly string $content) {}
-
-			public function complete(array $messages, array $tools = []): AiChatResult {
-				$this->messages = $messages;
-				return new AiChatResult(
-					$this->content,
-					[],
-					new AiResultMetadata('capability_selection', 'test', 'router')
-				);
-			}
-
-			public function getMessages(): array { return $this->messages; }
-			public function chat(array $messages): string { return $this->content; }
-			public function raw(array $messages, array $tools = []): mixed { return $this->content; }
-			public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
-				$onData($this->content);
-				return $this->complete($messages, $tools);
-			}
-			public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void { $onData($this->content); }
-			public function setOptions(array $options): void { $this->options = $options; }
-			public function getOptions(): array { return $this->options; }
-		};
+		return new AgentCapabilitySelectionTestDouble1($content);
 	}
 
 	private function chatModel(string $content): IAiChatModel {
-		return new class($content) implements IAiChatModel {
-			private array $options = [];
-
-			public function __construct(private readonly string $content) {}
-
-			public function complete(array $messages, array $tools = []): AiChatResult {
-				return new AiChatResult(
-					$this->content,
-					[],
-					new AiResultMetadata('capability_selection', 'test', 'router')
-				);
-			}
-
-			public function chat(array $messages): string { return $this->content; }
-			public function raw(array $messages, array $tools = []): mixed { return $this->content; }
-			public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
-				$onData($this->content);
-				return $this->complete($messages, $tools);
-			}
-			public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void { $onData($this->content); }
-			public function setOptions(array $options): void { $this->options = $options; }
-			public function getOptions(): array { return $this->options; }
-		};
+		return new AgentCapabilitySelectionTestDouble2($content);
 	}
 }
+
+require_once __DIR__ . '/AgentCapabilitySelectionTestDouble1.php';
+
+require_once __DIR__ . '/AgentCapabilitySelectionTestDouble2.php';

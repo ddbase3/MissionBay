@@ -76,14 +76,4 @@ class AbstractAgentResourceTest extends TestCase {
 
 }
 
-class TestAgentResource extends AbstractAgentResource {
-
-	public static function getName(): string {
-		return 'testagentresource';
-	}
-
-	public function getDescription(): string {
-		return 'Test resource description';
-	}
-
-}
+require_once __DIR__ . '/TestAgentResource.php';

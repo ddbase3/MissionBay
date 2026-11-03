@@ -14,21 +14,7 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class MistralChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new MistralChatModelAgentResourceTestDouble1($map);
 	}
 
 	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
@@ -130,15 +116,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 	public function testChatReturnsAssistantContentFromRaw(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->providerRequestEvents(), 'm6') extends MistralChatModelAgentResource {
-			public function raw(array $messages, array $tools = []): mixed {
-				return [
-					'choices' => [
-						['message' => ['content' => 'Hallo!']]
-					]
-				];
-			}
-		};
+		$r = new MistralChatModelAgentResourceTestDouble2($resolver, $this->providerRequestEvents(), 'm6');
 
 		$r->setConfig(['apikey' => 'dummy']); // not used by overridden raw()
 
@@ -168,3 +146,7 @@ class MistralChatModelAgentResourceTest extends TestCase {
 		], $normalized);
 	}
 }
+
+require_once __DIR__ . '/MistralChatModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/MistralChatModelAgentResourceTestDouble2.php';

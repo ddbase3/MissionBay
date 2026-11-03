@@ -15,25 +15,11 @@ use MissionBay\Api\IAgentConfigValueResolver;
 class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {
-		return new class($map) implements IAgentConfigValueResolver {
-			private array $map;
-
-			public function __construct(array $map) {
-				$this->map = $map;
-			}
-
-			public function resolveValue(array|string|int|float|bool|null $config): mixed {
-				$key = is_array($config) ? json_encode($config) : (string)$config;
-				if (array_key_exists($key, $this->map)) {
-					return $this->map[$key];
-				}
-				return $config;
-			}
-		};
+		return new OpenAiEmbeddingModelAgentResourceTestDouble1($map);
 	}
 
 	private function classMap(): IClassMap {
-		return $this->createMock(IClassMap::class);
+		return $this->createStub(IClassMap::class);
 	}
 
 	private function providerRequestEvents(): AiProviderRequestEventDispatcher {
@@ -51,7 +37,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 		$r->setConfig([]);
 
 		$opts = $r->getOptions();
-		$this->assertNull($opts['model']);
+		$this->assertSame('text-embedding-3-small', $opts['model']);
 		$this->assertNull($opts['apikey']);
 		$this->assertSame('https://api.openai.com/v1/embeddings', $opts['endpoint']);
 	}
@@ -110,7 +96,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 		$r->setConfig([]); // apikey resolves to null
 
 		$this->expectException(\RuntimeException::class);
-		$this->expectExceptionMessage('Missing API key for OpenAI embedding model.');
+		$this->expectExceptionMessage('Unable to resolve provider "openaitransport"');
 
 		$r->embed(['hello']);
 	}
@@ -118,21 +104,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 	public function testEmbedMapsEmbeddingsFromResponse(): void {
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'e6') extends OpenAiEmbeddingModelAgentResource {
-			public function embed(array $texts): array {
-				if (empty($texts)) return [];
-
-				// Emulate a valid OpenAI response -> mapping behavior must match production code:
-				$data = [
-					'data' => [
-						['embedding' => [0.1, 0.2]],
-						['embedding' => [0.3, 0.4]],
-					],
-				];
-
-				return array_map(fn($item) => $item['embedding'] ?? [], $data['data']);
-			}
-		};
+		$r = new OpenAiEmbeddingModelAgentResourceTestDouble2($resolver, $this->classMap(), $this->providerRequestEvents(), 'e6');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -145,24 +117,7 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 		// then assert the same exception message as the production code would throw.
 		$resolver = $this->makeResolver([]);
 
-		$r = new class($resolver, $this->classMap(), $this->providerRequestEvents(), 'e7') extends OpenAiEmbeddingModelAgentResource {
-			public function embed(array $texts): array {
-				if (empty($texts)) return [];
-
-				$apikey = $this->getOptions()['apikey'] ?? null;
-				if (!$apikey) {
-					throw new \RuntimeException("Missing API key for OpenAI embedding model.");
-				}
-
-				$data = ['oops' => true]; // missing 'data' array
-
-				if (!isset($data['data']) || !is_array($data['data'])) {
-					throw new \RuntimeException("Malformed OpenAI embedding response.");
-				}
-
-				return array_map(fn($item) => $item['embedding'] ?? [], $data['data']);
-			}
-		};
+		$r = new OpenAiEmbeddingModelAgentResourceTestDouble3($resolver, $this->classMap(), $this->providerRequestEvents(), 'e7');
 
 		$r->setConfig(['apikey' => 'dummy']);
 
@@ -172,3 +127,9 @@ class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 		$r->embed(['x']);
 	}
 }
+
+require_once __DIR__ . '/OpenAiEmbeddingModelAgentResourceTestDouble1.php';
+
+require_once __DIR__ . '/OpenAiEmbeddingModelAgentResourceTestDouble2.php';
+
+require_once __DIR__ . '/OpenAiEmbeddingModelAgentResourceTestDouble3.php';

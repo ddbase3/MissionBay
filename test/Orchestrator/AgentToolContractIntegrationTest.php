@@ -17,6 +17,11 @@ use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
 use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
 use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
+use AssistantRuntime\Service\StateStoreAgentSuspensionRepository;
+use Base3\Test\State\StateStoreStub;
+use MissionBay\Orchestrator\Service\AgentActionReviewService;
+use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use PHPUnit\Framework\TestCase;
 
 final class AgentToolContractIntegrationTest extends TestCase {
@@ -54,6 +59,9 @@ final class AgentToolContractIntegrationTest extends TestCase {
 			new AgentActionPolicyStage(
 				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
 				new AgentActionFingerprint(),
+				new AgentActionReviewService(new AgentActionFingerprint(), new StateStoreAgentSuspensionRepository(new StateStoreStub())),
+				new AgentToolContractValidationService(),
+				new AgentCapabilitySelectionGuardService(),
 				'action-policy',
 				'action-policy',
 				['allow-all-actions']
@@ -91,103 +99,6 @@ final class AgentToolContractIntegrationTest extends TestCase {
 	}
 }
 
-final class InvalidOutputContractTool implements IAgentTool {
-
-	private int $executions = 0;
-
-	public static function getName(): string {
-		return 'invalidoutputcontracttool';
-	}
-
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'label' => 'Contract lookup',
-			'outputSchema' => [
-				'type' => 'object',
-				'required' => ['found'],
-				'properties' => [
-					'found' => ['type' => 'boolean']
-				]
-			],
-			'function' => [
-				'name' => 'contract_lookup',
-				'description' => 'Returns a deliberately invalid result for the integration test.',
-				'parameters' => [
-					'type' => 'object',
-					'required' => ['query'],
-					'properties' => [
-						'query' => ['type' => 'string']
-					]
-				]
-			]
-		]];
-	}
-
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		$this->executions++;
-
-		return ['found' => 1];
-	}
-
-	public function getExecutions(): int {
-		return $this->executions;
-	}
-}
-
-final class ContractQueueChatModel implements IAiChatModel {
-
-	use NormalizedChatModelTrait;
-
-	/** @var array<int,mixed> */
-	private array $responses;
-
-	/** @var array<int,array{0:array,1:array}> */
-	private array $calls = [];
-
-	/** @param array<int,mixed> $responses */
-	public function __construct(array $responses) {
-		$this->responses = $responses;
-	}
-
-	public function chat(array $messages): string {
-		return '';
-	}
-
-	public function raw(array $messages, array $tools = []): mixed {
-		$this->calls[] = [$messages, $tools];
-
-		return array_shift($this->responses);
-	}
-
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
-	}
-
-	public function setOptions(array $options): void {
-	}
-
-	public function getOptions(): array {
-		return [];
-	}
-
-	/** @return array<int,array{0:array,1:array}> */
-	public function getCalls(): array {
-		return $this->calls;
-	}
-}
-
-final class ContractRecordingEventManager implements IEventManager {
-
-	public function on(string $event, callable $listener, int $priority = 0): void {
-	}
-
-	public function once(string $event, callable $listener, int $priority = 0): void {
-	}
-
-	public function off(string $event, callable $listener): void {
-	}
-
-	public function fire(object|string $event, ...$args): array {
-		return [];
-	}
-}
+require_once __DIR__ . '/InvalidOutputContractTool.php';
+require_once __DIR__ . '/ContractQueueChatModel.php';
+require_once __DIR__ . '/ContractRecordingEventManager.php';

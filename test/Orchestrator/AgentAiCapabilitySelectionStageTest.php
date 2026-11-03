@@ -48,7 +48,7 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 			AgentToolLoopContextKeys::MODEL => $model,
 			AgentToolLoopContextKeys::MODEL_RESULTS => []
 		];
-		$context = $this->createMock(IAgentContext::class);
+		$context = $this->createStub(IAgentContext::class);
 		$context->method('getVar')->willReturnCallback(static fn(string $key): mixed => $vars[$key] ?? null);
 		$hybrid = new HybridAgentCapabilitySelector();
 		$stage = new AgentAiCapabilitySelectionStage(new SemanticAgentCapabilitySelector($hybrid));
@@ -73,7 +73,7 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 				selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE
 			)
 		];
-		$context = $this->createMock(IAgentContext::class);
+		$context = $this->createStub(IAgentContext::class);
 		$context->method('getVar')->willReturnCallback(static function(string $key) use (&$vars): mixed {
 			return $vars[$key] ?? null;
 		});
@@ -98,7 +98,7 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 				selectionUnit: AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION
 			)
 		];
-		$context = $this->createMock(IAgentContext::class);
+		$context = $this->createStub(IAgentContext::class);
 		$context->method('getVar')->willReturnCallback(static fn(string $key): mixed => $vars[$key] ?? null);
 		$stage = new AgentAiCapabilitySelectionStage(
 			new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector())
@@ -139,7 +139,7 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 			AgentToolLoopContextKeys::MODEL => $model,
 			AgentToolLoopContextKeys::MODEL_RESULTS => []
 		];
-		$context = $this->createMock(IAgentContext::class);
+		$context = $this->createStub(IAgentContext::class);
 		$context->method('getVar')->willReturnCallback(static fn(string $key): mixed => $vars[$key] ?? null);
 		$stage = new AgentAiCapabilitySelectionStage(
 			new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector())
@@ -152,7 +152,7 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 
 		$this->assertStringContainsString('user: Run the scheduled maintenance job.', $routerContext);
 		$this->assertStringContainsString('tool: The matching job identifier is maintenance-nightly.', $routerContext);
-		$this->assertStringNotContainsString('List all plugins.', $routerContext);
+		$this->assertStringContainsString('user: List all plugins.', $routerContext); // Prior user turn remains available for reference resolution.
 		$this->assertStringNotContainsString('Old routing instructions.', $routerContext);
 	}
 
@@ -189,7 +189,7 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 			AgentToolLoopContextKeys::MODEL => $model,
 			AgentToolLoopContextKeys::MODEL_RESULTS => []
 		];
-		$context = $this->createMock(IAgentContext::class);
+		$context = $this->createStub(IAgentContext::class);
 		$context->method('getVar')->willReturnCallback(static fn(string $key): mixed => $vars[$key] ?? null);
 		$stage = new AgentAiCapabilitySelectionStage(
 			new SemanticAgentCapabilitySelector(new HybridAgentCapabilitySelector())
@@ -244,31 +244,8 @@ final class AgentAiCapabilitySelectionStageTest extends TestCase {
 	}
 
 	private function chatModel(string $content): IAiChatModel {
-		return new class($content) implements IAiChatModel {
-			private array $messages = [];
-			private array $options = [];
-
-			public function __construct(private readonly string $content) {}
-
-			public function complete(array $messages, array $tools = []): AiChatResult {
-				$this->messages = $messages;
-				return new AiChatResult(
-					$this->content,
-					[],
-					new AiResultMetadata('capability_selection', 'test', 'router')
-				);
-			}
-
-			public function getMessages(): array { return $this->messages; }
-			public function chat(array $messages): string { return $this->content; }
-			public function raw(array $messages, array $tools = []): mixed { return $this->content; }
-			public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
-				$onData($this->content);
-				return $this->complete($messages, $tools);
-			}
-			public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void { $onData($this->content); }
-			public function setOptions(array $options): void { $this->options = $options; }
-			public function getOptions(): array { return $this->options; }
-		};
+		return new AgentAiCapabilitySelectionStageTestDouble1($content);
 	}
 }
+
+require_once __DIR__ . '/AgentAiCapabilitySelectionStageTestDouble1.php';

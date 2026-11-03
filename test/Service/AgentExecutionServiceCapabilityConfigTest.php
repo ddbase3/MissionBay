@@ -28,7 +28,8 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 			'type' => 'aiassistantnode',
 			'docks' => [
 				'chatmodel' => ['preset_chat_main']
-			]
+			],
+			'inputs' => []
 		]], $flow['nodes']);
 		$this->assertSame([[
 			'id' => 'preset_chat_main',
@@ -156,37 +157,15 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 	}
 
 	private function componentPresetRepository(): IAgentComponentPresetRepository {
-		return new class implements IAgentComponentPresetRepository {
-			private array $presets = [
-				'chat-main' => [
-					'id' => 'chat-main',
-					'label' => 'Primary chat model',
-					'type' => 'configuredchatmodelagentresource',
-					'enabled' => true,
-					'capabilities' => ['chatmodel'],
-					'config' => [
-						'service' => [
-							'mode' => 'fixed',
-							'value' => 'llm-a'
-						]
-					]
-				]
-			];
-
-			public function getPresets(): array { return $this->presets; }
-			public function getPreset(string $id, array $default = []): array { return $this->presets[$id] ?? $default; }
-			public function hasPreset(string $id): bool { return isset($this->presets[$id]); }
-			public function savePreset(string $id, array $preset): void { $this->presets[$id] = $preset; }
-			public function removePreset(string $id): void { unset($this->presets[$id]); }
-		};
+		return new AgentExecutionServiceCapabilityConfigTestDouble1();
 	}
 
 	private function createExecutionService(bool $expectResumeConnection, bool $expectModeConnection = false): AgentExecutionService {
-		$context = $this->createMock(IAgentContext::class);
-		$contextFactory = $this->createMock(IAgentContextFactory::class);
+		$context = $this->createStub(IAgentContext::class);
+		$contextFactory = $this->createStub(IAgentContextFactory::class);
 		$contextFactory->method('createContext')->willReturn($context);
 
-		$flow = $this->createMock(IAgentFlow::class);
+		$flow = $this->createStub(IAgentFlow::class);
 		$flow->method('run')->willReturn([]);
 
 		$flowFactory = $this->createMock(IAgentFlowFactory::class);
@@ -202,7 +181,7 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 			)
 			->willReturn($flow);
 
-		$compiler = $this->createMock(IAgentFlowCompiler::class);
+		$compiler = $this->createStub(IAgentFlowCompiler::class);
 		$compiler->method('compile')->willReturn(new AgentFlowCompilation(
 			$this->minimalCompiledFlow()
 		));
@@ -267,3 +246,5 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 		return $count;
 	}
 }
+
+require_once __DIR__ . '/AgentExecutionServiceCapabilityConfigTestDouble1.php';

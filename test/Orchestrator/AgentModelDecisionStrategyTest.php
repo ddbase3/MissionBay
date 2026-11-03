@@ -522,7 +522,7 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 		$this->assertSame('The plugin change was not completed.', $patch[AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT]);
 	}
 
-	public function testNativeStrategyStreamsTerminalContentAfterSuccessfulMutation(): void {
+	public function testNativeStrategyBuffersTerminalContentAfterSuccessfulMutation(): void {
 		$events = [];
 		$model = new ModelDecisionQueueChatModel([
 			new AiChatResult(
@@ -558,16 +558,14 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 
 		$patch = (new AgentModelDecisionStage())->process($context)->getPatch();
 
-		$this->assertSame([
-			['token', ['text' => 'The ReadSpeaker plugin is now inactive.']]
-		], $events);
-		$this->assertSame(AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_STREAMED, $patch[AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY]);
+		$this->assertSame([], $events);
+		$this->assertSame(AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY_BUFFERED, $patch[AgentToolLoopContextKeys::FINAL_OUTPUT_DELIVERY]);
 		$this->assertSame('The ReadSpeaker plugin is now inactive.', $patch[AgentToolLoopContextKeys::FINAL_OUTPUT_CONTENT]);
 		$systemContent = (string)($model->getLastMessages()[0]['content'] ?? '');
 		$this->assertStringContainsString('Authoritative current-turn execution ledger:', $systemContent);
 		$this->assertStringContainsString('successful_mutation_calls', $systemContent);
 		$this->assertStringContainsString('set_ilias_plugin_activation_state', $systemContent);
-		$this->assertStringContainsString('Never state or imply that a mutation succeeded unless successful_mutation_calls contains the corresponding tool call.', $systemContent);
+		$this->assertStringContainsString('Never state or imply that a mutation succeeded unless successful_mutation_calls contains the corresponding tool call and its returned evidence supports the specific claim.', $systemContent);
 	}
 
 	public function testNativeStrategyReportsInterruptedVisibleStreamWithoutRecoveryCall(): void {
@@ -670,97 +668,4 @@ final class AgentModelDecisionStrategyTest extends TestCase {
 	}
 }
 
-final class ModelDecisionQueueChatModel implements IAiChatModel {
-
-	/** @var array<int,AiChatResult> */
-	private array $results;
-	/** @var array<int,array<int,string>> */
-	private array $streamChunks;
-	private int $completeCalls = 0;
-	private int $streamCalls = 0;
-	private array $options = [];
-	private array $lastMessages = [];
-	private array $lastTools = [];
-	private ?\Throwable $streamError;
-	/** @var array<int,array<int,array<string,mixed>>> */
-	private array $streamMetadataEvents;
-
-	/**
-	 * @param array<int,AiChatResult> $results
-	 * @param array<int,array<int,string>> $streamChunks
-	 * @param array<int,array<int,array<string,mixed>>> $streamMetadataEvents
-	 */
-	public function __construct(
-		array $results,
-		array $streamChunks = [],
-		?\Throwable $streamError = null,
-		array $streamMetadataEvents = []
-	) {
-		$this->results = array_values($results);
-		$this->streamChunks = array_values($streamChunks);
-		$this->streamError = $streamError;
-		$this->streamMetadataEvents = array_values($streamMetadataEvents);
-	}
-
-	public function complete(array $messages, array $tools = []): AiChatResult {
-		$this->completeCalls++;
-		$this->lastMessages = $messages;
-		$this->lastTools = $tools;
-		return $this->nextResult();
-	}
-
-	public function getCompleteCalls(): int {
-		return $this->completeCalls;
-	}
-
-	public function getStreamCalls(): int {
-		return $this->streamCalls;
-	}
-
-	public function getLastMessages(): array {
-		return $this->lastMessages;
-	}
-
-	public function getLastTools(): array {
-		return $this->lastTools;
-	}
-
-	public function chat(array $messages): string { return $this->complete($messages)->getContent(); }
-	public function raw(array $messages, array $tools = []): mixed { return $this->complete($messages, $tools); }
-	public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
-		$this->streamCalls++;
-		$this->lastMessages = $messages;
-		$this->lastTools = $tools;
-		$result = $this->nextResult();
-		$metadataEvents = array_shift($this->streamMetadataEvents);
-		foreach (is_array($metadataEvents) ? $metadataEvents : [] as $metadata) {
-			if ($onMeta !== null) {
-				$onMeta($metadata);
-			}
-		}
-		$chunks = array_shift($this->streamChunks);
-		if (!is_array($chunks)) {
-			$chunks = $result->hasToolCalls() ? [] : [$result->getContent()];
-		}
-		foreach ($chunks as $chunk) {
-			$onData($chunk);
-		}
-		if ($this->streamError !== null) {
-			throw $this->streamError;
-		}
-		return $result;
-	}
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
-		$this->streamResult($messages, $tools, $onData, $onMeta);
-	}
-	public function setOptions(array $options): void { $this->options = $options; }
-	public function getOptions(): array { return $this->options; }
-
-	private function nextResult(): AiChatResult {
-		$result = array_shift($this->results);
-		if (!$result instanceof AiChatResult) {
-			throw new \RuntimeException('No queued model decision result available.');
-		}
-		return $result;
-	}
-}
+require_once __DIR__ . '/ModelDecisionQueueChatModel.php';

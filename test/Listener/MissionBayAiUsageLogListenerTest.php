@@ -72,7 +72,7 @@ final class MissionBayAiUsageLogListenerTest extends TestCase {
 		$queries = [];
 		$database = $this->createMock(IDatabase::class);
 		$logger = $this->createMock(ILogger::class);
-		$request = $this->createMock(IRequest::class);
+		$request = $this->createStub(IRequest::class);
 
 		$database->expects($this->once())->method('connect');
 		$database->expects($this->exactly(2))

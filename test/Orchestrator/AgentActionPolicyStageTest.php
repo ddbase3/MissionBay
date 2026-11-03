@@ -15,6 +15,11 @@ use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
 use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use MissionBay\Policy\AllowAllAgentActionPolicy;
+use AssistantRuntime\Service\StateStoreAgentSuspensionRepository;
+use Base3\Test\State\StateStoreStub;
+use MissionBay\Orchestrator\Service\AgentActionReviewService;
+use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 use PHPUnit\Framework\TestCase;
 
 final class AgentActionPolicyStageTest extends TestCase {
@@ -48,21 +53,18 @@ final class AgentActionPolicyStageTest extends TestCase {
 		$this->assertTrue($effectiveCall->getMetadata()['generated_call_id']);
 	}
 
-	public function testApprovalFailsClearlyWithoutReviewService(): void {
+	public function testApprovalUsesReviewServiceAndSuspendsToolExecution(): void {
 		$call = new AiToolCall('call-1', 'delete_record', ['id' => 42]);
 		$context = $this->createContext($call);
 		$stage = $this->createStage([new ApprovalAgentActionPolicy()]);
 
 		$patch = $stage->process($context)->getPatch();
 
-		$this->assertSame(
-			'action_review_service_unavailable',
-			$patch[AgentToolLoopContextKeys::FAILURE_CODE]
-		);
-		$this->assertSame(
-			'Agent action review requires an AgentActionReviewService implementation.',
-			$patch[AgentToolLoopContextKeys::FAILURE_MESSAGE]
-		);
+		$this->assertTrue($patch[AgentToolLoopContextKeys::SUSPENDED]);
+		$this->assertSame(AgentToolLoopContextKeys::PHASE_AWAITING_APPROVAL, $patch[AgentToolLoopContextKeys::PHASE]);
+		$this->assertSame([], $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS]);
+		$this->assertCount(1, $patch[AgentToolLoopContextKeys::INTERACTION_REQUESTS]);
+		$this->assertNotSame('', $patch[AgentToolLoopContextKeys::RESUME_HANDLE]);
 	}
 
 	public function testDenyPolicyBlocksToolCallAndCreatesObservationResult(): void {
@@ -123,9 +125,13 @@ final class AgentActionPolicyStageTest extends TestCase {
 			$policies
 		);
 
+		$fingerprint = new AgentActionFingerprint();
 		return new AgentActionPolicyStage(
 			new StaticAgentActionPolicyResolver($policies),
-			new AgentActionFingerprint(),
+			$fingerprint,
+			new AgentActionReviewService($fingerprint, new StateStoreAgentSuspensionRepository(new StateStoreStub())),
+			new AgentToolContractValidationService(),
+			new AgentCapabilitySelectionGuardService(),
 			'action-policy',
 			'action-policy',
 			$policyIds
@@ -146,84 +152,6 @@ final class AgentActionPolicyStageTest extends TestCase {
 	}
 }
 
-final class ApprovalAgentActionPolicy implements IAgentActionPolicy {
-
-	public static function getName(): string {
-		return 'approvalagentactionpolicy';
-	}
-
-	public function id(): string {
-		return 'approval-actions';
-	}
-
-	public function name(): string {
-		return 'approval-actions';
-	}
-
-	public function getDescription(): string {
-		return 'Requires approval for every action in tests.';
-	}
-
-	public function getAiUsage(): string {
-		return IAgentActionPolicy::AI_USAGE_NONE;
-	}
-
-	public function evaluate(AgentAction $action, IAgentContext $context): AgentActionDecision {
-		return AgentActionDecision::requireApproval($action->getId(), 'Approval required by test policy.');
-	}
-}
-
-final class DenyAgentActionPolicy implements IAgentActionPolicy {
-
-	public static function getName(): string {
-		return 'denyagentactionpolicy';
-	}
-
-	public function id(): string {
-		return 'deny-actions';
-	}
-
-	public function name(): string {
-		return 'deny-actions';
-	}
-
-	public function getDescription(): string {
-		return 'Denies every action in tests.';
-	}
-
-	public function getAiUsage(): string {
-		return IAgentActionPolicy::AI_USAGE_NONE;
-	}
-
-	public function evaluate(AgentAction $action, IAgentContext $context): AgentActionDecision {
-		return AgentActionDecision::deny($action->getId(), 'Denied by test policy.');
-	}
-}
-
-final class PolicyContractTool implements IAgentTool {
-
-	public static function getName(): string {
-		return 'policycontracttool';
-	}
-
-	public function getToolDefinitions(): array {
-		return [[
-			'type' => 'function',
-			'function' => [
-				'name' => 'lookup',
-				'parameters' => [
-					'type' => 'object',
-					'required' => ['query'],
-					'properties' => [
-						'query' => ['type' => 'string'],
-						'limit' => ['type' => 'integer']
-					]
-				]
-			]
-		]];
-	}
-
-	public function callTool(string $name, array $arguments, IAgentContext $context): mixed {
-		throw new \RuntimeException('This tool must not be called for invalid input.');
-	}
-}
+require_once __DIR__ . '/ApprovalAgentActionPolicy.php';
+require_once __DIR__ . '/DenyAgentActionPolicy.php';
+require_once __DIR__ . '/PolicyContractTool.php';
