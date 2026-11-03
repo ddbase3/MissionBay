@@ -233,6 +233,61 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$this->assertSame('example', $database->conversation['chatbot_config_name']);
 	}
 
+	public function testChatbotChannelWithoutSourceCannotCreatePersistentConversation(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$resource->init([], $this->context('chatbot:' . hash('sha256', "chatbot\0example")));
+
+		$this->expectException(\RuntimeException::class);
+		try {
+			$resource->createConversation('conversation-without-source');
+		}
+		finally {
+			$this->assertNull($database->conversation);
+			$this->assertFalse($this->containsQuery($database->queries, 'INSERT INTO base3_missionbay_conversation '));
+		}
+	}
+
+	public function testChatbotChannelWithOnlyOneSourceFieldIsRejected(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$context = $this->context('chatbot:' . hash('sha256', "chatbot\0example"));
+		$context->setVar('chatbot_config_group', 'chatbot');
+		$resource->init([], $context);
+
+		$this->expectException(\RuntimeException::class);
+		try {
+			$resource->createConversation('conversation-missing-name');
+		}
+		finally {
+			$this->assertNull($database->conversation);
+		}
+	}
+
+	public function testChatbotChannelWithSourceCanCreatePersistentConversation(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$context = $this->context('chatbot:' . hash('sha256', "chatbot\0example"));
+		$context->setVar('chatbot_config_group', 'chatbot');
+		$context->setVar('chatbot_config_name', 'example');
+		$resource->init([], $context);
+		$resource->createConversation('conversation-with-source');
+
+		$this->assertSame('chatbot', $database->conversation['chatbot_config_group']);
+		$this->assertSame('example', $database->conversation['chatbot_config_name']);
+	}
+
+	public function testScheduledAgentChannelDoesNotRequireChatbotSettingsReference(): void {
+		$database = new ConversationDatabaseStub();
+		$resource = $this->resource($database, 42, 'session-one');
+		$resource->init([], $this->context('scheduled-agent:reporting'));
+		$resource->createConversation('scheduled-conversation');
+
+		$this->assertSame('scheduled-agent:reporting', $database->conversation['channel_id']);
+		$this->assertSame('', $database->conversation['chatbot_config_group']);
+		$this->assertSame('', $database->conversation['chatbot_config_name']);
+	}
+
 	public function testHostDefinedNativeUserIdZeroIsNotMistakenForAnonymous(): void {
 		$database = new ConversationDatabaseStub();
 		$resource = $this->resource($database, 0, 'session-one');

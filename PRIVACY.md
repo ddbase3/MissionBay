@@ -73,6 +73,8 @@ MissionBay can receive or derive:
 
 Different features intentionally use different identity representations. After the conversation schema migration, new database conversations contain `owner_type=user` and the unmodified native `owner_id`. Historical hash-only rows remain until attributed or removed. The treatment of identity in AI usage and tool audits is separately defined by those subsystems.
 
+Persistent `chatbot:` conversations additionally require a nonempty configuration group and name at the database memory boundary. Missing or oversized references fail before insertion, avoiding new unresolvable chatbot ownership records. Non-chatbot agent channels, including scheduled agents, are unaffected. This check does not clean historical records, add retention, or verify that a referenced SettingsStore object still exists.
+
 ### 3.3 Tool arguments, results, and errors
 
 Tool calls can contain arbitrary domain data. This can include:
