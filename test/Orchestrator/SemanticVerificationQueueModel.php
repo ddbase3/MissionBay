@@ -61,7 +61,7 @@ final class SemanticVerificationQueueModel implements IAiChatModel {
 		return $this->calls;
 	}
 
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 	}
 
 	public function setOptions(array $options): void {

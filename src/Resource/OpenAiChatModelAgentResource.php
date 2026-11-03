@@ -137,7 +137,7 @@ class OpenAiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): void {
 		$model = $this->resolvedOptions['model'] ?? 'gpt-4o-mini';
 		$temp = $this->resolvedOptions['temperature'] ?? 0.7;

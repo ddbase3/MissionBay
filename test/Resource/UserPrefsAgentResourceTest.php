@@ -2,6 +2,7 @@
 
 namespace MissionBay\Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Base3\Accesscontrol\Api\IAccesscontrol;
 use Base3\Database\Api\IDatabase;
@@ -12,9 +13,7 @@ use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Api\IAgentMutationGuardedTool;
 use MissionBay\Resource\UserPrefsAgentResource;
 
-/**
- * @covers \MissionBay\Resource\UserPrefsAgentResource
- */
+#[CoversClass(\MissionBay\Resource\UserPrefsAgentResource::class)]
 class UserPrefsAgentResourceTest extends TestCase {
 
 	private function makeResolverStub(array $map): IAgentConfigValueResolver {

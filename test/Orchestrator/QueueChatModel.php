@@ -82,7 +82,7 @@ final class QueueChatModel implements IAiChatModel {
 		return $response;
 	}
 
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 	}
 
 	public function setOptions(array $options): void {

@@ -29,11 +29,11 @@ final class AgentCapabilitySelectionTestDouble2 implements IAiChatModel {
 
 			public function chat(array $messages): string { return $this->content; }
 			public function raw(array $messages, array $tools = []): mixed { return $this->content; }
-			public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
+			public function streamResult(array $messages, array $tools, callable $onData, ?callable $onMeta = null): AiChatResult {
 				$onData($this->content);
 				return $this->complete($messages, $tools);
 			}
-			public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void { $onData($this->content); }
+			public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void { $onData($this->content); }
 			public function setOptions(array $options): void { $this->options = $options; }
 			public function getOptions(): array { return $this->options; }
 		}

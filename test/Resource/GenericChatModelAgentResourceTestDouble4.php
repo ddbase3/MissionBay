@@ -9,7 +9,7 @@ use MissionBay\Resource\GenericChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 final class GenericChatModelAgentResourceTestDouble4 extends GenericChatModelAgentResource {
-			public function runWriteFunction(string $chunk, callable $onData, callable $onMeta = null): int {
+			public function runWriteFunction(string $chunk, callable $onData, ?callable $onMeta = null): int {
 				$fn = function ($ch, $chunk) use ($onData, $onMeta) {
 					$lines = preg_split("/\r\n|\n|\r/", $chunk);
 					foreach ($lines as $line) {

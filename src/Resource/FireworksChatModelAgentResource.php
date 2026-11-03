@@ -159,7 +159,7 @@ class FireworksChatModelAgentResource extends AbstractAgentResource implements I
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): void {
 
 		$opts = $this->resolvedOptions;

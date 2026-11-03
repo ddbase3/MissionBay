@@ -294,7 +294,7 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): AiChatResult {
 		$sendMessages = $this->stripOrphanedToolMessages($messages);
 		$result = $this->routeCall(
@@ -312,7 +312,7 @@ class RoutingChatModelAgentResource extends AbstractAgentResource implements IAi
 		return $result;
 	}
 
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 		// Streaming phase should not carry tool messages unless they are properly paired.
 		$sendMessages = $this->stripOrphanedToolMessages($messages);
 

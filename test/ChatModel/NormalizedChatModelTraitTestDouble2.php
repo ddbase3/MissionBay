@@ -28,7 +28,7 @@ final class NormalizedChatModelTraitTestDouble2 {
 				array $messages,
 				array $tools,
 				callable $onData,
-				callable $onMeta = null
+				?callable $onMeta = null
 			): void {
 				$onData('Hello');
 				$onData(' world');

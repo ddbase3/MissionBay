@@ -2,6 +2,7 @@
 
 namespace MissionBay\Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use AssistantFoundation\Api\IAgentContext;
 use AssistantFoundation\Api\IAgentEventSink;
@@ -9,9 +10,7 @@ use AssistantFoundation\Dto\AgentExecutionEvent;
 use MissionBay\Api\IAgentTool;
 use MissionBay\Resource\ToolProxyAgentTool;
 
-/**
- * @covers \MissionBay\Resource\ToolProxyAgentTool
- */
+#[CoversClass(\MissionBay\Resource\ToolProxyAgentTool::class)]
 class ToolProxyAgentToolTest extends TestCase {
 
 	private function makeContextWithEventSink(array &$events): IAgentContext {

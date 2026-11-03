@@ -28,7 +28,7 @@ final class NormalizedChatModelTraitTestDouble3 {
 				array $messages,
 				array $tools,
 				callable $onData,
-				callable $onMeta = null
+				?callable $onMeta = null
 			): void {
 				$onMeta([
 					'event' => 'meta',

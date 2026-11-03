@@ -71,7 +71,7 @@ final class ModelDecisionQueueChatModel implements IAiChatModel {
 
 	public function chat(array $messages): string { return $this->complete($messages)->getContent(); }
 	public function raw(array $messages, array $tools = []): mixed { return $this->complete($messages, $tools); }
-	public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
+	public function streamResult(array $messages, array $tools, callable $onData, ?callable $onMeta = null): AiChatResult {
 		$this->streamCalls++;
 		$this->lastMessages = $messages;
 		$this->lastTools = $tools;
@@ -94,7 +94,7 @@ final class ModelDecisionQueueChatModel implements IAiChatModel {
 		}
 		return $result;
 	}
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 		$this->streamResult($messages, $tools, $onData, $onMeta);
 	}
 	public function setOptions(array $options): void { $this->options = $options; }

@@ -176,7 +176,7 @@ class GenericChatModelAgentResource extends AbstractAgentResource implements IAi
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): void {
 
 		$model     = $this->resolvedOptions['model'];

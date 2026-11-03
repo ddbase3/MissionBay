@@ -58,14 +58,14 @@ final class ApprovalQueueChatModel implements IAiChatModel {
 		}
 		return array_shift($this->responses);
 	}
-	public function streamResult(array $messages, array $tools, callable $onData, callable $onMeta = null): AiChatResult {
+	public function streamResult(array $messages, array $tools, callable $onData, ?callable $onMeta = null): AiChatResult {
 		$result = $this->complete($messages, $tools);
 		if (!$result->hasToolCalls() && $result->getContent() !== '') {
 			$onData($result->getContent());
 		}
 		return $result;
 	}
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 		$this->streamResult($messages, $tools, $onData, $onMeta);
 	}
 	public function setOptions(array $options): void {}

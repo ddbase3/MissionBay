@@ -37,12 +37,12 @@ final class SuggestionsChatModelDouble implements IAiChatModel {
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): AiChatResult {
 		return $this->complete($messages, $tools);
 	}
 
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 		$onData('Suggestions');
 	}
 

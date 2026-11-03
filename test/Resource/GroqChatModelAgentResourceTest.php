@@ -2,15 +2,14 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Base3\Event\EventManager;
 use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\GroqChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
-/**
- * @covers \MissionBay\Resource\GroqChatModelAgentResource
- */
+#[CoversClass(\MissionBay\Resource\GroqChatModelAgentResource::class)]
 class GroqChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

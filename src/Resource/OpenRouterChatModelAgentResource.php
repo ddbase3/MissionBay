@@ -201,7 +201,7 @@ class OpenRouterChatModelAgentResource extends AbstractAgentResource implements 
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): void {
 
 		$model     = $this->resolvedOptions['model'] ?? null;

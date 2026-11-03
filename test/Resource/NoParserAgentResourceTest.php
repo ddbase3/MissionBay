@@ -6,14 +6,13 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\NoParserAgentResource;
 use MissionBay\Dto\AgentContentItem;
 use MissionBay\Dto\AgentParsedContent;
 
-/**
- * @covers \MissionBay\Resource\NoParserAgentResource
- */
+#[CoversClass(\MissionBay\Resource\NoParserAgentResource::class)]
 class NoParserAgentResourceTest extends TestCase {
 
 	private function makeItem(

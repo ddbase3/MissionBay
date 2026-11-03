@@ -59,14 +59,13 @@ if (!function_exists(__NAMESPACE__ . '\curl_close')) {
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\QdrantVectorSearch;
 use MissionBay\Resource\FakeCurlState;
 use MissionBay\Api\IAgentConfigValueResolver;
 
-/**
- * @covers \MissionBay\Resource\QdrantVectorSearch
- */
+#[CoversClass(\MissionBay\Resource\QdrantVectorSearch::class)]
 class QdrantVectorSearchTest extends TestCase {
 
 	protected function setUp(): void {

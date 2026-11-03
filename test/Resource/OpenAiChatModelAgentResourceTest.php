@@ -6,6 +6,7 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Base3\Api\IClassMap;
 use Base3\Event\EventManager;
@@ -13,9 +14,7 @@ use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\OpenAiChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
-/**
- * @covers \MissionBay\Resource\OpenAiChatModelAgentResource
- */
+#[CoversClass(\MissionBay\Resource\OpenAiChatModelAgentResource::class)]
 class OpenAiChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

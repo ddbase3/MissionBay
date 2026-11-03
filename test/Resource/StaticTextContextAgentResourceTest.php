@@ -7,11 +7,10 @@ use AssistantFoundation\Api\IAgentContextContributor;
 use Base3\Api\ISchemaProvider;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Resource\AgentContext\Text\StaticTextContextAgentResource;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers \MissionBay\Resource\AgentContext\Text\StaticTextContextAgentResource
- */
+#[CoversClass(\MissionBay\Resource\AgentContext\Text\StaticTextContextAgentResource::class)]
 final class StaticTextContextAgentResourceTest extends TestCase {
 
 	public function testContractsNameAndDescription(): void {

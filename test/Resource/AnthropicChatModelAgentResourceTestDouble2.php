@@ -17,7 +17,7 @@ final class AnthropicChatModelAgentResourceTestDouble2 extends AnthropicChatMode
 			 *
 			 * @param string[] $chunks
 			 */
-			public function runParser(array $chunks, callable $onData, callable $onMeta = null): void {
+			public function runParser(array $chunks, callable $onData, ?callable $onMeta = null): void {
 				$buffer = '';
 				$eventName = '';
 

@@ -2,13 +2,12 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\NoChunkerAgentResource;
 use MissionBay\Dto\AgentParsedContent;
 
-/**
- * @covers \MissionBay\Resource\NoChunkerAgentResource
- */
+#[CoversClass(\MissionBay\Resource\NoChunkerAgentResource::class)]
 class NoChunkerAgentResourceTest extends TestCase {
 
 	private function makeParsedContent(?string $text): AgentParsedContent {

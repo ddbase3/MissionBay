@@ -2,15 +2,14 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Base3\Event\EventManager;
 use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\GeminiChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
-/**
- * @covers \MissionBay\Resource\GeminiChatModelAgentResource
- */
+#[CoversClass(\MissionBay\Resource\GeminiChatModelAgentResource::class)]
 class GeminiChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

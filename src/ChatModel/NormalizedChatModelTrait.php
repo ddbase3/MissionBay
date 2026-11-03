@@ -44,7 +44,7 @@ trait NormalizedChatModelTrait {
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): AiChatResult {
 		$startedAt = microtime(true);
 		$content = '';

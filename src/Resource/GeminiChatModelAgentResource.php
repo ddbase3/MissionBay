@@ -277,7 +277,7 @@ class GeminiChatModelAgentResource extends AbstractAgentResource implements IAiC
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): void {
 
 		$apikey    = $this->resolvedOptions['apikey'] ?? null;

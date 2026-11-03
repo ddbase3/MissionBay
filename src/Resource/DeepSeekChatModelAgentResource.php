@@ -164,7 +164,7 @@ class DeepSeekChatModelAgentResource extends AbstractAgentResource implements IA
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): void {
 
 		$opts = $this->resolvedOptions;

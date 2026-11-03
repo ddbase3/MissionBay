@@ -104,12 +104,12 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 		array $messages,
 		array $tools,
 		callable $onData,
-		callable $onMeta = null
+		?callable $onMeta = null
 	): AiChatResult {
 		return $this->prepareModel()->streamResult($messages, $tools, $onData, $onMeta);
 	}
 
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 		$this->prepareModel()->stream($messages, $tools, $onData, $onMeta);
 	}
 

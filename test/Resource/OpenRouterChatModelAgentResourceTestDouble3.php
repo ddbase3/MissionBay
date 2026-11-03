@@ -9,7 +9,7 @@ use MissionBay\Resource\OpenRouterChatModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
 final class OpenRouterChatModelAgentResourceTestDouble3 extends OpenRouterChatModelAgentResource {
-			public function emitPayload(array $payload, callable $onData, callable $onMeta = null): void {
+			public function emitPayload(array $payload, callable $onData, ?callable $onMeta = null): void {
 				$this->handleStreamPayload($payload, $onData, $onMeta);
 			}
 		}

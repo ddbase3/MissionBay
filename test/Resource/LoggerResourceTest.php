@@ -2,14 +2,13 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\Logger\Logger\LoggerResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 use Base3\Logger\Api\ILogger;
 
-/**
- * @covers \MissionBay\Resource\Logger\Logger\LoggerResource
- */
+#[CoversClass(\MissionBay\Resource\Logger\Logger\LoggerResource::class)]
 class LoggerResourceTest extends TestCase {
 
 	private function makeResolver(?string $resolvedScope): IAgentConfigValueResolver {

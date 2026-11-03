@@ -37,7 +37,7 @@ final class InteractionResolverQueueChatModel implements IAiChatModel {
 		}
 		return array_shift($this->responses);
 	}
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {}
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {}
 	public function setOptions(array $options): void {}
 	public function getOptions(): array { return []; }
 }

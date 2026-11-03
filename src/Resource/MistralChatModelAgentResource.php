@@ -158,7 +158,7 @@ class MistralChatModelAgentResource extends AbstractAgentResource implements IAi
 		return $data;
 	}
 
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 
 		$model     = $this->resolvedOptions['model'] ?? null;
 		$apikey    = $this->resolvedOptions['apikey'] ?? null;

@@ -2,6 +2,7 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Base3\Api\IClassMap;
 use Base3\Event\EventManager;
@@ -9,9 +10,7 @@ use MissionBay\Ai\AiProviderRequestEventDispatcher;
 use MissionBay\Resource\OpenAiEmbeddingModelAgentResource;
 use MissionBay\Api\IAgentConfigValueResolver;
 
-/**
- * @covers \MissionBay\Resource\OpenAiEmbeddingModelAgentResource
- */
+#[CoversClass(\MissionBay\Resource\OpenAiEmbeddingModelAgentResource::class)]
 class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

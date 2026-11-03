@@ -111,7 +111,7 @@ abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 		);
 	}
 
-	public function stream(array $messages, array $tools, callable $onData, callable $onMeta = null): void {
+	public function stream(array $messages, array $tools, callable $onData, ?callable $onMeta = null): void {
 		$payload = $this->buildPayload($messages, $tools, true);
 		$sseBuffer = '';
 		$this->resetReasoningStream();

@@ -2,14 +2,13 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\DummyExtractorAgentResource;
 use AssistantFoundation\Api\IAgentContext;
 use MissionBay\Dto\AgentContentItem;
 
-/**
- * @covers \MissionBay\Resource\DummyExtractorAgentResource
- */
+#[CoversClass(\MissionBay\Resource\DummyExtractorAgentResource::class)]
 class DummyExtractorAgentResourceTest extends TestCase {
 
 	private function makeContextStub(): IAgentContext {

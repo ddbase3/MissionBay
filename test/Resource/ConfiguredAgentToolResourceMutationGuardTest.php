@@ -21,11 +21,10 @@ use MissionBay\Orchestrator\AgentActionFingerprint;
 use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use MissionBay\Resource\ConfiguredAgentToolResource;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-/**
- * @covers \MissionBay\Resource\ConfiguredAgentToolResource
- */
+#[CoversClass(\MissionBay\Resource\ConfiguredAgentToolResource::class)]
 final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 
 	public function testConfiguredWrapperForwardsMutationGuardToDockedTool(): void {

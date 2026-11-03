@@ -2,6 +2,7 @@
 
 namespace Test\Resource;
 
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use MissionBay\Resource\HelloWorldCanvasAgentTool;
 use AssistantFoundation\Api\IAgentContext;
@@ -9,9 +10,7 @@ use AssistantFoundation\Api\IAgentEventSink;
 use AssistantFoundation\Dto\AgentExecutionEvent;
 use AssistantFoundation\Api\IAgentMemory;
 
-/**
- * @covers \MissionBay\Resource\HelloWorldCanvasAgentTool
- */
+#[CoversClass(\MissionBay\Resource\HelloWorldCanvasAgentTool::class)]
 class HelloWorldCanvasAgentToolTest extends TestCase {
 
 	private function makeContext(array $vars = []): IAgentContext {
