@@ -409,6 +409,24 @@ The `ToolUseLogRetentionDiagnosticCheck` is an independent, classmap-discoverabl
 
 The privacy diagnostics scope now includes `ExternalConnectionTransportDiagnosticCheck` in addition to tool-use log retention. It inspects the enabled HTTP connections in the existing `ISettingsStore` group `connection`, reports aggregate results and never opens a network connection or includes secrets/URLs in the output. Remote connections must have an HTTPS URL to pass; loopback development endpoints are not treated as remote.
 
+### Vector-search configuration authorization
+
+`MissionBay\Display\VectorSearchConfigDisplay` is a direct `IDisplay` endpoint and is not a tab in the existing Settings navigation. It checks `feature/vectorsearchconfigfeature` before serving HTML or JSON. `MissionBay\Feature\VectorSearchConfigFeature` owns that permission with the logical BASE3 `administration` group as its default audience; the effective audience remains configurable through the existing BASE3 feature administration. The feature's translated label and description are owned by `MissionBay/lang/Features/`. This does not add a navigation item, a permission backend, or a new data store.
+
 ### Feature-based AI usage visibility
 
 `MissionBay\Feature\AiUsageReportsFeature` declares `feature/aiusagereportsfeature`. It uses the logical BASE3 `development` group as its default audience and supplies labels through MissionBay-owned translations. Host navigation can hide the AI usage tab on a denied authorization decision. The underlying reporting executor must still authorize direct report and data requests independently of the tab.
+
+## Discoverable Settings entries
+
+MissionBay contributes its Provider, AI Usage, Agents, Agent Tools, and
+Embedding settings groups with their child tabs from `src/SettingsTab/`.
+Each child has a plugin-owned `IFeature`, translated label and description in
+`MissionBay/lang/Settings/`; the shared Settings renderer discovers them through
+`IClassMap`. Unique feature permissions control visibility and the concrete
+admin display owner enforces access to its own HTML/JSON operations.
+
+AI Usage tabs reuse generic Vizion reports and ClientStack composites with
+static report configuration. Those generic renderers must not become
+MissionBay-specific authorization services; directly reachable report queries
+and data sources retain their independent owner-side access requirements.

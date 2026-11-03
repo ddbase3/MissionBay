@@ -17,6 +17,7 @@
 
 namespace MissionBay\Display;
 
+use Base3\Authorization\Api\IAuthorizationService;
 use Base3\Api\IClassMap;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
@@ -38,13 +39,18 @@ final class ParserServiceConfigDisplay extends AbstractServiceConfigDisplay {
 		ISettingsStore $settingsStore,
 		IClassMap $classMap,
 		private readonly IConfiguredParserServiceResolver $parserServiceResolver,
-		private readonly IParserServiceTestService $parserServiceTestService
+		private readonly IParserServiceTestService $parserServiceTestService,
+		IAuthorizationService $settingsAuthorization
 	) {
-		parent::__construct($view, $request, $linkTargetService, $settingsStore, $classMap);
+		parent::__construct($view, $request, $linkTargetService, $settingsStore, $classMap, $settingsAuthorization);
 	}
 
 	public static function getName(): string {
 		return 'parserserviceconfigdisplay';
+	}
+
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\ParserserviceconfigSettingsTab::getName();
 	}
 
 	public function getHelp(): string {

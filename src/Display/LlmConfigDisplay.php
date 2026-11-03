@@ -27,6 +27,10 @@ final class LlmConfigDisplay extends AbstractServiceConfigDisplay {
 		return 'llmconfigdisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\LlmconfigSettingsTab::getName();
+	}
+
 	public function getHelp(): string {
 		return 'Configure LLM services stored in settings group "service-llm".';
 	}

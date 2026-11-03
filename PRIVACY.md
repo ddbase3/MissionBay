@@ -1363,3 +1363,16 @@ A secure deployment should configure, authorize, minimize, retain, and delete da
 ### Conversation memory encryption management (2026-10-26)
 
 The database-memory resource has no local encryption configuration field or validation path. KeyHarbor owns the profile and target assignment. With no assigned profile, new conversation content is written unencrypted; an invalid assigned profile fails instead of silently writing plaintext. Existing encrypted rows still require the original secrets under their historical key IDs. This change does not modify existing conversation rows or retention periods. The resource does not inspect chat history to decide whether a KeyHarbor key may be removed.
+
+## Settings authorization boundary
+
+The directly routable `VectorSearchConfigDisplay` uses the MissionBay-owned `feature/vectorsearchconfigfeature` permission on both HTML and JSON requests. Its default audience is the logical `administration` group and is subject to the host's existing feature-configuration and authorization authority. This protection does not alter settings storage, retention, external recipients or any vector-search data processing. It does not add the display to Settings navigation.
+
+MissionBay settings features govern the visibility of its own administrative
+entries, while its concrete service configuration and agent admin display
+entry points check the matching feature on direct requests. Configuration,
+logs, memory and retrieval content continue to be governed by their owning
+services and the deployment's actual data retention. Generic AI Usage report
+widgets and their direct backend/report routes need separate report-owner
+authorization scrutiny; visibility in Settings is not proof of data access
+control or privacy compliance.

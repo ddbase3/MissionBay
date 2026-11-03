@@ -17,6 +17,8 @@
 
 namespace MissionBay\Display;
 
+use MissionBay\Feature\VectorSearchConfigFeature;
+
 final class VectorSearchConfigDisplay extends AbstractServiceConfigDisplay {
 
 	private const SETTINGS_GROUP = 'service-vectorsearch';
@@ -25,6 +27,10 @@ final class VectorSearchConfigDisplay extends AbstractServiceConfigDisplay {
 
 	public static function getName(): string {
 		return 'vectorsearchconfigdisplay';
+	}
+
+	protected function settingsTabFeatureName(): string {
+		return VectorSearchConfigFeature::getName();
 	}
 
 	public function getHelp(): string {

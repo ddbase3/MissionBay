@@ -6,6 +6,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use Base3\Api\IAssetResolver;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
@@ -40,7 +43,8 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 		private readonly AgentMemoryProfileResolver $memoryProfiles,
 		private readonly AgentContextProfileResolver $contextProfiles,
 		private readonly IAgentFlowCompiler $flowCompiler,
-		private readonly AgentCompositionInspector $compositionInspector
+		private readonly AgentCompositionInspector $compositionInspector,
+		private readonly IAuthorizationService $settingsAuthorization
 	) {}
 
 	public static function getName(): string {
@@ -52,6 +56,14 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 	}
 
 	public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', \MissionBay\SettingsTab\AgentcompositionadminSettingsTab::getName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
 		if (strtolower($out) === 'json') {
 			return $this->handleJson($final);
 		}

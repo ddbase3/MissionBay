@@ -27,6 +27,10 @@ final class VectorStoreConfigDisplay extends AbstractServiceConfigDisplay {
 		return 'vectorstoreconfigdisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\VectorstoreconfigSettingsTab::getName();
+	}
+
 	public function getHelp(): string {
 		return 'Configure vector stores stored in settings group "service-vectorstore".';
 	}

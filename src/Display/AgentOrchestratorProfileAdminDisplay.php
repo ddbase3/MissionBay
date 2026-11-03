@@ -6,6 +6,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use Base3\Api\IAssetResolver;
 use Base3\Api\IDisplay;
@@ -32,7 +35,8 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 		private readonly IMvcView $view,
 		private readonly IAssetResolver $assetResolver,
 		private readonly ILinkTargetService $linkTargetService,
-		private readonly AgentOrchestratorProfileRepository $profileRepository
+		private readonly AgentOrchestratorProfileRepository $profileRepository,
+		private readonly IAuthorizationService $settingsAuthorization
 	) {}
 
 	public static function getName(): string {
@@ -44,6 +48,14 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 	}
 
 	public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', \MissionBay\SettingsTab\AgentorchestratorprofileadminSettingsTab::getName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
 		if (strtolower($out) === 'json') {
 			return $this->handleJson($final);
 		}

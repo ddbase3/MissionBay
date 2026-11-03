@@ -6,6 +6,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use AssistantFoundation\Api\IAiEmbeddingModel;
 use AssistantFoundation\Api\IRetrievalCollectionDefinition;
 use AssistantFoundation\Api\IRetrievalIndex;
@@ -27,7 +30,8 @@ final class EmbeddingOrchestratorConfigAdminDisplay implements IDisplay {
 		private readonly ILinkTargetService $linkTargetService,
 		private readonly IEmbeddingOrchestratorConfigRepository $configRepository,
 		private readonly IAgentComponentPresetCatalog $presetCatalog,
-		private readonly IRetrievalCollectionDefinition $collectionDefinition
+		private readonly IRetrievalCollectionDefinition $collectionDefinition,
+		private readonly IAuthorizationService $settingsAuthorization
 	) {}
 
 	public static function getName(): string {
@@ -43,6 +47,14 @@ final class EmbeddingOrchestratorConfigAdminDisplay implements IDisplay {
 	}
 
 	public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', \MissionBay\SettingsTab\EmbeddingorchestratorconfigadminSettingsTab::getName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
 		if(strtolower($out) === 'json') {
 			return $this->handleJson($final);
 		}

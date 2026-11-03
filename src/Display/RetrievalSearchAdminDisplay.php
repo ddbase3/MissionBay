@@ -17,6 +17,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
@@ -38,7 +41,8 @@ final class RetrievalSearchAdminDisplay implements IDisplay {
 		private readonly IRequest $request,
 		private readonly IMvcView $view,
 		private readonly ILinkTargetService $linkTargetService,
-		private readonly IRetrievalSearchService $retrievalSearchService
+		private readonly IRetrievalSearchService $retrievalSearchService,
+		private readonly IAuthorizationService $settingsAuthorization
 	) {}
 
 	public static function getName(): string {
@@ -54,6 +58,14 @@ final class RetrievalSearchAdminDisplay implements IDisplay {
 	}
 
 	public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', \MissionBay\SettingsTab\RetrievalsearchadminSettingsTab::getName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
 		if(strtolower($out) === 'json') {
 			return $this->handleJson($final);
 		}

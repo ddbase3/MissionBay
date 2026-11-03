@@ -55,6 +55,10 @@ final class SpeechToTextConfigDisplay extends AbstractServiceConfigDisplay {
 		return 'speechtotextconfigdisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\SpeechtotextconfigSettingsTab::getName();
+	}
+
 	public function getHelp(): string {
 		return 'Configure realtime speech-to-text services stored in settings group "service-stt".';
 	}

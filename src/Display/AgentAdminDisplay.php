@@ -17,6 +17,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use Base3\Api\IAssetResolver;
 use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
@@ -56,8 +59,9 @@ final class AgentAdminDisplay implements IDisplay {
                 private readonly ILinkTargetService $linkTargetService,
                 private readonly IClassMap $classMap,
                 private readonly IAgentConfigFormService $agentConfigFormService,
-                private readonly IAgentExecutionService $agentExecutionService
-        ) {}
+                private readonly IAgentExecutionService $agentExecutionService,
+		private readonly IAuthorizationService $settingsAuthorization
+	) {}
 
         public static function getName(): string {
                 return 'agentadmindisplay';
@@ -68,6 +72,14 @@ final class AgentAdminDisplay implements IDisplay {
         }
 
         public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', \MissionBay\SettingsTab\AgentadminSettingsTab::getName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
                 $out = strtolower((string)$out);
 
                 if($out === 'json') {

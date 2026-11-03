@@ -6,6 +6,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use Base3\Api\IAssetResolver;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
@@ -33,7 +36,8 @@ class AgentMemoryProfileAdminDisplay implements IDisplay {
 		private readonly ISettingsStore $settingsStore,
 		private readonly ILinkTargetService $linkTargetService,
 		private readonly AgentMemoryProfileResolver $memoryProfiles,
-		private readonly AgentContextProfileResolver $contextProfiles
+		private readonly AgentContextProfileResolver $contextProfiles,
+		private readonly IAuthorizationService $settingsAuthorization
 	) {}
 
 	public static function getName(): string {
@@ -45,10 +49,22 @@ class AgentMemoryProfileAdminDisplay implements IDisplay {
 	}
 
 	public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', $this->settingsTabFeatureName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
 		if (strtolower($out) === 'json') {
 			return $this->handleJson($final);
 		}
 		return $this->handleHtml();
+	}
+
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\AgentmemoryprofileadminSettingsTab::getName();
 	}
 
 	public function getHelp(): string {

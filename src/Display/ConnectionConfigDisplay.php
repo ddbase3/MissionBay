@@ -17,6 +17,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use Base3\Api\IClassMap;
 use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
@@ -38,7 +41,8 @@ final class ConnectionConfigDisplay implements IDisplay {
 		private readonly ILinkTargetService $linkTargetService,
 		private readonly ISettingsStore $settingsStore,
 		private readonly IClassMap $classMap,
-		private readonly IConfigValueResolver $configValueResolver
+		private readonly IConfigValueResolver $configValueResolver,
+		private readonly IAuthorizationService $settingsAuthorization
 	) {}
 
 	public static function getName(): string {
@@ -54,6 +58,14 @@ final class ConnectionConfigDisplay implements IDisplay {
 	}
 
 	public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', \MissionBay\SettingsTab\ConnectionconfigSettingsTab::getName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
 		$out = strtolower((string)$out);
 
 		if($out === 'json') {

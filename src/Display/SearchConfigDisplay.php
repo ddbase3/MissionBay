@@ -27,6 +27,10 @@ final class SearchConfigDisplay extends AbstractServiceConfigDisplay {
 		return 'searchconfigdisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\SearchconfigSettingsTab::getName();
+	}
+
 	public function getHelp(): string {
 		return 'Configure web search services stored in settings group "service-search".';
 	}

@@ -17,6 +17,9 @@
 
 namespace MissionBay\Display;
 
+use Base3\Usermanager\Permission;
+use Base3\Authorization\Dto\AuthorizationRequest;
+use Base3\Authorization\Api\IAuthorizationService;
 use AssistantFoundation\Api\IAiServiceTester;
 use AssistantFoundation\Api\IServiceDriverDefinition;
 use Base3\Api\IClassMap;
@@ -37,10 +40,14 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 		protected readonly IRequest $request,
 		protected readonly ILinkTargetService $linkTargetService,
 		protected readonly ISettingsStore $settingsStore,
-		protected readonly IClassMap $classMap
+		protected readonly IClassMap $classMap,
+		private readonly IAuthorizationService $settingsAuthorization
 	) {}
 
 	abstract public static function getName(): string;
+
+	/** Returns the feature owned by the concrete settings entry. */
+	abstract protected function settingsTabFeatureName(): string;
 
 	abstract protected function getSettingsGroup(): string;
 
@@ -94,6 +101,14 @@ abstract class AbstractServiceConfigDisplay implements IDisplay {
 	}
 
 	public function getOutput(string $out = 'html', bool $final = false): string {
+		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
+			$this->settingsAuthorization->getDefaultAuthority(),
+			Permission::for('feature', $this->settingsTabFeatureName())
+		))->isAllowed()) {
+			http_response_code(403);
+			return '';
+		}
+
 		$out = strtolower((string)$out);
 
 		if($out === 'json') {

@@ -29,6 +29,10 @@ final class ImageConfigDisplay extends AbstractServiceConfigDisplay {
 		return 'imageconfigdisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\ImageconfigSettingsTab::getName();
+	}
+
 	public function getHelp(): string {
 		return 'Configure image generation services stored in settings group "service-image".';
 	}

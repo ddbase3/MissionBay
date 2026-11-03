@@ -29,6 +29,10 @@ final class TextToSpeechConfigDisplay extends AbstractServiceConfigDisplay {
 		return 'texttospeechconfigdisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\TexttospeechconfigSettingsTab::getName();
+	}
+
 	public function getHelp(): string {
 		return 'Configure text-to-speech services stored in settings group "service-tts".';
 	}

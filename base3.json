@@ -14,12 +14,13 @@
 	],
 	"repository": "https://github.com/ddbase3/MissionBay",
 	"dependencies": {
-		"Base3Framework": ">=4.10.0",
 		"AssistantFoundation": ">=4.17.0",
 		"AssistantRuntime": ">=4.5.0",
+		"Base3Framework": ">=4.10.0",
+		"ClientStack": ">=4.23.0",
 		"CredentialFoundation": ">=4.2.0",
 		"MediaFoundation": ">=4.1.0",
 		"ResourceFoundation": ">=4.5.0",
-		"ClientStack": ">=4.23.0"
+		"UiFoundation": ">=4.3.0"
 	}
 }

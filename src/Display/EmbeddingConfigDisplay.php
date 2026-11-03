@@ -27,6 +27,10 @@ final class EmbeddingConfigDisplay extends AbstractServiceConfigDisplay {
 		return 'embeddingconfigdisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\EmbeddingconfigSettingsTab::getName();
+	}
+
 	public function getHelp(): string {
 		return 'Configure embedding services stored in settings group "service-embedding".';
 	}

@@ -15,6 +15,10 @@ final class AgentContextProfileAdminDisplay extends AgentMemoryProfileAdminDispl
 		return 'agentcontextprofileadmindisplay';
 	}
 
+	protected function settingsTabFeatureName(): string {
+		return \MissionBay\SettingsTab\AgentcontextprofileadminSettingsTab::getName();
+	}
+
 	protected function profileKind(): string {
 		return 'context';
 	}
