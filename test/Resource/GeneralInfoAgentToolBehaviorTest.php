@@ -10,6 +10,8 @@ use MissionBay\InfoProvider\SystemInfoTopicProvider;
 use MissionBay\Resource\GeneralInfoAgentTool;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/GeneralInfoTestTopicProvider.php';
+
 final class GeneralInfoAgentToolBehaviorTest extends TestCase {
 
 	public function testToolDefinitionIsReadOnlyAndRequiresTopic(): void {

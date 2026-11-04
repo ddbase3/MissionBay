@@ -7,6 +7,8 @@ use MissionBay\Resource\KnowledgeAgentResource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/KnowledgeAgentResourceRecordingService.php';
+
 #[CoversClass(KnowledgeAgentResource::class)]
 final class KnowledgeAgentResourceBehaviorCoverageTest extends TestCase {
 

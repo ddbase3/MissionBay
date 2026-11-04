@@ -13,6 +13,10 @@ use MissionBay\Resource\ConfiguredAgentToolResource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/ConfiguredAgentToolCoverageResolver.php';
+require_once __DIR__ . '/ConfiguredAgentToolCoverageTool.php';
+require_once __DIR__ . '/ConfiguredToolRecordingEventManager.php';
+
 #[CoversClass(ConfiguredAgentToolResource::class)]
 final class ConfiguredAgentToolResourceBehaviorCoverageTest extends TestCase {
 

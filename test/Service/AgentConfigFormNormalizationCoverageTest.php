@@ -6,6 +6,8 @@ use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/AgentConfigFormNormalizationProbe.php';
+
 final class AgentConfigFormNormalizationCoverageTest extends TestCase {
 
 	private function form(): AgentConfigFormNormalizationProbe {

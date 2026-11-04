@@ -7,6 +7,8 @@ use Base3\Database\Api\IDatabase;
 use Base3\Session\Api\ISession;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/AgentKnowledgeRulesProbe.php';
+
 final class AgentKnowledgeSqlFilterCoverageTest extends TestCase {
 
 	public function testDeletedEntriesAreExcludedByDefault(): void {

@@ -694,7 +694,7 @@ MissionBay includes configured parser drivers for Docling and Unstructured-compa
 
 For file parsing, the parser request can upload the full file bytes to the configured parser endpoint. API keys or proxy tokens are added through the configured connection/runtime options.
 
-For stream parsing, MissionBay writes the stream to a temporary file under `sys_get_temp_dir()` and removes the temporary file in a `finally` path after the parser operation.
+For stream parsing, MissionBay writes the stream to a temporary file under `sys_get_temp_dir()` and removes the temporary file in a `finally` path after the parser operation. The parser service connectivity test likewise creates a synthetic temporary document for file input and removes it when that test call completes, including rejected input and parser failures, rather than retaining it until PHP shutdown.
 
 Parser metadata can include the local source path in the `location` field. Local filesystem paths should be treated as technical metadata and should not be exposed to untrusted clients or external providers unless required.
 

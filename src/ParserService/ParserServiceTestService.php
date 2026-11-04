@@ -49,8 +49,10 @@ final class ParserServiceTestService implements IParserServiceTestService {
 			'input_type' => $inputType
 		]);
 
+		$temporaryFile = null;
+
 		try {
-			$item = $this->createTestItem($inputType, $options);
+			$item = $this->createTestItem($inputType, $options, $temporaryFile);
 
 			if(!$service->supports($item)) {
 				throw new RuntimeException('Configured parser service does not support its generated test input.');
@@ -104,6 +106,11 @@ final class ParserServiceTestService implements IParserServiceTestService {
 
 			throw $e;
 		}
+		finally {
+			if($temporaryFile !== null && is_file($temporaryFile)) {
+				unlink($temporaryFile);
+			}
+		}
 	}
 
 	/**
@@ -140,8 +147,9 @@ final class ParserServiceTestService implements IParserServiceTestService {
 
 	/**
 	 * @param array<string,mixed> $options
+	 * @param string|null $temporaryFile Receives the temporary file path for cleanup after parsing.
 	 */
-	private function createTestItem(string $inputType, array $options): AgentContentItem {
+	private function createTestItem(string $inputType, array $options, ?string &$temporaryFile): AgentContentItem {
 		$contentType = trim((string)($options['content_type'] ?? 'application/x-agent-content-json'));
 		$text = self::TEST_MARKER . "\n\nThis mini document verifies that the configured parser connection and driver can receive a document and return parsed text.";
 
@@ -188,14 +196,11 @@ final class ParserServiceTestService implements IParserServiceTestService {
 			throw new RuntimeException('Unable to create parser test document.');
 		}
 
+		$temporaryFile = $tmp;
+
 		if(file_put_contents($tmp, $text) === false) {
-			@unlink($tmp);
 			throw new RuntimeException('Unable to write parser test document.');
 		}
-
-		register_shutdown_function(static function() use ($tmp): void {
-			@unlink($tmp);
-		});
 
 		return new AgentContentItem(
 			action: 'upsert',

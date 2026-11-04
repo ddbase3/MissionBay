@@ -6,6 +6,8 @@ use MissionBay\Dto\AgentParsedContent;
 use MissionBay\Resource\XrmChunkerAgentResource;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/XrmChunkerIdentityResolverStub.php';
+
 final class XrmChunkerBoundaryCoverageTest extends TestCase {
 
 	private function chunker(array $config = []): XrmChunkerAgentResource {

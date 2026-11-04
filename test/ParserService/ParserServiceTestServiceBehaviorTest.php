@@ -127,6 +127,87 @@ final class ParserServiceTestServiceBehaviorTest extends TestCase {
 		$this->assertStringContainsString('does not support', $events[0][1]['error']);
 	}
 
+	public function testTemporaryFileIsReadableDuringParsingAndRemovedImmediatelyAfterSuccess(): void {
+		$path = null;
+		$parser = $this->parser(['supported_types' => ['file']]);
+		$parser->method('supports')->willReturnCallback(static function(AgentContentItem $item) use (&$path): bool {
+			$path = $item->content['content']['meta']['location'] ?? null;
+			return is_string($path) && is_file($path);
+		});
+		$parser->method('parse')->willReturnCallback(static function(AgentContentItem $item) use (&$path): AgentParsedContent {
+			self::assertSame($path, $item->content['content']['meta']['file_path']);
+			self::assertStringContainsString('BASE3 parser service test marker', (string)file_get_contents($path));
+			return new AgentParsedContent('BASE3 parser service test marker 4f6b21');
+		});
+
+		$this->assertSame('file', $this->service()->test($parser)['inputType']);
+		$this->assertIsString($path);
+		$this->assertFileDoesNotExist($path);
+	}
+
+	public function testTemporaryFileIsRemovedWhenParserRejectsInput(): void {
+		$path = null;
+		$parser = $this->parser(['supported_types' => ['file']]);
+		$parser->method('supports')->willReturnCallback(static function(AgentContentItem $item) use (&$path): bool {
+			$path = $item->content['content']['meta']['location'] ?? null;
+			self::assertIsString($path);
+			self::assertFileExists($path);
+			return false;
+		});
+
+		try {
+			$this->service()->test($parser);
+			$this->fail('Expected unsupported parser input');
+		}
+		catch(\RuntimeException $e) {
+			$this->assertStringContainsString('does not support', $e->getMessage());
+		}
+
+		$this->assertIsString($path);
+		$this->assertFileDoesNotExist($path);
+	}
+
+	public function testTemporaryFileIsRemovedWhenParserThrows(): void {
+		$path = null;
+		$failure = new \RuntimeException('parser connection interrupted');
+		$parser = $this->parser(['supported_types' => ['file']]);
+		$parser->method('supports')->willReturn(true);
+		$parser->method('parse')->willReturnCallback(static function(AgentContentItem $item) use (&$path, $failure): AgentParsedContent {
+			$path = $item->content['content']['meta']['file_path'] ?? null;
+			self::assertIsString($path);
+			self::assertFileExists($path);
+			throw $failure;
+		});
+
+		try {
+			$this->service()->test($parser);
+			$this->fail('Expected parser connection failure');
+		}
+		catch(\RuntimeException $e) {
+			$this->assertSame($failure, $e);
+		}
+
+		$this->assertIsString($path);
+		$this->assertFileDoesNotExist($path);
+	}
+
+	public function testAlreadyRemovedParserInputDoesNotTriggerFurtherDeletion(): void {
+		$path = null;
+		$parser = $this->parser(['supported_types' => ['file']]);
+		$parser->method('supports')->willReturn(true);
+		$parser->method('parse')->willReturnCallback(static function(AgentContentItem $item) use (&$path): AgentParsedContent {
+			$path = $item->content['content']['meta']['file_path'] ?? null;
+			self::assertIsString($path);
+			self::assertFileExists($path);
+			self::assertTrue(unlink($path));
+			return new AgentParsedContent('BASE3 parser service test marker 4f6b21');
+		});
+
+		$this->assertSame('file', $this->service()->test($parser)['inputType']);
+		$this->assertIsString($path);
+		$this->assertFileDoesNotExist($path);
+	}
+
 	private function parser(array $options): IParserService {
 		$parser = $this->createStub(IParserService::class);
 		$parser->method('getOptions')->willReturn($options);

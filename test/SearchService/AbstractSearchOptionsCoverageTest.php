@@ -4,6 +4,8 @@ namespace MissionBay\Test\SearchService;
 
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/AbstractSearchOptionsProbe.php';
+
 final class AbstractSearchOptionsCoverageTest extends TestCase {
 
 	private function service(): AbstractSearchOptionsProbe {

@@ -7,6 +7,10 @@ use MissionBay\Resource\AgentTool\Agent\RunConfiguredAgentTool;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/RunConfiguredAgentTestConfigResolver.php';
+require_once __DIR__ . '/RunConfiguredAgentTestExecutionService.php';
+require_once __DIR__ . '/RunConfiguredAgentTestSettingsStore.php';
+
 #[CoversClass(RunConfiguredAgentTool::class)]
 final class RunConfiguredAgentToolBehaviorCoverageTest extends TestCase {
 

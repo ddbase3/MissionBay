@@ -8,6 +8,8 @@ use AssistantFoundation\Api\IAgentMemory;
 use MissionBay\Service\Memory\AgentMemoryRoleResolver;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/AgentMemoryRoleTestContributingMemory.php';
+
 final class AgentMemoryRoleResolverTest extends TestCase {
 
 	public function testPlainMemoryHasNoSpecializedRoles(): void {
