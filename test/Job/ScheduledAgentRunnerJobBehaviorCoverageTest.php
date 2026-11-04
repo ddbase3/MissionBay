@@ -1,0 +1,92 @@
+<?php declare(strict_types=1);
+
+namespace MissionBay\Test\Job;
+
+use AssistantFoundation\Api\IAgentExecutionService;
+use Base3\Api\IClassMap;
+use Base3\Configuration\Api\IConfiguration;
+use Base3\Settings\Api\ISettingsStore;
+use MissionBay\Job\ScheduledAgentRunnerJob;
+use PHPUnit\Framework\TestCase;
+
+final class ScheduledAgentRunnerJobBehaviorCoverageTest extends TestCase {
+
+	private function job(array $agents = [], array $configuration = []): ScheduledAgentRunnerJob {
+		$settings = $this->createStub(ISettingsStore::class);
+		$settings->method('getGroup')->willReturn($agents);
+		$config = $this->createStub(IConfiguration::class);
+		$config->method('get')->willReturn($configuration);
+		$classMap = $this->createStub(IClassMap::class);
+		$classMap->method('getInstancesByInterface')->willReturn([]);
+		return new ScheduledAgentRunnerJob($settings, $classMap, $config, $this->createStub(IAgentExecutionService::class));
+	}
+
+	public function testJobIsInactiveWithoutExplicitConfiguration(): void {
+		$job = $this->job();
+		$this->assertFalse($job->isActive());
+		$this->assertSame(1, $job->getPriority());
+	}
+
+	public function testJobRespectsExplicitActivationAndPriority(): void {
+		$job = $this->job([], ['scheduledagentrunnerjob.active' => 1, 'scheduledagentrunnerjob.priority' => 11]);
+		$this->assertTrue($job->isActive());
+		$this->assertSame(11, $job->getPriority());
+	}
+
+	public function testEmptyAgentGroupCompletesWithoutExecutions(): void {
+		$this->assertSame('Scheduled agents done - total:0 active:0 due:0 ran:0 skipped:0 disabled:0 errors:0', $this->job()->go());
+	}
+
+	public function testDisabledAgentIsCountedWithoutLoadingTimingPolicy(): void {
+		$output = $this->job(['disabled' => ['enabled' => false, 'policy' => ['policy' => 'not-registered']]])->go();
+		$this->assertStringContainsString('total:1', $output);
+		$this->assertStringContainsString('disabled:1', $output);
+		$this->assertStringContainsString('errors:0', $output);
+	}
+
+	public function testAgentWithoutTimingPolicyDoesNotExecute(): void {
+		$output = $this->job(['scheduled-a' => ['enabled' => true]])->go();
+		$this->assertStringContainsString('active:1', $output);
+		$this->assertStringContainsString('due:0', $output);
+		$this->assertStringContainsString('errors:1', $output);
+		$this->assertStringContainsString('no timing policy', $output);
+	}
+
+	public function testUnknownTimingPolicyDoesNotExecuteAgent(): void {
+		$output = $this->job(['scheduled-a' => ['enabled' => true, 'policy' => ['policy' => 'unknown-policy']]])->go();
+		$this->assertStringContainsString('errors:1', $output);
+		$this->assertStringContainsString('unknown timing policy', $output);
+	}
+
+	public function testMalformedAgentSettingsAreReportedWithoutFatalErrors(): void {
+		$output = $this->job(['invalid' => 'string-not-array'])->go();
+		$this->assertStringContainsString('total:1', $output);
+		$this->assertStringContainsString('errors:1', $output);
+		$this->assertStringContainsString('not an array', $output);
+	}
+
+	public function testInvalidTechnicalAgentIdCannotBeDispatched(): void {
+		$output = $this->job(['!!!' => ['enabled' => true]])->go();
+		$this->assertStringContainsString('errors:1', $output);
+		$this->assertStringContainsString('empty id', $output);
+	}
+
+	public function testMixedEnabledAndDisabledAgentRecordsAreCountedSeparately(): void {
+		$output = $this->job([
+			'first' => ['enabled' => false],
+			'second' => ['enabled' => 'no'],
+			'third' => ['enabled' => true]
+		])->go();
+		$this->assertStringContainsString('total:3', $output);
+		$this->assertStringContainsString('disabled:2', $output);
+		$this->assertStringContainsString('active:1', $output);
+	}
+
+	public function testSettingsBackendFailureIsReportedWithoutLeakingAnException(): void {
+		$settings = $this->createStub(ISettingsStore::class);
+		$settings->method('getGroup')->willThrowException(new \RuntimeException('backend unavailable'));
+		$config = $this->createStub(IConfiguration::class);
+		$job = new ScheduledAgentRunnerJob($settings, $this->createStub(IClassMap::class), $config, $this->createStub(IAgentExecutionService::class));
+		$this->assertSame('Scheduled agent runner failed: backend unavailable', $job->go());
+	}
+}
