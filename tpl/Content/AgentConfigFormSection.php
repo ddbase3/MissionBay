@@ -126,7 +126,7 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 
 	target.setAttribute('data-filemanager-ready', '1');
 	var adapter = new HttpFileManagerAdapter({
-		baseUrl: globalThis.location ? globalThis.location.href : '/',
+		baseUrl: new URL('.', document.baseURI).href,
 		endpoints: <?php echo json_encode($resourcesEndpoints, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
 	});
 	var options = {

@@ -264,6 +264,8 @@ MissionBay contains administration displays for agents, connections, component p
 
 See [docs/administration.md](docs/administration.md).
 
+For the chatbot resource FileManager, `AgentConfigFormSection` uses the document base directory for relative action URLs from BASE3 link targets. Absolute action URLs supplied by host integrations, including ILIAS, remain unchanged. The FileManager HTTP adapter and the host-owned authorization rules are reused without modification.
+
 ## Settings groups
 
 MissionBay currently owns or consumes these editable settings groups:
