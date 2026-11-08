@@ -14,7 +14,7 @@ use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
-use Base3\Settings\Api\ISettingsStore;
+use AssistantFoundation\Api\IAgentConfigurationService;
 use MissionBay\Api\IAgentFlowCompiler;
 use MissionBay\Composition\AgentCompositionInspector;
 use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
@@ -36,7 +36,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 		private readonly IRequest $request,
 		private readonly IMvcView $view,
 		private readonly IAssetResolver $assetResolver,
-		private readonly ISettingsStore $settingsStore,
+		private readonly IAgentConfigurationService $agentConfigurations,
 		private readonly ILinkTargetService $linkTargetService,
 		private readonly AgentOrchestratorProfileRepository $orchestratorProfiles,
 		private readonly AgentToolProfileResolver $toolProfiles,
@@ -199,11 +199,11 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 	/** @return array<string,mixed> */
 	private function buildRecordResponse(string $id): array {
 		$id = $this->normalizeId($id);
-		if ($id === '' || !$this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
+		if ($id === '' || !$this->agentConfigurations->hasAgent($id)) {
 			return $this->error('Agent not found: ' . $id, 'record');
 		}
 
-		$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $id, []);
+		$settings = $this->agentConfigurations->getAgent($id);
 		if (!is_array($settings)) {
 			$settings = [];
 		}
@@ -224,7 +224,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 	/** @return array<string,mixed> */
 	private function buildReloadResponse(): array {
 		try {
-			$this->settingsStore->reload();
+			$this->agentConfigurations->reload();
 		}
 		catch (Throwable $e) {
 			return $this->error('Settings could not be reloaded: ' . $e->getMessage(), 'reload');
@@ -235,7 +235,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 
 	/** @return array<int,array<string,mixed>> */
 	private function loadRows(): array {
-		$group = $this->settingsStore->getGroup(self::SETTINGS_GROUP);
+		$group = $this->agentConfigurations->getAgents();
 		if (!is_array($group)) {
 			return [];
 		}

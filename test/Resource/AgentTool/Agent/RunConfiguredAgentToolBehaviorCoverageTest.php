@@ -2,7 +2,9 @@
 
 namespace MissionBay\Test\Resource\AgentTool\Agent;
 
+use Base3\Api\IClassMap;
 use MissionBay\Context\AgentContext;
+use MissionBay\Service\AgentConfigurationService;
 use MissionBay\Resource\AgentTool\Agent\RunConfiguredAgentTool;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -19,7 +21,7 @@ final class RunConfiguredAgentToolBehaviorCoverageTest extends TestCase {
 		RunConfiguredAgentTestExecutionService $execution,
 		array $config = []
 	): RunConfiguredAgentTool {
-		$tool = new RunConfiguredAgentTool(new RunConfiguredAgentTestConfigResolver(), $settings, $execution, 'subagent_fixture');
+		$tool = new RunConfiguredAgentTool(new RunConfiguredAgentTestConfigResolver(), new AgentConfigurationService($settings, $this->createStub(IClassMap::class)), $execution, 'subagent_fixture');
 		$tool->setConfig($config);
 		return $tool;
 	}

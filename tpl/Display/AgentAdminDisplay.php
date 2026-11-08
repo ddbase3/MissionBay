@@ -751,7 +751,8 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
         function renderAgent(value, row) {
                 const wrapper = createElement('agent-admin-cell-stack');
                 const main = createElement('agent-admin-cell-main', getText(row.label || row.agent_id));
-                const sub = createElement('agent-admin-cell-sub', getText(row.agent_id) + ' · ' + getText(row.enabled_label));
+                const sub = createElement('agent-admin-cell-sub', getText(row.agent_id) + ' · ' + getText(row.enabled_label) +
+                        (row.fixed ? ' · ' + mbText('fixed_agent', 'Fixed agent') : ''));
 
                 wrapper.appendChild(main);
                 wrapper.appendChild(sub);
@@ -852,6 +853,9 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
                 left.appendChild(createElement('agent-admin-detail-title', getText(record.label || record.agent_id || record.id)));
                 left.appendChild(createDetailRow(mbText('id', 'ID'), record.agent_id || record.id));
+                if (record.fixed) {
+                        left.appendChild(createDetailRow(mbText('agent_type', 'Agent type'), mbText('fixed_agent', 'Fixed agent')));
+                }
                 left.appendChild(createDetailRow(mbText('label', 'Label'), record.label));
                 left.appendChild(createDetailRow(mbText('enabled', 'Enabled'), record.enabled ? 'yes' : 'no'));
                 left.appendChild(createDetailRow(mbText('policy', 'Policy'), record.policy_label || record.policy));
@@ -1269,10 +1273,10 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
         }
 
 
-        function buildEditorButtons(isExisting = false) {
+        function buildEditorButtons(isExisting = false, isFixed = false) {
                 const buttons = [];
 
-                if (isExisting) {
+                if (isExisting && !isFixed) {
                         buttons.push({
                                 key: 'delete-agent-current',
                                 label: mbText('delete', 'Delete'),
@@ -1371,6 +1375,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
                 const oldId = String(record.old_id || record.agent_id || record.id || '').trim();
                 const currentId = String(record.agent_id || record.id || '').trim();
+                const isFixed = record.fixed === true;
                 currentEditorAgentId = oldId;
                 setFormValue(form, 'old_id', oldId);
                 setFormValue(form, 'agent_id', currentId);
@@ -1399,8 +1404,13 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
                 updateAgentFormFallback(form, values);
 
+                const labelField = fieldsRoot ? fieldsRoot.querySelector('[name="label"]') : null;
+                if (labelField) {
+                        labelField.readOnly = isFixed;
+                }
+
                 editorDialog.execute('setTitle', oldId === '' ? 'Add agent' : mbText('edit_agent', 'Edit agent'));
-                editorDialog.execute('setButtons', buildEditorButtons(oldId !== ''));
+                editorDialog.execute('setButtons', buildEditorButtons(oldId !== '', isFixed));
                 setEditorStatus(oldId === '' ? 'New agent. Enter an ID, then save.' : 'Editor opened. Save is enabled.', 'ok');
                 editorDialog.open({ source: 'agentEditor', agentId: currentId });
                 setLog(mbText('opened_editor_for_prefix', 'Opened editor for ') + getText(currentId, 'new agent'));
@@ -1801,6 +1811,10 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                 try {
                         const id = getAgentIdFromRow(row);
 
+                        if (row && row.fixed) {
+                                throw new Error(mbText('fixed_agent_cannot_be_deleted', 'Fixed agent cannot be deleted: {id}', {id}));
+                        }
+
                         if (!id) {
                                 throw new Error('Missing agent id.');
                         }
@@ -2114,6 +2128,9 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                                                 {
                                                         key: 'delete-agent',
                                                         label: mbText('delete_agent', 'Delete agent'),
+                                                        isVisible(context) {
+                                                                return !(context && context.row && context.row.fixed);
+                                                        },
                                                         onClick(context) {
                                                                 deleteAgentFromRow(context && context.row ? context.row : null);
                                                         }

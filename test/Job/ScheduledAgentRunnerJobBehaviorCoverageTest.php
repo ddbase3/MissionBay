@@ -5,20 +5,20 @@ namespace MissionBay\Test\Job;
 use AssistantFoundation\Api\IAgentExecutionService;
 use Base3\Api\IClassMap;
 use Base3\Configuration\Api\IConfiguration;
-use Base3\Settings\Api\ISettingsStore;
+use AssistantFoundation\Api\IAgentConfigurationService;
 use MissionBay\Job\ScheduledAgentRunnerJob;
 use PHPUnit\Framework\TestCase;
 
 final class ScheduledAgentRunnerJobBehaviorCoverageTest extends TestCase {
 
 	private function job(array $agents = [], array $configuration = []): ScheduledAgentRunnerJob {
-		$settings = $this->createStub(ISettingsStore::class);
-		$settings->method('getGroup')->willReturn($agents);
+		$configurations = $this->createStub(IAgentConfigurationService::class);
+		$configurations->method('getAgents')->willReturn($agents);
 		$config = $this->createStub(IConfiguration::class);
 		$config->method('get')->willReturn($configuration);
 		$classMap = $this->createStub(IClassMap::class);
 		$classMap->method('getInstancesByInterface')->willReturn([]);
-		return new ScheduledAgentRunnerJob($settings, $classMap, $config, $this->createStub(IAgentExecutionService::class));
+		return new ScheduledAgentRunnerJob($configurations, $classMap, $config, $this->createStub(IAgentExecutionService::class));
 	}
 
 	public function testJobIsInactiveWithoutExplicitConfiguration(): void {
@@ -83,10 +83,10 @@ final class ScheduledAgentRunnerJobBehaviorCoverageTest extends TestCase {
 	}
 
 	public function testSettingsBackendFailureIsReportedWithoutLeakingAnException(): void {
-		$settings = $this->createStub(ISettingsStore::class);
-		$settings->method('getGroup')->willThrowException(new \RuntimeException('backend unavailable'));
+		$configurations = $this->createStub(IAgentConfigurationService::class);
+		$configurations->method('getAgents')->willThrowException(new \RuntimeException('backend unavailable'));
 		$config = $this->createStub(IConfiguration::class);
-		$job = new ScheduledAgentRunnerJob($settings, $this->createStub(IClassMap::class), $config, $this->createStub(IAgentExecutionService::class));
+		$job = new ScheduledAgentRunnerJob($configurations, $this->createStub(IClassMap::class), $config, $this->createStub(IAgentExecutionService::class));
 		$this->assertSame('Scheduled agent runner failed: backend unavailable', $job->go());
 	}
 }

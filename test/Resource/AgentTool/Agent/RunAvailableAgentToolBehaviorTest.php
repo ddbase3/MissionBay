@@ -6,6 +6,8 @@ use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Dto\AgentExecutionRequest;
 use AssistantFoundation\Dto\AgentExecutionResult;
 use Base3\Settings\Api\ISettingsStore;
+use Base3\Api\IClassMap;
+use MissionBay\Service\AgentConfigurationService;
 use MissionBay\Api\IAgentConfigValueResolver;
 use MissionBay\Context\AgentContext;
 use MissionBay\Resource\AgentTool\Agent\RunAvailableAgentTool;
@@ -322,7 +324,7 @@ final class RunAvailableAgentToolBehaviorTest extends TestCase {
 			$settings->method('get')->willReturnCallback(static fn(string $settingsGroup, string $id, array $default = []): array => $group[$id] ?? $default);
 		}
 		$execution ??= $this->createStub(IAgentExecutionService::class);
-		return new RunAvailableAgentTool($resolver, $settings, $execution, 'catalog-test');
+		return new RunAvailableAgentTool($resolver, new AgentConfigurationService($settings, $this->createStub(IClassMap::class)), $execution, 'catalog-test');
 	}
 
 	private function executionResult(array $output): IAgentExecutionService {

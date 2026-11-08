@@ -19,7 +19,7 @@ namespace MissionBay\Job;
 
 use Base3\Api\IClassMap;
 use Base3\Configuration\Api\IConfiguration;
-use Base3\Settings\Api\ISettingsStore;
+use AssistantFoundation\Api\IAgentConfigurationService;
 use Base3\Worker\Api\IJob;
 use Base3\Worker\Api\IJobExecutionPolicy;
 use AssistantFoundation\Api\IAgentExecutionService;
@@ -48,7 +48,7 @@ final class ScheduledAgentRunnerJob implements IJob {
         private ?array $policiesById = null;
 
         public function __construct(
-                private readonly ISettingsStore $settingsStore,
+                private readonly IAgentConfigurationService $agentConfigurations,
                 private readonly IClassMap $classMap,
                 private readonly IConfiguration $configuration,
                 private readonly IAgentExecutionService $agentExecutionService
@@ -81,7 +81,7 @@ final class ScheduledAgentRunnerJob implements IJob {
                 $errors = [];
 
                 try {
-                        $group = $this->settingsStore->getGroup(self::SETTINGS_GROUP);
+                        $group = $this->agentConfigurations->getAgents();
                 }
                 catch (Throwable $e) {
                         return 'Scheduled agent runner failed: ' . $e->getMessage();

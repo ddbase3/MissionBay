@@ -26,7 +26,8 @@ use Base3\Api\IDisplay;
 use Base3\Api\IMvcView;
 use Base3\Api\IRequest;
 use Base3\LinkTarget\Api\ILinkTargetService;
-use Base3\Settings\Api\ISettingsStore;
+use AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\Translation\Api\ITranslation;
 use Base3\Worker\Api\IJobExecutionPolicy;
 use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Dto\AgentExecutionRequest;
@@ -55,12 +56,13 @@ final class AgentAdminDisplay implements IDisplay {
                 private readonly IRequest $request,
                 private readonly IMvcView $view,
                 private readonly IAssetResolver $assetResolver,
-                private readonly ISettingsStore $settingsStore,
+                private readonly IAgentConfigurationService $agentConfigurations,
                 private readonly ILinkTargetService $linkTargetService,
                 private readonly IClassMap $classMap,
                 private readonly IAgentConfigFormService $agentConfigFormService,
                 private readonly IAgentExecutionService $agentExecutionService,
-		private readonly IAuthorizationService $settingsAuthorization
+		private readonly IAuthorizationService $settingsAuthorization,
+		private readonly ITranslation $translation
 	) {}
 
         public static function getName(): string {
@@ -266,6 +268,7 @@ final class AgentAdminDisplay implements IDisplay {
                 foreach($pageRows as $row) {
                         $data[] = [
                                 'id' => $row['id'],
+                                'fixed' => $row['fixed'],
                                 'agent_id' => $row['agent_id'],
                                 'label' => $row['label'],
                                 'enabled' => $row['enabled'],
@@ -311,11 +314,11 @@ final class AgentAdminDisplay implements IDisplay {
                         return $this->buildErrorResponse('Missing agent id.', 'record');
                 }
 
-                if(!$this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
+                if(!$this->agentConfigurations->hasAgent($id)) {
                         return $this->buildErrorResponse('Agent not found: ' . $id, 'record');
                 }
 
-                $settings = $this->settingsStore->get(self::SETTINGS_GROUP, $id, []);
+                $settings = $this->agentConfigurations->getAgent($id);
 
                 if(!is_array($settings)) {
                         $settings = [];
@@ -343,7 +346,7 @@ final class AgentAdminDisplay implements IDisplay {
                         return $this->buildErrorResponse('Renaming agents is not supported in this editor.', 'save');
                 }
 
-                if($oldId === '' && $this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
+                if($oldId === '' && $this->agentConfigurations->hasAgent($id)) {
                         return $this->buildErrorResponse('Agent already exists: ' . $id, 'save');
                 }
 
@@ -354,9 +357,15 @@ final class AgentAdminDisplay implements IDisplay {
                         return $this->buildErrorResponse(implode(' ', $errors), 'save');
                 }
 
+                if($this->agentConfigurations->isFixed($id) &&
+                        $settings['label'] !== ($this->agentConfigurations->getAgent($id)['label'] ?? null)) {
+                        return $this->buildErrorResponse($this->translation->translate(
+                                'Administration', 'missionbay_admin', 'fixed_agent_identity_protected', '', ['id' => $id]
+                        ), 'save');
+                }
+
                 try {
-                        $this->settingsStore->set(self::SETTINGS_GROUP, $id, $settings);
-                        $this->settingsStore->save();
+                        $this->agentConfigurations->saveAgent($id, $settings);
                 }
                 catch(Throwable $e) {
                         return $this->buildErrorResponse('Agent could not be saved: ' . $e->getMessage(), 'save');
@@ -431,13 +440,18 @@ final class AgentAdminDisplay implements IDisplay {
                         return $this->buildErrorResponse('Missing agent id.', 'delete');
                 }
 
-                if(!$this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
+                if($this->agentConfigurations->isFixed($id)) {
+                        return $this->buildErrorResponse($this->translation->translate(
+                                'Administration', 'missionbay_admin', 'fixed_agent_cannot_be_deleted', '', ['id' => $id]
+                        ), 'delete');
+                }
+
+                if(!$this->agentConfigurations->hasAgent($id)) {
                         return $this->buildErrorResponse('Agent not found: ' . $id, 'delete');
                 }
 
                 try {
-                        $this->settingsStore->remove(self::SETTINGS_GROUP, $id);
-                        $this->settingsStore->save();
+                        $this->agentConfigurations->deleteAgent($id);
                 }
                 catch(Throwable $e) {
                         return $this->buildErrorResponse('Agent could not be deleted: ' . $e->getMessage(), 'delete');
@@ -462,11 +476,11 @@ final class AgentAdminDisplay implements IDisplay {
                         return $this->buildErrorResponse('Missing agent id.', 'run');
                 }
 
-                if(!$this->settingsStore->has(self::SETTINGS_GROUP, $id)) {
+                if(!$this->agentConfigurations->hasAgent($id)) {
                         return $this->buildErrorResponse('Agent not found: ' . $id, 'run');
                 }
 
-                $settings = $this->settingsStore->get(self::SETTINGS_GROUP, $id, []);
+                $settings = $this->agentConfigurations->getAgent($id);
 
                 if(!is_array($settings)) {
                         return $this->buildErrorResponse('Agent settings are invalid: ' . $id, 'run');
@@ -652,7 +666,7 @@ final class AgentAdminDisplay implements IDisplay {
          */
         private function buildReloadResponse(): array {
                 try {
-                        $this->settingsStore->reload();
+                        $this->agentConfigurations->reload();
                 }
                 catch(Throwable $e) {
                         return $this->buildErrorResponse('Agent store could not be reloaded: ' . $e->getMessage(), 'reload');
@@ -669,12 +683,7 @@ final class AgentAdminDisplay implements IDisplay {
          * @return array<int,array<string,mixed>>
          */
         private function loadRows(): array {
-                try {
-                        $group = $this->settingsStore->getGroup(self::SETTINGS_GROUP);
-                }
-                catch(Throwable) {
-                        return [];
-                }
+                $group = $this->agentConfigurations->getAgents();
 
                 if(!is_array($group)) {
                         return [];
@@ -720,6 +729,7 @@ final class AgentAdminDisplay implements IDisplay {
                         'id' => $id,
                         'agent_id' => $id,
                         'old_id' => $id,
+                        'fixed' => $this->agentConfigurations->isFixed($id),
                         'label' => $label !== '' ? $label : $id,
                         'agent_config_group' => self::SETTINGS_GROUP,
                         'agent_config_name' => $id,

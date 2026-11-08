@@ -20,7 +20,7 @@ namespace MissionBay\Resource\AgentTool\Agent;
 use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Dto\AgentExecutionRequest;
 use Base3\Api\ISchemaProvider;
-use Base3\Settings\Api\ISettingsStore;
+use AssistantFoundation\Api\IAgentConfigurationService;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
@@ -62,7 +62,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 
 	public function __construct(
 		private readonly IAgentConfigValueResolver $resolver,
-		private readonly ISettingsStore $settingsStore,
+		private readonly IAgentConfigurationService $agentConfigurations,
 		private readonly IAgentExecutionService $agentExecutionService,
 		?string $id = null
 	) {
@@ -461,7 +461,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 	 */
 	private function loadEnabledAgentRows(): array {
 		try {
-			$group = $this->settingsStore->getGroup($this->settingsGroup);
+			$group = $this->agentConfigurations->getAgents($this->settingsGroup);
 		}
 		catch(Throwable) {
 			return [];
@@ -504,7 +504,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 	 * @return array<string,mixed>
 	 */
 	private function loadEnabledAgentSettings(string $agentId): array {
-		$settings = $this->settingsStore->get($this->settingsGroup, $agentId, []);
+		$settings = $this->agentConfigurations->getAgent($agentId, $this->settingsGroup);
 
 		if(!is_array($settings) || $settings === []) {
 			throw new \RuntimeException('Configured agent not found: ' . $this->settingsGroup . '/' . $agentId);

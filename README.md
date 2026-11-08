@@ -436,3 +436,13 @@ and data sources retain their independent owner-side access requirements.
 ## Vector-search settings navigation
 
 `VectorsearchconfigSettingsTab` contributes the existing `VectorSearchConfigDisplay` under Provider through `IClassMap`. It reuses `VectorSearchConfigFeature` for navigation and the existing direct endpoint checks, rather than defining a second feature. Its translated label and description live in `MissionBay/lang/Settings/` for every supported language.
+
+
+### Plugin-defined, configurable fixed agents
+
+Any BASE3 plugin can provide multiple `IAgentDefinition` classes using the
+existing classmap. The shared `IAgentConfigurationService` merges these
+non-deletable identities into the ordinary `agent` SettingsStore group while
+keeping model, tool, memory, context and all other runtime settings editable.
+See [fixed agent definitions](docs/fixed-agent-definitions.md) for a complete
+implementation example, compatibility rules and smoke tests.

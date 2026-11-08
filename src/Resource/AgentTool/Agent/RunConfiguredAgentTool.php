@@ -20,7 +20,7 @@ namespace MissionBay\Resource\AgentTool\Agent;
 use AssistantFoundation\Api\IAgentExecutionService;
 use AssistantFoundation\Dto\AgentExecutionRequest;
 use Base3\Api\ISchemaProvider;
-use Base3\Settings\Api\ISettingsStore;
+use AssistantFoundation\Api\IAgentConfigurationService;
 use InvalidArgumentException;
 use MissionBay\Api\IAgentConfigValueResolver;
 use AssistantFoundation\Api\IAgentContext;
@@ -56,7 +56,7 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 
 	public function __construct(
 		private readonly IAgentConfigValueResolver $resolver,
-		private readonly ISettingsStore $settingsStore,
+		private readonly IAgentConfigurationService $agentConfigurations,
 		private readonly IAgentExecutionService $agentExecutionService,
 		?string $id = null
 	) {
@@ -262,7 +262,7 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 	 * @return array<string,mixed>
 	 */
 	private function loadAgentSettings(): array {
-		$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $this->agentId, []);
+		$settings = $this->agentConfigurations->getAgent($this->agentId);
 
 		if(!is_array($settings) || $settings === []) {
 			throw new \RuntimeException('Configured agent not found: ' . self::SETTINGS_GROUP . '/' . $this->agentId);
@@ -438,7 +438,7 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 		}
 
 		try {
-			$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $this->agentId, []);
+			$settings = $this->agentConfigurations->getAgent($this->agentId);
 		}
 		catch(Throwable) {
 			return '';

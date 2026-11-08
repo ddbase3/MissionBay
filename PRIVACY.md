@@ -1380,3 +1380,20 @@ control or privacy compliance.
 ## Vector-search settings entry
 
 The vector-search Settings tab exposes the already existing vector-search configuration display. It introduces no new storage or processing; feature decisions are delegated to the current BASE3 authorization authority using the existing `VectorSearchConfigFeature`. The display continues to read and save its existing service configuration through the established settings storage backend.
+
+
+### Fixed agent definitions and existing configuration
+
+`AgentConfigurationService` discovers class-defined agents and reads/writes
+existing `ISettingsStore` records in group `agent`. Merely registering a class
+does not create a database record, conversation, provider request or new
+recipient; default definitions are not persisted until a user saves settings.
+A newly code-defined agent is expected to be disabled until explicitly
+configured and enabled. Existing agent settings and their configured model,
+tool, memory and context choices remain in their existing store and are not
+copied into a parallel store. A code-owned identity cannot be deleted in the
+agent administration, but all editable stored settings continue to follow
+whatever deletion/retention policies the actual deployment implements. The
+host must still enforce authorization independently of navigation visibility
+and token service grants. No new runtime history, retention period or external
+recipient is introduced by this configuration-discovery feature.

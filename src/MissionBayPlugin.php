@@ -35,6 +35,7 @@ use Base3\Settings\Api\ISettingsStore;
 use Base3\State\Api\IStateStore;
 use Base3\Usermanager\Api\IUsermanager;
 use AssistantFoundation\Api\IAgentActionPolicy;
+use AssistantFoundation\Api\IAgentConfigurationService;
 use AssistantFoundation\Api\IRetrievalCollectionDefinition;
 use AssistantFoundation\Api\IAiModelConfigurationProvider;
 use AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
@@ -155,6 +156,7 @@ use MissionBay\Service\RetrievalSearchService;
 use MissionBay\Service\EmbeddingOrchestratorConfigRepository;
 use MissionBay\Service\RetrievalCollectionConfigRepository;
 use MissionBay\Service\AgentConfigFormService;
+use MissionBay\Service\AgentConfigurationService;
 use MissionBay\Service\ConfiguredAiModelConfigurationProvider;
 use MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use MissionBay\Speech\ConfiguredRealtimeSpeechToTextSessionService;
@@ -284,6 +286,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(IAgentComponentFlowBuilder::class, fn($c) => new AgentComponentFlowBuilder(
 				$c->get(IAgentComponentPresetRepository::class),
 				$c->get(IAgentComponentPresetFlowExpander::class)
+			), IContainer::SHARED | IContainer::NOOVERWRITE)
+			->set(IAgentConfigurationService::class, fn($c) => new AgentConfigurationService(
+				$c->get(ISettingsStore::class),
+				$c->get(IClassMap::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentOrchestratorProfileRepository::class, fn($c) => new AgentOrchestratorProfileRepository(
 				$c->get(ISettingsStore::class)
