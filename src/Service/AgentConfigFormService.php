@@ -290,6 +290,9 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'translations' => $this->getTranslations(),
 			'chatbot_resources' => is_array($options['chatbot_resources'] ?? null)
 				? $options['chatbot_resources']
+				: [],
+			'agent_resources' => is_array($options['agent_resources'] ?? null)
+				? $options['agent_resources']
 				: []
 		];
 	}

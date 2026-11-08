@@ -80,7 +80,7 @@ final class AiProviderFileReferenceResolver {
 				continue;
 			}
 			if(strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'pdf') {
-				throw new RuntimeException('Chatbot LLM resources currently support PDF files only: ' . $path);
+				throw new RuntimeException('LLM file resources currently support PDF files only: ' . $path);
 			}
 
 			$content = $storage->read($path);

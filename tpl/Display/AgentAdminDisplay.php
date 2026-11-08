@@ -476,8 +476,8 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                 <div class="agent-admin-form-header">
                         <div>
                                 <label class="agent-admin-label"><?php echo $mbTextEsc('agent_id', 'Agent ID'); ?></label>
-                                <input type="text" name="agent_id" class="agent-admin-input" />
-                                <p class="agent-admin-help"><?php echo $mbTextEsc('settingsstore_name_inside_the_fixed_group', 'SettingsStore name inside the fixed group'); ?> <code><?php echo $e($settingsGroup); ?></code>. Existing records keep their ID while editing.</p>
+                                <input type="text" name="agent_id" class="agent-admin-input" readonly aria-describedby="agent-admin-id-help" />
+                                <p id="agent-admin-id-help" class="agent-admin-help"><?php echo $mbTextEsc('agent_id_auto_help', 'The technical ID is generated automatically and cannot be changed. New agents are saved as disabled drafts before files are uploaded.'); ?></p>
                         </div>
                 </div>
 <?php include dirname(__DIR__) . '/Content/AgentFormFields.php'; ?>
@@ -539,6 +539,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
         let editorDialog = null;
         let runnerDialog = null;
         let currentEditorAgentId = '';
+        let creatingAgent = false;
 
         const ENABLED_FILTER_OPTIONS = [
                 { value: '', label: mbText('all_states', 'All states') },
@@ -1350,6 +1351,10 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                 });
 
                 editorDialog.on('afterClose', () => {
+                        const elements = getEditorElements();
+                        if (elements.form && typeof elements.form.__base3AgentResourcesClear === 'function') {
+                                elements.form.__base3AgentResourcesClear();
+                        }
                         currentEditorAgentId = '';
                         setEditorStatus('', '');
                 });
@@ -1382,7 +1387,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
                 const agentIdField = form.elements.namedItem('agent_id');
                 if (agentIdField) {
-                        agentIdField.readOnly = oldId !== '';
+                        agentIdField.readOnly = true;
                 }
 
                 const values = Object.assign({}, DEFAULT_RECORD, record, {
@@ -1409,23 +1414,42 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                         labelField.readOnly = isFixed;
                 }
 
-                editorDialog.execute('setTitle', oldId === '' ? 'Add agent' : mbText('edit_agent', 'Edit agent'));
+                if (typeof form.__base3AgentResourcesConfigure === 'function') {
+                        form.__base3AgentResourcesConfigure(currentId);
+                }
+                editorDialog.execute('setTitle', record.is_new_draft === true
+                        ? mbText('add_agent', 'Add agent') : mbText('edit_agent', 'Edit agent'));
                 editorDialog.execute('setButtons', buildEditorButtons(oldId !== '', isFixed));
-                setEditorStatus(oldId === '' ? 'New agent. Enter an ID, then save.' : 'Editor opened. Save is enabled.', 'ok');
+                setEditorStatus(record.is_new_draft === true
+                        ? mbText('agent_draft_ready', 'A disabled agent draft was created. Files can now be uploaded.')
+                        : mbText('agent_editor_ready', 'Editor opened. Save is enabled.'), 'ok');
                 editorDialog.open({ source: 'agentEditor', agentId: currentId });
                 setLog(mbText('opened_editor_for_prefix', 'Opened editor for ') + getText(currentId, 'new agent'));
         }
 
-        function openNewEditor() {
-                const record = Object.assign({}, DEFAULT_RECORD, {
-                        id: '',
-                        agent_id: '',
-                        old_id: '',
-                        label: '',
-                        agent_config_name: ''
-                });
+        async function openNewEditor() {
+                if (creatingAgent) {
+                        return;
+                }
 
-                updateEditorForm(record);
+                creatingAgent = true;
+                setLog(mbText('agent_creating', 'Creating an inactive agent draft...'));
+                try {
+                        const response = await postJson({ mode: 'create' });
+                        if (!response || !response.ok || !response.record || !response.record.agent_id) {
+                                throw new Error(response && response.error ? response.error : mbText('agent_create_failed', 'Agent draft could not be created.'));
+                        }
+                        updateEditorForm(response.record);
+                        try {
+                                await refreshGrid();
+                        } catch (error) {
+                                log('draft created; grid refresh failed', error && error.message ? error.message : String(error));
+                        }
+                } catch (error) {
+                        setLog(mbText('agent_create_failed', 'Agent draft could not be created.') + ' ' + getText(error && error.message ? error.message : error));
+                } finally {
+                        creatingAgent = false;
+                }
         }
 
         function closeEditor() {
@@ -1753,6 +1777,10 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                                 throw new Error('Renaming agents is not supported in this editor. Duplicate/create a new record and delete the old one if needed.');
                         }
 
+                        const resourcesManager = elements.form.__base3AgentResourcesFileManager;
+                        if (resourcesManager) {
+                                await resourcesManager.waitForUploads();
+                        }
                         const formData = prepareConfigFormData(elements.form);
 
                         setEditorStatus('Saving agent...', '');
@@ -1914,7 +1942,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
                                                         const addButton = createButton(
                                                                 'agent-admin-button agent-admin-button-primary',
-                                                                'Add agent'
+                                                                mbText('add_agent', 'Add agent')
                                                         );
 
                                                         const reloadButton = createButton(

@@ -63,6 +63,10 @@ This is significant because MissionBay is used in embedded BASE3 installations w
 
 See [docs/bootstrap-and-lazy-composition.md](docs/bootstrap-and-lazy-composition.md).
 
+## Managed file resources for configured agents
+
+The Agent Admin editor uses the shared ClientStack FileManager through MissionBay's host-independent `AgentFileManagerOutput`. The output delegates all file operations to the existing `ClientStack\FileManager\FileManagerHttpService` and the application's `IManagedFileStorageService` binding. MissionBay advertises the upload endpoints through the normal `ILinkTargetService` only when a managed storage implementation is registered; no ILIAS project wiring is required. Without a storage implementation the editor remains usable but file uploading is unavailable. The provided snapshot includes the ILIAS-managed backend; standalone or other embedded platforms must select their own backend implementation of the existing ResourceFoundation contract. New stored agents receive an immutable UUID v4 and are initially persisted as disabled drafts; fixed agent definitions and pre-existing IDs retain their original identities. Uploads use the canonical owner `agent/<agent_id>/collection`. The agent runtime resolves that same owner for manual, scheduled and delegated execution. Chatbot file resources remain on their existing chatbot owner. Deleting a stored agent discards staged upload sessions and removes its managed collection through the configured `IManagedFileStorageService` before deleting the agent record. Only PDF-based file resources are currently forwarded to compatible LLM services; deployment/provider retention must be considered separately. See [docs/administration.md](docs/administration.md).
+
 ## Runtime entry points
 
 MissionBay exposes three primary runtime services used by higher-level assistant integrations:

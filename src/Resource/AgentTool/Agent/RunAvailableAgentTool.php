@@ -620,6 +620,8 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 		return [
 			'conversation_channel_id' => 'sub-agent-catalog:' . $this->getId() . ':' . $agentId,
 			'sub_agent_id' => $agentId,
+			'agent_id' => $agentId,
+			'agent_config_group' => $this->settingsGroup,
 			'sub_agent_label' => trim((string)($settings['label'] ?? '')),
 			'sub_agent_config' => $settings,
 			'sub_agent_tool_id' => $this->getId(),

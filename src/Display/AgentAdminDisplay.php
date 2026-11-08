@@ -52,6 +52,9 @@ final class AgentAdminDisplay implements IDisplay {
          */
         private ?array $policyOptions = null;
 
+        /** @var array<string,mixed> */
+        private array $data = [];
+
         public function __construct(
                 private readonly IRequest $request,
                 private readonly IMvcView $view,
@@ -70,7 +73,7 @@ final class AgentAdminDisplay implements IDisplay {
         }
 
         public function setData($data) {
-                // no-op
+                $this->data = is_array($data) ? $data : [];
         }
 
         public function getOutput(string $out = 'html', bool $final = false): string {
@@ -121,8 +124,24 @@ final class AgentAdminDisplay implements IDisplay {
                 $this->view->assign('form_id', $formId);
                 $this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string)$src));
 
+                $resources = is_array($this->data['resources'] ?? null) ? $this->data['resources'] : [];
+                $agentResources = ['enabled' => false];
+                if (!empty($resources['enabled']) && is_array($resources['endpoints'] ?? null)) {
+                        $agentResources = [
+                                'enabled' => true,
+                                'endpoints' => $resources['endpoints'],
+                                'max_file_size' => (int)($resources['max_file_size'] ?? 50 * 1024 * 1024),
+                                'accept' => (string)($resources['accept'] ?? 'application/pdf,.pdf'),
+                                'module_url' => $this->assetResolver->resolve('plugin/ClientStack/assets/filemanager/index.js'),
+                                'css_url' => $this->assetResolver->resolve('plugin/ClientStack/assets/filemanager/styles/filemanager.css'),
+                                'section_label' => $this->translation->translate('Administration', 'missionbay_admin', 'agent_resources_section'),
+                                'help' => $this->translation->translate('Administration', 'missionbay_admin', 'agent_resources_help')
+                        ];
+                }
+
                 $this->agentConfigFormService->assignViewData($this->view, $defaultRecord, [
-                        'form_id' => $formId
+                        'form_id' => $formId,
+                        'agent_resources' => $agentResources
                 ]);
 
                 return $this->view->loadTemplate();
@@ -160,6 +179,10 @@ final class AgentAdminDisplay implements IDisplay {
 
                 if($request['mode'] === 'record') {
                         return $this->buildRecordResponse($request['id']);
+                }
+
+                if($request['mode'] === 'create') {
+                        return $this->buildCreateResponse();
                 }
 
                 if($request['mode'] === 'save') {
@@ -214,7 +237,7 @@ final class AgentAdminDisplay implements IDisplay {
          */
         private function normalizeRequest(array $payload): array {
                 $mode = 'page';
-                $allowedModes = ['page', 'record', 'save', 'delete', 'run', 'reload'];
+                $allowedModes = ['page', 'record', 'create', 'save', 'delete', 'run', 'reload'];
 
                 if(isset($payload['mode']) && is_string($payload['mode']) && in_array($payload['mode'], $allowedModes, true)) {
                         $mode = $payload['mode'];
@@ -332,6 +355,47 @@ final class AgentAdminDisplay implements IDisplay {
         }
 
         /**
+         * Creates a durable, inactive agent before any file can be uploaded.
+         * The UUID is the one canonical agent id, not a separate upload key.
+         *
+         * @return array<string,mixed>
+         */
+        private function buildCreateResponse(): array {
+                $bytes = random_bytes(16);
+                $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+                $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+                $hex = bin2hex($bytes);
+                $id = substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-'
+                        . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
+
+                if ($this->agentConfigurations->hasAgent($id)) {
+                        return $this->buildErrorResponse($this->translation->translate('Administration', 'missionbay_admin', 'agent_create_collision'), 'create');
+                }
+
+                $settings = array_merge($this->agentConfigFormService->getDefaultSettings(), [
+                        'enabled' => false,
+                        'label' => '',
+                        'user_prompt' => '',
+                        'policy' => [
+                                'policy' => $this->getDefaultPolicyId(),
+                                'data' => []
+                        ]
+                ]);
+
+                // Build the editor data first: an invalid form configuration must
+                // never leave a persisted draft whose identity the client never saw.
+                $record = array_merge($this->normalizeRow($id, $settings), ['is_new_draft' => true, 'label' => '']);
+                $this->agentConfigurations->saveAgent($id, $settings);
+
+                return [
+                        'ok' => true,
+                        'mode' => 'create',
+                        'action' => 'created',
+                        'record' => $record
+                ];
+        }
+
+        /**
          * @return array<string,mixed>
          */
         private function buildSaveResponse(): array {
@@ -346,8 +410,13 @@ final class AgentAdminDisplay implements IDisplay {
                         return $this->buildErrorResponse('Renaming agents is not supported in this editor.', 'save');
                 }
 
-                if($oldId === '' && $this->agentConfigurations->hasAgent($id)) {
-                        return $this->buildErrorResponse('Agent already exists: ' . $id, 'save');
+                // New agent identities are created only by the server-side UUID
+                // action. A direct save must not create an unregistered owner or
+                // override the canonical identity used by file resources.
+                if ($oldId === '' || !$this->agentConfigurations->hasAgent($id)) {
+                        return $this->buildErrorResponse($this->translation->translate(
+                                'Administration', 'missionbay_admin', 'agent_save_missing_identity'
+                        ), 'save');
                 }
 
                 $errors = [];
@@ -579,6 +648,7 @@ final class AgentAdminDisplay implements IDisplay {
                 return [
                         'conversation_channel_id' => 'agent-admin:' . $agentId,
                         'agent_id' => $agentId,
+                        'agent_config_group' => self::SETTINGS_GROUP,
                         'agent_label' => trim((string)($settings['label'] ?? '')),
                         'agent_config' => $settings,
                         'agent_run_mode' => 'manual',

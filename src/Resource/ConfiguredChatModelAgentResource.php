@@ -139,46 +139,62 @@ class ConfiguredChatModelAgentResource extends AbstractConfiguredServiceAgentRes
 			return;
 		}
 
-		$ownerGroup = $this->contextString('chatbot_config_group');
-		$ownerName = $this->contextString('chatbot_config_name');
-		if($ownerGroup === '' || $ownerName === '') {
-			return;
+		$agentId = $this->contextString('agent_id');
+		if ($agentId !== '') {
+			// Explicit agent execution identity takes precedence over any inherited
+			// chatbot context. Never resolve another SettingsStore group by ID alone.
+			if ($this->contextString('agent_config_group') !== 'agent') {
+				if ($model instanceof IAiFileCapableChatModel) {
+					$model->setFileReferences([]);
+				}
+				return;
+			}
+			$ownerGroup = 'agent';
+			$ownerName = $agentId;
+		} else {
+			$ownerGroup = $this->contextString('chatbot_config_group');
+			$ownerName = $this->contextString('chatbot_config_name');
+			if ($ownerGroup === '' || $ownerName === '') {
+				return;
+			}
 		}
-		if(!$this->managedFileStorage->has(
+		$hasFiles = false;
+		if($this->managedFileStorage->has(
 			$ownerGroup,
 			$ownerName,
 			IManagedFileStorageService::MODE_COLLECTION
 		)) {
-			if($model instanceof IAiFileCapableChatModel) {
-				$model->setFileReferences([]);
-			}
-			return;
-		}
-
-		$storage = $this->managedFileStorage->openOrCreate(
-			$ownerGroup,
-			$ownerName,
-			IManagedFileStorageService::MODE_COLLECTION
-		);
-		$hasFiles = false;
-		foreach($storage->list('') as $item) {
-			if(is_array($item) && (string)($item['type'] ?? '') === 'file') {
-				$hasFiles = true;
-				break;
+			$storage = $this->managedFileStorage->openOrCreate(
+				$ownerGroup,
+				$ownerName,
+				IManagedFileStorageService::MODE_COLLECTION
+			);
+			foreach($storage->list('') as $item) {
+				if(is_array($item) && (string)($item['type'] ?? '') === 'file') {
+					$hasFiles = true;
+					break;
+				}
 			}
 		}
 
-		if(!$hasFiles) {
-			if($model instanceof IAiFileCapableChatModel) {
-				$model->setFileReferences([]);
-			}
-			return;
-		}
 		if(!$model instanceof IAiFileCapableChatModel) {
-			throw new RuntimeException('Configured LLM service does not support chatbot file resources.');
+			if($hasFiles) {
+				throw new RuntimeException('Configured LLM service does not support file resources.');
+			}
+			return;
 		}
 
+		// Only reconcile an empty collection when provider references actually
+		// remain. Avoid registering/writing an unused owner on every chatbot turn.
 		$serviceId = $this->resolveServiceId();
+		if(!$hasFiles && (
+			!in_array($serviceId, $this->fileReferenceState->listRegisteredServiceIds($ownerGroup, $ownerName), true)
+			|| $this->fileReferenceState->list($serviceId, $ownerGroup, $ownerName) === []
+		)) {
+			$model->setFileReferences([]);
+			return;
+		}
+
 		$resolver = new AiProviderFileReferenceResolver(
 			$this->managedFileStorage,
 			$this->stateStore,

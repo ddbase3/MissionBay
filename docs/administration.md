@@ -23,6 +23,16 @@ All displays are discoverable BASE3 display classes. Their stable technical name
 | `knowledgeagentmemoryadmindisplay` | knowledge-memory administration |
 | `userprefdefadmindisplay` | agent-related user preference definitions |
 
+### Agent file resources
+
+The existing `agentadmindisplay` editor creates a durable, disabled agent draft with a cryptographically random UUID v4 as its canonical `agent_id` when **Add agent** is selected. This enables file uploads immediately, without assigning a separate temporary upload identity. The technical ID stays immutable. Existing stored IDs and plugin-defined `IAgentDefinition::getId()` identities are never rewritten.
+
+When the BASE3 composition provides `IManagedFileStorageService`, `MissionBayPlugin` supplies `agentAdminDisplayData` containing endpoint URLs resolved through the active `ILinkTargetService`. The shared runtime form mounts the existing ClientStack FileManager in `collection` mode. When the storage contract is not bound, the upload UI remains disabled, while agent administration stays available. The editor binds each opened agent to the managed file owner `('agent', agent_id, 'collection')`. It destroys the prior manager on agent switching and dialog closing, and waits for pending uploads before saving. Drafts remain disabled until explicitly saved/enabled; abandoning an editor leaves an editable, disabled draft which can be deleted normally.
+
+`MissionBay\Output\AgentFileManagerOutput` is the agent-owner HTTP entry point. It enforces the existing `agentadminsettingstab` feature authorization, verifies a trusted host actor and the canonical existing agent ID, and delegates file operations to the existing `ClientStack\FileManager\FileManagerHttpService`. ClientStack uses the active `ResourceFoundation\Api\IManagedFileStorageService`; MissionBay never implements a parallel upload service or file store. In ILIAS this binding is supplied by Base3Ilias; other hosts can provide their own implementation without MissionBay changes. The existing ILIAS chatbot upload endpoint remains untouched. `AgentConfigurationService` remains the sole configuration owner, and first discards unfinished FileManager sessions and then deletes managed storage before removing a non-fixed agent record. The configured storage backend must dispatch the existing `ManagedFileStorageDeletingEvent` before deleting a collection so MissionBay can remove external provider file references; the supplied ILIAS backend does this. This event behavior is not declared by `IManagedFileStorageService` itself and must be checked for other host implementations. Fixed agents may manage their resource collection but cannot be deleted.
+
+During execution, the manually started agent, `ScheduledAgentRunnerJob`, and configured/available sub-agent tools pass the actual target `agent_id` and `agent_config_group`. `ConfiguredChatModelAgentResource` resolves these keys before any inherited chatbot owner context. The chatbot continues using its original chatbot owner keys. Only PDF files are supported by the current provider-file-reference integration, and the chosen chat model must implement `IAiFileCapableChatModel` when files exist. This is not a new RAG or indexing pipeline.
+
 ## Provider configuration
 
 | Display name | Settings group |

@@ -11,6 +11,8 @@ use AssistantFoundation\Api\IAgentConfigurationService;
 use AssistantFoundation\Api\IAgentDefinition;
 use Base3\Api\IClassMap;
 use Base3\Settings\Api\ISettingsStore;
+use ClientStack\FileManager\FileUploadService;
+use ResourceFoundation\Api\IManagedFileStorageService;
 use InvalidArgumentException;
 use LogicException;
 
@@ -25,7 +27,9 @@ final class AgentConfigurationService implements IAgentConfigurationService {
 
 	public function __construct(
 		private readonly ISettingsStore $settingsStore,
-		private readonly IClassMap $classMap
+		private readonly IClassMap $classMap,
+		private readonly ?IManagedFileStorageService $managedFileStorage = null,
+		private readonly ?FileUploadService $fileUploadService = null
 	) {}
 
 	public function getAgents(string $settingsGroup = self::SETTINGS_GROUP): array {
@@ -86,6 +90,18 @@ final class AgentConfigurationService implements IAgentConfigurationService {
 	public function deleteAgent(string $id): void {
 		if ($this->isFixed($id)) {
 			throw new LogicException('A fixed agent cannot be deleted: ' . $id);
+		}
+		// Remove pending chunks before the owner storage. Failure preserves the
+		// agent record so unfinished uploads are never silently orphaned.
+		$this->fileUploadService?->deleteOwnerArtifacts(self::SETTINGS_GROUP, $id);
+		// Fail without removing the agent when storage or provider cleanup fails.
+		// The existing storage deletion event also cleans up LLM references.
+		if ($this->managedFileStorage !== null && $this->managedFileStorage->has(
+			self::SETTINGS_GROUP, $id, IManagedFileStorageService::MODE_COLLECTION
+		)) {
+			$this->managedFileStorage->delete(
+				self::SETTINGS_GROUP, $id, IManagedFileStorageService::MODE_COLLECTION
+			);
 		}
 		$this->settingsStore->remove(self::SETTINGS_GROUP, $id);
 		$this->settingsStore->save();

@@ -31,6 +31,10 @@ use Base3\Event\Api\IEventManager;
 use Base3\Event\EventManager;
 use Base3\Language\Api\ILanguage;
 use Base3\Logger\Api\ILogger;
+use Base3\LinkTarget\Api\ILinkTargetService;
+use ClientStack\FileManager\FileManagerHttpService;
+use MissionBay\Output\AgentFileManagerOutput;
+use ResourceFoundation\Api\IManagedFileStorageService;
 use Base3\Settings\Api\ISettingsStore;
 use Base3\State\Api\IStateStore;
 use Base3\Usermanager\Api\IUsermanager;
@@ -208,6 +212,19 @@ class MissionBayPlugin implements IPlugin, ICheck {
 	public function init() {
 		$this->container
 			->set(self::getName(), $this, IContainer::SHARED)
+			->set('agentAdminDisplayData', fn($c) => $c->has(IManagedFileStorageService::class)
+				? [ 'resources' => [
+					'enabled' => true,
+					'endpoints' => FileManagerHttpService::buildEndpoints(
+						$c->get(ILinkTargetService::class)->getLink([
+							'name' => AgentFileManagerOutput::getName(),
+							'out' => 'php'
+						], ['fm_group' => 'agent'])
+					),
+					'max_file_size' => FileManagerHttpService::DEFAULT_MAX_FILE_SIZE,
+					'accept' => 'application/pdf,.pdf'
+				]]
+				: [], IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AiUsageReportingSettingsSeeder::class, fn($c) => new AiUsageReportingSettingsSeeder(
 				$c->get(ISettingsStore::class),
 				dirname(__DIR__)
@@ -289,7 +306,10 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IAgentConfigurationService::class, fn($c) => new AgentConfigurationService(
 				$c->get(ISettingsStore::class),
-				$c->get(IClassMap::class)
+				$c->get(IClassMap::class),
+				$c->has(IManagedFileStorageService::class)
+					? $c->get(IManagedFileStorageService::class) : null,
+				$c->get(\ClientStack\FileManager\FileUploadService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentOrchestratorProfileRepository::class, fn($c) => new AgentOrchestratorProfileRepository(
 				$c->get(ISettingsStore::class)

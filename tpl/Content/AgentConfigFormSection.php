@@ -17,6 +17,8 @@ $exportCatalog = is_array($agentConfigForm['export_catalog'] ?? null) ? $agentCo
 $translations = is_array($agentConfigForm['translations'] ?? null) ? $agentConfigForm['translations'] : [];
 $chatbotResources = is_array($agentConfigForm['chatbot_resources'] ?? null) ? $agentConfigForm['chatbot_resources'] : [];
 $chatbotResourcesEnabled = !empty($chatbotResources['enabled']);
+$agentResources = is_array($agentConfigForm['agent_resources'] ?? null) ? $agentConfigForm['agent_resources'] : [];
+$agentResourcesEnabled = !empty($agentResources['enabled']);
 $formId = (string)($agentConfigForm['form_id'] ?? 'base3_agent_config');
 $rootId = $formId . '_agent_config_section';
 $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -89,15 +91,17 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 		</div>
 	</div>
 
-<?php if ($chatbotResourcesEnabled) {
-	$resourcesRootId = $formId . '_chatbot_resources';
-	$resourcesModuleUrl = (string)($chatbotResources['module_url'] ?? '');
-	$resourcesCssUrl = (string)($chatbotResources['css_url'] ?? '');
-	$resourcesEndpoints = is_array($chatbotResources['endpoints'] ?? null) ? $chatbotResources['endpoints'] : [];
-	$resourcesMaxFileSize = max(1, (int)($chatbotResources['max_file_size'] ?? 50 * 1024 * 1024));
-	$resourcesAccept = trim((string)($chatbotResources['accept'] ?? ''));
-	$resourcesSectionLabel = trim((string)($chatbotResources['section_label'] ?? '')) ?: 'Resources';
-	$resourcesHelp = trim((string)($chatbotResources['help'] ?? ''));
+<?php if ($chatbotResourcesEnabled || $agentResourcesEnabled) {
+	$isAgentResourceOwner = $agentResourcesEnabled;
+	$resources = $isAgentResourceOwner ? $agentResources : $chatbotResources;
+	$resourcesRootId = $formId . ($isAgentResourceOwner ? '_agent_resources' : '_chatbot_resources');
+	$resourcesModuleUrl = (string)($resources['module_url'] ?? '');
+	$resourcesCssUrl = (string)($resources['css_url'] ?? '');
+	$resourcesEndpoints = is_array($resources['endpoints'] ?? null) ? $resources['endpoints'] : [];
+	$resourcesMaxFileSize = max(1, (int)($resources['max_file_size'] ?? 50 * 1024 * 1024));
+	$resourcesAccept = trim((string)($resources['accept'] ?? ''));
+	$resourcesSectionLabel = trim((string)($resources['section_label'] ?? ''));
+	$resourcesHelp = trim((string)($resources['help'] ?? ''));
 ?>
 <?php if ($resourcesCssUrl !== '') { ?>
 	<link rel="stylesheet" href="<?php echo $e($resourcesCssUrl); ?>" />
@@ -107,7 +111,7 @@ $listText = static fn($value): string => is_array($value) ? implode("\n", array_
 <?php if ($resourcesHelp !== '') { ?>
 		<p class="base3-agent-config-help"><?php echo $e($resourcesHelp); ?></p>
 <?php } ?>
-		<div id="<?php echo $e($resourcesRootId); ?>" data-base3-chatbot-resources></div>
+		<div id="<?php echo $e($resourcesRootId); ?>" <?php echo $isAgentResourceOwner ? 'data-base3-agent-resources' : 'data-base3-chatbot-resources'; ?>></div>
 	</div>
 <?php if ($resourcesModuleUrl !== '' && $resourcesEndpoints !== []) { ?>
 <script type="module">
@@ -115,50 +119,101 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 
 (function() {
 	var target = document.getElementById(<?php echo json_encode($resourcesRootId, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>);
-	if (!target || target.getAttribute('data-filemanager-ready') === '1') {
+	if (!target) {
 		return;
 	}
 
-	var chatbotRoot = target.closest('[data-base3-chatbot-config-root="1"]');
-	if (!chatbotRoot) {
+	var agentOwner = <?php echo $isAgentResourceOwner ? 'true' : 'false'; ?>;
+	var formRoot = agentOwner ? target.closest('form') : target.closest('[data-base3-chatbot-config-root="1"]');
+	if (!formRoot) {
 		return;
 	}
 
-	target.setAttribute('data-filemanager-ready', '1');
-	var adapter = new HttpFileManagerAdapter({
-		baseUrl: new URL('.', document.baseURI).href,
-		endpoints: <?php echo json_encode($resourcesEndpoints, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>
-	});
-	var options = {
-		mode: 'collection',
-		adapter: adapter,
-		deleteOnRemove: true,
-		upload: {
-			accept: <?php echo json_encode($resourcesAccept, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
-			maxFileSize: <?php echo $resourcesMaxFileSize; ?>,
-			chunkSize: 8 * 1024 * 1024,
-			maxParallelFiles: 3,
-			maxParallelChunks: 2,
-			retryLimit: 3
+	var baseEndpoints = <?php echo json_encode($resourcesEndpoints, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	var uploadOptions = {
+		accept: <?php echo json_encode($resourcesAccept, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>,
+		maxFileSize: <?php echo $resourcesMaxFileSize; ?>,
+		chunkSize: 8 * 1024 * 1024,
+		maxParallelFiles: 3,
+		maxParallelChunks: 2,
+		retryLimit: 3
+	};
+
+	function initialize(endpoints, ownerId) {
+		var adapter = new HttpFileManagerAdapter({
+			baseUrl: new URL('.', document.baseURI).href,
+			endpoints: endpoints
+		});
+		var options = {
+			mode: 'collection',
+			adapter: adapter,
+			deleteOnRemove: true,
+			upload: uploadOptions
+		};
+		if (!agentOwner && formRoot.tagName && formRoot.tagName.toLowerCase() === 'form') {
+			options.form = { form: formRoot, name: 'chatbot_resources' };
+		}
+
+		var manager = new FileManager(target, options);
+		manager.init();
+		if (!agentOwner) {
+			formRoot.__base3ChatbotResourcesFileManager = manager;
+		}
+		adapter.list('').then(function(result) {
+			if (agentOwner && (formRoot.__base3AgentResourcesFileManager !== manager || formRoot.__base3AgentResourcesOwnerId !== ownerId)) {
+				return;
+			}
+			manager.setItems(result && Array.isArray(result.items) ? result.items : []);
+		}).catch(function(error) {
+			if (agentOwner && formRoot.__base3AgentResourcesFileManager !== manager) {
+				return;
+			}
+			manager.setState({ error: error && error.message ? error.message : String(error) });
+		});
+		return manager;
+	}
+
+	if (!agentOwner) {
+		if (target.getAttribute('data-filemanager-ready') !== '1') {
+			target.setAttribute('data-filemanager-ready', '1');
+			initialize(baseEndpoints, '');
+		}
+		return;
+	}
+
+	// The editor is reused for different agents. Never retain the previous
+	// owner's manager, upload queue, or asynchronously loaded file listing.
+	formRoot.__base3AgentResourcesClear = function() {
+		var manager = formRoot.__base3AgentResourcesFileManager;
+		formRoot.__base3AgentResourcesFileManager = null;
+		formRoot.__base3AgentResourcesOwnerId = '';
+		if (manager) {
+			manager.destroy();
 		}
 	};
 
-	if (chatbotRoot.tagName && chatbotRoot.tagName.toLowerCase() === 'form') {
-		options.form = {
-			form: chatbotRoot,
-			name: 'chatbot_resources'
-		};
-	}
+	formRoot.__base3AgentResourcesConfigure = function(ownerId) {
+		ownerId = String(ownerId || '').trim();
+		if (formRoot.__base3AgentResourcesOwnerId === ownerId && formRoot.__base3AgentResourcesFileManager) {
+			return;
+		}
+		formRoot.__base3AgentResourcesClear();
+		if (!ownerId) {
+			return;
+		}
 
-	var manager = new FileManager(target, options);
-	manager.init();
-	chatbotRoot.__base3ChatbotResourcesFileManager = manager;
+		var endpoints = {};
+		Object.entries(baseEndpoints).forEach(function(entry) {
+			var url = new URL(entry[1], document.baseURI);
+			url.searchParams.set('fm_name', ownerId);
+			endpoints[entry[0]] = url.href;
+		});
+		formRoot.__base3AgentResourcesOwnerId = ownerId;
+		formRoot.__base3AgentResourcesFileManager = initialize(endpoints, ownerId);
+	};
 
-	adapter.list('').then(function(result) {
-		manager.setItems(result && Array.isArray(result.items) ? result.items : []);
-	}).catch(function(error) {
-		manager.setState({ error: error && error.message ? error.message : String(error) });
-	});
+	var idField = formRoot.elements && formRoot.elements.namedItem('agent_id');
+	formRoot.__base3AgentResourcesConfigure(idField ? idField.value : '');
 })();
 </script>
 <?php } ?>

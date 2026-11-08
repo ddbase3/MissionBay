@@ -274,6 +274,8 @@ final class ScheduledAgentRunnerJob implements IJob {
                 return [
                         'conversation_channel_id' => 'scheduled-agent:' . $agentId,
                         'scheduled_agent_id' => $agentId,
+                        'agent_id' => $agentId,
+                        'agent_config_group' => 'agent',
                         'scheduled_agent_label' => trim((string)($settings['label'] ?? '')),
                         'scheduled_agent_config' => $settings,
                         'scheduled_agent_policy' => $policy
