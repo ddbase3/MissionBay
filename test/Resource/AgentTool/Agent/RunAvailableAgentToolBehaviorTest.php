@@ -324,7 +324,9 @@ final class RunAvailableAgentToolBehaviorTest extends TestCase {
 			$settings->method('get')->willReturnCallback(static fn(string $settingsGroup, string $id, array $default = []): array => $group[$id] ?? $default);
 		}
 		$execution ??= $this->createStub(IAgentExecutionService::class);
-		return new RunAvailableAgentTool($resolver, new AgentConfigurationService($settings, $this->createStub(IClassMap::class)), $execution, 'catalog-test');
+		$classMap = $this->createStub(IClassMap::class);
+		$classMap->method('getInstancesByInterface')->willReturn([]);
+		return new RunAvailableAgentTool($resolver, new AgentConfigurationService($settings, $classMap), $execution, 'catalog-test');
 	}
 
 	private function executionResult(array $output): IAgentExecutionService {

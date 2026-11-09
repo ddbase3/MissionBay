@@ -21,7 +21,9 @@ final class RunConfiguredAgentToolBehaviorCoverageTest extends TestCase {
 		RunConfiguredAgentTestExecutionService $execution,
 		array $config = []
 	): RunConfiguredAgentTool {
-		$tool = new RunConfiguredAgentTool(new RunConfiguredAgentTestConfigResolver(), new AgentConfigurationService($settings, $this->createStub(IClassMap::class)), $execution, 'subagent_fixture');
+		$classMap = $this->createStub(IClassMap::class);
+		$classMap->method('getInstancesByInterface')->willReturn([]);
+		$tool = new RunConfiguredAgentTool(new RunConfiguredAgentTestConfigResolver(), new AgentConfigurationService($settings, $classMap), $execution, 'subagent_fixture');
 		$tool->setConfig($config);
 		return $tool;
 	}
