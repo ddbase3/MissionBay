@@ -33,6 +33,23 @@ When the BASE3 composition provides `IManagedFileStorageService`, `MissionBayPlu
 
 During execution, the manually started agent, `ScheduledAgentRunnerJob`, and configured/available sub-agent tools pass the actual target `agent_id` and `agent_config_group`. `ConfiguredChatModelAgentResource` resolves these keys before any inherited chatbot owner context. The chatbot continues using its original chatbot owner keys. Only PDF files are supported by the current provider-file-reference integration, and the chosen chat model must implement `IAiFileCapableChatModel` when files exist. This is not a new RAG or indexing pipeline.
 
+### Agent editor save in embedded hosts
+
+The agent editor uses one BASE3 save endpoint and the existing agent form validation.
+It sends settings as `application/x-www-form-urlencoded`, not `multipart/form-data`:
+file resources use the separate existing FileManager endpoint. The URL-encoded
+request preserves PHP bracket field names for profiles, policy settings, and
+capability overrides. The modal explicitly handles its own submit events and
+validates required controls without allowing native page navigation. It closes
+only after a successful JSON response with `mode=save`, `action=saved`, and the
+matching `record.agent_id`. An error or unexpected response leaves the editor
+open and shows a failure, rather than silently treating a grid response as a
+save. These rules apply uniformly to standalone BASE3 and embedded hosts.
+
+### Agent list with unavailable runtimes
+
+The Agent Admin grid uses persisted settings and the existing runtime registry only for optional summaries from installed runtimes. A stored agent referencing a runtime that is not installed on the current platform remains listed with its original runtime ID, even if the editor cannot load that runtime configuration. This is deliberately different from editing and execution: the strict selector still rejects an unavailable runtime, without changing the agent or selecting a substitute.
+
 ## Provider configuration
 
 | Display name | Settings group |

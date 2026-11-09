@@ -470,7 +470,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 </div>
 
 <div id="agent-admin-editor-content" class="agent-admin-editor-content" hidden>
-        <form id="base3_agent_admin_editor_form">
+        <form id="base3_agent_admin_editor_form" method="post" novalidate>
                 <input type="hidden" name="mode" value="save" />
                 <input type="hidden" name="old_id" />
                 <div class="agent-admin-form-header">
@@ -540,6 +540,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
         let runnerDialog = null;
         let currentEditorAgentId = '';
         let creatingAgent = false;
+        let savingAgent = false;
 
         const ENABLED_FILTER_OPTIONS = [
                 { value: '', label: mbText('all_states', 'All states') },
@@ -1763,11 +1764,21 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
         }
 
         async function saveEditorPayload() {
+                if (savingAgent) {
+                        return;
+                }
+                savingAgent = true;
                 try {
                         const elements = getEditorElements();
 
                         if (!elements.form) {
                                 throw new Error('Agent editor form not found.');
+                        }
+
+                        // The dialog performs its own asynchronous save. Validate the
+                        // controls explicitly instead of allowing a host form submit.
+                        if (typeof elements.form.reportValidity === 'function' && !elements.form.reportValidity()) {
+                                return;
                         }
 
                         const id = validateEditorForm(elements.form);
@@ -1782,13 +1793,24 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                                 await resourcesManager.waitForUploads();
                         }
                         const formData = prepareConfigFormData(elements.form);
+                        // File resources have their own upload endpoint. The agent
+                        // settings contain only scalar fields, including PHP-style
+                        // bracket names. Encode them as a normal form POST rather
+                        // than multipart/form-data for embedded hosts.
+                        const body = new URLSearchParams();
+                        formData.forEach((value, name) => {
+                                if (typeof value !== 'string') {
+                                        throw new Error(mbText('agent_save_invalid_form_field', 'The agent form contains an unexpected file field.'));
+                                }
+                                body.append(name, value);
+                        });
 
                         setEditorStatus('Saving agent...', '');
                         setLog(mbText('saving_agent_prefix', 'Saving agent ') + id);
 
                         const response = await fetch(ENDPOINT_URL, {
                                 method: 'POST',
-                                body: formData,
+                                body,
                                 credentials: 'same-origin',
                                 headers: {
                                         'X-Requested-With': 'XMLHttpRequest'
@@ -1802,8 +1824,12 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                         const json = await response.json();
                         log('Save response body', json);
 
-                        if (!json || !json.ok) {
-                                throw new Error(json && json.error ? json.error : 'Save failed.');
+                        if (!json || json.ok !== true) {
+                                throw new Error(json && json.error ? json.error : mbText('agent_save_response_invalid', 'The server did not confirm that the agent was saved.'));
+                        }
+                        if (json.mode !== 'save' || json.action !== 'saved' ||
+                                !json.record || String(json.record.agent_id || '') !== id) {
+                                throw new Error(mbText('agent_save_response_invalid', 'The server did not confirm that the agent was saved.'));
                         }
 
                         setEditorStatus('Agent saved. Updating grid...', 'ok');
@@ -1813,6 +1839,8 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
                 } catch (error) {
                         setEditorStatus(error && error.message ? error.message : String(error), 'error');
                         setLog(mbText('save_failed_prefix', 'Save failed: ') + getText(error && error.message ? error.message : error));
+                } finally {
+                        savingAgent = false;
                 }
         }
 
@@ -1911,9 +1939,12 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
                 if (elements.form) {
                         elements.form.addEventListener('submit', (event) => {
+                                // Prevent native and delegated host submits from
+                                // navigating away from the editor in embedded UIs.
                                 event.preventDefault();
-                                saveEditorPayload();
-                        });
+                                event.stopImmediatePropagation();
+                                void saveEditorPayload();
+                        }, true);
 
                         const policySelect = elements.form.querySelector('[data-base3-agent-policy-select]');
                         if (policySelect) {

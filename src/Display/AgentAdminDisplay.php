@@ -30,6 +30,7 @@ use AssistantFoundation\Api\IAgentConfigurationService;
 use Base3\Translation\Api\ITranslation;
 use Base3\Worker\Api\IJobExecutionPolicy;
 use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Api\IAgentRuntimeRegistry;
 use AssistantFoundation\Dto\AgentExecutionRequest;
 use JsonException;
 use AssistantFoundation\Api\IAgentConfigFormService;
@@ -64,6 +65,7 @@ final class AgentAdminDisplay implements IDisplay {
                 private readonly IClassMap $classMap,
                 private readonly IAgentConfigFormService $agentConfigFormService,
                 private readonly IAgentExecutionService $agentExecutionService,
+                private readonly IAgentRuntimeRegistry $agentRuntimeRegistry,
 		private readonly IAuthorizationService $settingsAuthorization,
 		private readonly ITranslation $translation
 	) {}
@@ -770,7 +772,7 @@ final class AgentAdminDisplay implements IDisplay {
                                 $settings = [];
                         }
 
-                        $rows[] = $this->normalizeRow((string)$id, $settings);
+                        $rows[] = $this->normalizeOverviewRow((string)$id, $settings);
                 }
 
                 return $rows;
@@ -781,8 +783,50 @@ final class AgentAdminDisplay implements IDisplay {
          * @return array<string,mixed>
          */
         private function normalizeRow(string $id, array $settings): array {
+                return $this->buildRowFromValues($id, $settings, $this->settingsToViewValues($id, $settings));
+        }
+
+        /**
+         * Grid rows describe stored settings without resolving the execution runtime.
+         * A runtime that is not installed must not make every other agent disappear.
+         *
+         * @param array<string,mixed> $settings
+         * @return array<string,mixed>
+         */
+        private function normalizeOverviewRow(string $id, array $settings): array {
+                $policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
+                $policyId = $this->normalizeTechnicalKey((string)($policy['policy'] ?? ''));
+                if($policyId === '') {
+                        $policyId = $this->getDefaultPolicyId();
+                }
+                $runtimeId = trim((string)($settings['agent_runtime'] ?? ''));
+                $runtimeSummary = [];
+                if($runtimeId !== '' && $this->agentRuntimeRegistry->hasRuntime($runtimeId)) {
+                        $runtimeSummary = $this->agentRuntimeRegistry
+                                ->getConfigFormService($runtimeId)
+                                ->getConfigurationSummary($settings);
+                }
+
+                $values = array_merge($settings, [
+                        'enabled' => $this->toBool($settings['enabled'] ?? true),
+                        'label' => $this->normalizeLabel((string)($settings['label'] ?? '')),
+                        'user_prompt' => $this->normalizeTextBlock((string)($settings['user_prompt'] ?? '')),
+                        'policy_policy' => $policyId,
+                        'policy_data' => is_array($policy['data'] ?? null) ? $policy['data'] : [],
+                        'agent_runtime' => $runtimeId,
+                        'agent_runtime_summary' => $runtimeSummary
+                ]);
+
+                return $this->buildRowFromValues($id, $settings, $values);
+        }
+
+        /**
+         * @param array<string,mixed> $settings
+         * @param array<string,mixed> $values
+         * @return array<string,mixed>
+         */
+        private function buildRowFromValues(string $id, array $settings, array $values): array {
                 $id = $this->normalizeTechnicalKey($id);
-                $values = $this->settingsToViewValues($id, $settings);
                 $policyId = (string)($values['policy_policy'] ?? '');
                 $policyData = is_array($values['policy_data'] ?? null) ? $values['policy_data'] : [];
                 $label = $this->normalizeLabel((string)($values['label'] ?? ''));

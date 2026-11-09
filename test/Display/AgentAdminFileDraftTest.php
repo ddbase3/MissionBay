@@ -5,6 +5,7 @@ namespace MissionBay\Test\Display;
 use AssistantFoundation\Api\IAgentConfigFormService;
 use AssistantFoundation\Api\IAgentConfigurationService;
 use AssistantFoundation\Api\IAgentExecutionService;
+use AssistantFoundation\Api\IAgentRuntimeRegistry;
 use Base3\Api\IAssetResolver;
 use Base3\Api\IClassMap;
 use Base3\Api\IMvcView;
@@ -30,6 +31,7 @@ final class AgentAdminFileDraftTest extends TestCase {
 			$classMap,
 			$form ?? $this->createMock(IAgentConfigFormService::class),
 			$this->createMock(IAgentExecutionService::class),
+			$this->createMock(IAgentRuntimeRegistry::class),
 			$this->createMock(IAuthorizationService::class),
 			$this->createMock(ITranslation::class)
 		);
