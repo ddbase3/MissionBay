@@ -50,6 +50,14 @@ final class ConfiguredChatModelAgentFileOwnerTest extends TestCase {
 		]));
 	}
 
+	public function testMissingAgentConfigGroupDoesNotExposeChatbotOrAgentFiles(): void {
+		self::assertSame([], $this->runFileOwnerCheck([
+			'agent_id' => 'agent-a',
+			'chatbot_config_group' => 'uihk-chatbot',
+			'chatbot_config_name' => 'default'
+		]));
+	}
+
 	public function testChatbotExecutionRetainsItsOriginalOwnerLookup(): void {
 		self::assertSame([['uihk-chatbot', 'default', IManagedFileStorageService::MODE_COLLECTION]], $this->runFileOwnerCheck([
 			'chatbot_config_group' => 'uihk-chatbot',
