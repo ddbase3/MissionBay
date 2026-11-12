@@ -19,9 +19,11 @@ namespace MissionBay\Migration;
 
 use Base3\Database\Api\IDatabase;
 use Base3\Migration\Api\IDatabaseMigration;
+use Base3\Migration\Api\ILegacyDatabaseMigration;
+use Base3\Migration\Exception\MigrationException;
 use RuntimeException;
 
-final class Migration001AnonymizeAiUsage implements IDatabaseMigration {
+final class Migration001AnonymizeAiUsage implements IDatabaseMigration, ILegacyDatabaseMigration {
 
 	private const TABLE = 'base3_missionbay_ai_usage';
 
@@ -86,5 +88,9 @@ final class Migration001AnonymizeAiUsage implements IDatabaseMigration {
 
 		$error = trim($this->database->errorMessage());
 		throw new RuntimeException($error !== '' ? $message . ' ' . $error : $message);
+	}
+
+	public function down(): void {
+		throw new MigrationException('Not implemented');
 	}
 }

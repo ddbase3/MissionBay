@@ -19,13 +19,15 @@ namespace MissionBay\Migration;
 
 use Base3\Database\Api\IDatabase;
 use Base3\Migration\Api\IDatabaseMigration;
+use Base3\Migration\Api\ILegacyDatabaseMigration;
+use Base3\Migration\Exception\MigrationException;
 
 /**
  * Add transparent owner identity and independently versioned encryption metadata.
  * Legacy hashes stay available for safe, on-access backfill and DSR deletion;
  * a later migration may drop them only after remaining records are resolved.
  */
-final class Migration001ConversationIdentityAndEncryption implements IDatabaseMigration {
+final class Migration001ConversationIdentityAndEncryption implements IDatabaseMigration, ILegacyDatabaseMigration {
 
 	private const CONVERSATION_TABLE = 'base3_missionbay_conversation';
 	private const MESSAGE_TABLE = 'base3_missionbay_conversation_message';
@@ -164,5 +166,9 @@ final class Migration001ConversationIdentityAndEncryption implements IDatabaseMi
 		}
 		$detail = trim($this->database->errorMessage());
 		throw new \RuntimeException($detail !== '' ? $message . ' ' . $detail : $message);
+	}
+
+	public function down(): void {
+		throw new MigrationException('Not implemented');
 	}
 }

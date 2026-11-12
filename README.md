@@ -454,3 +454,7 @@ non-deletable identities into the ordinary `agent` SettingsStore group while
 keeping model, tool, memory, context and all other runtime settings editable.
 See [fixed agent definitions](docs/fixed-agent-definitions.md) for a complete
 implementation example, compatibility rules and smoke tests.
+
+## Historical migration readiness
+
+The existing migration classes in this plugin now implement the independent `ILegacyDatabaseMigration` marker and declare `down(): void` that throws `MigrationException('Not implemented')`. This is not a working reverse migration. Existing `up()` behavior, migration identities, versions, and providers are unchanged. The BASE3 runner skips only the stored checksum comparison for already-applied marked migrations; unapplied migrations still run forward and are recorded in `base3_migrations`. No database data or historical records are modified by this source update. The marker may be removed after the stored checksum has been deliberately reconciled with the final unmarked source file.
