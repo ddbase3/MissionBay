@@ -1,18 +1,33 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Service;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Dto\AiProviderFileReference;
-use Base3\Api\IClassMap;
-use Base3\Settings\Api\ISettingsStore;
-use Base3\State\Api\IStateStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Service\AiProviderFileOwnerCleanupService;
-use MissionBay\Service\AiProviderFileReferenceStateRepository;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
+namespace Base3\MissionBay\Test\Service;
+
+use Base3\AssistantFoundation\Dto\AiProviderFileReference;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\CoreFoundation\State\Api\IStateStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Service\AiProviderFileOwnerCleanupService;
+use Base3\MissionBay\Service\AiProviderFileReferenceStateRepository;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use PHPUnit\Framework\TestCase;
-use ResourceFoundation\Api\IManagedFileStorageService;
-use ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
+use Base3\ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
 
 final class AiProviderFileOwnerCleanupBehaviorTest extends TestCase {
 

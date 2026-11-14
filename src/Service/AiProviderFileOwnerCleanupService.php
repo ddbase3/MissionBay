@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiFileCapableChatModel;
-use Base3\Settings\Api\ISettingsStore;
-use ResourceFoundation\Api\IManagedFileStorageService;
-use ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiFileCapableChatModel;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
+use Base3\ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
 use RuntimeException;
 
 final class AiProviderFileOwnerCleanupService {

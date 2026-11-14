@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Profile;
+namespace Base3\MissionBay\Profile;
 
-use AssistantFoundation\Api\IAgentContext;
-use Base3\Api\IOutputSchemaProvider;
-use MissionBay\Api\IAgentCapabilitySourceMetadata;
-use MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\CoreFoundation\Api\IOutputSchemaProvider;
+use Base3\MissionBay\Api\IAgentCapabilitySourceMetadata;
+use Base3\MissionBay\Api\IAgentTool;
 
 final class ToolGuardAgentTool implements IAgentTool, IOutputSchemaProvider, IAgentCapabilitySourceMetadata {
 

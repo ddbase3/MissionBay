@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAiChatModel;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
-use MissionBay\ChatModel\NormalizedChatModelTrait;
-use MissionBay\Api\IAgentConfigValueResolver;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+use Base3\MissionBay\ChatModel\NormalizedChatModelTrait;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
 /**
  * FireworksChatModelAgentResource

@@ -2,12 +2,23 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use MissionBay\Api\IAgentComponentPresetFlowExpander;
-use MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentComponentPresetFlowExpander;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
 
 /**
  * Canonical flow-definition expansion for component presets and recursive docks.

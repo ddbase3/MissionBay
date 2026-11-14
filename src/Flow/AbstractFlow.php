@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Flow;
+namespace Base3\MissionBay\Flow;
 
-use MissionBay\Api\IAgentConfigValueResolver;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentFlow;
-use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentNodeFactory;
-use MissionBay\Api\IAgentResourceFactory;
-use MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentFlow;
+use Base3\MissionBay\Api\IAgentNode;
+use Base3\MissionBay\Api\IAgentNodeFactory;
+use Base3\MissionBay\Api\IAgentResourceFactory;
+use Base3\MissionBay\Agent\AgentNodePort;
 
 abstract class AbstractFlow implements IAgentFlow {
 

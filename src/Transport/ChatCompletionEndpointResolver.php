@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Transport;
+namespace Base3\MissionBay\Transport;
 
 /**
  * Resolves a configured connection URL and chat-completions path exactly once.

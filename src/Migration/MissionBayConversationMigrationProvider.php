@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Migration;
+namespace Base3\MissionBay\Migration;
 
-use Base3\Api\IContainer;
-use Base3\Database\Api\IDatabase;
-use Base3\Migration\Api\IDatabaseMigrationProvider;
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Migration\Api\IDatabaseMigrationProvider;
 
 /** Migration provider for MissionBay's persistent conversation store. */
 final class MissionBayConversationMigrationProvider implements IDatabaseMigrationProvider {

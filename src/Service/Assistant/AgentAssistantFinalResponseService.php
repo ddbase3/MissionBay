@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service\Assistant;
+namespace Base3\MissionBay\Service\Assistant;
 
-use AssistantFoundation\Api\IAiChatModel;
-use MissionBay\Api\IAgentAssistantFinalResponseService;
-use MissionBay\Api\IAgentAssistantMessageFactory;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
-use MissionBay\Dto\Assistant\AgentExecutionLedger;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\MissionBay\Api\IAgentAssistantFinalResponseService;
+use Base3\MissionBay\Api\IAgentAssistantMessageFactory;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use Base3\MissionBay\Dto\Assistant\AgentExecutionLedger;
 
 final class AgentAssistantFinalResponseService implements IAgentAssistantFinalResponseService {
 

@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Memory;
+namespace Base3\MissionBay\Memory;
 
-use AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
 
 /**
  * Explicit stateless memory used by agent contexts without configured memory.

@@ -15,22 +15,22 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use Base3\Usermanager\Permission;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use AssistantFoundation\Api\IAiServiceTester;
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use Base3\Api\IClassMap;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ConfiguredServiceTestService;
-use MissionBay\Service\ServiceConfig;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\AssistantFoundation\Api\IAiServiceTester;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Connection\ConnectionConfig;
+use Base3\MissionBay\Service\ConfiguredServiceTestService;
+use Base3\MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
 abstract class AbstractServiceConfigDisplay implements IDisplay {

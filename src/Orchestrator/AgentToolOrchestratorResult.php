@@ -15,24 +15,24 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator;
+namespace Base3\MissionBay\Orchestrator;
 
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionDecision;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentInteractionRequest;
-use AssistantFoundation\Dto\AgentBudgetAssessment;
-use AssistantFoundation\Dto\AgentCapabilitySelection;
-use AssistantFoundation\Dto\AgentContextCompaction;
-use AssistantFoundation\Dto\AgentContinuationDecision;
-use AssistantFoundation\Dto\AgentProgressAssessment;
-use AssistantFoundation\Dto\AgentResult;
-use AssistantFoundation\Dto\AgentResultVerification;
-use AssistantFoundation\Dto\AgentStageTraceEntry;
-use AssistantFoundation\Dto\AgentToolContractValidation;
-use AssistantFoundation\Dto\AgentToolCacheRecord;
-use AssistantFoundation\Dto\AgentToolResult;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionDecision;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
+use Base3\AssistantFoundation\Dto\AgentBudgetAssessment;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelection;
+use Base3\AssistantFoundation\Dto\AgentContextCompaction;
+use Base3\AssistantFoundation\Dto\AgentContinuationDecision;
+use Base3\AssistantFoundation\Dto\AgentProgressAssessment;
+use Base3\AssistantFoundation\Dto\AgentResult;
+use Base3\AssistantFoundation\Dto\AgentResultVerification;
+use Base3\AssistantFoundation\Dto\AgentStageTraceEntry;
+use Base3\AssistantFoundation\Dto\AgentToolContractValidation;
+use Base3\AssistantFoundation\Dto\AgentToolCacheRecord;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Result of the complete MissionBay agent stage pipeline.

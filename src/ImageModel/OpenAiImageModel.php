@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ImageModel;
+namespace Base3\MissionBay\ImageModel;
 
-use MissionBay\Transport\OpenAiTransport;
+use Base3\MissionBay\Transport\OpenAiTransport;
 
 class OpenAiImageModel extends AbstractImageGenerationModel {
 

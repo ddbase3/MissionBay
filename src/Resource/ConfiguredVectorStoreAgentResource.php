@@ -15,18 +15,18 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IRetrievalIndex;
-use AssistantFoundation\Api\IRetrievalIndexInspector;
-use AssistantFoundation\Dto\RetrievalIndexItem;
-use AssistantFoundation\Dto\RetrievalSearchRequest;
-use AssistantFoundation\Dto\RetrievalSearchResult;
-use Base3\Api\ISchemaProvider;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
-use MissionBay\Api\IVectorStoreService;
+use Base3\AssistantFoundation\Api\IRetrievalIndex;
+use Base3\AssistantFoundation\Api\IRetrievalIndexInspector;
+use Base3\AssistantFoundation\Dto\RetrievalIndexItem;
+use Base3\AssistantFoundation\Dto\RetrievalSearchRequest;
+use Base3\AssistantFoundation\Dto\RetrievalSearchResult;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\MissionBay\Api\IVectorStoreService;
 use RuntimeException;
 
 /**

@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ConnectionDriver;
+namespace Base3\MissionBay\ConnectionDriver;
 
-use AssistantFoundation\Api\IConnectionDriverDefinition;
+use Base3\AssistantFoundation\Api\IConnectionDriverDefinition;
 
 final class HttpConnectionDriverDefinition implements IConnectionDriverDefinition {
 

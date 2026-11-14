@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Reporting\Settings;
+namespace Base3\MissionBay\Reporting\Settings;
 
-use Base3\Settings\Api\ISettingsStore;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 
 final class AiUsageReportingSettingsSeeder {
 

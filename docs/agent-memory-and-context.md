@@ -22,7 +22,7 @@ Conversation history is independent from tools. A failed or unused Knowledge too
 A visible chat-history backend implements:
 
 ```text
-AssistantFoundation\Api\IAgentConversationMemory
+Base3\AssistantFoundation\Api\IAgentConversationMemory
 ```
 
 The interface extends `IAgentMemory` and adds explicit conversation operations:
@@ -58,8 +58,8 @@ The memory backend determines the owner from the authenticated user or active se
 MissionBay provides exactly two conversation-memory implementations:
 
 ```text
-MissionBay\Resource\SessionMemoryAgentResource
-MissionBay\Resource\DatabaseMemoryAgentResource
+Base3\MissionBay\Resource\SessionMemoryAgentResource
+Base3\MissionBay\Resource\DatabaseMemoryAgentResource
 ```
 
 `SessionMemoryAgentResource` stores the complete canonical conversation structure through `ISession`.
@@ -100,7 +100,7 @@ contexts
 Each selected resource must implement:
 
 ```text
-AssistantFoundation\Api\IAgentContextContributor
+Base3\AssistantFoundation\Api\IAgentContextContributor
 ```
 
 Context contributors return typed `AgentInstructionBlock` values. They do not receive user/assistant history writes.
@@ -142,7 +142,7 @@ contextcontributors
   IAgentContextContributor
 
 tools
-  MissionBay\Api\IAgentTool
+  Base3\MissionBay\Api\IAgentTool
 ```
 
 Knowledge / Skills is attached through `tools`, not through either memory dock.
@@ -170,7 +170,7 @@ current conversation without introducing another history or scope.
 ## Runtime-neutral conversation access
 
 Other plugins manage conversations through
-`AssistantFoundation\Api\IAgentConversationService`. AssistantRuntime selects
+`Base3\AssistantFoundation\Api\IAgentConversationService`. AssistantRuntime selects
 the configured runtime and MissionBay resolves exactly one conversation memory
 from the selected Memory Profile. The service never selects a different profile
 or memory when the configuration is invalid.

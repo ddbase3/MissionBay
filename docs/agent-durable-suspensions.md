@@ -31,12 +31,12 @@ The serialized `AgentSuspension` is never accepted from the client.
 
 ## Components
 
-`AssistantFoundation\Api\IAgentSuspensionRepository` defines the storage boundary.
+`Base3\AssistantFoundation\Api\IAgentSuspensionRepository` defines the storage boundary.
 
 `AssistantRuntime` provides the shared default implementation:
 
 ```text
-AssistantRuntime\Service\StateStoreAgentSuspensionRepository
+Base3\AssistantRuntime\Service\StateStoreAgentSuspensionRepository
 ```
 
 It stores suspension state through `IStateStore`. A suspension with a stable scope id is stored as one canonical state record. `findPending()` and `claim()` both resolve that same record; no secondary suspension copy or lookup index is maintained. MissionBay consumes only the `IAgentSuspensionRepository` contract and may be composed with another host-provided implementation.

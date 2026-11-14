@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace Base3\MissionBay\ChatModel;
 
-use AssistantFoundation\Dto\AiChatResult;
-use AssistantFoundation\Dto\AiResultMetadata;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
-use MissionBay\Ai\AiResultNormalizer;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+use Base3\MissionBay\Ai\AiResultNormalizer;
 use RuntimeException;
 
 trait NormalizedChatModelTrait {

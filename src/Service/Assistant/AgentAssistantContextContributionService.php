@@ -15,16 +15,16 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service\Assistant;
+namespace Base3\MissionBay\Service\Assistant;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentMemory;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentAssistantContextContributionService;
-use MissionBay\Api\IAgentMemoryRoleResolver;
-use MissionBay\Orchestrator\AgentStateSynchronizer;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentAssistantContextContributionService;
+use Base3\MissionBay\Api\IAgentMemoryRoleResolver;
+use Base3\MissionBay\Orchestrator\AgentStateSynchronizer;
 
 final class AgentAssistantContextContributionService implements IAgentAssistantContextContributionService {
 

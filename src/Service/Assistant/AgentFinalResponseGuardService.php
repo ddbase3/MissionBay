@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service\Assistant;
+namespace Base3\MissionBay\Service\Assistant;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AiToolCall;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
-use MissionBay\Dto\Assistant\AgentExecutionLedger;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use Base3\MissionBay\Dto\Assistant\AgentExecutionLedger;
 
 /**
  * Semantically checks a buffered final answer against authoritative mutation evidence.

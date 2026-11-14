@@ -144,7 +144,7 @@ Tool results include MCP text content. Object-like PHP results are also returned
 }
 ```
 
-Output schemas can be provided through `Base3\Api\IOutputSchemaProvider`.
+Output schemas can be provided through `Base3\CoreFoundation\Api\IOutputSchemaProvider`.
 
 ## Tool authorization and approval ownership
 
@@ -174,7 +174,7 @@ Server-side security remains mandatory. A credential only receives profiles expl
 Resources are provided by tools or globally discoverable services implementing:
 
 ```text
-MissionBay\Api\IAgentResourceProvider
+Base3\MissionBay\Api\IAgentResourceProvider
 ```
 
 Supported methods:
@@ -216,7 +216,7 @@ ilias://context/current
 Prompts are provided by tools or globally discoverable services implementing:
 
 ```text
-MissionBay\Api\IAgentPromptProvider
+Base3\MissionBay\Api\IAgentPromptProvider
 ```
 
 Supported methods:
@@ -237,7 +237,7 @@ Host systems may expose request-local MCP resources or prompts without coupling 
 The host endpoint can register providers through:
 
 ```text
-MissionBay\Mcp\McpHostProviderRegistry
+Base3\MissionBay\Mcp\McpHostProviderRegistry
 ```
 
 The ILIAS endpoint registers `Base3IliasLab\Resource\IliasContextResourceProvider` before dispatching the MissionBay MCP output.

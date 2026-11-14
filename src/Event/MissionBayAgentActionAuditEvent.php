@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Event;
+namespace Base3\MissionBay\Event;
 
-use AssistantFoundation\Dto\AgentAction;
-use Base3\Event\BaseEvent;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\CoreFoundation\Event\BaseEvent;
 
 /** Typed audit event for approval, resume, and mutation commit transitions. */
 final class MissionBayAgentActionAuditEvent extends BaseEvent {

@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ServiceDriver;
+namespace Base3\MissionBay\ServiceDriver;
 
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use MissionBay\EmbeddingModel\OpenAiCompatibleEmbeddingModel;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\MissionBay\EmbeddingModel\OpenAiCompatibleEmbeddingModel;
 
 final class OpenAiCompatibleEmbeddingServiceDriverDefinition implements IServiceDriverDefinition {
 

@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Agent;
+namespace Base3\MissionBay\Agent;
 
-use Base3\ConfigValue\Api\IConfigValueResolver;
-use MissionBay\Api\IAgentConfigValueResolver;
+use Base3\CoreFoundation\ConfigValue\Api\IConfigValueResolver;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use RuntimeException;
 
 /**

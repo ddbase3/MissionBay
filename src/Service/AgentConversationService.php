@@ -2,17 +2,28 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Api\IAgentConversationRuntimeService;
-use AssistantFoundation\Dto\AgentConversation;
-use AssistantFoundation\Dto\AgentConversationRequest;
-use AssistantFoundation\Dto\AgentConversationState;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Profile\AgentMemoryProfileResolver;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Api\IAgentConversationRuntimeService;
+use Base3\AssistantFoundation\Dto\AgentConversation;
+use Base3\AssistantFoundation\Dto\AgentConversationRequest;
+use Base3\AssistantFoundation\Dto\AgentConversationState;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
 
 /**
  * MissionBay runtime access to the one configured conversation memory.

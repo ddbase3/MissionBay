@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Orchestrator\AgentToolOrchestratorResult;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestratorResult;
 
 interface IAgentAssistantFallbackBuilder {
 

@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Agent;
+namespace Base3\MissionBay\Agent;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentContextFactory;
-use AssistantFoundation\Api\IAgentMemory;
-use Base3\Api\IClassMap;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentContextFactory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\CoreFoundation\Api\IClassMap;
 
 class AgentContextFactory implements IAgentContextFactory {
 

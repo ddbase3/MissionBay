@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use MissionBay\Api\IAgentComponentPresetInstaller;
-use MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentComponentPresetInstaller;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
 
 /**
  * AgentComponentDefaultPresetInstaller

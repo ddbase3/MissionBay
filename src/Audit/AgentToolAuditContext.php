@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Audit;
+namespace Base3\MissionBay\Audit;
 
-use AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContext;
 
 /**
  * AgentToolAuditContext

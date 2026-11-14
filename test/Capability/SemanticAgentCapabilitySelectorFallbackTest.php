@@ -1,14 +1,29 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Capability;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentCapability;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
-use MissionBay\Capability\HybridAgentCapabilitySelector;
-use MissionBay\Capability\SemanticAgentCapabilitySelector;
+namespace Base3\MissionBay\Test\Capability;
+
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentCapability;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
+use Base3\MissionBay\Capability\HybridAgentCapabilitySelector;
+use Base3\MissionBay\Capability\SemanticAgentCapabilitySelector;
 use PHPUnit\Framework\TestCase;
 
 final class SemanticAgentCapabilitySelectorFallbackTest extends TestCase {
@@ -41,7 +56,7 @@ final class SemanticAgentCapabilitySelectorFallbackTest extends TestCase {
 		$this->assertStringNotContainsString('credentials', json_encode($selection->toArray()));
 	}
 
-	private function select(AgentCapabilitySelectionConfig $config, string $text = '', ?IAiChatModel $model = null): \AssistantFoundation\Dto\AgentCapabilitySelection {
+	private function select(AgentCapabilitySelectionConfig $config, string $text = '', ?IAiChatModel $model = null): \Base3\AssistantFoundation\Dto\AgentCapabilitySelection {
 		$catalog = new AgentCapabilityCatalog([
 			new AgentCapability('alpha', 'Alpha', 'First', 'test', [], 1, ['function' => ['name' => 'alpha']]),
 			new AgentCapability('beta', 'Beta', 'Second', 'test', [], 1, ['function' => ['name' => 'beta']])

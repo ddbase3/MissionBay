@@ -2,25 +2,36 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use Base3\Usermanager\Permission;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Api\IAssetResolver;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use AssistantFoundation\Api\IAgentConfigurationService;
-use MissionBay\Api\IAgentFlowCompiler;
-use MissionBay\Composition\AgentCompositionInspector;
-use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
-use MissionBay\Profile\AgentContextProfileResolver;
-use MissionBay\Profile\AgentMemoryProfileResolver;
-use MissionBay\Profile\AgentToolProfileResolver;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Api\IAssetResolver;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\MissionBay\Api\IAgentFlowCompiler;
+use Base3\MissionBay\Composition\AgentCompositionInspector;
+use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
+use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
+use Base3\MissionBay\Profile\AgentToolProfileResolver;
 use Throwable;
 
 /**
@@ -58,7 +69,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 	public function getOutput(string $out = 'html', bool $final = false): string {
 		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
 			$this->settingsAuthorization->getDefaultAuthority(),
-			Permission::for('feature', \MissionBay\SettingsTab\AgentcompositionadminSettingsTab::getName())
+			Permission::for('feature', \Base3\MissionBay\SettingsTab\AgentcompositionadminSettingsTab::getName())
 		))->isAllowed()) {
 			http_response_code(403);
 			return '';

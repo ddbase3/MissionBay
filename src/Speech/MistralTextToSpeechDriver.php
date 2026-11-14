@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Speech;
+namespace Base3\MissionBay\Speech;
 
-use AssistantFoundation\Api\ITextToSpeechStream;
-use AssistantFoundation\Dto\TextToSpeechRequest;
-use AssistantFoundation\Dto\TextToSpeechResult;
-use MediaFoundation\Model\AudioMedia;
-use MissionBay\Api\ITextToSpeechDriver;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
+use Base3\AssistantFoundation\Api\ITextToSpeechStream;
+use Base3\AssistantFoundation\Dto\TextToSpeechRequest;
+use Base3\AssistantFoundation\Dto\TextToSpeechResult;
+use Base3\MediaFoundation\Model\AudioMedia;
+use Base3\MissionBay\Api\ITextToSpeechDriver;
+use Base3\MissionBay\Connection\ConnectionConfig;
+use Base3\MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
 final class MistralTextToSpeechDriver implements ITextToSpeechDriver {

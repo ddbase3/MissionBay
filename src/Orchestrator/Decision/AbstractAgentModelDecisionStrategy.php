@@ -2,19 +2,30 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Decision;
+namespace Base3\MissionBay\Orchestrator\Decision;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AiChatResult;
-use AssistantFoundation\Dto\AiToolCall;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Ai\AgentChatMessageAdapter;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Ai\AgentChatMessageAdapter;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 abstract class AbstractAgentModelDecisionStrategy {
 

@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Speech;
+namespace Base3\MissionBay\Speech;
 
-use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
-use MissionBay\Api\ISpeechToTextDriver;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSession;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
+use Base3\MissionBay\Api\ISpeechToTextDriver;
+use Base3\MissionBay\Connection\ConnectionConfig;
+use Base3\MissionBay\Service\ServiceConfig;
 use RuntimeException;
 
 final class MistralSpeechToTextDriver implements ISpeechToTextDriver {

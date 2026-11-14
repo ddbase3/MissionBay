@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Connection;
+namespace Base3\MissionBay\Connection;
 
 final class ConnectionConfig {
 

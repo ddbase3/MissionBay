@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentResult;
-use AssistantFoundation\Dto\AgentState;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentResult;
+use Base3\AssistantFoundation\Dto\AgentState;
 
 /**
  * MissionBay-specific extension of IAgentContext with typed runtime state.

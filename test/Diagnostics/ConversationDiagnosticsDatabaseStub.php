@@ -1,14 +1,29 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Diagnostics;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Database\Api\IDatabase;
-use Base3\Diagnostics\Dto\DiagnosticCheckResult;
-use Base3\Settings\Api\ISettingsStore;
-use Base3\Usermanager\Api\IUsermanager;
-use Base3\Usermanager\User;
-use MissionBay\Diagnostics\ConversationMissingChatObjectDiagnosticCheck;
-use MissionBay\Diagnostics\ConversationMissingUserDiagnosticCheck;
+namespace Base3\MissionBay\Test\Diagnostics;
+
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Diagnostics\Dto\DiagnosticCheckResult;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\CoreFoundation\Usermanager\User;
+use Base3\MissionBay\Diagnostics\ConversationMissingChatObjectDiagnosticCheck;
+use Base3\MissionBay\Diagnostics\ConversationMissingUserDiagnosticCheck;
 use PHPUnit\Framework\TestCase;
 
 final class ConversationDiagnosticsDatabaseStub implements IDatabase {

@@ -15,18 +15,18 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Dto\AiEmbeddingResult;
-use AssistantFoundation\Dto\AiResultMetadata;
-use AssistantFoundation\Dto\AiUsage;
-use Base3\Api\ISchemaProvider;
-use Base3\Database\Api\IDatabase;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentConfigValueResolver;
-use AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Dto\AiEmbeddingResult;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\AssistantFoundation\Dto\AiUsage;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\AssistantFoundation\Api\IAgentContext;
 
 final class EmbeddingCacheAgentResource extends AbstractAgentResource implements IAiEmbeddingModel, ISchemaProvider {
 

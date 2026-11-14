@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Core;
+namespace Base3\MissionBay\Node\Core;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Agent\AgentNodePort;
-use MissionBay\Node\AbstractAgentNode;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Node\AbstractAgentNode;
 
 class TestInputNode extends AbstractAgentNode {
 

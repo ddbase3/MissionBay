@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentBudget;
-use AssistantFoundation\Dto\AgentBudgetAssessment;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AiUsage;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentBudget;
+use Base3\AssistantFoundation\Dto\AgentBudgetAssessment;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AiUsage;
 
 /**
  * AgentBudgetGuardService

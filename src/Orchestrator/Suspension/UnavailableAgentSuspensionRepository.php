@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Suspension;
+namespace Base3\MissionBay\Orchestrator\Suspension;
 
-use AssistantFoundation\Api\IAgentSuspensionRepository;
-use AssistantFoundation\Dto\AgentSuspension;
-use AssistantFoundation\Dto\AgentSuspensionClaim;
-use AssistantFoundation\Dto\AgentSuspensionResolution;
-use AssistantFoundation\Dto\AgentSuspensionState;
-use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
+use Base3\AssistantFoundation\Api\IAgentSuspensionRepository;
+use Base3\AssistantFoundation\Dto\AgentSuspension;
+use Base3\AssistantFoundation\Dto\AgentSuspensionClaim;
+use Base3\AssistantFoundation\Dto\AgentSuspensionResolution;
+use Base3\AssistantFoundation\Dto\AgentSuspensionState;
+use Base3\AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 
 /** Fails closed when a project has not configured persistent runtime state. */
 final class UnavailableAgentSuspensionRepository implements IAgentSuspensionRepository {

@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Capability;
+namespace Base3\MissionBay\Capability;
 
-use AssistantFoundation\Api\IAgentCapabilitySelector;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentCapabilitySelection;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
+use Base3\AssistantFoundation\Api\IAgentCapabilitySelector;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelection;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
 
 /**
  * Backward-compatible deterministic selector adapter.

@@ -2,15 +2,26 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Assistant;
+namespace Base3\MissionBay\Dto\Assistant;
 
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use AssistantFoundation\Dto\AgentStageMount;
-use MissionBay\Api\IAgentPromptProvider;
-use MissionBay\Api\IAgentResourceProvider;
-use MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\AssistantFoundation\Dto\AgentStageMount;
+use Base3\MissionBay\Api\IAgentPromptProvider;
+use Base3\MissionBay\Api\IAgentResourceProvider;
+use Base3\MissionBay\Api\IAgentTool;
 
 /**
  * Runtime result of resolving the capability sources explicitly configured for

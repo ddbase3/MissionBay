@@ -1,10 +1,25 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Retrieval;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Dto\RetrievalIndexItem;
-use MissionBay\Api\IRetrievalCollectionConfigRepository;
-use MissionBay\Retrieval\DefaultRetrievalCollectionDefinition;
+namespace Base3\MissionBay\Test\Retrieval;
+
+use Base3\AssistantFoundation\Dto\RetrievalIndexItem;
+use Base3\MissionBay\Api\IRetrievalCollectionConfigRepository;
+use Base3\MissionBay\Retrieval\DefaultRetrievalCollectionDefinition;
 use PHPUnit\Framework\TestCase;
 
 final class DefaultRetrievalCollectionDefinitionTest extends TestCase {

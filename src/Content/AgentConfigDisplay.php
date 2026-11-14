@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Content;
+namespace Base3\MissionBay\Content;
 
-use Base3\Api\IClassMap;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use Base3\Settings\Api\ISettingsStore;
-use Base3\Worker\Api\IJobExecutionPolicy;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\CoreFoundation\Worker\Api\IJobExecutionPolicy;
 use JsonException;
-use AssistantFoundation\Api\IAgentConfigFormService;
+use Base3\AssistantFoundation\Api\IAgentConfigFormService;
 use Throwable;
 
 class AgentConfigDisplay implements IDisplay {

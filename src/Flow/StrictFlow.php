@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Flow;
+namespace Base3\MissionBay\Flow;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentResource;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentNode;
+use Base3\MissionBay\Api\IAgentResource;
 
 class StrictFlow extends AbstractFlow {
 

@@ -15,20 +15,20 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IConfigurableVectorSearch;
-use AssistantFoundation\Api\IImageGenerationModel;
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use Base3\Api\IClassMap;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IParserService;
-use MissionBay\Api\ISearchService;
-use MissionBay\Api\IVectorStoreService;
-use MissionBay\Connection\ConnectionConfig;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IConfigurableVectorSearch;
+use Base3\AssistantFoundation\Api\IImageGenerationModel;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IParserService;
+use Base3\MissionBay\Api\ISearchService;
+use Base3\MissionBay\Api\IVectorStoreService;
+use Base3\MissionBay\Connection\ConnectionConfig;
 use RuntimeException;
 
 /**

@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Dto\ParserServiceDefinition;
+use Base3\AssistantFoundation\Dto\ParserServiceDefinition;
 
 interface IConfiguredParserServiceResolver {
 

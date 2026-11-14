@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Ai;
+namespace Base3\MissionBay\Ai;
 
-use AssistantFoundation\Dto\AiResultMetadata;
-use AssistantFoundation\Event\AiProviderRequestCompletedEvent;
-use Base3\Event\Api\IEventManager;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\AssistantFoundation\Event\AiProviderRequestCompletedEvent;
+use Base3\CoreFoundation\Event\Api\IEventManager;
 
 final class AiProviderRequestEventDispatcher {
 

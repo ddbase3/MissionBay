@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
 
 /**
  * AgentComponentPresetRepository

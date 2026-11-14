@@ -1,20 +1,35 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Display;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentConfigurationService;
-use Base3\Api\IRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Authorization\Dto\AuthorizationDecision;
-use Base3\Translation\Api\ITranslation;
-use Base3\Usermanager\Api\IUsermanager;
-use Base3\Usermanager\User;
-use ClientStack\FileManager\FileManagerHttpService;
-use ClientStack\FileManager\FileUploadService;
-use MissionBay\Output\AgentFileManagerOutput;
+namespace Base3\MissionBay\Test\Display;
+
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationDecision;
+use Base3\CoreFoundation\Translation\Api\ITranslation;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\CoreFoundation\Usermanager\User;
+use Base3\ClientStack\FileManager\FileManagerHttpService;
+use Base3\ClientStack\FileManager\FileUploadService;
+use Base3\MissionBay\Output\AgentFileManagerOutput;
 use PHPUnit\Framework\TestCase;
-use ResourceFoundation\Api\IFileStorage;
-use ResourceFoundation\Api\IManagedFileStorageService;
+use Base3\ResourceFoundation\Api\IFileStorage;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
 
 final class AgentFileManagerOutputTest extends TestCase {
 

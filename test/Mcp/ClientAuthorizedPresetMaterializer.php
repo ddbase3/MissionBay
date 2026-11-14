@@ -1,21 +1,36 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Mcp;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContext;
-use Base3\Api\IClassMap;
-use Base3\Logger\Api\ILogger;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IConfirmableAgentTool;
-use MissionBay\Context\AgentContext;
-use MissionBay\Dto\AgentComponentPresetMaterialization;
-use MissionBay\Mcp\McpJsonRpcHandler;
-use MissionBay\Mcp\McpToolDefinitionMapper;
-use MissionBay\Mcp\McpToolPresetMaterializer;
-use MissionBay\Mcp\McpToolProfileRepository;
-use MissionBay\Mcp\McpToolResultMapper;
+namespace Base3\MissionBay\Test\Mcp;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IConfirmableAgentTool;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
+use Base3\MissionBay\Mcp\McpJsonRpcHandler;
+use Base3\MissionBay\Mcp\McpToolDefinitionMapper;
+use Base3\MissionBay\Mcp\McpToolPresetMaterializer;
+use Base3\MissionBay\Mcp\McpToolProfileRepository;
+use Base3\MissionBay\Mcp\McpToolResultMapper;
 use PHPUnit\Framework\TestCase;
 
 final class ClientAuthorizedPresetMaterializer implements IAgentComponentPresetMaterializer {

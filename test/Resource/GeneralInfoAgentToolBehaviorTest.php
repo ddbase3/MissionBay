@@ -1,13 +1,28 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Resource;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContext;
-use Base3\Api\IClassMap;
-use MissionBay\Context\AgentContext;
-use MissionBay\InfoProvider\StaticDemoInfoTopicProvider;
-use MissionBay\InfoProvider\SystemInfoTopicProvider;
-use MissionBay\Resource\GeneralInfoAgentTool;
+namespace Base3\MissionBay\Test\Resource;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\InfoProvider\StaticDemoInfoTopicProvider;
+use Base3\MissionBay\InfoProvider\SystemInfoTopicProvider;
+use Base3\MissionBay\Resource\GeneralInfoAgentTool;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/GeneralInfoTestTopicProvider.php';
@@ -141,7 +156,7 @@ final class GeneralInfoAgentToolBehaviorTest extends TestCase {
 
 	public function testProviderResultMetadataIsNotOverwrittenWhenSet(): void {
 		$provider = new GeneralInfoTestTopicProvider();
-		$provider->response = \MissionBay\Dto\AgentInfoResult::createSuccess('official', 'detail', 'From provider', provider: 'authoritative');
+		$provider->response = \Base3\MissionBay\Dto\AgentInfoResult::createSuccess('official', 'detail', 'From provider', provider: 'authoritative');
 		$result = $this->call(['topic' => 'library'], [$provider]);
 		$this->assertSame('official', $result['topic']);
 		$this->assertSame('detail', $result['scope']);
@@ -151,7 +166,7 @@ final class GeneralInfoAgentToolBehaviorTest extends TestCase {
 
 	public function testProviderItemsAreHardLimitedByRequest(): void {
 		$provider = new GeneralInfoTestTopicProvider();
-		$provider->response = \MissionBay\Dto\AgentInfoResult::createSuccess('', '', '', items: [['n' => 1], ['n' => 2], ['n' => 3]]);
+		$provider->response = \Base3\MissionBay\Dto\AgentInfoResult::createSuccess('', '', '', items: [['n' => 1], ['n' => 2], ['n' => 3]]);
 		$result = $this->call(['topic' => 'library', 'limit' => 2], [$provider]);
 		$this->assertSame([['n' => 1], ['n' => 2]], $result['items']);
 		$this->assertTrue($result['paging']['truncated']);
@@ -160,7 +175,7 @@ final class GeneralInfoAgentToolBehaviorTest extends TestCase {
 
 	public function testExistingProviderPagingIsPreservedWhenTruncatingItems(): void {
 		$provider = new GeneralInfoTestTopicProvider();
-		$provider->response = \MissionBay\Dto\AgentInfoResult::createSuccess('', '', '', items: [[1], [2]], paging: ['cursor' => 'provider-owned']);
+		$provider->response = \Base3\MissionBay\Dto\AgentInfoResult::createSuccess('', '', '', items: [[1], [2]], paging: ['cursor' => 'provider-owned']);
 		$result = $this->call(['topic' => 'library', 'limit' => 1], [$provider]);
 		$this->assertSame(['cursor' => 'provider-owned'], $result['paging']);
 		$this->assertCount(1, $result['items']);
@@ -168,7 +183,7 @@ final class GeneralInfoAgentToolBehaviorTest extends TestCase {
 
 	public function testLinksAreLimitedToTwentyFive(): void {
 		$provider = new GeneralInfoTestTopicProvider();
-		$provider->response = \MissionBay\Dto\AgentInfoResult::createSuccess('', '', '', links: array_fill(0, 30, ['url' => 'https://example.test']));
+		$provider->response = \Base3\MissionBay\Dto\AgentInfoResult::createSuccess('', '', '', links: array_fill(0, 30, ['url' => 'https://example.test']));
 		$result = $this->call(['topic' => 'library'], [$provider]);
 		$this->assertCount(25, $result['links']);
 		$this->assertTrue($result['paging']['links_truncated']);

@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Assistant;
+namespace Base3\MissionBay\Dto\Assistant;
 
-use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Dto\AgentSuspension;
-use AssistantFoundation\Dto\AgentSuspensionClaim;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentSuspension;
+use Base3\AssistantFoundation\Dto\AgentSuspensionClaim;
 
 /** Internal resume data after the opaque handle has been claimed server-side. */
 final class PreparedAgentResume {

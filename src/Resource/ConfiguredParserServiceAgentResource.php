@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentContentParser;
-use MissionBay\Api\IConfiguredParserServiceResolver;
-use MissionBay\Api\IParserService;
-use MissionBay\Dto\AgentContentItem;
-use MissionBay\Dto\AgentParsedContent;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IAgentContentParser;
+use Base3\MissionBay\Api\IConfiguredParserServiceResolver;
+use Base3\MissionBay\Api\IParserService;
+use Base3\MissionBay\Dto\AgentContentItem;
+use Base3\MissionBay\Dto\AgentParsedContent;
 use RuntimeException;
 
 /**

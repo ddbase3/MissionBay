@@ -15,18 +15,18 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use MissionBay\Api\IAgentComponentFlowBuilder;
-use MissionBay\Api\IAgentFlowCompiler;
-use MissionBay\Dto\AgentFlowCompilation;
-use MissionBay\Orchestrator\Profile\AgentOrchestratorProfile;
-use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
-use MissionBay\Profile\AgentContextProfileResolver;
-use MissionBay\Profile\AgentMemoryProfileResolver;
-use MissionBay\Profile\AgentToolProfileResolver;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\MissionBay\Api\IAgentComponentFlowBuilder;
+use Base3\MissionBay\Api\IAgentFlowCompiler;
+use Base3\MissionBay\Dto\AgentFlowCompilation;
+use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfile;
+use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
+use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
+use Base3\MissionBay\Profile\AgentToolProfileResolver;
 
 /**
  * Builds the effective MissionBay flow from stored agent settings.

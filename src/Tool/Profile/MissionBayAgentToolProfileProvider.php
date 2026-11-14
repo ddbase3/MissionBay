@@ -2,27 +2,38 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Tool\Profile;
+namespace Base3\MissionBay\Tool\Profile;
 
-use AssistantFoundation\Api\IAgentToolProfileProvider;
-use AssistantFoundation\Api\IAgentToolSet;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentExecutionRequest;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Capability\AgentCapabilityCatalogBuilder;
-use Base3\Event\Api\IEventManager;
-use MissionBay\Api\IAgentMutationGuardedTool;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Service\AgentBatchExecutionService;
-use MissionBay\Orchestrator\Service\AgentBatchResultService;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use MissionBay\Profile\AgentToolProfileResolver;
+use Base3\AssistantFoundation\Api\IAgentToolProfileProvider;
+use Base3\AssistantFoundation\Api\IAgentToolSet;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Capability\AgentCapabilityCatalogBuilder;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\Api\IAgentMutationGuardedTool;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Service\AgentBatchExecutionService;
+use Base3\MissionBay\Orchestrator\Service\AgentBatchResultService;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\MissionBay\Profile\AgentToolProfileResolver;
 
 /**
  * Exposes the existing MissionBay tool-profile store through a runtime-neutral

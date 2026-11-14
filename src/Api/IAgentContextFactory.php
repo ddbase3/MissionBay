@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentMemory;
 
 /**
  * Factory interface for creating agent context instances.

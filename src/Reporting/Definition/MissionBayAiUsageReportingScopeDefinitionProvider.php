@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Reporting\Definition;
+namespace Base3\MissionBay\Reporting\Definition;
 
-use ResourceFoundation\Api\IReportingScopeDefinitionProvider;
-use ResourceFoundation\Dto\ReportingScopeDefinition;
+use Base3\ResourceFoundation\Api\IReportingScopeDefinitionProvider;
+use Base3\ResourceFoundation\Dto\ReportingScopeDefinition;
 
 final class MissionBayAiUsageReportingScopeDefinitionProvider implements IReportingScopeDefinitionProvider {
 

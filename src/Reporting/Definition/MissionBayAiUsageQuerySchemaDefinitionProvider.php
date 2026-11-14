@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Reporting\Definition;
+namespace Base3\MissionBay\Reporting\Definition;
 
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Reporting\Settings\AiUsageReportingSettings;
-use ResourceFoundation\Api\IQuerySchemaDefinitionProvider;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Reporting\Settings\AiUsageReportingSettings;
+use Base3\ResourceFoundation\Api\IQuerySchemaDefinitionProvider;
 
 final class MissionBayAiUsageQuerySchemaDefinitionProvider implements IQuerySchemaDefinitionProvider {
 

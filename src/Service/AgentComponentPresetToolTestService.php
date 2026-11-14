@@ -2,43 +2,54 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionDecision;
-use AssistantFoundation\Dto\AgentBudget;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentInteractionRequest;
-use AssistantFoundation\Dto\AgentInteractionResponse;
-use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentSuspension;
-use AssistantFoundation\Dto\AgentToolCacheConfig;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use Base3\Event\Api\IEventManager;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Audit\AgentToolAuditContext;
-use MissionBay\Cache\AgentToolCacheKeyBuilder;
-use MissionBay\Cache\NullAgentToolResultCache;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
-use MissionBay\Orchestrator\Service\AgentActionResumeService;
-use MissionBay\Orchestrator\Service\AgentActionReviewService;
-use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
-use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Service\AgentResultVerificationService;
-use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
-use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
-use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionDecision;
+use Base3\AssistantFoundation\Dto\AgentBudget;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
+use Base3\AssistantFoundation\Dto\AgentInteractionResponse;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentSuspension;
+use Base3\AssistantFoundation\Dto\AgentToolCacheConfig;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Audit\AgentToolAuditContext;
+use Base3\MissionBay\Cache\AgentToolCacheKeyBuilder;
+use Base3\MissionBay\Cache\NullAgentToolResultCache;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
+use Base3\MissionBay\Orchestrator\Service\AgentActionResumeService;
+use Base3\MissionBay\Orchestrator\Service\AgentActionReviewService;
+use Base3\MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentResultVerificationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Orchestrator\Service\AgentToolResultCacheService;
+use Base3\MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Executes preset tool tests through the real action-policy and execution path.

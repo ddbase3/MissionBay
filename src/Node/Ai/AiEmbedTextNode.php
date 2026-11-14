@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Ai;
+namespace Base3\MissionBay\Node\Ai;
 
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use Base3\Logger\Api\ILogger;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Agent\AgentNodePort;
-use MissionBay\Node\AbstractAgentNode;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Node\AbstractAgentNode;
 
 class AiEmbedTextNode extends AbstractAgentNode {
 

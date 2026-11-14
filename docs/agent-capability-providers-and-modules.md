@@ -38,7 +38,7 @@ A module is an activatable bundle that may contribute:
 
 Providers and modules extend `IComponent`. Their static `getName()` identifies the implementation class, while `id()` identifies the configured runtime instance.
 
-MissionBay keeps its existing dockable `IAgentTool` contract for compatibility. A tool resolved through `IComponentResolver` must therefore implement both `MissionBay\Api\IAgentTool` and `Base3\Api\IComponent`, or be exposed through a configured wrapper/provider that does. Directly docked legacy tools continue to work unchanged.
+MissionBay keeps its existing dockable `IAgentTool` contract for compatibility. A tool resolved through `IComponentResolver` must therefore implement both `Base3\MissionBay\Api\IAgentTool` and `Base3\CoreFoundation\Api\IComponent`, or be exposed through a configured wrapper/provider that does. Directly docked legacy tools continue to work unchanged.
 
 ## Agent configuration
 

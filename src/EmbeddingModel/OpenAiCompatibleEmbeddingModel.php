@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\EmbeddingModel;
+namespace Base3\MissionBay\EmbeddingModel;
 
-use MissionBay\Transport\OpenAiCompatibleTransport;
+use Base3\MissionBay\Transport\OpenAiCompatibleTransport;
 
 class OpenAiCompatibleEmbeddingModel extends AbstractEmbeddingModel {
 

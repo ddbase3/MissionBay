@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAiChatModel;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
-use MissionBay\ChatModel\NormalizedChatModelTrait;
-use AssistantFoundation\Api\IAiProvider;
-use Base3\Api\IClassMap;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Transport\OpenAiTransport;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+use Base3\MissionBay\ChatModel\NormalizedChatModelTrait;
+use Base3\AssistantFoundation\Api\IAiProvider;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Transport\OpenAiTransport;
 
 /**
  * OpenAiChatModelAgentResource

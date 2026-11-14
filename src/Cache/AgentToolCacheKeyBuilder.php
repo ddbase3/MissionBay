@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Cache;
+namespace Base3\MissionBay\Cache;
 
 /**
  * Builds deterministic cache keys from tool identity, function, arguments,

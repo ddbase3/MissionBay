@@ -15,36 +15,36 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Ai;
+namespace Base3\MissionBay\Node\Ai;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use MissionBay\Api\IAgentStateContext;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentBudget;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentResult;
-use AssistantFoundation\Dto\AgentResultState;
-use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Dto\AgentToolCacheConfig;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Agent\AgentNodePort;
-use MissionBay\Api\IAgentAssistantFallbackBuilder;
-use MissionBay\Api\IAgentAssistantFinalResponseService;
-use MissionBay\Api\IAgentAssistantMemoryService;
-use MissionBay\Api\IAgentAssistantTurnService;
-use AssistantFoundation\Api\IAgentMemory;
-use MissionBay\Api\IAgentProfileSelector;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use MissionBay\Node\AbstractAgentNode;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\MissionBay\Api\IAgentStateContext;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentBudget;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentResult;
+use Base3\AssistantFoundation\Dto\AgentResultState;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentToolCacheConfig;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Api\IAgentAssistantFallbackBuilder;
+use Base3\MissionBay\Api\IAgentAssistantFinalResponseService;
+use Base3\MissionBay\Api\IAgentAssistantMemoryService;
+use Base3\MissionBay\Api\IAgentAssistantTurnService;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\MissionBay\Api\IAgentProfileSelector;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResources;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\MissionBay\Node\AbstractAgentNode;
 
 abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 

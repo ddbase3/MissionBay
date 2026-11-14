@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ImageModel;
+namespace Base3\MissionBay\ImageModel;
 
-use AssistantFoundation\Api\IAiProvider;
-use AssistantFoundation\Api\IImageGenerationModel;
-use AssistantFoundation\Dto\AiImageResult;
-use Base3\Api\IClassMap;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
-use MissionBay\Ai\AiResultNormalizer;
+use Base3\AssistantFoundation\Api\IAiProvider;
+use Base3\AssistantFoundation\Api\IImageGenerationModel;
+use Base3\AssistantFoundation\Dto\AiImageResult;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+use Base3\MissionBay\Ai\AiResultNormalizer;
 use RuntimeException;
 
 abstract class AbstractImageGenerationModel implements IImageGenerationModel {

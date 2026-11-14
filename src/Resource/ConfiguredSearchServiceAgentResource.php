@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use Base3\Api\ISchemaProvider;
-use Base3\Settings\Api\ISettingsStore;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 use InvalidArgumentException;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AiSearchResult;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Api\ISearchService;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AiSearchResult;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\ISearchService;
 use RuntimeException;
 
 /**

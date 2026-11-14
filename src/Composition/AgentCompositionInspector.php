@@ -2,29 +2,40 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Composition;
+namespace Base3\MissionBay\Composition;
 
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentMemory;
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentFlowCompiler;
-use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Api\IAgentMemoryRoleResolver;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Capability\AgentCapabilityCatalogBuilder;
-use MissionBay\Capability\AgentCapabilityDiscoveryService;
-use MissionBay\Orchestrator\AgentStagePipelineResolver;
-use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
-use MissionBay\Profile\AgentContextProfileResolver;
-use MissionBay\Profile\AgentMemoryProfileResolver;
-use MissionBay\Profile\AgentToolProfileResolver;
-use MissionBay\Resource\ConfiguredAgentMemoryResource;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentContextFactory;
+use Base3\MissionBay\Api\IAgentFlowCompiler;
+use Base3\MissionBay\Api\IAgentFlowFactory;
+use Base3\MissionBay\Api\IAgentMemoryRoleResolver;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Capability\AgentCapabilityCatalogBuilder;
+use Base3\MissionBay\Capability\AgentCapabilityDiscoveryService;
+use Base3\MissionBay\Orchestrator\AgentStagePipelineResolver;
+use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
+use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
+use Base3\MissionBay\Profile\AgentToolProfileResolver;
+use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
 
 /**
  * Builds a read-only diagnostic view of the effective configured composition

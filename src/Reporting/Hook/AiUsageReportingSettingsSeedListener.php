@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Reporting\Hook;
+namespace Base3\MissionBay\Reporting\Hook;
 
-use Base3\Api\IContainer;
-use Base3\Hook\Api\IHookListener;
-use MissionBay\Reporting\Settings\AiUsageReportingSettingsSeeder;
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\CoreFoundation\Hook\Api\IHookListener;
+use Base3\MissionBay\Reporting\Settings\AiUsageReportingSettingsSeeder;
 
 final class AiUsageReportingSettingsSeedListener implements IHookListener {
 

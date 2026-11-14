@@ -15,16 +15,16 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Hook;
+namespace Base3\MissionBay\Hook;
 
-use AssistantFoundation\Event\AiProviderRequestCompletedEvent;
-use Base3\Api\IContainer;
-use Base3\Database\Api\IDatabase;
-use Base3\Event\Api\IEventManager;
-use Base3\Hook\Api\IHookListener;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Listener\MissionBayAiUsageLogListener;
-use MissionBay\MissionBayPlugin;
+use Base3\AssistantFoundation\Event\AiProviderRequestCompletedEvent;
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\Hook\Api\IHookListener;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Listener\MissionBayAiUsageLogListener;
+use Base3\MissionBay\MissionBayPlugin;
 
 final class MissionBayAiUsageEventRegistrationHookListener implements IHookListener {
 

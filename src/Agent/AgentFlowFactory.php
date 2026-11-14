@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Agent;
+namespace Base3\MissionBay\Agent;
 
-use Base3\Api\IClassMap;
-use MissionBay\Api\IAgentFlow;
-use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Api\IAgentNodeFactory;
-use AssistantFoundation\Api\IAgentContext;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Api\IAgentFlow;
+use Base3\MissionBay\Api\IAgentFlowFactory;
+use Base3\MissionBay\Api\IAgentNodeFactory;
+use Base3\AssistantFoundation\Api\IAgentContext;
 
 class AgentFlowFactory implements IAgentFlowFactory {
 

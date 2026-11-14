@@ -1,13 +1,28 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Service;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Api\IClassMap;
-use Base3\Api\IRequest;
-use Base3\Logger\Api\ILogger;
-use Base3\Token\Api\IToken;
-use MissionBay\Api\IMcpAgent;
-use MissionBay\Service\MissionBayMcp;
+namespace Base3\MissionBay\Test\Service;
+
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Token\Api\IToken;
+use Base3\MissionBay\Api\IMcpAgent;
+use Base3\MissionBay\Service\MissionBayMcp;
 use PHPUnit\Framework\TestCase;
 
 final class MissionBayMcpOutputBehaviorTest extends TestCase {

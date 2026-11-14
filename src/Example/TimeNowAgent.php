@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Example;
+namespace Base3\MissionBay\Example;
 
-use MissionBay\Api\IMcpAgent;
-use MissionBay\Context\AgentContext;
+use Base3\MissionBay\Api\IMcpAgent;
+use Base3\MissionBay\Context\AgentContext;
 
 class TimeNowAgent implements IMcpAgent {
 

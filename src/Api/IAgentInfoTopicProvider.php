@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use Base3\Api\IBase;
-use MissionBay\Dto\AgentInfoRequest;
-use MissionBay\Dto\AgentInfoResult;
+use Base3\CoreFoundation\Api\IBase;
+use Base3\MissionBay\Dto\AgentInfoRequest;
+use Base3\MissionBay\Dto\AgentInfoResult;
 
 /**
  * IAgentInfoTopicProvider

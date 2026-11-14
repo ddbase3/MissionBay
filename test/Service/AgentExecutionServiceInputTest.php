@@ -1,16 +1,31 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Service;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Dto\AgentExecutionRequest;
-use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentFlow;
-use MissionBay\Api\IAgentFlowCompiler;
-use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Context\AgentContext;
-use MissionBay\Dto\AgentFlowCompilation;
-use MissionBay\Service\AgentExecutionService;
+namespace Base3\MissionBay\Test\Service;
+
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\MissionBay\Api\IAgentContextFactory;
+use Base3\MissionBay\Api\IAgentFlow;
+use Base3\MissionBay\Api\IAgentFlowCompiler;
+use Base3\MissionBay\Api\IAgentFlowFactory;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Dto\AgentFlowCompilation;
+use Base3\MissionBay\Service\AgentExecutionService;
 use PHPUnit\Framework\TestCase;
 
 final class AgentExecutionServiceInputTest extends TestCase {

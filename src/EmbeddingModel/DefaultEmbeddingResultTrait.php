@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\EmbeddingModel;
+namespace Base3\MissionBay\EmbeddingModel;
 
-use AssistantFoundation\Dto\AiEmbeddingResult;
-use AssistantFoundation\Dto\AiResultMetadata;
-use AssistantFoundation\Dto\AiUsage;
+use Base3\AssistantFoundation\Dto\AiEmbeddingResult;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\AssistantFoundation\Dto\AiUsage;
 
 trait DefaultEmbeddingResultTrait {
 

@@ -1,13 +1,28 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Hook;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Api\IContainer;
-use Base3\Event\Api\IEventManager;
-use MissionBay\Hook\MissionBayFileStorageEventRegistrationHookListener;
-use MissionBay\MissionBayPlugin;
-use MissionBay\Service\AiProviderFileOwnerCleanupService;
-use ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
+namespace Base3\MissionBay\Test\Hook;
+
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\Hook\MissionBayFileStorageEventRegistrationHookListener;
+use Base3\MissionBay\MissionBayPlugin;
+use Base3\MissionBay\Service\AiProviderFileOwnerCleanupService;
+use Base3\ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
 use PHPUnit\Framework\TestCase;
 
 final class MissionBayFileStorageRegistrationBehaviorTest extends TestCase {

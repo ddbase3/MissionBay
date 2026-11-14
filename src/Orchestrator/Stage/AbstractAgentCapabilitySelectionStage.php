@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentCapabilitySelector;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
-use AssistantFoundation\Dto\AgentStageResult;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\AssistantFoundation\Api\IAgentCapabilitySelector;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 
 /**
  * Shared execution mechanics for deterministic and AI-based capability

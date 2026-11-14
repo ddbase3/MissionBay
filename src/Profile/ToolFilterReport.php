@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Profile;
+namespace Base3\MissionBay\Profile;
 
 final class ToolFilterReport {
 

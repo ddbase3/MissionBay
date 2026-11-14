@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentInteractionRequest;
-use AssistantFoundation\Dto\AgentInteractionResponse;
-use MissionBay\Dto\Assistant\AgentInteractionResolution;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
+use Base3\AssistantFoundation\Dto\AgentInteractionResponse;
+use Base3\MissionBay\Dto\Assistant\AgentInteractionResolution;
 
 /** Interprets a natural-language reply against the exact server-owned pending interaction requests. */
 final class AgentInteractionResponseResolver {

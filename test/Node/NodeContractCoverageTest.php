@@ -1,29 +1,44 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Node;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Configuration\Api\IConfiguration;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Node\AbstractAgentNode;
-use MissionBay\Node\Ai\AiEmbedTextNode;
-use MissionBay\Node\Ai\DeepLTranslateNode;
-use MissionBay\Node\Ai\OpenAiResponseNode;
-use MissionBay\Node\Ai\SimpleLlamaNode;
-use MissionBay\Node\Ai\SimpleOpenAiNode;
-use MissionBay\Node\Core\GetConfigurationNode;
-use MissionBay\Node\Core\GetContextVarNode;
-use MissionBay\Node\Core\SetContextVarNode;
-use MissionBay\Node\Core\TestInputNode;
-use MissionBay\Node\Data\ArrayGetNode;
-use MissionBay\Node\Data\ArraySetNode;
-use MissionBay\Node\Data\JsonToArrayNode;
-use MissionBay\Node\Data\TryArrayGetNode;
-use MissionBay\Node\Http\HttpGetNode;
-use MissionBay\Node\Http\HttpRequestNode;
-use MissionBay\Node\Message\LoggerNode;
-use MissionBay\Node\Message\StaticMessageNode;
-use MissionBay\Node\Message\StringReverserNode;
-use MissionBay\Node\Message\TelegramSendMessage;
+namespace Base3\MissionBay\Test\Node;
+
+use Base3\CoreFoundation\Configuration\Api\IConfiguration;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Node\AbstractAgentNode;
+use Base3\MissionBay\Node\Ai\AiEmbedTextNode;
+use Base3\MissionBay\Node\Ai\DeepLTranslateNode;
+use Base3\MissionBay\Node\Ai\OpenAiResponseNode;
+use Base3\MissionBay\Node\Ai\SimpleLlamaNode;
+use Base3\MissionBay\Node\Ai\SimpleOpenAiNode;
+use Base3\MissionBay\Node\Core\GetConfigurationNode;
+use Base3\MissionBay\Node\Core\GetContextVarNode;
+use Base3\MissionBay\Node\Core\SetContextVarNode;
+use Base3\MissionBay\Node\Core\TestInputNode;
+use Base3\MissionBay\Node\Data\ArrayGetNode;
+use Base3\MissionBay\Node\Data\ArraySetNode;
+use Base3\MissionBay\Node\Data\JsonToArrayNode;
+use Base3\MissionBay\Node\Data\TryArrayGetNode;
+use Base3\MissionBay\Node\Http\HttpGetNode;
+use Base3\MissionBay\Node\Http\HttpRequestNode;
+use Base3\MissionBay\Node\Message\LoggerNode;
+use Base3\MissionBay\Node\Message\StaticMessageNode;
+use Base3\MissionBay\Node\Message\StringReverserNode;
+use Base3\MissionBay\Node\Message\TelegramSendMessage;
 use PHPUnit\Framework\TestCase;
 
 final class NodeContractCoverageTest extends TestCase {

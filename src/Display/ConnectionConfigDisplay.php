@@ -15,20 +15,20 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use Base3\Usermanager\Permission;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Api\IClassMap;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\ConfigValue\Api\IConfigValueResolver;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use Base3\Settings\Api\ISettingsStore;
-use AssistantFoundation\Api\IConnectionDriverDefinition;
-use MissionBay\Connection\ConnectionConfig;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\ConfigValue\Api\IConfigValueResolver;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\AssistantFoundation\Api\IConnectionDriverDefinition;
+use Base3\MissionBay\Connection\ConnectionConfig;
 use RuntimeException;
 
 final class ConnectionConfigDisplay implements IDisplay {
@@ -60,7 +60,7 @@ final class ConnectionConfigDisplay implements IDisplay {
 	public function getOutput(string $out = 'html', bool $final = false): string {
 		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
 			$this->settingsAuthorization->getDefaultAuthority(),
-			Permission::for('feature', \MissionBay\SettingsTab\ConnectionconfigSettingsTab::getName())
+			Permission::for('feature', \Base3\MissionBay\SettingsTab\ConnectionconfigSettingsTab::getName())
 		))->isAllowed()) {
 			http_response_code(403);
 			return '';

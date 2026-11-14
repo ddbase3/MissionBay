@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Control;
+namespace Base3\MissionBay\Node\Control;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentFlow;
-use MissionBay\Agent\AgentNodePort;
-use MissionBay\Node\AbstractAgentNode;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentFlow;
+use Base3\MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Node\AbstractAgentNode;
 
 class SubFlowNode extends AbstractAgentNode {
 

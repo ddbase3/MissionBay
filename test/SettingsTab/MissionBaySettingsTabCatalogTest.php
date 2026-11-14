@@ -1,52 +1,67 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\SettingsTab;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Authorization\Dto\AuthorizationDecision;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Translation\Api\ITranslation;
-use Base3\Usermanager\Permission;
-use MissionBay\Feature\VectorSearchConfigFeature;
+namespace Base3\MissionBay\Test\SettingsTab;
+
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationDecision;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Translation\Api\ITranslation;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\MissionBay\Feature\VectorSearchConfigFeature;
 use PHPUnit\Framework\TestCase;
-use UiFoundation\Settings\AbstractFeatureSettingsTab;
-use MissionBay\SettingsTab\AgentToolsSettingsTab;
-use MissionBay\SettingsTab\AgentadminSettingsTab;
-use MissionBay\SettingsTab\AgentcomponentpresetadminSettingsTab;
-use MissionBay\SettingsTab\AgentcomponentpresettestadminSettingsTab;
-use MissionBay\SettingsTab\AgentcompositionadminSettingsTab;
-use MissionBay\SettingsTab\AgentcontextprofileadminSettingsTab;
-use MissionBay\SettingsTab\AgentinfotopicprovidertestadminSettingsTab;
-use MissionBay\SettingsTab\AgentmemoryprofileadminSettingsTab;
-use MissionBay\SettingsTab\AgentorchestratorprofileadminSettingsTab;
-use MissionBay\SettingsTab\AgentsSettingsTab;
-use MissionBay\SettingsTab\AgenttoollogadminSettingsTab;
-use MissionBay\SettingsTab\AiUsageModelsSettingsTab;
-use MissionBay\SettingsTab\AiUsageOperationsSettingsTab;
-use MissionBay\SettingsTab\AiUsageOverviewSettingsTab;
-use MissionBay\SettingsTab\AiUsageRequestsSettingsTab;
-use MissionBay\SettingsTab\AiUsageSettingsTab;
-use MissionBay\SettingsTab\AiUsageTokensSettingsTab;
-use MissionBay\SettingsTab\AiUsageUsersSettingsTab;
-use MissionBay\SettingsTab\ConnectionconfigSettingsTab;
-use MissionBay\SettingsTab\EmbeddingSettingsTab;
-use MissionBay\SettingsTab\EmbeddingconfigSettingsTab;
-use MissionBay\SettingsTab\EmbeddingorchestratorconfigadminSettingsTab;
-use MissionBay\SettingsTab\ImageconfigSettingsTab;
-use MissionBay\SettingsTab\KnowledgeagentmemoryadminSettingsTab;
-use MissionBay\SettingsTab\LlmconfigSettingsTab;
-use MissionBay\SettingsTab\ParserserviceconfigSettingsTab;
-use MissionBay\SettingsTab\ProviderSettingsTab;
-use MissionBay\SettingsTab\RetrievalcollectionadminSettingsTab;
-use MissionBay\SettingsTab\RetrievalsearchadminSettingsTab;
-use MissionBay\SettingsTab\RetrievalvectorpointsadminSettingsTab;
-use MissionBay\SettingsTab\SearchconfigSettingsTab;
-use MissionBay\SettingsTab\SpeechtotextconfigSettingsTab;
-use MissionBay\SettingsTab\TexttospeechconfigSettingsTab;
-use MissionBay\SettingsTab\ToolprofileadminSettingsTab;
-use MissionBay\SettingsTab\UserprefdefadminSettingsTab;
-use MissionBay\SettingsTab\VectorsearchconfigSettingsTab;
-use MissionBay\SettingsTab\VectorstoreconfigSettingsTab;
+use Base3\UiFoundation\Settings\AbstractFeatureSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentToolsSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentcomponentpresetadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentcomponentpresettestadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentcompositionadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentcontextprofileadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentinfotopicprovidertestadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentmemoryprofileadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentorchestratorprofileadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AgentsSettingsTab;
+use Base3\MissionBay\SettingsTab\AgenttoollogadminSettingsTab;
+use Base3\MissionBay\SettingsTab\AiUsageModelsSettingsTab;
+use Base3\MissionBay\SettingsTab\AiUsageOperationsSettingsTab;
+use Base3\MissionBay\SettingsTab\AiUsageOverviewSettingsTab;
+use Base3\MissionBay\SettingsTab\AiUsageRequestsSettingsTab;
+use Base3\MissionBay\SettingsTab\AiUsageSettingsTab;
+use Base3\MissionBay\SettingsTab\AiUsageTokensSettingsTab;
+use Base3\MissionBay\SettingsTab\AiUsageUsersSettingsTab;
+use Base3\MissionBay\SettingsTab\ConnectionconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\EmbeddingSettingsTab;
+use Base3\MissionBay\SettingsTab\EmbeddingconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\EmbeddingorchestratorconfigadminSettingsTab;
+use Base3\MissionBay\SettingsTab\ImageconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\KnowledgeagentmemoryadminSettingsTab;
+use Base3\MissionBay\SettingsTab\LlmconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\ParserserviceconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\ProviderSettingsTab;
+use Base3\MissionBay\SettingsTab\RetrievalcollectionadminSettingsTab;
+use Base3\MissionBay\SettingsTab\RetrievalsearchadminSettingsTab;
+use Base3\MissionBay\SettingsTab\RetrievalvectorpointsadminSettingsTab;
+use Base3\MissionBay\SettingsTab\SearchconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\SpeechtotextconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\TexttospeechconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\ToolprofileadminSettingsTab;
+use Base3\MissionBay\SettingsTab\UserprefdefadminSettingsTab;
+use Base3\MissionBay\SettingsTab\VectorsearchconfigSettingsTab;
+use Base3\MissionBay\SettingsTab\VectorstoreconfigSettingsTab;
 
 final class MissionBaySettingsTabCatalogTest extends TestCase {
 

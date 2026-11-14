@@ -15,32 +15,32 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use Base3\Api\IClassMap;
-use Base3\Api\IComponent;
-use Base3\Api\IComponentResolver;
-use Base3\Api\IRequest;
-use Base3\Language\Api\ILanguage;
-use Base3\Settings\Api\ISettingsStore;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IComponent;
+use Base3\CoreFoundation\Api\IComponentResolver;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Language\Api\ILanguage;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 use JsonException;
-use AssistantFoundation\Api\IAgentRuntimeConfigFormService;
-use AssistantFoundation\Api\IAgentCapabilityProvider;
-use AssistantFoundation\Api\IAgentModule;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Api\IAgentMemory;
-use AssistantFoundation\Api\IAiChatModel;
-use MissionBay\Api\IAgentPromptProvider;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentResourceProvider;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
-use MissionBay\Profile\AgentContextProfileResolver;
-use MissionBay\Profile\AgentMemoryProfileResolver;
-use MissionBay\Profile\AgentToolProfileResolver;
+use Base3\AssistantFoundation\Api\IAgentRuntimeConfigFormService;
+use Base3\AssistantFoundation\Api\IAgentCapabilityProvider;
+use Base3\AssistantFoundation\Api\IAgentModule;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\MissionBay\Api\IAgentPromptProvider;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentResourceProvider;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
+use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
+use Base3\MissionBay\Profile\AgentToolProfileResolver;
 use Throwable;
 
 class AgentConfigFormService implements IAgentRuntimeConfigFormService {

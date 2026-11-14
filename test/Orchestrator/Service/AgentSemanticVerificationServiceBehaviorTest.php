@@ -1,16 +1,31 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator\Service;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentResultVerification;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiChatResult;
-use AssistantFoundation\Dto\AiResultMetadata;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Context\AgentContext;
-use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as Keys;
+namespace Base3\MissionBay\Test\Orchestrator\Service;
+
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentResultVerification;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as Keys;
 use PHPUnit\Framework\TestCase;
 
 final class AgentSemanticVerificationServiceBehaviorTest extends TestCase {
@@ -189,7 +204,7 @@ final class AgentSemanticVerificationServiceBehaviorTest extends TestCase {
 		$this->assertSame(1200, strlen($payload['task']));
 	}
 
-	private function runReply(string $reply): \AssistantFoundation\Dto\AgentStageResult {
+	private function runReply(string $reply): \Base3\AssistantFoundation\Dto\AgentStageResult {
 		return (new AgentSemanticVerificationService())->verify($this->context($this->model($reply)));
 	}
 
@@ -218,7 +233,7 @@ final class AgentSemanticVerificationServiceBehaviorTest extends TestCase {
 		]);
 	}
 
-	private function verification(\AssistantFoundation\Dto\AgentStageResult $result): AgentResultVerification {
+	private function verification(\Base3\AssistantFoundation\Dto\AgentStageResult $result): AgentResultVerification {
 		$items = $result->getPatch()[Keys::RESULT_VERIFICATIONS];
 		return $items[count($items) - 1];
 	}

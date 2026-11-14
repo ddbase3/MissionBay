@@ -9,7 +9,7 @@ agent admin, composition display, scheduled runner, sub-agent tools and
 external endpoints. Normal agents continue to be stored and deleted as before.
 
 A plugin can publish a stable agent with one small PHP class. It must implement
-`AssistantFoundation\Api\IAgentDefinition`, provide the globally unique
+`Base3\AssistantFoundation\Api\IAgentDefinition`, provide the globally unique
 classmap `getName()` and immutable agent `getId()` and `getLabel()`, and return
 editable defaults through `getDefaultSettings()`. The definition is discovered
 automatically as part of the existing PluginClassMap. No plugin init-time
@@ -22,7 +22,7 @@ agent seeder, second registry or migration is necessary.
 
 namespace ExamplePlugin\Agent;
 
-use AssistantFoundation\Api\IAgentDefinition;
+use Base3\AssistantFoundation\Api\IAgentDefinition;
 
 final class SupportAgentDefinition implements IAgentDefinition {
 

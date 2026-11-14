@@ -175,7 +175,7 @@ These diagnostics expose selection behavior without revealing hidden model reaso
 Selection is replaceable through:
 
 ```php
-AssistantFoundation\Api\IAgentCapabilitySelector
+Base3\AssistantFoundation\Api\IAgentCapabilitySelector
 ```
 
 A project may provide another selector implementation for either explicit stage without changing the execution guard. A future embedding selector can therefore be mounted behind a dedicated selection stage instead of being hidden inside profile configuration.

@@ -1,34 +1,49 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\ServiceDriver;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IImageGenerationModel;
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use MissionBay\Api\IParserService;
-use MissionBay\Api\ISearchService;
-use MissionBay\Api\ISpeechToTextDriver;
-use MissionBay\Api\ITextToSpeechDriver;
-use MissionBay\Api\IVectorStoreService;
-use MissionBay\ServiceDriver\DoclingParserServiceDriverDefinition;
-use MissionBay\ServiceDriver\MistralChatServiceDriverDefinition;
-use MissionBay\ServiceDriver\MistralImageServiceDriverDefinition;
-use MissionBay\ServiceDriver\MistralSpeechToTextDriverDefinition;
-use MissionBay\ServiceDriver\MistralTextToSpeechDriverDefinition;
-use MissionBay\ServiceDriver\MistralWebSearchServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiChatServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiCompatibleChatServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiCompatibleEmbeddingServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiCompatibleImageServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiEmbeddingServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiImageServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiResponsesChatServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiSpeechToTextDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiTextToSpeechDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiWebSearchServiceDriverDefinition;
-use MissionBay\ServiceDriver\QdrantVectorStoreServiceDriverDefinition;
-use MissionBay\ServiceDriver\UnstructuredParserServiceDriverDefinition;
+namespace Base3\MissionBay\Test\ServiceDriver;
+
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IImageGenerationModel;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\MissionBay\Api\IParserService;
+use Base3\MissionBay\Api\ISearchService;
+use Base3\MissionBay\Api\ISpeechToTextDriver;
+use Base3\MissionBay\Api\ITextToSpeechDriver;
+use Base3\MissionBay\Api\IVectorStoreService;
+use Base3\MissionBay\ServiceDriver\DoclingParserServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\MistralChatServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\MistralImageServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\MistralSpeechToTextDriverDefinition;
+use Base3\MissionBay\ServiceDriver\MistralTextToSpeechDriverDefinition;
+use Base3\MissionBay\ServiceDriver\MistralWebSearchServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiChatServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiCompatibleChatServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiCompatibleEmbeddingServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiCompatibleImageServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiEmbeddingServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiImageServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiResponsesChatServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiSpeechToTextDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiTextToSpeechDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiWebSearchServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\QdrantVectorStoreServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\UnstructuredParserServiceDriverDefinition;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;

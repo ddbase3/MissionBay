@@ -15,19 +15,19 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Hook;
+namespace Base3\MissionBay\Hook;
 
-use Base3\Api\IContainer;
-use Base3\Database\Api\IDatabase;
-use Base3\Event\Api\IEventManager;
-use Base3\Hook\Api\IHookListener;
-use Base3\Usermanager\Api\IUsermanager;
-use MissionBay\Event\MissionBayAgentActionAuditEvent;
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
-use MissionBay\Listener\MissionBayToolEventDisplayListener;
-use MissionBay\MissionBayPlugin;
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\Hook\Api\IHookListener;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
+use Base3\MissionBay\Event\MissionBayToolFailedEvent;
+use Base3\MissionBay\Event\MissionBayToolFinishedEvent;
+use Base3\MissionBay\Event\MissionBayToolStartedEvent;
+use Base3\MissionBay\Listener\MissionBayToolEventDisplayListener;
+use Base3\MissionBay\MissionBayPlugin;
 
 final class MissionBayToolEventRegistrationHookListener implements IHookListener {
 

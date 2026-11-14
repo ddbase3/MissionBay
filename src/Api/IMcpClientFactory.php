@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Dto\Mcp\McpClientConfig;
+use Base3\MissionBay\Dto\Mcp\McpClientConfig;
 
 /**
  * Creates one run-local MCP client for a configured endpoint.

@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use MissionBay\Api\IAgentTool;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Resource\AbstractAgentResource;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IVectorSearch;
-use Base3\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Resource\AbstractAgentResource;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IVectorSearch;
+use Base3\CoreFoundation\Logger\Api\ILogger;
 
 /**
  * RagSearchAgentTool

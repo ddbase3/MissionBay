@@ -1,7 +1,7 @@
 [
     {
         "name": "noactionnode",
-        "class": "MissionBay\\Node\\NoActionNode",
+        "class": "Base3\\MissionBay\\Node\\NoActionNode",
         "description": "Terminates the flow along this path and avoids unneccesary outputs.",
         "inputs": [
             {
@@ -16,7 +16,7 @@
     },
     {
         "name": "openairesponsenode",
-        "class": "MissionBay\\Node\\OpenAiResponseNode",
+        "class": "Base3\\MissionBay\\Node\\OpenAiResponseNode",
         "description": "Sends a list of user messages to the OpenAI Chat API and returns assistant responses. Maintains conversational history using AgentMemory. Useful for AI-based replies, summarization, or creative text generation.",
         "inputs": [
             {
@@ -60,7 +60,7 @@
     },
     {
         "name": "staticmessagenode",
-        "class": "MissionBay\\Node\\StaticMessageNode",
+        "class": "Base3\\MissionBay\\Node\\StaticMessageNode",
         "description": "Outputs a static text message as provided in the input. Useful for sending fixed content into a flow, such as default values, templates, or predefined prompts.",
         "inputs": [
             {
@@ -83,13 +83,13 @@
     },
     {
         "name": "subflownode",
-        "class": "MissionBay\\Node\\SubFlowNode",
+        "class": "Base3\\MissionBay\\Node\\SubFlowNode",
         "description": "Executes a nested AgentFlow within the current flow using the given inputs. Returns the first non-null result from the subflow. Useful for modularization, reuse, or encapsulation of complex logic.",
         "inputs": [
             {
                 "name": "flow",
                 "description": "An instance of IAgentFlow to be executed as subflow.",
-                "type": "MissionBay\\Api\\IAgentFlow",
+                "type": "Base3\\MissionBay\\Api\\IAgentFlow",
                 "default": null,
                 "required": true
             }
@@ -106,7 +106,7 @@
     },
     {
         "name": "testinputnode",
-        "class": "MissionBay\\Node\\TestInputNode",
+        "class": "Base3\\MissionBay\\Node\\TestInputNode",
         "description": "Passes through the input value unchanged. Useful for testing, debugging, or injecting controlled data into a flow.",
         "inputs": [
             {
@@ -129,7 +129,7 @@
     },
     {
         "name": "simpleopenainode",
-        "class": "MissionBay\\Node\\SimpleOpenAiNode",
+        "class": "Base3\\MissionBay\\Node\\SimpleOpenAiNode",
         "description": "Sends a user prompt to the OpenAI Chat API with an optional system message and returns a single assistant response. Supports temperature to control randomness. A lightweight alternative to full agent-based communication.",
         "inputs": [
             {
@@ -187,7 +187,7 @@
     },
     {
         "name": "telegramsendmessage",
-        "class": "MissionBay\\Node\\TelegramSendMessage",
+        "class": "Base3\\MissionBay\\Node\\TelegramSendMessage",
         "description": "Sends a message via Telegram bot using bot token and chat ID.",
         "inputs": [
             {
@@ -231,7 +231,7 @@
     },
     {
         "name": "httpgetnode",
-        "class": "MissionBay\\Node\\HttpGetNode",
+        "class": "Base3\\MissionBay\\Node\\HttpGetNode",
         "description": "Performs a simple HTTP GET request to the specified URL and returns the response body. Useful for retrieving external JSON, HTML, or text content in a flow.",
         "inputs": [
             {
@@ -261,7 +261,7 @@
     },
     {
         "name": "getconfigurationnode",
-        "class": "MissionBay\\Node\\GetConfigurationNode",
+        "class": "Base3\\MissionBay\\Node\\GetConfigurationNode",
         "description": "Retrieves a specific configuration value from a named section using Base3's IConfiguration interface. Useful for injecting secrets, environment settings, or other global parameters into a flow.",
         "inputs": [
             {
@@ -298,7 +298,7 @@
     },
     {
         "name": "arraysetnode",
-        "class": "MissionBay\\Node\\ArraySetNode",
+        "class": "Base3\\MissionBay\\Node\\ArraySetNode",
         "description": "Inserts or updates a value in a nested array using dot-notation path syntax (e.g., \"user.profile.name\"). Returns the modified array structure.",
         "inputs": [
             {
@@ -342,7 +342,7 @@
     },
     {
         "name": "arraygetnode",
-        "class": "MissionBay\\Node\\ArrayGetNode",
+        "class": "Base3\\MissionBay\\Node\\ArrayGetNode",
         "description": "Retrieves a value from a nested array using dot-notation path syntax (e.g., \"user.profile.name\"). Returns the value or an error if the path is invalid.",
         "inputs": [
             {
@@ -379,7 +379,7 @@
     },
     {
         "name": "getcontextvarnode",
-        "class": "MissionBay\\Node\\GetContextVarNode",
+        "class": "Base3\\MissionBay\\Node\\GetContextVarNode",
         "description": "Retrieves a variable from the AgentContext by key. Useful for accessing shared values across multiple nodes during flow execution.",
         "inputs": [
             {
@@ -409,7 +409,7 @@
     },
     {
         "name": "setcontextvarnode",
-        "class": "MissionBay\\Node\\SetContextVarNode",
+        "class": "Base3\\MissionBay\\Node\\SetContextVarNode",
         "description": "Stores a value in the AgentContext under a given key. Useful for sharing data between nodes, caching intermediate results, or persisting values across flow steps.",
         "inputs": [
             {
@@ -446,7 +446,7 @@
     },
     {
         "name": "loggernode",
-        "class": "MissionBay\\Node\\LoggerNode",
+        "class": "Base3\\MissionBay\\Node\\LoggerNode",
         "description": "Writes a log entry using the provided scope and message. Useful for debugging, tracing flow execution, or recording structured events.",
         "inputs": [
             {
@@ -483,7 +483,7 @@
     },
     {
         "name": "delaynode",
-        "class": "MissionBay\\Node\\DelayNode",
+        "class": "Base3\\MissionBay\\Node\\DelayNode",
         "description": "Pauses flow execution for a specified number of seconds (between 0 and 60). Useful for throttling, timing control, or simulating wait conditions.",
         "inputs": [
             {
@@ -513,7 +513,7 @@
     },
     {
         "name": "httprequestnode",
-        "class": "MissionBay\\Node\\HttpRequestNode",
+        "class": "Base3\\MissionBay\\Node\\HttpRequestNode",
         "description": "Performs a flexible HTTP request with customizable method, headers, and body. Returns the response body and HTTP status code. Supports GET, POST, PUT, DELETE, and more.",
         "inputs": [
             {
@@ -571,7 +571,7 @@
     },
     {
         "name": "jsontoarraynode",
-        "class": "MissionBay\\Node\\JsonToArrayNode",
+        "class": "Base3\\MissionBay\\Node\\JsonToArrayNode",
         "description": "Parses a JSON string and converts it into an associative PHP array. Useful for processing API responses or any structured JSON data.",
         "inputs": [
             {
@@ -601,7 +601,7 @@
     },
     {
         "name": "loopnode",
-        "class": "MissionBay\\Node\\LoopNode",
+        "class": "Base3\\MissionBay\\Node\\LoopNode",
         "description": "Executes a given node a fixed number of times. Supports dynamic input mapping with $index and $context_* placeholders. Useful for generating repeated structures, testing, or iterative processing.",
         "inputs": [
             {
@@ -614,7 +614,7 @@
             {
                 "name": "node",
                 "description": "The node to execute in each iteration.",
-                "type": "MissionBay\\Api\\IAgentNode",
+                "type": "Base3\\MissionBay\\Api\\IAgentNode",
                 "default": null,
                 "required": true
             },
@@ -645,7 +645,7 @@
     },
     {
         "name": "foreachnode",
-        "class": "MissionBay\\Node\\ForEachNode",
+        "class": "Base3\\MissionBay\\Node\\ForEachNode",
         "description": "Executes a given node once for each item in an input array. Supports dynamic input mapping using placeholders like $item, $key, $index, and $context_* variables. Returns a list of results.",
         "inputs": [
             {
@@ -658,7 +658,7 @@
             {
                 "name": "node",
                 "description": "The node instance to be executed for each item.",
-                "type": "MissionBay\\Api\\IAgentNode",
+                "type": "Base3\\MissionBay\\Api\\IAgentNode",
                 "default": null,
                 "required": true
             },
@@ -689,7 +689,7 @@
     },
     {
         "name": "switchnode",
-        "class": "MissionBay\\Node\\SwitchNode",
+        "class": "Base3\\MissionBay\\Node\\SwitchNode",
         "description": "Routes the flow based on a string value. If the value matches one of the defined cases, the corresponding output is activated; otherwise, the \"default\" output is used. Useful for multi-branch control logic.",
         "inputs": [
             {
@@ -719,7 +719,7 @@
     },
     {
         "name": "ifnode",
-        "class": "MissionBay\\Node\\IfNode",
+        "class": "Base3\\MissionBay\\Node\\IfNode",
         "description": "Evaluates a boolean condition and routes the flow to either the \"true\" or \"false\" output. Useful for simple conditional branching within flows.",
         "inputs": [
             {
@@ -756,7 +756,7 @@
     },
     {
         "name": "stringreversernode",
-        "class": "MissionBay\\Node\\StringReverserNode",
+        "class": "Base3\\MissionBay\\Node\\StringReverserNode",
         "description": "Reverses the given input string and returns the result. Useful for string manipulation, testing, or flow demonstrations.",
         "inputs": [
             {

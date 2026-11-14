@@ -2,22 +2,33 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use Base3\Usermanager\Permission;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use AssistantFoundation\Api\IRetrievalIndex;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IEmbeddingOrchestratorConfigRepository;
-use MissionBay\Api\IRetrievalCollectionConfigRepository;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\AssistantFoundation\Api\IRetrievalIndex;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IEmbeddingOrchestratorConfigRepository;
+use Base3\MissionBay\Api\IRetrievalCollectionConfigRepository;
 
 /**
  * Manages logical retrieval collection keys and their physical backend collections.
@@ -50,7 +61,7 @@ final class RetrievalCollectionAdminDisplay implements IDisplay {
 	public function getOutput(string $out = 'html', bool $final = false): string {
 		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
 			$this->settingsAuthorization->getDefaultAuthority(),
-			Permission::for('feature', \MissionBay\SettingsTab\RetrievalcollectionadminSettingsTab::getName())
+			Permission::for('feature', \Base3\MissionBay\SettingsTab\RetrievalcollectionadminSettingsTab::getName())
 		))->isAllowed()) {
 			http_response_code(403);
 			return '';

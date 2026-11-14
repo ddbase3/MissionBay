@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use Base3\Api\IBase;
-use MissionBay\Context\AgentContext;
+use Base3\CoreFoundation\Api\IBase;
+use Base3\MissionBay\Context\AgentContext;
 
 /**
  * Interface IAgent

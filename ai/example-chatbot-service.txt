@@ -2,12 +2,12 @@
 
 namespace Base3AgentsWebsite\Chatbot;
 
-use Base3\Api\IClassMap;
-use Base3\Api\IOutput;
-use Base3\Api\IRequest;
-use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentFlowFactory;
-use AssistantFoundation\Api\IAgentMemory;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IOutput;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\MissionBay\Api\IAgentContextFactory;
+use Base3\MissionBay\Api\IAgentFlowFactory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
 
 class ChatbotService implements IOutput {
 

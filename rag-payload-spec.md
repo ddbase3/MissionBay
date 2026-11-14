@@ -1,6 +1,6 @@
 # MissionBay Retrieval Payload Specification
 
-This document defines the generic payload boundary used by MissionBay indexing and retrieval. MissionBay does not define one universal domain payload. Each consuming domain provides an `AssistantFoundation\Api\IRetrievalCollectionDefinition` that owns its collection schema and external retrieval view.
+This document defines the generic payload boundary used by MissionBay indexing and retrieval. MissionBay does not define one universal domain payload. Each consuming domain provides an `Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition` that owns its collection schema and external retrieval view.
 
 ## 1. Responsibility split
 

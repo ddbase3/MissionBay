@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Ai;
+namespace Base3\MissionBay\Ai;
 
-use AssistantFoundation\Dto\AiChatResult;
-use AssistantFoundation\Dto\AiResultMetadata;
-use AssistantFoundation\Dto\AiToolCall;
-use AssistantFoundation\Dto\AiUsage;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\AssistantFoundation\Dto\AiUsage;
 use RuntimeException;
 
 /**

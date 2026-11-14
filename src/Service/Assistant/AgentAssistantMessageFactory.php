@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service\Assistant;
+namespace Base3\MissionBay\Service\Assistant;
 
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use MissionBay\Api\IAgentAssistantMessageFactory;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\MissionBay\Api\IAgentAssistantMessageFactory;
 
 final class AgentAssistantMessageFactory implements IAgentAssistantMessageFactory {
 

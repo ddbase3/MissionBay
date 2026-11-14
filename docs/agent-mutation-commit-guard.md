@@ -35,7 +35,7 @@ The commit guard is an execution service, not another configurable stage.
 A mutation tool that requires final validation implements:
 
 ```php
-MissionBay\Api\IAgentMutationGuardedTool
+Base3\MissionBay\Api\IAgentMutationGuardedTool
 ```
 
 It provides three operations:

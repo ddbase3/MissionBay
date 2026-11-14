@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node;
+namespace Base3\MissionBay\Node;
 
-use MissionBay\Api\IAgentNode;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentNode;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Agent\AgentNodeDock;
 
 abstract class AbstractAgentNode implements IAgentNode {
 

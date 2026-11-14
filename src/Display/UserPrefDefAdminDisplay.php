@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use Base3\Usermanager\Permission;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Api\IAssetResolver;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\Database\Api\IDatabase;
-use Base3\LinkTarget\Api\ILinkTargetService;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Api\IAssetResolver;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
 use InvalidArgumentException;
 use Throwable;
 
@@ -51,7 +51,7 @@ final class UserPrefDefAdminDisplay implements IDisplay {
 	public function getOutput(string $out = 'html', bool $final = false): string {
 		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
 			$this->settingsAuthorization->getDefaultAuthority(),
-			Permission::for('feature', \MissionBay\SettingsTab\UserprefdefadminSettingsTab::getName())
+			Permission::for('feature', \Base3\MissionBay\SettingsTab\UserprefdefadminSettingsTab::getName())
 		))->isAllowed()) {
 			http_response_code(403);
 			return '';

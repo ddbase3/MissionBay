@@ -1,15 +1,30 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator\Stage;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Dto\AgentStageResult;
-use MissionBay\Api\IAgentModelDecisionStrategy;
-use MissionBay\Api\IAgentModelDecisionStrategyResolver;
-use MissionBay\Context\AgentContext;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
-use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as Keys;
+namespace Base3\MissionBay\Test\Orchestrator\Stage;
+
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\MissionBay\Api\IAgentModelDecisionStrategy;
+use Base3\MissionBay\Api\IAgentModelDecisionStrategyResolver;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as Keys;
 use PHPUnit\Framework\TestCase;
 
 final class AgentModelDecisionStageTest extends TestCase {

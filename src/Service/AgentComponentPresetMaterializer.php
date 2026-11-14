@@ -2,24 +2,35 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Api\IAgentMemory;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentResourceFactory;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Dto\AgentComponentPresetMaterialization;
-use MissionBay\Resource\ConfiguredAgentMemoryResource;
-use MissionBay\Resource\ConfiguredAgentToolResource;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentContextFactory;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentResourceFactory;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
+use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
+use Base3\MissionBay\Resource\ConfiguredAgentToolResource;
 
 /**
  * Canonical materializer for stored agent component presets.

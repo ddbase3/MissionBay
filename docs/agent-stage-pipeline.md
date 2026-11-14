@@ -9,7 +9,7 @@ MissionBay keeps only semantic, replaceable orchestration steps as configured `I
 The ordered default is defined in:
 
 ```text
-MissionBay\MissionBayPlugin::DEFAULT_AGENT_STAGE_IDS
+Base3\MissionBay\MissionBayPlugin::DEFAULT_AGENT_STAGE_IDS
 ```
 
 The standard pipeline is:

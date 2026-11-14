@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto;
+namespace Base3\MissionBay\Dto;
 
 /**
  * Immutable result of compiling one stored MissionBay agent configuration.

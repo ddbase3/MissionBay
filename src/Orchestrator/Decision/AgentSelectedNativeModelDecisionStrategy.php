@@ -15,20 +15,20 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Decision;
+namespace Base3\MissionBay\Orchestrator\Decision;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentCapability;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentCapabilitySelection;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AiToolCall;
-use MissionBay\Api\IAgentModelDecisionStrategy;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
-use MissionBay\Orchestrator\Service\AgentCapabilitySourceCatalogService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentCapability;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelection;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\MissionBay\Api\IAgentModelDecisionStrategy;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Orchestrator\Service\AgentCapabilitySourceCatalogService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Native model decision where the main agent controls its active capability
@@ -292,7 +292,7 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 		AgentCapabilitySelectionConfig $selectionConfig,
 		array $requiredToolNames,
 		int $iteration
-	): \AssistantFoundation\Dto\AgentCapabilitySelection {
+	): \Base3\AssistantFoundation\Dto\AgentCapabilitySelection {
 		$selectionApplied = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED) === true;
 		$selectedNames = $context->getVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES);
 		$selectedNames = is_array($selectedNames) ? array_values(array_filter($selectedNames, 'is_string')) : [];

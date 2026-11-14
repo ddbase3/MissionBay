@@ -15,16 +15,16 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use Base3\Api\IClassMap;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentInfoTopicProvider;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IAgentResourceProvider;
-use MissionBay\Api\IAgentPromptProvider;
-use MissionBay\Dto\AgentInfoRequest;
-use MissionBay\Dto\AgentInfoResult;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentInfoTopicProvider;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IAgentResourceProvider;
+use Base3\MissionBay\Api\IAgentPromptProvider;
+use Base3\MissionBay\Dto\AgentInfoRequest;
+use Base3\MissionBay\Dto\AgentInfoResult;
 
 /**
  * GeneralInfoAgentTool

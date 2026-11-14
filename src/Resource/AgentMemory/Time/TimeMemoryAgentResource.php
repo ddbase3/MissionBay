@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource\AgentMemory\Time;
+namespace Base3\MissionBay\Resource\AgentMemory\Time;
 
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Resource\AbstractAgentResource;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Resource\AbstractAgentResource;
 
 /**
  * TimeMemoryAgentResource

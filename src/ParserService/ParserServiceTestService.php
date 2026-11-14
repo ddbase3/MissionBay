@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ParserService;
+namespace Base3\MissionBay\ParserService;
 
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IParserService;
-use MissionBay\Api\IParserServiceTestService;
-use MissionBay\Dto\AgentContentItem;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IParserService;
+use Base3\MissionBay\Api\IParserServiceTestService;
+use Base3\MissionBay\Dto\AgentContentItem;
 use RuntimeException;
 
 final class ParserServiceTestService implements IParserServiceTestService {

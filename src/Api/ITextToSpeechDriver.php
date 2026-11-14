@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\ITextToSpeechStream;
-use AssistantFoundation\Dto\TextToSpeechRequest;
-use AssistantFoundation\Dto\TextToSpeechResult;
-use Base3\Api\IBase;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
+use Base3\AssistantFoundation\Api\ITextToSpeechStream;
+use Base3\AssistantFoundation\Dto\TextToSpeechRequest;
+use Base3\AssistantFoundation\Dto\TextToSpeechResult;
+use Base3\CoreFoundation\Api\IBase;
+use Base3\MissionBay\Connection\ConnectionConfig;
+use Base3\MissionBay\Service\ServiceConfig;
 
 interface ITextToSpeechDriver extends IBase {
 

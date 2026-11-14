@@ -1,20 +1,35 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Display;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentConfigFormService;
-use AssistantFoundation\Api\IAgentConfigurationService;
-use AssistantFoundation\Api\IAgentExecutionService;
-use AssistantFoundation\Api\IAgentRuntimeConfigFormService;
-use AssistantFoundation\Api\IAgentRuntimeRegistry;
-use Base3\Api\IAssetResolver;
-use Base3\Api\IClassMap;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use Base3\Translation\Api\ITranslation;
-use MissionBay\Display\AgentAdminDisplay;
+namespace Base3\MissionBay\Test\Display;
+
+use Base3\AssistantFoundation\Api\IAgentConfigFormService;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\AssistantFoundation\Api\IAgentExecutionService;
+use Base3\AssistantFoundation\Api\IAgentRuntimeConfigFormService;
+use Base3\AssistantFoundation\Api\IAgentRuntimeRegistry;
+use Base3\CoreFoundation\Api\IAssetResolver;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\CoreFoundation\Translation\Api\ITranslation;
+use Base3\MissionBay\Display\AgentAdminDisplay;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 

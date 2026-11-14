@@ -15,24 +15,24 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator;
+namespace Base3\MissionBay\Orchestrator;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentStateContext;
-use AssistantFoundation\Dto\AgentBudget;
-use AssistantFoundation\Dto\AgentBudgetState;
-use AssistantFoundation\Dto\AgentContextWindowState;
-use AssistantFoundation\Dto\AgentExecutionState;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentKnowledgeState;
-use AssistantFoundation\Dto\AgentMemoryState;
-use AssistantFoundation\Dto\AgentPlanState;
-use AssistantFoundation\Dto\AgentResult;
-use AssistantFoundation\Dto\AgentResultState;
-use AssistantFoundation\Dto\AgentState;
-use AssistantFoundation\Dto\AgentSuspensionState;
-use AssistantFoundation\Dto\AgentTaskState;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentStateContext;
+use Base3\AssistantFoundation\Dto\AgentBudget;
+use Base3\AssistantFoundation\Dto\AgentBudgetState;
+use Base3\AssistantFoundation\Dto\AgentContextWindowState;
+use Base3\AssistantFoundation\Dto\AgentExecutionState;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentKnowledgeState;
+use Base3\AssistantFoundation\Dto\AgentMemoryState;
+use Base3\AssistantFoundation\Dto\AgentPlanState;
+use Base3\AssistantFoundation\Dto\AgentResult;
+use Base3\AssistantFoundation\Dto\AgentResultState;
+use Base3\AssistantFoundation\Dto\AgentState;
+use Base3\AssistantFoundation\Dto\AgentSuspensionState;
+use Base3\AssistantFoundation\Dto\AgentTaskState;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Compatibility bridge between the current MissionBay context-variable loop

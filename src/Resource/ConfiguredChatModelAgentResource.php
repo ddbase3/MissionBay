@@ -15,21 +15,21 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiFileCapableChatModel;
-use AssistantFoundation\Dto\AiChatResult;
-use Base3\Api\ISchemaProvider;
-use Base3\Settings\Api\ISettingsStore;
-use Base3\State\Api\IStateStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Service\AiProviderFileReferenceResolver;
-use MissionBay\Service\AiProviderFileReferenceStateRepository;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
-use ResourceFoundation\Api\IManagedFileStorageService;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiFileCapableChatModel;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\CoreFoundation\State\Api\IStateStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Service\AiProviderFileReferenceResolver;
+use Base3\MissionBay\Service\AiProviderFileReferenceStateRepository;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
 use RuntimeException;
 
 /**

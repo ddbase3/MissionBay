@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContext;
 
-use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResources;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResult;
 
 interface IAgentAssistantTurnService {
 

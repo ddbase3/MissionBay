@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
 /**
  * AgentToolLoopContextKeys

@@ -1,13 +1,28 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Resource\AgentTool\Batch;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Resource\AgentTool\Batch\BatchAgentTool;
+namespace Base3\MissionBay\Test\Resource\AgentTool\Batch;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Resource\AgentTool\Batch\BatchAgentTool;
 use PHPUnit\Framework\TestCase;
 
 final class BatchAgentToolApprovalBoundaryTest extends TestCase {

@@ -1,14 +1,29 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Listener;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Dto\AiResultMetadata;
-use AssistantFoundation\Dto\AiUsage;
-use AssistantFoundation\Event\AiProviderRequestCompletedEvent;
-use Base3\Api\IRequest;
-use Base3\Database\Api\IDatabase;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Listener\MissionBayAiUsageLogListener;
+namespace Base3\MissionBay\Test\Listener;
+
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\AssistantFoundation\Dto\AiUsage;
+use Base3\AssistantFoundation\Event\AiProviderRequestCompletedEvent;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Listener\MissionBayAiUsageLogListener;
 use PHPUnit\Framework\TestCase;
 
 final class MissionBayAiUsageLogListenerTest extends TestCase {

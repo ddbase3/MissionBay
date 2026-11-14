@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionReview;
-use AssistantFoundation\Dto\AgentMutationCommitDecision;
-use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionReview;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitDecision;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitSnapshot;
 
 /**
  * IAgentMutationGuardedTool

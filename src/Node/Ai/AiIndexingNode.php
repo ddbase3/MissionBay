@@ -15,23 +15,23 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Ai;
+namespace Base3\MissionBay\Node\Ai;
 
-use Base3\Logger\Api\ILogger;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use AssistantFoundation\Api\IRetrievalIndex;
-use AssistantFoundation\Dto\RetrievalIndexItem;
-use MissionBay\Retrieval\PhoneticTextMaterializer;
-use MissionBay\Api\IAgentContentExtractor;
-use MissionBay\Api\IAgentContentParser;
-use MissionBay\Api\IAgentChunker;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Agent\AgentNodePort;
-use MissionBay\Dto\AgentContentItem;
-use MissionBay\Dto\AgentParsedContent;
-use MissionBay\Node\AbstractAgentNode;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\AssistantFoundation\Api\IRetrievalIndex;
+use Base3\AssistantFoundation\Dto\RetrievalIndexItem;
+use Base3\MissionBay\Retrieval\PhoneticTextMaterializer;
+use Base3\MissionBay\Api\IAgentContentExtractor;
+use Base3\MissionBay\Api\IAgentContentParser;
+use Base3\MissionBay\Api\IAgentChunker;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Dto\AgentContentItem;
+use Base3\MissionBay\Dto\AgentParsedContent;
+use Base3\MissionBay\Node\AbstractAgentNode;
 
 final class AiIndexingNode extends AbstractAgentNode {
 

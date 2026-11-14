@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ServiceDriver;
+namespace Base3\MissionBay\ServiceDriver;
 
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use MissionBay\Api\IVectorStoreService;
-use MissionBay\VectorStore\QdrantVectorStoreService;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\MissionBay\Api\IVectorStoreService;
+use Base3\MissionBay\VectorStore\QdrantVectorStoreService;
 
 final class QdrantVectorStoreServiceDriverDefinition implements IServiceDriverDefinition {
 

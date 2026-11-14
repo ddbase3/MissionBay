@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IImageGenerationModel;
-use AssistantFoundation\Dto\AiImageResult;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\AssistantFoundation\Api\IImageGenerationModel;
+use Base3\AssistantFoundation\Dto\AiImageResult;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use RuntimeException;
 
 /**

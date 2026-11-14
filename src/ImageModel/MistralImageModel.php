@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ImageModel;
+namespace Base3\MissionBay\ImageModel;
 
-use MissionBay\Transport\MistralTransport;
+use Base3\MissionBay\Transport\MistralTransport;
 use RuntimeException;
 
 class MistralImageModel extends AbstractImageGenerationModel {

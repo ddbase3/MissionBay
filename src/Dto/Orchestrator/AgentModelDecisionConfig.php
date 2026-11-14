@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Orchestrator;
+namespace Base3\MissionBay\Dto\Orchestrator;
 
 final class AgentModelDecisionConfig {
 

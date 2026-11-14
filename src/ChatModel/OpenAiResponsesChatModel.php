@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace Base3\MissionBay\ChatModel;
 
 use RuntimeException;
 

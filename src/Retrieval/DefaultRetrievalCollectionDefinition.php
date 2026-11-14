@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Retrieval;
+namespace Base3\MissionBay\Retrieval;
 
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use AssistantFoundation\Dto\RetrievalIndexItem;
-use MissionBay\Api\IRetrievalCollectionConfigRepository;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\AssistantFoundation\Dto\RetrievalIndexItem;
+use Base3\MissionBay\Api\IRetrievalCollectionConfigRepository;
 
 /**
  * Generic default retrieval collection definition.

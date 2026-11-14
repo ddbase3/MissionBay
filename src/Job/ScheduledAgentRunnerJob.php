@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Job;
+namespace Base3\MissionBay\Job;
 
-use Base3\Api\IClassMap;
-use Base3\Configuration\Api\IConfiguration;
-use AssistantFoundation\Api\IAgentConfigurationService;
-use Base3\Worker\Api\IJob;
-use Base3\Worker\Api\IJobExecutionPolicy;
-use AssistantFoundation\Api\IAgentExecutionService;
-use AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Configuration\Api\IConfiguration;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\CoreFoundation\Worker\Api\IJob;
+use Base3\CoreFoundation\Worker\Api\IJobExecutionPolicy;
+use Base3\AssistantFoundation\Api\IAgentExecutionService;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
 use Throwable;
 
 /**

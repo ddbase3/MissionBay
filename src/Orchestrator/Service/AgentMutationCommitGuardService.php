@@ -15,20 +15,20 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionReview;
-use AssistantFoundation\Dto\AgentMutationCommitDecision;
-use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
-use AssistantFoundation\Dto\AiToolCall;
-use Base3\Event\Api\IEventManager;
-use MissionBay\Api\IAgentMutationGuardedTool;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Event\MissionBayAgentActionAuditEvent;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionReview;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitDecision;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\Api\IAgentMutationGuardedTool;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /** Captures and validates mutation preconditions without becoming a pipeline stage. */
 final class AgentMutationCommitGuardService {

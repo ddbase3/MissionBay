@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Dto\AgentConversation;
-use AssistantFoundation\Dto\AgentConversationScope;
-use Base3\Usermanager\Api\IUsermanager;
-use Base3\Translation\Api\ITranslation;
-use MissionBay\Agent\AgentNodeDock;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Dto\AgentConversation;
+use Base3\AssistantFoundation\Dto\AgentConversationScope;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\CoreFoundation\Translation\Api\ITranslation;
+use Base3\MissionBay\Agent\AgentNodeDock;
 
 /**
  * One conversation-memory component exposing two docked storage backends.

@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Retrieval;
+namespace Base3\MissionBay\Retrieval;
 
-use AssistantFoundation\Api\IPhoneticEncoder;
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use Base3\Api\IClassMap;
+use Base3\AssistantFoundation\Api\IPhoneticEncoder;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\CoreFoundation\Api\IClassMap;
 
 /**
  * Builds a deterministic, ordered stream of namespaced phonetic tokens.

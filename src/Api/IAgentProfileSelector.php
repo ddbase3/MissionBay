@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContext;
 
 /**
  * IAgentProfileSelector
@@ -26,7 +26,7 @@ use AssistantFoundation\Api\IAgentContext;
  * Multi-profile: return multiple plans if multiple profiles should be active at the same time
  * (e.g. RAG + sendmail). The host will merge them into one effective plan.
  *
- * @return \MissionBay\Profile\ProfilePlan[]
+ * @return \Base3\MissionBay\Profile\ProfilePlan[]
  */
 interface IAgentProfileSelector {
 

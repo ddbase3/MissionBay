@@ -15,28 +15,28 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentSuspensionRepository;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentInteractionRequest;
-use AssistantFoundation\Dto\AgentInteractionResponse;
-use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentSuspensionClaim;
-use AssistantFoundation\Dto\AgentSuspensionResolution;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
-use Base3\Event\Api\IEventManager;
-use MissionBay\Event\MissionBayAgentActionAuditEvent;
-use MissionBay\Dto\Assistant\AgentInteractionResolution;
-use MissionBay\Dto\Assistant\PreparedAgentResume;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentSuspensionRepository;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
+use Base3\AssistantFoundation\Dto\AgentInteractionResponse;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentSuspensionClaim;
+use Base3\AssistantFoundation\Dto\AgentSuspensionResolution;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\AssistantFoundation\Exception\AgentSuspensionRepositoryException;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
+use Base3\MissionBay\Dto\Assistant\AgentInteractionResolution;
+use Base3\MissionBay\Dto\Assistant\PreparedAgentResume;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /** Claims, validates, and consumes a durable one-time agent resume handle. */
 final class AgentActionResumeService {

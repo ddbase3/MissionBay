@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Policy;
+namespace Base3\MissionBay\Orchestrator\Policy;
 
-use AssistantFoundation\Api\IAgentActionPolicy;
-use Base3\Api\IComponentResolver;
+use Base3\AssistantFoundation\Api\IAgentActionPolicy;
+use Base3\CoreFoundation\Api\IComponentResolver;
 
 /**
  * ComponentAgentActionPolicyResolver

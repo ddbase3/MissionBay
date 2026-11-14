@@ -9,17 +9,21 @@
  *
  * Developed by Daniel Dahme
  * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
-use AssistantFoundation\Dto\AiToolCall;
-use MissionBay\Api\IAgentBatchTool;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\MissionBay\Api\IAgentBatchTool;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /** Expands an approved batch envelope into normal guarded child tool calls. */
 final class AgentBatchExecutionService {

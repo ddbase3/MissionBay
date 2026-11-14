@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator;
+namespace Base3\MissionBay\Orchestrator;
 
-use AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentAction;
 
 /** Binds approval to an exact canonical action payload. */
 final class AgentActionFingerprint {

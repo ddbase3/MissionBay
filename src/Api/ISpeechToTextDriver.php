@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
-use Base3\Api\IBase;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Service\ServiceConfig;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSession;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
+use Base3\CoreFoundation\Api\IBase;
+use Base3\MissionBay\Connection\ConnectionConfig;
+use Base3\MissionBay\Service\ServiceConfig;
 
 /**
  * Provider driver for realtime speech-to-text sessions.

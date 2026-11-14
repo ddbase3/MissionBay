@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service\Assistant;
+namespace Base3\MissionBay\Service\Assistant;
 
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Api\IAgentMemory;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentAssistantMemoryService;
-use MissionBay\Api\IAgentAssistantMessageFactory;
-use MissionBay\Api\IAgentMemoryRoleResolver;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentAssistantMemoryService;
+use Base3\MissionBay\Api\IAgentAssistantMessageFactory;
+use Base3\MissionBay\Api\IAgentMemoryRoleResolver;
 
 final class AgentAssistantMemoryService implements IAgentAssistantMemoryService {
 

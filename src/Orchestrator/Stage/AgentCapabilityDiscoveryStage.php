@@ -2,15 +2,26 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentStageResult;
-use MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
 
 /**
  * Publishes the pre-resolved run-local capability composition into the stage

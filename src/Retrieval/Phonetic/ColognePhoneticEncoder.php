@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Retrieval\Phonetic;
+namespace Base3\MissionBay\Retrieval\Phonetic;
 
-use AssistantFoundation\Api\IPhoneticEncoder;
+use Base3\AssistantFoundation\Api\IPhoneticEncoder;
 
 final class ColognePhoneticEncoder implements IPhoneticEncoder {
 

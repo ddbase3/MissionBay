@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\IFileParserService;
-use MissionBay\Dto\AgentContentItem;
-use MissionBay\Dto\AgentParsedContent;
+use Base3\AssistantFoundation\Api\IFileParserService;
+use Base3\MissionBay\Dto\AgentContentItem;
+use Base3\MissionBay\Dto\AgentParsedContent;
 
 interface IParserService extends IFileParserService {
 

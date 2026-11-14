@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Resource\AbstractAgentResource;
-use AssistantFoundation\Api\IVectorSearch;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Resource\AbstractAgentResource;
+use Base3\AssistantFoundation\Api\IVectorSearch;
 
 /**
  * QdrantVectorSearch

@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Dto\AgentContextAssessment;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiUsage;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Dto\AgentContextAssessment;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiUsage;
 
 /**
  * AgentContextAssessmentStage

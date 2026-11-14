@@ -15,25 +15,25 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource\Mcp;
+namespace Base3\MissionBay\Resource\Mcp;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use Base3\Api\IOutputSchemaProvider;
-use Base3\Api\ISchemaProvider;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentPromptProvider;
-use MissionBay\Api\IAgentResourceProvider;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IConfirmableAgentTool;
-use MissionBay\Api\IMcpClient;
-use MissionBay\Api\IMcpClientFactory;
-use MissionBay\Dto\Mcp\McpClientConfig;
-use MissionBay\Mcp\Client\McpRemoteToolDefinitionMapper;
-use MissionBay\Mcp\Client\McpRemoteToolResultMapper;
-use MissionBay\Resource\AbstractAgentResource;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\CoreFoundation\Api\IOutputSchemaProvider;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IAgentPromptProvider;
+use Base3\MissionBay\Api\IAgentResourceProvider;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IConfirmableAgentTool;
+use Base3\MissionBay\Api\IMcpClient;
+use Base3\MissionBay\Api\IMcpClientFactory;
+use Base3\MissionBay\Dto\Mcp\McpClientConfig;
+use Base3\MissionBay\Mcp\Client\McpRemoteToolDefinitionMapper;
+use Base3\MissionBay\Mcp\Client\McpRemoteToolResultMapper;
+use Base3\MissionBay\Resource\AbstractAgentResource;
 
 /**
  * Exposes a remote Streamable HTTP MCP server as one configured MissionBay

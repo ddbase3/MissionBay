@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentCapabilitySelector;
-use AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAgentCapabilitySelector;
+use Base3\AssistantFoundation\Api\IAgentStage;
 
 /**
  * Selects a bounded tool subset without an additional AI model call.

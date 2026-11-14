@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentResource;
 
 /**
  * Factory interface for instantiating agent resources by type.

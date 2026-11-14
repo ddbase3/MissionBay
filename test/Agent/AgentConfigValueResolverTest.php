@@ -1,14 +1,29 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Agent;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
+
+namespace Base3\MissionBay\Test\Agent;
 
 use PHPUnit\Framework\TestCase;
-use MissionBay\Agent\AgentConfigValueResolver;
-use Base3\ConfigValue\Api\IConfigValueModeResolver;
-use Base3\ConfigValue\Mode\ConfigurationConfigValueModeResolver;
-use Base3\ConfigValue\Mode\EnvConfigValueModeResolver;
-use Base3\ConfigValue\Mode\FixedConfigValueModeResolver;
-use Base3\ConfigValue\Resolver\ConfigValueResolver;
+use Base3\MissionBay\Agent\AgentConfigValueResolver;
+use Base3\CoreFoundation\ConfigValue\Api\IConfigValueModeResolver;
+use Base3\Core\ConfigValue\Mode\ConfigurationConfigValueModeResolver;
+use Base3\Core\ConfigValue\Mode\EnvConfigValueModeResolver;
+use Base3\Core\ConfigValue\Mode\FixedConfigValueModeResolver;
+use Base3\Core\ConfigValue\Resolver\ConfigValueResolver;
 use Base3\Test\Core\ClassMapStub;
 use Base3\Test\Configuration\ConfigurationStub;
 

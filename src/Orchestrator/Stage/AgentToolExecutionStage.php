@@ -15,31 +15,31 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentStageTraceEntry;
-use AssistantFoundation\Dto\AgentToolContractValidation;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use Base3\Event\Api\IEventManager;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Audit\AgentToolAuditContext;
-use MissionBay\Cache\AgentToolCacheKeyBuilder;
-use MissionBay\Cache\NullAgentToolResultCache;
-use MissionBay\Orchestrator\AgentStageResultAccumulator;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
-use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Service\AgentResultVerificationService;
-use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
-use MissionBay\Orchestrator\Service\AgentToolResultCacheService;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentStageTraceEntry;
+use Base3\AssistantFoundation\Dto\AgentToolContractValidation;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Audit\AgentToolAuditContext;
+use Base3\MissionBay\Cache\AgentToolCacheKeyBuilder;
+use Base3\MissionBay\Cache\NullAgentToolResultCache;
+use Base3\MissionBay\Orchestrator\AgentStageResultAccumulator;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentResultVerificationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolResultCacheService;
 
 /**
  * AgentToolExecutionStage

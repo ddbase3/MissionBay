@@ -7,8 +7,8 @@ MissionBay consumes the generic driver contracts from AssistantFoundation. It do
 Shared contracts:
 
 ```text
-AssistantFoundation\Api\IServiceDriverDefinition
-AssistantFoundation\Api\IConnectionDriverDefinition
+Base3\AssistantFoundation\Api\IServiceDriverDefinition
+Base3\AssistantFoundation\Api\IConnectionDriverDefinition
 ```
 
 ## Resolution
@@ -82,7 +82,7 @@ Native Responses function calls and their `call_id` are converted to the existin
 
 ## Provider transport boundary
 
-Provider transports implement `AssistantFoundation\Api\IAiProvider`. Model and service adapters depend on provider-neutral Foundation contracts wherever the exchanged DTOs are provider-neutral.
+Provider transports implement `Base3\AssistantFoundation\Api\IAiProvider`. Model and service adapters depend on provider-neutral Foundation contracts wherever the exchanged DTOs are provider-neutral.
 
 MissionBay-specific runtime interfaces remain in MissionBay only when their method signatures intentionally use MissionBay-owned domain types. Their service-driver definitions still use the single AssistantFoundation definition contract.
 
@@ -92,7 +92,7 @@ MissionBay-specific runtime interfaces remain in MissionBay only when their meth
 Simple similarity-search providers use service type `vectorsearch` and runtime interface:
 
 ```text
-AssistantFoundation\Api\IConfigurableVectorSearch
+Base3\AssistantFoundation\Api\IConfigurableVectorSearch
 ```
 
 MissionBay exposes them through `ConfiguredVectorSearchAgentResource` and settings group `service-vectorsearch`. This slot is intentionally separate from `vectorstore`: vector stores own persistence, collection management, upsert and deletion, while vector-search services only execute similarity searches.

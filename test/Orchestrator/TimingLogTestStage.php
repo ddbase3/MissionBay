@@ -1,24 +1,39 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentMemory;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentStageResult;
-use Base3\Logger\Api\ILogger;
-use Base3\Api\IContainer;
-use MissionBay\MissionBayPlugin;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\AgentStateSynchronizer;
-use MissionBay\Orchestrator\Service\AgentActionResumeService;
-use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
-use MissionBay\Orchestrator\Service\AgentLoopProgressService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
-use MissionBay\Orchestrator\AgentToolOrchestrator;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+namespace Base3\MissionBay\Test\Orchestrator;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\MissionBay\MissionBayPlugin;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\AgentStateSynchronizer;
+use Base3\MissionBay\Orchestrator\Service\AgentActionResumeService;
+use Base3\MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentLoopProgressService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Orchestrator\Suspension\UnavailableAgentSuspensionRepository;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestrator;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use PHPUnit\Framework\TestCase;
 
 final class TimingLogTestStage implements IAgentStage {

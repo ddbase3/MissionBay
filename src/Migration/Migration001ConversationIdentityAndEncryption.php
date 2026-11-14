@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Migration;
+namespace Base3\MissionBay\Migration;
 
-use Base3\Database\Api\IDatabase;
-use Base3\Migration\Api\IDatabaseMigration;
-use Base3\Migration\Api\ILegacyDatabaseMigration;
-use Base3\Migration\Exception\MigrationException;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Migration\Api\IDatabaseMigration;
+use Base3\CoreFoundation\Migration\Api\ILegacyDatabaseMigration;
+use Base3\CoreFoundation\Migration\Exception\MigrationException;
 
 /**
  * Add transparent owner identity and independently versioned encryption metadata.

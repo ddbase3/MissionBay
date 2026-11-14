@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use AssistantFoundation\Dto\AgentToolContractValidation;
-use AssistantFoundation\Dto\AiToolCall;
-use Base3\Api\IOutputSchemaProvider;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Orchestrator\Validation\JsonSchemaValidator;
+use Base3\AssistantFoundation\Dto\AgentToolContractValidation;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\CoreFoundation\Api\IOutputSchemaProvider;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Orchestrator\Validation\JsonSchemaValidator;
 
 /**
  * AgentToolContractValidationService

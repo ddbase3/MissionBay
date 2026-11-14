@@ -1,20 +1,35 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Event\EventManager;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
+namespace Base3\MissionBay\Test\Orchestrator;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentCapability;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentResultVerification;
-use AssistantFoundation\Dto\AgentToolResult;
-use MissionBay\ChatModel\NormalizedChatModelTrait;
-use MissionBay\Context\AgentContext;
-use MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\Core\Event\EventManager;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentCapability;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentResultVerification;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\MissionBay\ChatModel\NormalizedChatModelTrait;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use PHPUnit\Framework\TestCase;
 
 final class SemanticVerificationQueueModel implements IAiChatModel {

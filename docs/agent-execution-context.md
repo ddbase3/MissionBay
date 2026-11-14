@@ -25,9 +25,9 @@ Foundation services via DI. Authorize the invoking operation at its existing ser
 ```php
 <?php declare(strict_types=1);
 
-use AssistantFoundation\Api\IAgentConfigurationService;
-use AssistantFoundation\Api\IAgentExecutionService;
-use AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\AssistantFoundation\Api\IAgentExecutionService;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
 
 // $agents and $executor are injected Foundation services.
 $agentId = 'example.support';

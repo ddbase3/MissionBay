@@ -15,24 +15,24 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAgentToolResultCache;
-use AssistantFoundation\Dto\AgentResultVerification;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentToolCacheConfig;
-use AssistantFoundation\Dto\AgentToolCacheEntry;
-use AssistantFoundation\Dto\AgentToolCacheRecord;
-use AssistantFoundation\Dto\AgentToolCacheRule;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use Base3\Event\Api\IEventManager;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Cache\AgentToolCacheKeyBuilder;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAgentToolResultCache;
+use Base3\AssistantFoundation\Dto\AgentResultVerification;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentToolCacheConfig;
+use Base3\AssistantFoundation\Dto\AgentToolCacheEntry;
+use Base3\AssistantFoundation\Dto\AgentToolCacheRecord;
+use Base3\AssistantFoundation\Dto\AgentToolCacheRule;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Cache\AgentToolCacheKeyBuilder;
 
 /**
  * AgentToolResultCacheStage

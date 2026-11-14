@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use MissionBay\Api\IAgentChunker;
-use MissionBay\Dto\AgentParsedContent;
+use Base3\MissionBay\Api\IAgentChunker;
+use Base3\MissionBay\Dto\AgentParsedContent;
 
 class SemanticChunkerAgentResource extends AbstractAgentResource implements IAgentChunker {
 

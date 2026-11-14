@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace Base3\MissionBay\ChatModel;
 
-use AssistantFoundation\Api\IAiFileCapableChatModel;
-use AssistantFoundation\Api\IAiFileProvider;
-use AssistantFoundation\Dto\AiFileResource;
-use AssistantFoundation\Dto\AiProviderFileMetadata;
-use AssistantFoundation\Dto\AiProviderFileReference;
-use AssistantFoundation\Exception\AiProviderRequestException;
-use MissionBay\Transport\OpenAiTransport;
+use Base3\AssistantFoundation\Api\IAiFileCapableChatModel;
+use Base3\AssistantFoundation\Api\IAiFileProvider;
+use Base3\AssistantFoundation\Dto\AiFileResource;
+use Base3\AssistantFoundation\Dto\AiProviderFileMetadata;
+use Base3\AssistantFoundation\Dto\AiProviderFileReference;
+use Base3\AssistantFoundation\Exception\AiProviderRequestException;
+use Base3\MissionBay\Transport\OpenAiTransport;
 use RuntimeException;
 
 class OpenAiChatModel extends OpenAiCompatibleChatModel implements IAiFileCapableChatModel {

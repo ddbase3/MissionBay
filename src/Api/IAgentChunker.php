@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Dto\AgentParsedContent;
+use Base3\MissionBay\Dto\AgentParsedContent;
 
 /**
  * Chunkers split parsed content into embeddings-friendly chunks.

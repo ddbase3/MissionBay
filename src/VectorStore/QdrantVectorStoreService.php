@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\VectorStore;
+namespace Base3\MissionBay\VectorStore;
 
 final class QdrantVectorStoreService extends AbstractQdrantVectorStoreService {
 

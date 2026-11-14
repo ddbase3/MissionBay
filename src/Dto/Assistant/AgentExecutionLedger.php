@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Assistant;
+namespace Base3\MissionBay\Dto\Assistant;
 
-use AssistantFoundation\Dto\AgentToolResult;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
 
 /**
  * Authoritative current-turn evidence used by the final response phase.

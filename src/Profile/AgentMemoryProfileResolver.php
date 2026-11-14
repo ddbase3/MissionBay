@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Profile;
+namespace Base3\MissionBay\Profile;
 
-use AssistantFoundation\Api\IAgentConversationMemory;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentResourceFactory;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentResourceFactory;
 
 /**
  * Resolves conversation-memory profiles into concrete configured presets.

@@ -1,18 +1,33 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Hook;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Api\IContainer;
-use Base3\Database\Api\IDatabase;
-use Base3\Event\Api\IEventManager;
-use Base3\Usermanager\Api\IUsermanager;
-use MissionBay\Event\MissionBayAgentActionAuditEvent;
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
-use MissionBay\Hook\MissionBayToolEventRegistrationHookListener;
-use MissionBay\Listener\MissionBayToolEventDisplayListener;
-use MissionBay\MissionBayPlugin;
+namespace Base3\MissionBay\Test\Hook;
+
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
+use Base3\MissionBay\Event\MissionBayToolFailedEvent;
+use Base3\MissionBay\Event\MissionBayToolFinishedEvent;
+use Base3\MissionBay\Event\MissionBayToolStartedEvent;
+use Base3\MissionBay\Hook\MissionBayToolEventRegistrationHookListener;
+use Base3\MissionBay\Listener\MissionBayToolEventDisplayListener;
+use Base3\MissionBay\MissionBayPlugin;
 use PHPUnit\Framework\TestCase;
 
 final class MissionBayToolEventRegistrationHookListenerCoverageTest extends TestCase {

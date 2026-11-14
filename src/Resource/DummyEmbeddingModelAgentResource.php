@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use MissionBay\EmbeddingModel\DefaultEmbeddingResultTrait;
-use MissionBay\Api\IAgentConfigValueResolver;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\MissionBay\EmbeddingModel\DefaultEmbeddingResultTrait;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
 class DummyEmbeddingModelAgentResource extends AbstractAgentResource implements IAiEmbeddingModel {
 

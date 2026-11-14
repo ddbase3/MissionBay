@@ -1,25 +1,40 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Display;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Usermanager\Permission;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use Base3\Api\IAssetResolver;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IOutputSchemaProvider;
-use Base3\Api\IRequest;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Dto\AgentComponentPresetMaterialization;
-use MissionBay\Resource\ConfiguredAgentMemoryResource;
-use MissionBay\Service\AgentComponentPresetToolTestService;
+namespace Base3\MissionBay\Display;
+
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\CoreFoundation\Api\IAssetResolver;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IOutputSchemaProvider;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
+use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
+use Base3\MissionBay\Service\AgentComponentPresetToolTestService;
 
 /**
  * Tests stored agent component presets through their materialized runtime capabilities.
@@ -50,7 +65,7 @@ final class AgentComponentPresetTestAdminDisplay implements IDisplay {
 	public function getOutput(string $out = 'html', bool $final = false): string {
 		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
 			$this->settingsAuthorization->getDefaultAuthority(),
-			Permission::for('feature', \MissionBay\SettingsTab\AgentcomponentpresettestadminSettingsTab::getName())
+			Permission::for('feature', \Base3\MissionBay\SettingsTab\AgentcomponentpresettestadminSettingsTab::getName())
 		))->isAllowed()) {
 			http_response_code(403);
 			return '';

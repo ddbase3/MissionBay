@@ -9,21 +9,23 @@
  *
  * Developed by Daniel Dahme
  * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
  * https://base3.de/v/missionbay
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentContextCompaction;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentToolResult;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Orchestrator\AgentStageResultAccumulator;
-use MissionBay\Orchestrator\Service\AgentContextAssessmentService;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentContextCompaction;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Orchestrator\AgentStageResultAccumulator;
+use Base3\MissionBay\Orchestrator\Service\AgentContextAssessmentService;
 
 /**
  * AgentContextCompactionStage

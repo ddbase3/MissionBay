@@ -15,22 +15,22 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Dto\AgentConversation;
-use AssistantFoundation\Dto\AgentConversationScope;
-use Base3\Api\IClassMap;
-use Base3\Api\ISchemaProvider;
-use Base3\Translation\Api\ITranslation;
-use Base3\Usermanager\Api\IUsermanager;
-use Base3\Database\Api\IDatabase;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Service\ConversationContentCipher;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentConfigValueResolver;
-use CredentialFoundation\Api\IEncryptionProfileService;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Dto\AgentConversation;
+use Base3\AssistantFoundation\Dto\AgentConversationScope;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Translation\Api\ITranslation;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Service\ConversationContentCipher;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\CredentialFoundation\Api\IEncryptionProfileService;
 
 /**
  * Database-backed conversation metadata and visible message history.

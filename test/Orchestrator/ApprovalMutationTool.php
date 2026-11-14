@@ -1,40 +1,55 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AiChatResult;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionReview;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentMutationCommitDecision;
-use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
-use AssistantFoundation\Dto\AgentInteractionResponse;
-use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Dto\AgentSuspensionClaim;
-use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
-use Base3\Event\Api\IEventManager;
-use Base3\State\Api\IStateStore;
-use MissionBay\Api\IAgentMutationGuardedTool;
-use MissionBay\Api\IAgentTool;
-use MissionBay\ChatModel\NormalizedChatModelTrait;
-use MissionBay\Context\AgentContext;
-use MissionBay\Event\MissionBayAgentActionAuditEvent;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\AgentToolOrchestrator;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
-use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
-use MissionBay\Orchestrator\Service\AgentActionResumeService;
-use MissionBay\Orchestrator\Service\AgentActionReviewService;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
-use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
-use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
-use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
-use AssistantRuntime\Service\StateStoreAgentSuspensionRepository;
-use MissionBay\Policy\AllowAllAgentActionPolicy;
-use MissionBay\Policy\MutationApprovalAgentActionPolicy;
+namespace Base3\MissionBay\Test\Orchestrator;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionReview;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitDecision;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use Base3\AssistantFoundation\Dto\AgentInteractionResponse;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentSuspensionClaim;
+use Base3\AssistantFoundation\Exception\AgentSuspensionRepositoryException;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\State\Api\IStateStore;
+use Base3\MissionBay\Api\IAgentMutationGuardedTool;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\ChatModel\NormalizedChatModelTrait;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestrator;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
+use Base3\MissionBay\Orchestrator\Service\AgentActionResumeService;
+use Base3\MissionBay\Orchestrator\Service\AgentActionReviewService;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolObservationStage;
+use Base3\AssistantRuntime\Service\StateStoreAgentSuspensionRepository;
+use Base3\MissionBay\Policy\AllowAllAgentActionPolicy;
+use Base3\MissionBay\Policy\MutationApprovalAgentActionPolicy;
 use PHPUnit\Framework\TestCase;
 
 final class ApprovalMutationTool implements IAgentTool, IAgentMutationGuardedTool {

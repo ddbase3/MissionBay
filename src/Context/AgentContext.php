@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Context;
+namespace Base3\MissionBay\Context;
 
-use AssistantFoundation\Api\IAgentMemory;
-use MissionBay\Api\IAgentStateContext;
-use AssistantFoundation\Dto\AgentResult;
-use AssistantFoundation\Dto\AgentState;
-use MissionBay\Memory\NoMemory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\MissionBay\Api\IAgentStateContext;
+use Base3\AssistantFoundation\Dto\AgentResult;
+use Base3\AssistantFoundation\Dto\AgentState;
+use Base3\MissionBay\Memory\NoMemory;
 
 class AgentContext implements IAgentStateContext {
 

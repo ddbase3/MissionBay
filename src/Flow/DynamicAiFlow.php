@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Flow;
+namespace Base3\MissionBay\Flow;
 
-use MissionBay\Api\IAgentFlow;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentNodeFactory;
-use MissionBay\Api\IAgentResource;
-use Base3\Api\IClassMap;
-use Base3\Configuration\Api\IConfiguration;
+use Base3\MissionBay\Api\IAgentFlow;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentNode;
+use Base3\MissionBay\Api\IAgentNodeFactory;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Configuration\Api\IConfiguration;
 
 class DynamicAiFlow implements IAgentFlow {
 

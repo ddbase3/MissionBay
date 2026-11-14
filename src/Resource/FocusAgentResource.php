@@ -15,19 +15,19 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use Base3\Accesscontrol\Api\IAccesscontrol;
-use Base3\Database\Api\IDatabase;
-use Base3\Logger\Api\ILogger;
-use Base3\Session\Api\ISession;
-use Base3\Usermanager\Api\IUsermanager;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentConfigValueResolver;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use MissionBay\Api\IAgentTool;
+use Base3\CoreFoundation\Accesscontrol\Api\IAccesscontrol;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Session\Api\ISession;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\MissionBay\Api\IAgentTool;
 
 class FocusAgentResource extends AbstractAgentResource implements IAgentContextContributor, IAgentTool {
 

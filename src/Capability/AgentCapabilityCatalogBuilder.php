@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Capability;
+namespace Base3\MissionBay\Capability;
 
-use AssistantFoundation\Dto\AgentCapability;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Dto\AgentCapability;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\MissionBay\Api\IAgentTool;
 
 /**
  * Builds one normalized run-local catalog from the tools already assigned to

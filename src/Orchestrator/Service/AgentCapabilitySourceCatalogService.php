@@ -15,16 +15,16 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use AssistantFoundation\Dto\AgentCapability;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentCapabilitySelection;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
-use MissionBay\Api\IAgentCapabilitySourceMetadata;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Capability\HybridAgentCapabilitySelector;
+use Base3\AssistantFoundation\Dto\AgentCapability;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelection;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
+use Base3\MissionBay\Api\IAgentCapabilitySourceMetadata;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Capability\HybridAgentCapabilitySelector;
 
 /**
  * Builds the compact source universe used by the agent-selected native

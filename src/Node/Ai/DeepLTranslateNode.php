@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Ai;
+namespace Base3\MissionBay\Node\Ai;
 
-use MissionBay\Api\IAgentNode;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Node\AbstractAgentNode;
-use MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Api\IAgentNode;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Node\AbstractAgentNode;
+use Base3\MissionBay\Agent\AgentNodePort;
 
 class DeepLTranslateNode extends AbstractAgentNode
 {

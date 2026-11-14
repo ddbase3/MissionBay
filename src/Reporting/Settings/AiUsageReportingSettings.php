@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Reporting\Settings;
+namespace Base3\MissionBay\Reporting\Settings;
 
 final class AiUsageReportingSettings {
 

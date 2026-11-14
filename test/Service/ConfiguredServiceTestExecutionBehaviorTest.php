@@ -1,37 +1,52 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Service;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use AssistantFoundation\Api\IImageGenerationModel;
-use AssistantFoundation\Dto\AiChatResult;
-use AssistantFoundation\Dto\AiEmbeddingResult;
-use AssistantFoundation\Dto\AiImageResult;
-use AssistantFoundation\Dto\AiResultMetadata;
-use AssistantFoundation\Dto\AiSearchResult;
-use AssistantFoundation\Dto\AiUsage;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
-use AssistantFoundation\Dto\TextToSpeechResult;
-use Base3\Api\IClassMap;
-use Base3\Logger\Api\ILogger;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\ISearchService;
-use MissionBay\Api\ISpeechToTextDriver;
-use MissionBay\Api\ITextToSpeechDriver;
-use MissionBay\Api\IVectorStoreService;
-use MediaFoundation\Api\IAudioMedia;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
-use MissionBay\Service\ConfiguredServiceTestService;
-use MissionBay\ServiceDriver\OpenAiChatServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiEmbeddingServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiImageServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiWebSearchServiceDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiSpeechToTextDriverDefinition;
-use MissionBay\ServiceDriver\OpenAiTextToSpeechDriverDefinition;
-use MissionBay\ServiceDriver\QdrantVectorStoreServiceDriverDefinition;
+namespace Base3\MissionBay\Test\Service;
+
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\AssistantFoundation\Api\IImageGenerationModel;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\AssistantFoundation\Dto\AiEmbeddingResult;
+use Base3\AssistantFoundation\Dto\AiImageResult;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\AssistantFoundation\Dto\AiSearchResult;
+use Base3\AssistantFoundation\Dto\AiUsage;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSession;
+use Base3\AssistantFoundation\Dto\TextToSpeechResult;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\ISearchService;
+use Base3\MissionBay\Api\ISpeechToTextDriver;
+use Base3\MissionBay\Api\ITextToSpeechDriver;
+use Base3\MissionBay\Api\IVectorStoreService;
+use Base3\MediaFoundation\Api\IAudioMedia;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\MissionBay\Service\ConfiguredServiceTestService;
+use Base3\MissionBay\ServiceDriver\OpenAiChatServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiEmbeddingServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiImageServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiWebSearchServiceDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiSpeechToTextDriverDefinition;
+use Base3\MissionBay\ServiceDriver\OpenAiTextToSpeechDriverDefinition;
+use Base3\MissionBay\ServiceDriver\QdrantVectorStoreServiceDriverDefinition;
 use PHPUnit\Framework\TestCase;
 
 final class ConfiguredServiceTestExecutionBehaviorTest extends TestCase {

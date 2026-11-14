@@ -15,27 +15,27 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Ai;
+namespace Base3\MissionBay\Node\Ai;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentExecutionState;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentResult;
-use AssistantFoundation\Dto\AgentResultState;
-use AssistantFoundation\Dto\AgentSuspensionState;
-use AssistantRuntime\Service\AgentEventDispatcher;
-use MissionBay\Agent\AgentNodePort;
-use MissionBay\Api\IAgentAssistantFallbackBuilder;
-use MissionBay\Api\IAgentAssistantFinalResponseService;
-use MissionBay\Api\IAgentAssistantMemoryService;
-use MissionBay\Api\IAgentAssistantTurnService;
-use MissionBay\Api\IAgentStateContext;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
-use MissionBay\Exception\AgentRunCancelledException;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentExecutionState;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentResult;
+use Base3\AssistantFoundation\Dto\AgentResultState;
+use Base3\AssistantFoundation\Dto\AgentSuspensionState;
+use Base3\AssistantRuntime\Service\AgentEventDispatcher;
+use Base3\MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Api\IAgentAssistantFallbackBuilder;
+use Base3\MissionBay\Api\IAgentAssistantFinalResponseService;
+use Base3\MissionBay\Api\IAgentAssistantMemoryService;
+use Base3\MissionBay\Api\IAgentAssistantTurnService;
+use Base3\MissionBay\Api\IAgentStateContext;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResources;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use Base3\MissionBay\Exception\AgentRunCancelledException;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Assistant node for both buffered and incremental agent execution.

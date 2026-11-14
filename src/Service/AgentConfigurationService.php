@@ -2,17 +2,27 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
  * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAgentConfigurationService;
-use AssistantFoundation\Api\IAgentDefinition;
-use Base3\Api\IClassMap;
-use Base3\Settings\Api\ISettingsStore;
-use ClientStack\FileManager\FileUploadService;
-use ResourceFoundation\Api\IManagedFileStorageService;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\AssistantFoundation\Api\IAgentDefinition;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\ClientStack\FileManager\FileUploadService;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
 use InvalidArgumentException;
 use LogicException;
 

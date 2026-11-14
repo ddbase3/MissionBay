@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Listener;
+namespace Base3\MissionBay\Listener;
 
-use Base3\Database\Api\IDatabase;
-use Base3\Usermanager\Api\IUsermanager;
-use MissionBay\Event\MissionBayAgentActionAuditEvent;
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
+use Base3\MissionBay\Event\MissionBayToolFailedEvent;
+use Base3\MissionBay\Event\MissionBayToolFinishedEvent;
+use Base3\MissionBay\Event\MissionBayToolStartedEvent;
 
 class MissionBayToolEventDisplayListener {
 

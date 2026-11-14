@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentContinuationDecision;
-use AssistantFoundation\Dto\AgentResultVerification;
-use AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentContinuationDecision;
+use Base3\AssistantFoundation\Dto\AgentResultVerification;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
 
 /**
  * AgentContinuationDecisionService

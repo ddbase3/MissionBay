@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Profile;
+namespace Base3\MissionBay\Profile;
 
-use MissionBay\Api\IAgentAssistantToolSetupFactory;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentProfileSelector;
-use MissionBay\Dto\Assistant\AgentAssistantToolSetup;
-use MissionBay\Capability\AgentCapabilityCatalogBuilder;
+use Base3\MissionBay\Api\IAgentAssistantToolSetupFactory;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentProfileSelector;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantToolSetup;
+use Base3\MissionBay\Capability\AgentCapabilityCatalogBuilder;
 
 final class AgentAssistantToolSetupFactory implements IAgentAssistantToolSetupFactory {
 

@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use MissionBay\Api\IAgentTool;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantRuntime\Service\AgentEventDispatcher;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantRuntime\Service\AgentEventDispatcher;
 
 class HelloWorldCanvasAgentTool extends AbstractAgentResource implements IAgentTool {
 

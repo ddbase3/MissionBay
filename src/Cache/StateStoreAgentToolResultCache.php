@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Cache;
+namespace Base3\MissionBay\Cache;
 
-use AssistantFoundation\Api\IAgentToolResultCache;
-use AssistantFoundation\Dto\AgentToolCacheEntry;
-use Base3\State\Api\IStateStore;
+use Base3\AssistantFoundation\Api\IAgentToolResultCache;
+use Base3\AssistantFoundation\Dto\AgentToolCacheEntry;
+use Base3\CoreFoundation\State\Api\IStateStore;
 
 /**
  * StateStoreAgentToolResultCache

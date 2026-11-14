@@ -1,44 +1,59 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Event\EventManager;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
+namespace Base3\MissionBay\Test\Orchestrator;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentBudgetAssessment;
-use AssistantFoundation\Dto\AgentContextAssessment;
-use AssistantFoundation\Dto\AgentContextCompaction;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentResultVerification;
-use AssistantFoundation\Dto\AgentStageTraceEntry;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentToolResult;
-use Base3\Event\Api\IEventManager;
-use MissionBay\ChatModel\NormalizedChatModelTrait;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Context\AgentContext;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\AgentToolOrchestrator;
-use MissionBay\Orchestrator\AgentToolOrchestratorResult;
-use MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
-use MissionBay\Orchestrator\Stage\AgentBudgetGuardStage;
-use MissionBay\Orchestrator\Stage\AgentContextAssessmentStage;
-use MissionBay\Orchestrator\Stage\AgentContextCompactionStage;
-use MissionBay\Orchestrator\Stage\AgentFinalAnswerStage;
-use MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
-use MissionBay\Orchestrator\Stage\AgentResultVerificationStage;
-use MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
-use MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
-use MissionBay\Orchestrator\Stage\AgentToolObservationStage;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
-use MissionBay\Policy\AllowAllAgentActionPolicy;
-use MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
-use MissionBay\Service\Assistant\AgentAssistantMessageFactory;
+use Base3\Core\Event\EventManager;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentBudgetAssessment;
+use Base3\AssistantFoundation\Dto\AgentContextAssessment;
+use Base3\AssistantFoundation\Dto\AgentContextCompaction;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentResultVerification;
+use Base3\AssistantFoundation\Dto\AgentStageTraceEntry;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\ChatModel\NormalizedChatModelTrait;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestrator;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestratorResult;
+use Base3\MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentBudgetGuardStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentContextAssessmentStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentContextCompactionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentFinalAnswerStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentModelDecisionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentResultVerificationStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentSemanticVerificationStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolObservationStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\MissionBay\Orchestrator\Policy\StaticAgentActionPolicyResolver;
+use Base3\MissionBay\Policy\AllowAllAgentActionPolicy;
+use Base3\MissionBay\Service\Assistant\AgentAssistantFinalResponseService;
+use Base3\MissionBay\Service\Assistant\AgentAssistantMessageFactory;
 use PHPUnit\Framework\TestCase;
 
 final class QueueChatModel implements IAiChatModel {

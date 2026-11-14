@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ServiceDriver;
+namespace Base3\MissionBay\ServiceDriver;
 
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use MissionBay\Api\ISpeechToTextDriver;
-use MissionBay\Speech\MistralSpeechToTextDriver;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\MissionBay\Api\ISpeechToTextDriver;
+use Base3\MissionBay\Speech\MistralSpeechToTextDriver;
 
 final class MistralSpeechToTextDriverDefinition implements IServiceDriverDefinition {
 

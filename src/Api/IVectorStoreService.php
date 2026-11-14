@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Api\IRetrievalIndex;
-use AssistantFoundation\Api\IRetrievalIndexInspector;
-use Base3\Api\IBase;
+use Base3\AssistantFoundation\Api\IRetrievalIndex;
+use Base3\AssistantFoundation\Api\IRetrievalIndexInspector;
+use Base3\CoreFoundation\Api\IBase;
 
 interface IVectorStoreService extends IRetrievalIndex, IRetrievalIndexInspector, IBase {
 

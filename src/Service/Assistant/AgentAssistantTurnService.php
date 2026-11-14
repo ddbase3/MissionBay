@@ -15,33 +15,33 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service\Assistant;
+namespace Base3\MissionBay\Service\Assistant;
 
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentAssistantContextContributionService;
-use MissionBay\Api\IAgentAssistantFallbackBuilder;
-use MissionBay\Api\IAgentAssistantMemoryService;
-use MissionBay\Api\IAgentAssistantMessageFactory;
-use MissionBay\Api\IAgentAssistantToolSetupFactory;
-use MissionBay\Api\IAgentAssistantTurnService;
-use MissionBay\Capability\AgentCapabilityDiscoveryService;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
-use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
-use MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResult;
-use MissionBay\Dto\Assistant\PreparedAgentResume;
-use MissionBay\Exception\AgentRunCancelledException;
-use MissionBay\Orchestrator\AgentStagePipelineResolver;
-use MissionBay\Orchestrator\AgentStateSynchronizer;
-use MissionBay\Orchestrator\AgentToolOrchestrator;
-use MissionBay\Orchestrator\AgentToolOrchestratorResult;
-use MissionBay\Orchestrator\Service\AgentActionResumeService;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentAssistantContextContributionService;
+use Base3\MissionBay\Api\IAgentAssistantFallbackBuilder;
+use Base3\MissionBay\Api\IAgentAssistantMemoryService;
+use Base3\MissionBay\Api\IAgentAssistantMessageFactory;
+use Base3\MissionBay\Api\IAgentAssistantToolSetupFactory;
+use Base3\MissionBay\Api\IAgentAssistantTurnService;
+use Base3\MissionBay\Capability\AgentCapabilityDiscoveryService;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Exception\AgentSuspensionRepositoryException;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
+use Base3\MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResources;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResult;
+use Base3\MissionBay\Dto\Assistant\PreparedAgentResume;
+use Base3\MissionBay\Exception\AgentRunCancelledException;
+use Base3\MissionBay\Orchestrator\AgentStagePipelineResolver;
+use Base3\MissionBay\Orchestrator\AgentStateSynchronizer;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestrator;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestratorResult;
+use Base3\MissionBay\Orchestrator\Service\AgentActionResumeService;
 
 final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 

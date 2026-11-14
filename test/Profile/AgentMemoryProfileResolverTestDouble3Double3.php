@@ -1,22 +1,37 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Profile;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Dto\AgentConversation;
-use AssistantFoundation\Dto\AgentConversationScope;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentResourceFactory;
-use MissionBay\Profile\AgentContextProfileResolver;
-use MissionBay\Profile\AgentMemoryProfileResolver;
-use MissionBay\Resource\AbstractAgentResource;
-use MissionBay\Resource\AgentContext\Text\StaticTextContextAgentResource;
+namespace Base3\MissionBay\Test\Profile;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Dto\AgentConversation;
+use Base3\AssistantFoundation\Dto\AgentConversationScope;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentResourceFactory;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
+use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
+use Base3\MissionBay\Resource\AbstractAgentResource;
+use Base3\MissionBay\Resource\AgentContext\Text\StaticTextContextAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class AgentMemoryProfileResolverTestDouble3Double3 implements IAgentConfigValueResolver  {

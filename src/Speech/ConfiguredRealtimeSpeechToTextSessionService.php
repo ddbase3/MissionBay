@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Speech;
+namespace Base3\MissionBay\Speech;
 
-use AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSession;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
-use MissionBay\Api\ISpeechToTextDriver;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\AssistantFoundation\Api\IRealtimeSpeechToTextSessionService;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSession;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
+use Base3\MissionBay\Api\ISpeechToTextDriver;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use RuntimeException;
 
 final class ConfiguredRealtimeSpeechToTextSessionService implements IRealtimeSpeechToTextSessionService {

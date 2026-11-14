@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
 final class VectorStoreConfigDisplay extends AbstractServiceConfigDisplay {
 
@@ -28,7 +28,7 @@ final class VectorStoreConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function settingsTabFeatureName(): string {
-		return \MissionBay\SettingsTab\VectorstoreconfigSettingsTab::getName();
+		return \Base3\MissionBay\SettingsTab\VectorstoreconfigSettingsTab::getName();
 	}
 
 	public function getHelp(): string {

@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IRetrievalSearchService;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IRetrievalSearchService;
 
 /**
  * Shared execution boundary for configured retrieval tool presets.
@@ -139,7 +139,7 @@ final class RetrievalSearchService implements IRetrievalSearchService {
 
 	/**
 	 * @param array<string,mixed> $contextMetadata
-	 * @return array{0:\MissionBay\Dto\AgentComponentPresetMaterialization,1:IAgentTool,2?:\AssistantFoundation\Api\IAgentContext}
+	 * @return array{0:\Base3\MissionBay\Dto\AgentComponentPresetMaterialization,1:IAgentTool,2?:\Base3\AssistantFoundation\Api\IAgentContext}
 	 */
 	private function materializeTool(string $presetId, array $contextMetadata = [], bool $withContext = false): array {
 		$contextMetadata['source'] = trim((string)($contextMetadata['source'] ?? 'retrieval-search')) ?: 'retrieval-search';

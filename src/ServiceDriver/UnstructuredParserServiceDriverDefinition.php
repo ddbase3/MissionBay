@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ServiceDriver;
+namespace Base3\MissionBay\ServiceDriver;
 
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use MissionBay\Api\IParserService;
-use MissionBay\ParserService\UnstructuredParserService;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\MissionBay\Api\IParserService;
+use Base3\MissionBay\ParserService\UnstructuredParserService;
 
 final class UnstructuredParserServiceDriverDefinition implements IServiceDriverDefinition {
 

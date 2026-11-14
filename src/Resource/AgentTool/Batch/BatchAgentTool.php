@@ -15,25 +15,25 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource\AgentTool\Batch;
+namespace Base3\MissionBay\Resource\AgentTool\Batch;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionReview;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use AssistantFoundation\Dto\AgentMutationCommitDecision;
-use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
-use AssistantFoundation\Dto\AiToolCall;
-use MissionBay\Api\IAgentBatchTool;
-use MissionBay\Api\IAgentMutationGuardedTool;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use MissionBay\Resource\AbstractAgentResource;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionReview;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitDecision;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\MissionBay\Api\IAgentBatchTool;
+use Base3\MissionBay\Api\IAgentMutationGuardedTool;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\MissionBay\Resource\AbstractAgentResource;
 
 /**
  * Generic approval envelope for independent repetitions of one guarded tool

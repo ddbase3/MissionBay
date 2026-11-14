@@ -15,16 +15,16 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Api\IAgentRuntimeService;
-use AssistantFoundation\Dto\AgentExecutionRequest;
-use AssistantFoundation\Dto\AgentExecutionResult;
-use MissionBay\Api\IAgentContextFactory;
-use MissionBay\Api\IAgentFlowCompiler;
-use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Api\IAgentStateContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Api\IAgentRuntimeService;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\AssistantFoundation\Dto\AgentExecutionResult;
+use Base3\MissionBay\Api\IAgentContextFactory;
+use Base3\MissionBay\Api\IAgentFlowCompiler;
+use Base3\MissionBay\Api\IAgentFlowFactory;
+use Base3\MissionBay\Api\IAgentStateContext;
 
 /**
  * MissionBay implementation of the transport-neutral agent execution service.
@@ -88,7 +88,7 @@ final class AgentExecutionService implements IAgentRuntimeService {
 	/**
 	 * @param array<string,mixed> $effectiveFlow
 	 * @param array<string,mixed> $contextVars
-	 * @return array{0:mixed,1:\AssistantFoundation\Api\IAgentContext}
+	 * @return array{0:mixed,1:\Base3\AssistantFoundation\Api\IAgentContext}
 	 */
 	private function createFlow(
 		array $effectiveFlow,

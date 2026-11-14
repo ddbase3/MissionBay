@@ -1,11 +1,26 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Listener;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
-use MissionBay\Listener\MissionBayToolEventDisplayListener;
+namespace Base3\MissionBay\Test\Listener;
+
+use Base3\MissionBay\Event\MissionBayToolFailedEvent;
+use Base3\MissionBay\Event\MissionBayToolFinishedEvent;
+use Base3\MissionBay\Event\MissionBayToolStartedEvent;
+use Base3\MissionBay\Listener\MissionBayToolEventDisplayListener;
 use PHPUnit\Framework\TestCase;
 
 final class MissionBayToolEventDisplayListenerTimestampTest extends TestCase {

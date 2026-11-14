@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
 final class EmbeddingConfigDisplay extends AbstractServiceConfigDisplay {
 
@@ -28,7 +28,7 @@ final class EmbeddingConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function settingsTabFeatureName(): string {
-		return \MissionBay\SettingsTab\EmbeddingconfigSettingsTab::getName();
+		return \Base3\MissionBay\SettingsTab\EmbeddingconfigSettingsTab::getName();
 	}
 
 	public function getHelp(): string {

@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use AssistantFoundation\Dto\AiSearchResult;
-use Base3\Api\IBase;
+use Base3\AssistantFoundation\Dto\AiSearchResult;
+use Base3\CoreFoundation\Api\IBase;
 
 interface ISearchService extends IBase {
 

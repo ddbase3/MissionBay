@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Agent;
+namespace Base3\MissionBay\Agent;
 
-use MissionBay\Api\IAgentNodeFactory;
-use MissionBay\Api\IAgentNode;
-use Base3\Api\IClassMap;
+use Base3\MissionBay\Api\IAgentNodeFactory;
+use Base3\MissionBay\Api\IAgentNode;
+use Base3\CoreFoundation\Api\IClassMap;
 
 class AgentNodeFactory implements IAgentNodeFactory {
 

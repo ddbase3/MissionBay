@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Context;
+namespace Base3\MissionBay\Context;
 
-use AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
 
 /**
  * Extended context for subflows, with prioritized lookup in extraVars.

@@ -15,28 +15,28 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionReview;
-use AssistantFoundation\Dto\AgentMutationCommitDecision;
-use AssistantFoundation\Dto\AgentMutationCommitSnapshot;
-use AssistantFoundation\Dto\AiToolCall;
-use Base3\Api\IOutputSchemaProvider;
-use Base3\Event\Api\IEventManager;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentBatchTool;
-use MissionBay\Api\IAgentCapabilitySourceMetadata;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentMutationGuardedTool;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IConfirmableAgentTool;
-use MissionBay\Audit\AgentToolAuditContext;
-use MissionBay\Event\MissionBayToolFailedEvent;
-use MissionBay\Event\MissionBayToolFinishedEvent;
-use MissionBay\Event\MissionBayToolStartedEvent;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionReview;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitDecision;
+use Base3\AssistantFoundation\Dto\AgentMutationCommitSnapshot;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\CoreFoundation\Api\IOutputSchemaProvider;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentBatchTool;
+use Base3\MissionBay\Api\IAgentCapabilitySourceMetadata;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IAgentMutationGuardedTool;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IConfirmableAgentTool;
+use Base3\MissionBay\Audit\AgentToolAuditContext;
+use Base3\MissionBay\Event\MissionBayToolFailedEvent;
+use Base3\MissionBay\Event\MissionBayToolFinishedEvent;
+use Base3\MissionBay\Event\MissionBayToolStartedEvent;
 
 /**
  * ConfiguredAgentToolResource

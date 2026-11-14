@@ -1,13 +1,28 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Flow;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Api\IClassMap;
-use Base3\Configuration\Api\IConfiguration;
-use MissionBay\Api\IAgentNode;
-use MissionBay\Api\IAgentNodeFactory;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Flow\DynamicAiFlow;
+namespace Base3\MissionBay\Test\Flow;
+
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Configuration\Api\IConfiguration;
+use Base3\MissionBay\Api\IAgentNode;
+use Base3\MissionBay\Api\IAgentNodeFactory;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Flow\DynamicAiFlow;
 use PHPUnit\Framework\TestCase;
 
 final class DynamicAiFlowGraphStructureTest extends TestCase {

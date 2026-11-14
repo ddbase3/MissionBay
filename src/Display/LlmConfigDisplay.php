@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
 final class LlmConfigDisplay extends AbstractServiceConfigDisplay {
 
@@ -28,7 +28,7 @@ final class LlmConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function settingsTabFeatureName(): string {
-		return \MissionBay\SettingsTab\LlmconfigSettingsTab::getName();
+		return \Base3\MissionBay\SettingsTab\LlmconfigSettingsTab::getName();
 	}
 
 	public function getHelp(): string {

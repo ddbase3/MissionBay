@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Assistant;
+namespace Base3\MissionBay\Dto\Assistant;
 
-use AssistantFoundation\Dto\AgentBudget;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use AssistantFoundation\Dto\AgentResume;
-use AssistantFoundation\Dto\AgentToolCacheConfig;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\AssistantFoundation\Dto\AgentBudget;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentToolCacheConfig;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 
 final class AgentAssistantTurnOptions {
 

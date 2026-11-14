@@ -1,17 +1,32 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Service;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAiFileCapableChatModel;
-use AssistantFoundation\Dto\AiFileResource;
-use AssistantFoundation\Dto\AiProviderFileMetadata;
-use AssistantFoundation\Dto\AiProviderFileReference;
-use Base3\State\Api\IStateStore;
-use MissionBay\Service\AiProviderFileReferenceResolver;
-use MissionBay\Service\AiProviderFileReferenceStateRepository;
+namespace Base3\MissionBay\Test\Service;
+
+use Base3\AssistantFoundation\Api\IAiFileCapableChatModel;
+use Base3\AssistantFoundation\Dto\AiFileResource;
+use Base3\AssistantFoundation\Dto\AiProviderFileMetadata;
+use Base3\AssistantFoundation\Dto\AiProviderFileReference;
+use Base3\CoreFoundation\State\Api\IStateStore;
+use Base3\MissionBay\Service\AiProviderFileReferenceResolver;
+use Base3\MissionBay\Service\AiProviderFileReferenceStateRepository;
 use PHPUnit\Framework\TestCase;
-use ResourceFoundation\Api\IFileStorage;
-use ResourceFoundation\Api\IManagedFileStorageService;
+use Base3\ResourceFoundation\Api\IFileStorage;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
 
 final class AiProviderFileReferenceResolverTest extends TestCase {
 

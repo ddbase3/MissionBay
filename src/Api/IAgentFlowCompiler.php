@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Dto\AgentFlowCompilation;
+use Base3\MissionBay\Dto\AgentFlowCompilation;
 
 /**
  * Compiles stored MissionBay agent settings into an executable flow.

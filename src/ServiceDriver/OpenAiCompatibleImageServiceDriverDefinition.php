@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ServiceDriver;
+namespace Base3\MissionBay\ServiceDriver;
 
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use AssistantFoundation\Api\IImageGenerationModel;
-use MissionBay\ImageModel\OpenAiCompatibleImageModel;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\AssistantFoundation\Api\IImageGenerationModel;
+use Base3\MissionBay\ImageModel\OpenAiCompatibleImageModel;
 
 final class OpenAiCompatibleImageServiceDriverDefinition implements IServiceDriverDefinition {
 

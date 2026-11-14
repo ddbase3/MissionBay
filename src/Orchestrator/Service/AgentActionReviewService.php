@@ -15,30 +15,30 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Service;
+namespace Base3\MissionBay\Orchestrator\Service;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Api\IAgentSuspensionRepository;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionReview;
-use AssistantFoundation\Dto\AgentActionDecision;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentInteractionRequest;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentSuspension;
-use AssistantFoundation\Dto\AgentSuspensionClaim;
-use AssistantFoundation\Dto\AgentSuspensionResolution;
-use AssistantFoundation\Dto\AgentSuspensionScope;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use AssistantFoundation\Exception\AgentSuspensionRepositoryException;
-use Base3\Event\Api\IEventManager;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Api\IConfirmableAgentTool;
-use MissionBay\Event\MissionBayAgentActionAuditEvent;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Api\IAgentSuspensionRepository;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionReview;
+use Base3\AssistantFoundation\Dto\AgentActionDecision;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentSuspension;
+use Base3\AssistantFoundation\Dto\AgentSuspensionClaim;
+use Base3\AssistantFoundation\Dto\AgentSuspensionResolution;
+use Base3\AssistantFoundation\Dto\AgentSuspensionScope;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\AssistantFoundation\Exception\AgentSuspensionRepositoryException;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IConfirmableAgentTool;
+use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /** Converts policy review decisions into a durable, transport-neutral suspension. */
 final class AgentActionReviewService {

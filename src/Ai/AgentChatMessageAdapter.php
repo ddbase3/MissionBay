@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Ai;
+namespace Base3\MissionBay\Ai;
 
-use AssistantFoundation\Dto\AiChatResult;
-use AssistantFoundation\Dto\AiToolCall;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
 
 /**
  * Adapts provider-neutral chat DTOs to MissionBay's current internal

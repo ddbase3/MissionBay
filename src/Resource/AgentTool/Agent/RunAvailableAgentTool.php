@@ -15,19 +15,19 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource\AgentTool\Agent;
+namespace Base3\MissionBay\Resource\AgentTool\Agent;
 
-use AssistantFoundation\Api\IAgentExecutionService;
-use AssistantFoundation\Dto\AgentExecutionRequest;
-use Base3\Api\ISchemaProvider;
-use AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\AssistantFoundation\Api\IAgentExecutionService;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
 use InvalidArgumentException;
-use MissionBay\Api\IAgentConfigValueResolver;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Resource\AbstractAgentResource;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Resource\AbstractAgentResource;
 use Throwable;
 
 /**

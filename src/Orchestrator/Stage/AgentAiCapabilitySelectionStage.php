@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use MissionBay\Capability\SemanticAgentCapabilitySelector;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\MissionBay\Capability\SemanticAgentCapabilitySelector;
 
 /**
  * Uses the active chat model to rerank a bounded capability candidate set.

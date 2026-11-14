@@ -1,18 +1,33 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Resource;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Dto\AgentConversationScope;
-use Base3\Api\IClassMap;
-use Base3\Usermanager\Api\IUsermanager;
-use Base3\Usermanager\User;
-use Base3\Crypt\Sodium\SodiumCrypt;
-use CredentialFoundation\Api\IEncryptionProfileService;
-use CredentialFoundation\Dto\EncryptionKeyMaterial;
-use Base3\Database\Api\IDatabase;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Context\AgentContext;
-use MissionBay\Resource\DatabaseMemoryAgentResource;
+namespace Base3\MissionBay\Test\Resource;
+
+use Base3\AssistantFoundation\Dto\AgentConversationScope;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\CoreFoundation\Usermanager\User;
+use Base3\Core\Crypt\Sodium\SodiumCrypt;
+use Base3\CredentialFoundation\Api\IEncryptionProfileService;
+use Base3\CredentialFoundation\Dto\EncryptionKeyMaterial;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Resource\DatabaseMemoryAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class DatabaseMemoryAgentResourceTest extends TestCase {
@@ -105,7 +120,7 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		$automatic = $resource->renameConversation(
 			'conversation-one',
 			'Automatic title',
-			\AssistantFoundation\Dto\AgentConversation::TITLE_SOURCE_AUTOMATIC
+			\Base3\AssistantFoundation\Dto\AgentConversation::TITLE_SOURCE_AUTOMATIC
 		);
 
 		$this->assertSame('Manual title', $manual->getTitle());
@@ -171,7 +186,7 @@ final class DatabaseMemoryAgentResourceTest extends TestCase {
 		if ($withSodium) {
 			$classmap->method('getInstancesByInterface')->willReturn([new SodiumCrypt()]);
 		}
-		$translation = $this->createStub(\Base3\Translation\Api\ITranslation::class);
+		$translation = $this->createStub(\Base3\CoreFoundation\Translation\Api\ITranslation::class);
 		$translation->method('translate')->willReturnCallback(
 			static fn (string $set, string $section, string $key): string => $key
 		);

@@ -2,22 +2,33 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Capability;
+namespace Base3\MissionBay\Capability;
 
-use AssistantFoundation\Api\IAgentCapabilityProvider;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentModule;
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use AssistantFoundation\Dto\AgentModuleActivation;
-use AssistantFoundation\Dto\AgentStageMount;
-use Base3\Api\IComponent;
-use Base3\Api\IComponentResolver;
-use MissionBay\Api\IAgentPromptProvider;
-use MissionBay\Api\IAgentResourceProvider;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
+use Base3\AssistantFoundation\Api\IAgentCapabilityProvider;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentModule;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\AssistantFoundation\Dto\AgentModuleActivation;
+use Base3\AssistantFoundation\Dto\AgentStageMount;
+use Base3\CoreFoundation\Api\IComponent;
+use Base3\CoreFoundation\Api\IComponentResolver;
+use Base3\MissionBay\Api\IAgentPromptProvider;
+use Base3\MissionBay\Api\IAgentResourceProvider;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
 
 /**
  * Resolves only the component ids explicitly configured for an agent and

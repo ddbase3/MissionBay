@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\SearchService;
+namespace Base3\MissionBay\SearchService;
 
-use AssistantFoundation\Dto\AiSearchResult;
-use MissionBay\Ai\AiResultNormalizer;
-use MissionBay\Transport\MistralTransport;
+use Base3\AssistantFoundation\Dto\AiSearchResult;
+use Base3\MissionBay\Ai\AiResultNormalizer;
+use Base3\MissionBay\Transport\MistralTransport;
 use RuntimeException;
 
 class MistralWebSearchService extends AbstractSearchService {

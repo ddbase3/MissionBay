@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
 use RuntimeException;
 
@@ -30,7 +30,7 @@ final class TextToSpeechConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function settingsTabFeatureName(): string {
-		return \MissionBay\SettingsTab\TexttospeechconfigSettingsTab::getName();
+		return \Base3\MissionBay\SettingsTab\TexttospeechconfigSettingsTab::getName();
 	}
 
 	public function getHelp(): string {

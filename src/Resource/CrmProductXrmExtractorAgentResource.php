@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use MissionBay\Api\IAgentContentExtractor;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Dto\AgentContentItem;
-use ResourceFoundation\Api\IEntityDataService;
+use Base3\MissionBay\Api\IAgentContentExtractor;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Dto\AgentContentItem;
+use Base3\ResourceFoundation\Api\IEntityDataService;
 
 /**
  * CrmProductXrmExtractorAgentResource

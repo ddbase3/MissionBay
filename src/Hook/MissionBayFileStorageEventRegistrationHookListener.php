@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Hook;
+namespace Base3\MissionBay\Hook;
 
-use Base3\Api\IContainer;
-use Base3\Event\Api\IEventManager;
-use Base3\Hook\Api\IHookListener;
-use MissionBay\MissionBayPlugin;
-use MissionBay\Service\AiProviderFileOwnerCleanupService;
-use ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
+use Base3\CoreFoundation\Api\IContainer;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\Hook\Api\IHookListener;
+use Base3\MissionBay\MissionBayPlugin;
+use Base3\MissionBay\Service\AiProviderFileOwnerCleanupService;
+use Base3\ResourceFoundation\Event\ManagedFileStorageDeletingEvent;
 use RuntimeException;
 
 final class MissionBayFileStorageEventRegistrationHookListener implements IHookListener {

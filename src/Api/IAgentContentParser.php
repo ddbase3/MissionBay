@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Dto\AgentContentItem;
-use MissionBay\Dto\AgentParsedContent;
+use Base3\MissionBay\Dto\AgentContentItem;
+use Base3\MissionBay\Dto\AgentParsedContent;
 
 /**
  * Parsers convert an AgentContentItem into AgentParsedContent.

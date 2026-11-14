@@ -97,7 +97,7 @@ A tool may declare an output schema directly:
 Or it may implement the existing BASE3 contract:
 
 ```php
-use Base3\Api\IOutputSchemaProvider;
+use Base3\CoreFoundation\Api\IOutputSchemaProvider;
 
 final class RecordAgentTool implements IAgentTool, IOutputSchemaProvider {
 

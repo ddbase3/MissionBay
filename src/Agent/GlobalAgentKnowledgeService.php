@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Agent;
+namespace Base3\MissionBay\Agent;
 
-use Base3\Accesscontrol\Api\IAccesscontrol;
-use Base3\Database\Api\IDatabase;
-use Base3\Session\Api\ISession;
+use Base3\CoreFoundation\Accesscontrol\Api\IAccesscontrol;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Session\Api\ISession;
 
 /**
  * Knowledge service variant with a read-only global knowledge scope.

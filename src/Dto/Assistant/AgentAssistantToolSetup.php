@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Assistant;
+namespace Base3\MissionBay\Dto\Assistant;
 
-use MissionBay\Api\IAgentTool;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use MissionBay\Profile\ProfilePlan;
-use MissionBay\Profile\ToolFilterReport;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\MissionBay\Profile\ProfilePlan;
+use Base3\MissionBay\Profile\ToolFilterReport;
 
 final class AgentAssistantToolSetup {
 

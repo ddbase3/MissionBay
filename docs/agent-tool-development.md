@@ -23,13 +23,13 @@ It covers:
 A normal tool implements:
 
 ```php
-MissionBay\Api\IAgentTool
+Base3\MissionBay\Api\IAgentTool
 ```
 
 A tool resource commonly extends:
 
 ```php
-MissionBay\Resource\AbstractAgentResource
+Base3\MissionBay\Resource\AbstractAgentResource
 ```
 
 Minimal example:
@@ -39,9 +39,9 @@ Minimal example:
 
 namespace ExamplePlugin\Tool;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Resource\AbstractAgentResource;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Resource\AbstractAgentResource;
 
 final class ExampleLookupTool extends AbstractAgentResource implements IAgentTool {
 
@@ -182,7 +182,7 @@ A mutation with `commitGuardRequired=true` must be provided by a tool that
 implements:
 
 ```php
-MissionBay\Api\IAgentMutationGuardedTool
+Base3\MissionBay\Api\IAgentMutationGuardedTool
 ```
 
 ## 5. Complete guarded mutation lifecycle
@@ -256,7 +256,7 @@ sent to the browser.
 returns:
 
 ```php
-AssistantFoundation\Dto\AgentActionReview
+Base3\AssistantFoundation\Dto\AgentActionReview
 ```
 
 The DTO contains only:
@@ -399,7 +399,7 @@ implement optional tool capabilities.
 
 ## 8. Output schemas
 
-Implement `Base3\Api\IOutputSchemaProvider` when consumers need a formal schema
+Implement `Base3\CoreFoundation\Api\IOutputSchemaProvider` when consumers need a formal schema
 for returned tool data.
 
 ```php

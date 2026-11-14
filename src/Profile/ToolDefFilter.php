@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Profile;
+namespace Base3\MissionBay\Profile;
 
-use MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IAgentTool;
 
 final class ToolDefFilter {
 

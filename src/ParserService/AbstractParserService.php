@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ParserService;
+namespace Base3\MissionBay\ParserService;
 
-use AssistantFoundation\Dto\ParserFileRequest;
-use AssistantFoundation\Dto\ParserServiceResult;
-use MissionBay\Api\IParserService;
-use MissionBay\Dto\AgentContentItem;
-use MissionBay\Dto\AgentParsedContent;
+use Base3\AssistantFoundation\Dto\ParserFileRequest;
+use Base3\AssistantFoundation\Dto\ParserServiceResult;
+use Base3\MissionBay\Api\IParserService;
+use Base3\MissionBay\Dto\AgentContentItem;
+use Base3\MissionBay\Dto\AgentParsedContent;
 use RuntimeException;
 
 abstract class AbstractParserService implements IParserService {

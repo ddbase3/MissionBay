@@ -15,7 +15,7 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ParserService;
+namespace Base3\MissionBay\ParserService;
 
 final class DoclingParserService extends AbstractParserService {
 

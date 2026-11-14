@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource\Logger\Logger;
+namespace Base3\MissionBay\Resource\Logger\Logger;
 
-use Base3\Api\ISchemaProvider;
-use Base3\Logger\Api\ILogger;
-use Base3\Logger\LoggerBridgeTrait;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Resource\AbstractAgentResource;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Logger\LoggerBridgeTrait;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Resource\AbstractAgentResource;
 
 /**
  * LoggerResource

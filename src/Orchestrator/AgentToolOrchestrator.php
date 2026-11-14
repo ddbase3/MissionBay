@@ -15,36 +15,36 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator;
+namespace Base3\MissionBay\Orchestrator;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionDecision;
-use AssistantFoundation\Dto\AgentBudget;
-use AssistantFoundation\Dto\AgentCapability;
-use AssistantFoundation\Dto\AgentCapabilityCatalog;
-use AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
-use AssistantFoundation\Dto\AgentCapabilitySourceConfig;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentSuspension;
-use MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
-use MissionBay\Dto\Assistant\PreparedAgentResume;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentToolCacheConfig;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use AssistantFoundation\Dto\AgentStageTraceEntry;
-use Base3\Event\Api\IEventManager;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Orchestrator\Service\AgentActionResumeService;
-use MissionBay\Orchestrator\Service\AgentBudgetGuardService;
-use MissionBay\Orchestrator\Service\AgentLoopProgressService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionDecision;
+use Base3\AssistantFoundation\Dto\AgentBudget;
+use Base3\AssistantFoundation\Dto\AgentCapability;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentSuspension;
+use Base3\MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
+use Base3\MissionBay\Dto\Assistant\PreparedAgentResume;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentToolCacheConfig;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\AssistantFoundation\Dto\AgentStageTraceEntry;
+use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Orchestrator\Service\AgentActionResumeService;
+use Base3\MissionBay\Orchestrator\Service\AgentBudgetGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentLoopProgressService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * AgentToolOrchestrator

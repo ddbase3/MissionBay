@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Dto\AiProviderFileReference;
-use Base3\State\Api\IStateStore;
+use Base3\AssistantFoundation\Dto\AiProviderFileReference;
+use Base3\CoreFoundation\State\Api\IStateStore;
 use InvalidArgumentException;
 
 final class AiProviderFileReferenceStateRepository {

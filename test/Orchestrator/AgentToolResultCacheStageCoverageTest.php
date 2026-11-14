@@ -1,18 +1,33 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Dto\AgentResultVerification;
-use AssistantFoundation\Dto\AgentToolCacheConfig;
-use AssistantFoundation\Dto\AgentToolCacheEntry;
-use AssistantFoundation\Dto\AgentToolCacheRule;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use MissionBay\Cache\AgentToolCacheKeyBuilder;
-use MissionBay\Context\AgentContext;
-use MissionBay\Orchestrator\Stage\AgentResultVerificationStage;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as K;
-use MissionBay\Orchestrator\Stage\AgentToolResultCacheStage;
+namespace Base3\MissionBay\Test\Orchestrator;
+
+use Base3\AssistantFoundation\Dto\AgentResultVerification;
+use Base3\AssistantFoundation\Dto\AgentToolCacheConfig;
+use Base3\AssistantFoundation\Dto\AgentToolCacheEntry;
+use Base3\AssistantFoundation\Dto\AgentToolCacheRule;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\MissionBay\Cache\AgentToolCacheKeyBuilder;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Orchestrator\Stage\AgentResultVerificationStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as K;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolResultCacheStage;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

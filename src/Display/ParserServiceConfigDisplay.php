@@ -15,16 +15,16 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Api\IClassMap;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IConfiguredParserServiceResolver;
-use MissionBay\Api\IParserServiceTestService;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IConfiguredParserServiceResolver;
+use Base3\MissionBay\Api\IParserServiceTestService;
 
 final class ParserServiceConfigDisplay extends AbstractServiceConfigDisplay {
 
@@ -50,7 +50,7 @@ final class ParserServiceConfigDisplay extends AbstractServiceConfigDisplay {
 	}
 
 	protected function settingsTabFeatureName(): string {
-		return \MissionBay\SettingsTab\ParserserviceconfigSettingsTab::getName();
+		return \Base3\MissionBay\SettingsTab\ParserserviceconfigSettingsTab::getName();
 	}
 
 	public function getHelp(): string {

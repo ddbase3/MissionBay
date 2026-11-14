@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Transport;
+namespace Base3\MissionBay\Transport;
 
-use AssistantFoundation\Api\IAiFileProvider;
-use AssistantFoundation\Dto\AiFileResource;
-use AssistantFoundation\Exception\AiProviderRequestException;
+use Base3\AssistantFoundation\Api\IAiFileProvider;
+use Base3\AssistantFoundation\Dto\AiFileResource;
+use Base3\AssistantFoundation\Exception\AiProviderRequestException;
 
 class OpenAiTransport extends OpenAiCompatibleTransport implements IAiFileProvider {
 

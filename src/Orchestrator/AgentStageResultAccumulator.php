@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator;
+namespace Base3\MissionBay\Orchestrator;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
 
 /**
  * Applies infrastructure-service results inside one semantic stage and

@@ -15,22 +15,22 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use AssistantFoundation\Api\IRetrievalFilterProvider;
-use AssistantFoundation\Api\IRetrievalIndex;
-use AssistantFoundation\Api\IRetrievalIndexInspector;
-use AssistantFoundation\Dto\RetrievalHit;
-use AssistantFoundation\Dto\RetrievalSearchRequest;
-use Base3\Api\ISchemaProvider;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Retrieval\PhoneticTextMaterializer;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\AssistantFoundation\Api\IRetrievalFilterProvider;
+use Base3\AssistantFoundation\Api\IRetrievalIndex;
+use Base3\AssistantFoundation\Api\IRetrievalIndexInspector;
+use Base3\AssistantFoundation\Dto\RetrievalHit;
+use Base3\AssistantFoundation\Dto\RetrievalSearchRequest;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Retrieval\PhoneticTextMaterializer;
 
 /**
  * Read-only multi-representation retrieval tool.

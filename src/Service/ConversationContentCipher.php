@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use Base3\Api\IClassMap;
-use Base3\Crypt\Api\ICrypt;
-use CredentialFoundation\Api\IEncryptionProfileService;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Crypt\Api\ICrypt;
+use Base3\CredentialFoundation\Api\IEncryptionProfileService;
 
 /**
  * Encrypts and decrypts persisted conversation fields using BASE3 crypt methods.

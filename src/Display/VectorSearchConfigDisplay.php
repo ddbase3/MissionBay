@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use MissionBay\Feature\VectorSearchConfigFeature;
+use Base3\MissionBay\Feature\VectorSearchConfigFeature;
 
 final class VectorSearchConfigDisplay extends AbstractServiceConfigDisplay {
 

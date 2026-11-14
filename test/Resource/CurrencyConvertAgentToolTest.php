@@ -1,10 +1,25 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Resource\AgentTool\CurrencyConvert;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
+
+namespace Base3\MissionBay\Resource\AgentTool\CurrencyConvert;
 
 /**
  * Namespaced override for file_get_contents() to avoid real HTTP calls in tests.
- * PHP resolves file_get_contents() inside MissionBay\Resource\* to this function first.
+ * PHP resolves file_get_contents() inside Base3\MissionBay\Resource\* to this function first.
  */
 
 
@@ -14,14 +29,14 @@ function file_get_contents(string $filename, bool $use_include_path = false, $co
 }
 
 
-namespace MissionBay\Resource\Test;
+namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\TestCase;
-use MissionBay\Resource\AgentTool\CurrencyConvert\CurrencyConvertAgentTool;
-use MissionBay\Resource\AgentTool\CurrencyConvert\FakeHttpState;
-use MissionBay\Api\IAgentTool;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentMemory;
+use Base3\MissionBay\Resource\AgentTool\CurrencyConvert\CurrencyConvertAgentTool;
+use Base3\MissionBay\Resource\AgentTool\CurrencyConvert\FakeHttpState;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentMemory;
 
 class CurrencyConvertAgentToolTest extends TestCase {
 

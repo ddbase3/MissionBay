@@ -1,19 +1,34 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Node\Ai;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentMemory;
-use AssistantFoundation\Api\IAiChatModel;
-use MissionBay\Api\IAgentAssistantFallbackBuilder;
-use MissionBay\Api\IAgentAssistantFinalResponseService;
-use MissionBay\Api\IAgentAssistantMemoryService;
-use MissionBay\Api\IAgentAssistantTurnService;
-use MissionBay\Api\IAgentProfileSelector;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
-use MissionBay\Dto\Assistant\AgentAssistantTurnResources;
-use MissionBay\Node\Ai\AiAssistantNode;
+namespace Base3\MissionBay\Test\Node\Ai;
+
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\MissionBay\Api\IAgentAssistantFallbackBuilder;
+use Base3\MissionBay\Api\IAgentAssistantFinalResponseService;
+use Base3\MissionBay\Api\IAgentAssistantMemoryService;
+use Base3\MissionBay\Api\IAgentAssistantTurnService;
+use Base3\MissionBay\Api\IAgentProfileSelector;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnOptions;
+use Base3\MissionBay\Dto\Assistant\AgentAssistantTurnResources;
+use Base3\MissionBay\Node\Ai\AiAssistantNode;
 use PHPUnit\Framework\TestCase;
 
 final class AiAssistantNodeConfigurationTest extends TestCase {

@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Policy;
+namespace Base3\MissionBay\Policy;
 
-use AssistantFoundation\Api\IAgentActionPolicy;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionDecision;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentActionPolicy;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionDecision;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /** Requires explicit approval for tool definitions declaring side effects. */
 final class MutationApprovalAgentActionPolicy implements IAgentActionPolicy {

@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use Base3\Api\IOutput;
-use Base3\Api\IClassMap;
-use Base3\Api\IRequest;
-use Base3\Logger\Api\ILogger;
-use Base3\Token\Api\IToken;
-use MissionBay\Api\IMcpAgent;
+use Base3\CoreFoundation\Api\IOutput;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Token\Api\IToken;
+use Base3\MissionBay\Api\IMcpAgent;
 
 class MissionBayMcp implements IOutput {
 

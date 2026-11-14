@@ -1,21 +1,36 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Tool\Profile;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Dto\AgentExecutionRequest;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Capability\AgentCapabilityCatalogBuilder;
-use MissionBay\Dto\AgentComponentPresetMaterialization;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Profile\AgentToolProfileResolver;
-use MissionBay\Test\Profile\ProfileToolsTestAgentTool;
-use MissionBay\Tool\Profile\MissionBayAgentToolProfileProvider;
+namespace Base3\MissionBay\Test\Tool\Profile;
+
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Capability\AgentCapabilityCatalogBuilder;
+use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Profile\AgentToolProfileResolver;
+use Base3\MissionBay\Test\Profile\ProfileToolsTestAgentTool;
+use Base3\MissionBay\Tool\Profile\MissionBayAgentToolProfileProvider;
 use PHPUnit\Framework\TestCase;
 
 final class MissionBayToolProfileProviderBoundaryTest extends TestCase {

@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use Base3\Logger\Api\ILogger;
-use MissionBay\Agent\AgentNodeDock;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentTool;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentTool;
 use stdClass;
 
 class MermaidSyntaxAgentTool extends AbstractAgentResource implements IAgentTool {

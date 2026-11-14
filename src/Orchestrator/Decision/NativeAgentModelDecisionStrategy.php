@@ -2,21 +2,32 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Decision;
+namespace Base3\MissionBay\Orchestrator\Decision;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentStageResult;
-use MissionBay\Api\IAgentModelDecisionStrategy;
-use MissionBay\Dto\Assistant\AgentExecutionLedger;
-use MissionBay\Exception\AgentRunCancelledException;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
-use MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\MissionBay\Api\IAgentModelDecisionStrategy;
+use Base3\MissionBay\Dto\Assistant\AgentExecutionLedger;
+use Base3\MissionBay\Exception\AgentRunCancelledException;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /**
  * Uses the provider-native streaming and tool-calling contract.

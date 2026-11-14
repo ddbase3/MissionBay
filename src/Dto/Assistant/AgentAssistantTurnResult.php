@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Assistant;
+namespace Base3\MissionBay\Dto\Assistant;
 
-use AssistantFoundation\Api\IAgentMemory;
-use AssistantFoundation\Dto\AgentExecutionStatus;
-use AssistantFoundation\Dto\AgentInteractionRequest;
-use AssistantFoundation\Dto\AgentResult;
-use AssistantFoundation\Dto\AiResultMetadata;
-use MissionBay\Orchestrator\AgentToolOrchestratorResult;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
+use Base3\AssistantFoundation\Dto\AgentResult;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\MissionBay\Orchestrator\AgentToolOrchestratorResult;
 
 final class AgentAssistantTurnResult {
 
@@ -143,7 +143,7 @@ final class AgentAssistantTurnResult {
 		return $this->orchestrationResult?->getResumeHandle() ?? '';
 	}
 
-	/** @return array<int,\AssistantFoundation\Dto\AgentCapabilitySelection> */
+	/** @return array<int,\Base3\AssistantFoundation\Dto\AgentCapabilitySelection> */
 	public function getCapabilitySelections(): array {
 		return $this->orchestrationResult?->getCapabilitySelections() ?? [];
 	}
@@ -184,28 +184,28 @@ final class AgentAssistantTurnResult {
 	}
 
 	/**
-	 * @return array<int,\AssistantFoundation\Dto\AgentStageTraceEntry>
+	 * @return array<int,\Base3\AssistantFoundation\Dto\AgentStageTraceEntry>
 	 */
 	public function getStageTrace(): array {
 		return $this->orchestrationResult?->getStageTrace() ?? [];
 	}
 
 	/**
-	 * @return array<int,\AssistantFoundation\Dto\AgentContextCompaction>
+	 * @return array<int,\Base3\AssistantFoundation\Dto\AgentContextCompaction>
 	 */
 	public function getContextCompactions(): array {
 		return $this->orchestrationResult?->getContextCompactions() ?? [];
 	}
 
 	/**
-	 * @return array<int,\AssistantFoundation\Dto\AgentResultVerification>
+	 * @return array<int,\Base3\AssistantFoundation\Dto\AgentResultVerification>
 	 */
 	public function getResultVerifications(): array {
 		return $this->orchestrationResult?->getResultVerifications() ?? [];
 	}
 
 	/**
-	 * @return array<int,\AssistantFoundation\Dto\AgentToolContractValidation>
+	 * @return array<int,\Base3\AssistantFoundation\Dto\AgentToolContractValidation>
 	 */
 	public function getToolContractValidations(): array {
 		return $this->orchestrationResult?->getToolContractValidations() ?? [];
@@ -214,14 +214,14 @@ final class AgentAssistantTurnResult {
 
 
 	/**
-	 * @return array<int,\AssistantFoundation\Dto\AgentContinuationDecision>
+	 * @return array<int,\Base3\AssistantFoundation\Dto\AgentContinuationDecision>
 	 */
 	public function getContinuationDecisions(): array {
 		return $this->orchestrationResult?->getContinuationDecisions() ?? [];
 	}
 
 	/**
-	 * @return array<int,\AssistantFoundation\Dto\AgentProgressAssessment>
+	 * @return array<int,\Base3\AssistantFoundation\Dto\AgentProgressAssessment>
 	 */
 	public function getProgressAssessments(): array {
 		return $this->orchestrationResult?->getProgressAssessments() ?? [];
@@ -232,7 +232,7 @@ final class AgentAssistantTurnResult {
 	}
 
 	/**
-	 * @return array<int,\AssistantFoundation\Dto\AgentBudgetAssessment>
+	 * @return array<int,\Base3\AssistantFoundation\Dto\AgentBudgetAssessment>
 	 */
 	public function getBudgetAssessments(): array {
 		return $this->orchestrationResult?->getBudgetAssessments() ?? [];

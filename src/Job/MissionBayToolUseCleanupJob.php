@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Job;
+namespace Base3\MissionBay\Job;
 
-use Base3\Configuration\Api\IConfiguration;
-use Base3\Database\Api\IDatabase;
-use Base3\Worker\Api\IPolicyControlledJob;
-use Base3\Worker\Policy\PolicyControlledJobTrait;
-use MissionBay\ToolUse\ToolUseRetention;
+use Base3\CoreFoundation\Configuration\Api\IConfiguration;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Worker\Api\IPolicyControlledJob;
+use Base3\CoreFoundation\Worker\Policy\PolicyControlledJobTrait;
+use Base3\MissionBay\ToolUse\ToolUseRetention;
 
 /**
  * MissionBayToolUseCleanupJob

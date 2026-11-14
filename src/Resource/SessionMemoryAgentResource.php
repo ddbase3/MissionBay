@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Dto\AgentConversation;
-use AssistantFoundation\Dto\AgentConversationScope;
-use Base3\Api\ISchemaProvider;
-use Base3\Logger\Api\ILogger;
-use Base3\Session\Api\ISession;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentConfigValueResolver;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Dto\AgentConversation;
+use Base3\AssistantFoundation\Dto\AgentConversationScope;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CoreFoundation\Session\Api\ISession;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
 /**
  * Session-backed conversation metadata and visible message history.

@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace Base3\MissionBay\ChatModel;
 
-use MissionBay\Transport\OpenAiCompatibleTransport;
+use Base3\MissionBay\Transport\OpenAiCompatibleTransport;
 
 class OpenAiCompatibleChatModel extends AbstractChatCompletionModel {
 

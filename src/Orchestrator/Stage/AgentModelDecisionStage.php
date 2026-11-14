@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Dto\AgentStageResult;
-use MissionBay\Api\IAgentModelDecisionStrategyResolver;
-use MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
-use MissionBay\Orchestrator\Decision\AgentSelectedNativeModelDecisionStrategy;
-use MissionBay\Orchestrator\Decision\AiGuardedAgentModelDecisionStrategy;
-use MissionBay\Orchestrator\Decision\NativeAgentModelDecisionStrategy;
-use MissionBay\Orchestrator\Decision\SimpleAgentModelDecisionStrategy;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\MissionBay\Api\IAgentModelDecisionStrategyResolver;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Orchestrator\Decision\AgentSelectedNativeModelDecisionStrategy;
+use Base3\MissionBay\Orchestrator\Decision\AiGuardedAgentModelDecisionStrategy;
+use Base3\MissionBay\Orchestrator\Decision\NativeAgentModelDecisionStrategy;
+use Base3\MissionBay\Orchestrator\Decision\SimpleAgentModelDecisionStrategy;
 
 /**
  * Stable model-decision stage delegating decision behavior to a profile-selected strategy.
@@ -88,7 +88,7 @@ final class AgentModelDecisionStage implements IAgentStage {
 		}
 	}
 
-	private function resolveStrategy(AgentModelDecisionConfig $config): \MissionBay\Api\IAgentModelDecisionStrategy {
+	private function resolveStrategy(AgentModelDecisionConfig $config): \Base3\MissionBay\Api\IAgentModelDecisionStrategy {
 		if ($this->strategyResolver instanceof IAgentModelDecisionStrategyResolver) {
 			return $this->strategyResolver->resolve($config->getStrategy());
 		}

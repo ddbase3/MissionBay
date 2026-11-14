@@ -1,18 +1,33 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Output;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentConfigurationService;
-use Base3\Api\IOutput;
-use Base3\Api\IRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Usermanager\Api\IUsermanager;
-use Base3\Translation\Api\ITranslation;
-use Base3\Usermanager\Permission;
-use ClientStack\FileManager\FileManagerHttpService;
-use MissionBay\SettingsTab\AgentadminSettingsTab;
-use ResourceFoundation\Api\IManagedFileStorageService;
+namespace Base3\MissionBay\Output;
+
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\CoreFoundation\Api\IOutput;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
+use Base3\CoreFoundation\Translation\Api\ITranslation;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\ClientStack\FileManager\FileManagerHttpService;
+use Base3\MissionBay\SettingsTab\AgentadminSettingsTab;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
 use Throwable;
 
 /**

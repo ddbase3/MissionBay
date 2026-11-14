@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\VectorStore;
+namespace Base3\MissionBay\VectorStore;
 
-use AssistantFoundation\Api\IAiServiceTester;
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use AssistantFoundation\Dto\RetrievalHit;
-use AssistantFoundation\Dto\RetrievalIndexItem;
-use AssistantFoundation\Dto\RetrievalSearchRequest;
-use AssistantFoundation\Dto\RetrievalSearchResult;
-use MissionBay\Api\IVectorStoreService;
+use Base3\AssistantFoundation\Api\IAiServiceTester;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\AssistantFoundation\Dto\RetrievalHit;
+use Base3\AssistantFoundation\Dto\RetrievalIndexItem;
+use Base3\AssistantFoundation\Dto\RetrievalSearchRequest;
+use Base3\AssistantFoundation\Dto\RetrievalSearchResult;
+use Base3\MissionBay\Api\IVectorStoreService;
 
 abstract class AbstractQdrantVectorStoreService implements IVectorStoreService, IAiServiceTester {
 

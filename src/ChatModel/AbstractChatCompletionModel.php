@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ChatModel;
+namespace Base3\MissionBay\ChatModel;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiProvider;
-use Base3\Api\IBase;
-use Base3\Api\IClassMap;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiProvider;
+use Base3\CoreFoundation\Api\IBase;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
 
 abstract class AbstractChatCompletionModel implements IAiChatModel, IBase {
 

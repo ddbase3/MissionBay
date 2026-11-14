@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource\AgentTool\Weather;
+namespace Base3\MissionBay\Resource\AgentTool\Weather;
 
-use MissionBay\Api\IAgentTool;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Resource\AbstractAgentResource;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Resource\AbstractAgentResource;
 
 /**
  * WeatherAgentTool

@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service\Memory;
+namespace Base3\MissionBay\Service\Memory;
 
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentConversationMemory;
-use AssistantFoundation\Api\IAgentMemory;
-use MissionBay\Api\IAgentMemoryRoleResolver;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentConversationMemory;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\MissionBay\Api\IAgentMemoryRoleResolver;
 
 final class AgentMemoryRoleResolver implements IAgentMemoryRoleResolver {
 

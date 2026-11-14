@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAiFileCapableChatModel;
-use AssistantFoundation\Dto\AiFileResource;
-use AssistantFoundation\Dto\AiProviderFileReference;
-use Base3\State\Api\IStateStore;
-use ResourceFoundation\Api\IManagedFileStorageService;
+use Base3\AssistantFoundation\Api\IAiFileCapableChatModel;
+use Base3\AssistantFoundation\Dto\AiFileResource;
+use Base3\AssistantFoundation\Dto\AiProviderFileReference;
+use Base3\CoreFoundation\State\Api\IStateStore;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
 use RuntimeException;
 
 final class AiProviderFileReferenceResolver {

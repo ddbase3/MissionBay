@@ -1,16 +1,31 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Resource;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
+
+namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentEventSink;
-use AssistantFoundation\Dto\AgentExecutionEvent;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Resource\ToolProxyAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentEventSink;
+use Base3\AssistantFoundation\Dto\AgentExecutionEvent;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Resource\ToolProxyAgentTool;
 
-#[CoversClass(\MissionBay\Resource\ToolProxyAgentTool::class)]
+#[CoversClass(\Base3\MissionBay\Resource\ToolProxyAgentTool::class)]
 class ToolProxyAgentToolTest extends TestCase {
 
 	private function makeContextWithEventSink(array &$events): IAgentContext {

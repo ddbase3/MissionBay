@@ -1,15 +1,17 @@
 #!/usr/bin/env php
 <?php declare(strict_types=1);
 
-use Base3\Token\FileToken\FileToken;
+use Base3\Core\Token\FileToken\FileToken;
 
 ini_set('display_errors', 1); ini_set('display_startup_errors', 1); error_reporting(E_ALL);
 
-require_once __DIR__ . '/../../src/Api/ICheck.php';
-require_once __DIR__ . '/../../src/Token/Api/IToken.php';
-require_once __DIR__ . '/../../src/Token/FileToken/FileToken.php';
+$root = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR;
+define('DIR_ROOT', $root);
+define('DIR_PLUGIN', $root . 'plugin' . DIRECTORY_SEPARATOR);
+require_once $root . 'bootstrap/Autoloader.php';
+\Base3\Bootstrap\Autoloader::register();
 
-define('DIR_LOCAL', __DIR__ . '/../../local/');
+define('DIR_LOCAL', $root . 'local' . DIRECTORY_SEPARATOR);
 
 // default values
 $scope = 'api';

@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Dto\Assistant;
+namespace Base3\MissionBay\Dto\Assistant;
 
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentMemory;
-use AssistantFoundation\Api\IAiChatModel;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\IAgentProfileSelector;
-use MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentMemory;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\IAgentProfileSelector;
+use Base3\MissionBay\Api\IAgentTool;
 
 final class AgentAssistantTurnResources {
 

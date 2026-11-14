@@ -15,22 +15,22 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentActionPolicy;
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Dto\AgentAction;
-use AssistantFoundation\Dto\AgentActionDecision;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentToolContractValidation;
-use AssistantFoundation\Dto\AgentToolResult;
-use AssistantFoundation\Dto\AiToolCall;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
-use MissionBay\Orchestrator\Service\AgentActionReviewService;
-use MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
-use MissionBay\Orchestrator\Service\AgentToolContractValidationService;
+use Base3\AssistantFoundation\Api\IAgentActionPolicy;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentActionDecision;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentToolContractValidation;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Policy\IAgentActionPolicyResolver;
+use Base3\MissionBay\Orchestrator\Service\AgentActionReviewService;
+use Base3\MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
+use Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService;
 
 /**
  * Evaluates semantic tool actions before execution. Denials become tool

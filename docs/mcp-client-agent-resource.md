@@ -56,13 +56,13 @@ mcpclientagentresource
 It implements:
 
 ```text
-MissionBay\Api\IAgentTool
-MissionBay\Api\IConfirmableAgentTool
-MissionBay\Api\IAgentResourceProvider
-MissionBay\Api\IAgentPromptProvider
-AssistantFoundation\Api\IAgentContextContributor
-Base3\Api\ISchemaProvider
-Base3\Api\IOutputSchemaProvider
+Base3\MissionBay\Api\IAgentTool
+Base3\MissionBay\Api\IConfirmableAgentTool
+Base3\MissionBay\Api\IAgentResourceProvider
+Base3\MissionBay\Api\IAgentPromptProvider
+Base3\AssistantFoundation\Api\IAgentContextContributor
+Base3\CoreFoundation\Api\ISchemaProvider
+Base3\CoreFoundation\Api\IOutputSchemaProvider
 ```
 
 The Component Preset administration derives the effective capabilities from these contracts. A normal preset therefore exposes:

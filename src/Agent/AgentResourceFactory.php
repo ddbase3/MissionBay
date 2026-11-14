@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Agent;
+namespace Base3\MissionBay\Agent;
 
-use Base3\Api\IClassMap;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Api\IAgentResourceFactory;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Api\IAgentResourceFactory;
 
 class AgentResourceFactory implements IAgentResourceFactory {
 

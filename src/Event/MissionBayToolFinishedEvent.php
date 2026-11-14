@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Event;
+namespace Base3\MissionBay\Event;
 
-use Base3\Event\BaseEvent;
+use Base3\CoreFoundation\Event\BaseEvent;
 
 /**
  * MissionBayToolFinishedEvent

@@ -15,13 +15,13 @@ mistral-image
 The provider-neutral runtime contract is:
 
 ```text
-AssistantFoundation\Api\IImageGenerationModel
+Base3\AssistantFoundation\Api\IImageGenerationModel
 ```
 
 The generic discoverable driver contract is:
 
 ```text
-AssistantFoundation\Api\IServiceDriverDefinition
+Base3\AssistantFoundation\Api\IServiceDriverDefinition
 ```
 
 ## Architecture
@@ -257,8 +257,8 @@ OpenAI image usage is normalized from its image response `usage` object. Mistral
 
 A specialty plugin should:
 
-1. implement `AssistantFoundation\Api\IImageGenerationModel`;
-2. implement `AssistantFoundation\Api\IServiceDriverDefinition`;
+1. implement `Base3\AssistantFoundation\Api\IImageGenerationModel`;
+2. implement `Base3\AssistantFoundation\Api\IServiceDriverDefinition`;
 3. return `IImageGenerationModel::class` from `getImplementationInterface()`;
 4. return the adapter's stable `getName()` value from `getImplementationName()`;
 5. expose only model and generation-specific fields in `getConfigSchema()`;

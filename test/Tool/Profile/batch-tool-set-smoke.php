@@ -9,27 +9,13 @@ if (
 	return;
 }
 
-(static function(array $arguments): void {
-	$pluginDir = dirname(__DIR__, 3);
-	$frameworkDir = dirname($pluginDir, 2) . '/src';
-	$foundationDir = $arguments[1] ?? dirname($pluginDir) . '/AssistantFoundation/src';
-	spl_autoload_register(static function(string $class) use ($pluginDir, $foundationDir, $frameworkDir): void {
-		$prefixes = [
-			'Base3\\' => $frameworkDir . '/',
-			'MissionBay\\' => $pluginDir . '/src/',
-			'AssistantFoundation\\' => $foundationDir . '/'
-		];
-		foreach ($prefixes as $prefix => $directory) {
-			if (!str_starts_with($class, $prefix)) {
-				continue;
-			}
-			$file = $directory . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
-			if (is_file($file)) {
-				require_once $file;
-			}
-			return;
-		}
-	});
+(static function(): void {
+	$root = dirname(__DIR__, 5) . '/';
+	define('DIR_ROOT', $root);
+	define('DIR_PLUGIN', $root . 'plugin/');
+	define('DIR_TEST', $root . 'test/');
+	require_once $root . 'bootstrap/Autoloader.php';
+	\Base3\Bootstrap\Autoloader::register();
 
 	require_once __DIR__ . '/BatchToolSetSmokeDouble1.php';
 	require_once __DIR__ . '/BatchToolSetSmokeDouble2.php';
@@ -60,47 +46,47 @@ if (
 			]
 		]
 	];
-	$targetTool = new \MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble1($targetDefinition);
+	$targetTool = new \Base3\MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble1($targetDefinition);
 
-	$fingerprint = new \MissionBay\Orchestrator\AgentActionFingerprint();
-	$semantics = new \MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics();
-	$contractValidation = new \MissionBay\Orchestrator\Service\AgentToolContractValidationService();
-	$commitGuard = new \MissionBay\Orchestrator\Service\AgentMutationCommitGuardService($fingerprint, null, $semantics);
-	$batchExecution = new \MissionBay\Orchestrator\Service\AgentBatchExecutionService($commitGuard);
-	$batchResults = new \MissionBay\Orchestrator\Service\AgentBatchResultService();
-	$batchTool = new \MissionBay\Resource\AgentTool\Batch\BatchAgentTool(
+	$fingerprint = new \Base3\MissionBay\Orchestrator\AgentActionFingerprint();
+	$semantics = new \Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics();
+	$contractValidation = new \Base3\MissionBay\Orchestrator\Service\AgentToolContractValidationService();
+	$commitGuard = new \Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService($fingerprint, null, $semantics);
+	$batchExecution = new \Base3\MissionBay\Orchestrator\Service\AgentBatchExecutionService($commitGuard);
+	$batchResults = new \Base3\MissionBay\Orchestrator\Service\AgentBatchResultService();
+	$batchTool = new \Base3\MissionBay\Resource\AgentTool\Batch\BatchAgentTool(
 		$semantics,
 		$contractValidation,
 		$fingerprint,
 		$commitGuard,
 		'smoke-batch'
 	);
-	$context = new \MissionBay\Context\AgentContext(null, [
+	$context = new \Base3\MissionBay\Context\AgentContext(null, [
 		'runtime_id' => 'smoke-runtime',
 		'conversation_id' => 'smoke-conversation'
 	]);
-	$configResolver = new \MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble2();
-	$eventManager = new \Base3\Event\EventManager();
-	$batchWrapper = new \MissionBay\Resource\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-batch');
+	$configResolver = new \Base3\MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble2();
+	$eventManager = new \Base3\Core\Event\EventManager();
+	$batchWrapper = new \Base3\MissionBay\Resource\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-batch');
 	$batchWrapper->setConfig(['namespace' => 'batch']);
 	$batchWrapper->init(['tool' => [$batchTool]], $context);
-	$targetWrapper = new \MissionBay\Resource\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-target');
+	$targetWrapper = new \Base3\MissionBay\Resource\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-target');
 	$targetWrapper->setConfig(['namespace' => 'plugins']);
 	$targetWrapper->init(['tool' => [$targetTool]], $context);
 
-	$batchFunction = 'batch__' . \MissionBay\Resource\AgentTool\Batch\BatchAgentTool::FN_EXECUTE;
+	$batchFunction = 'batch__' . \Base3\MissionBay\Resource\AgentTool\Batch\BatchAgentTool::FN_EXECUTE;
 	$targetFunction = 'plugins__set_smoke_plugin_state';
 	$definitions = array_merge($batchWrapper->getToolDefinitions(), $targetWrapper->getToolDefinitions());
 	$tools = [$batchWrapper, $targetWrapper];
-	$context->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_DEFINITIONS, $definitions);
-	$context->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOLS, $tools);
-	$context->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::MUTATION_TOOL_NAMES, [
+	$context->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_DEFINITIONS, $definitions);
+	$context->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOLS, $tools);
+	$context->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::MUTATION_TOOL_NAMES, [
 		$batchFunction,
 		$targetFunction
 	]);
 
-	$catalog = (new \MissionBay\Capability\AgentCapabilityCatalogBuilder())->build($tools, $definitions);
-	$toolSet = new \MissionBay\Tool\Profile\MissionBayAgentToolSet(
+	$catalog = (new \Base3\MissionBay\Capability\AgentCapabilityCatalogBuilder())->build($tools, $definitions);
+	$toolSet = new \Base3\MissionBay\Tool\Profile\MissionBayAgentToolSet(
 		$catalog,
 		[
 			$batchFunction => $batchWrapper,
@@ -170,9 +156,9 @@ if (
 	}
 
 	$internalRequestMetadata = $request->getMetadata();
-	$internalRequestMetadata[\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT] =
-		$suspension->getState()[\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT];
-	$internalRequest = new \AssistantFoundation\Dto\AgentInteractionRequest(
+	$internalRequestMetadata[\Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT] =
+		$suspension->getState()[\Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT];
+	$internalRequest = new \Base3\AssistantFoundation\Dto\AgentInteractionRequest(
 		$request->getId(),
 		$request->getKind(),
 		$request->getAction(),
@@ -183,47 +169,47 @@ if (
 		$request->getRisk(),
 		$internalRequestMetadata
 	);
-	$internalSuspension = new \AssistantFoundation\Dto\AgentSuspension(
+	$internalSuspension = new \Base3\AssistantFoundation\Dto\AgentSuspension(
 		'internal-batch-suspension',
-		\AssistantFoundation\Dto\AgentExecutionStatus::AWAITING_APPROVAL,
+		\Base3\AssistantFoundation\Dto\AgentExecutionStatus::AWAITING_APPROVAL,
 		[$internalRequest],
 		[],
 		gmdate('c')
 	);
-	$resumeRepository = new \MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble4();
-	$resumeContext = new \MissionBay\Context\AgentContext();
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_DEFINITIONS, $definitions);
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOLS, $tools);
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::PENDING_TOOL_CALLS, []);
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_RESULTS, []);
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::PREAPPROVED_ACTIONS, []);
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::SELECTED_TOOL_NAMES, [$batchFunction]);
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::ACTIONS, [$request->getAction()]);
-	$resumeContext->setVar(\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::MODEL_RESULTS, []);
-	$resume = new \AssistantFoundation\Dto\AgentResume(
+	$resumeRepository = new \Base3\MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble4();
+	$resumeContext = new \Base3\MissionBay\Context\AgentContext();
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_DEFINITIONS, $definitions);
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOLS, $tools);
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::PENDING_TOOL_CALLS, []);
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::TOOL_RESULTS, []);
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::PREAPPROVED_ACTIONS, []);
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::SELECTED_TOOL_NAMES, [$batchFunction]);
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::ACTIONS, [$request->getAction()]);
+	$resumeContext->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::MODEL_RESULTS, []);
+	$resume = new \Base3\AssistantFoundation\Dto\AgentResume(
 		'resume-handle',
-		[new \AssistantFoundation\Dto\AgentInteractionResponse(
+		[new \Base3\AssistantFoundation\Dto\AgentInteractionResponse(
 			$request->getId(),
-			\AssistantFoundation\Dto\AgentInteractionResponse::DECISION_APPROVE
+			\Base3\AssistantFoundation\Dto\AgentInteractionResponse::DECISION_APPROVE
 		)]
 	);
-	$claim = new \AssistantFoundation\Dto\AgentSuspensionClaim('resume-handle', 'claim-token', $internalSuspension);
+	$claim = new \Base3\AssistantFoundation\Dto\AgentSuspensionClaim('resume-handle', 'claim-token', $internalSuspension);
 	$resumeContext->setVar(
-		\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::RESUME,
-		new \MissionBay\Dto\Assistant\PreparedAgentResume($resume, $claim)
+		\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::RESUME,
+		new \Base3\MissionBay\Dto\Assistant\PreparedAgentResume($resume, $claim)
 	);
-	$resumePatch = (new \MissionBay\Orchestrator\Service\AgentActionResumeService(
+	$resumePatch = (new \Base3\MissionBay\Orchestrator\Service\AgentActionResumeService(
 		$fingerprint,
 		$resumeRepository,
 		null,
 		null,
 		$batchExecution
 	))->resume($resumeContext)->getPatch();
-	$resumedCalls = $resumePatch[\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::PENDING_TOOL_CALLS] ?? [];
-	$resumedActions = $resumePatch[\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::ACTIONS] ?? null;
+	$resumedCalls = $resumePatch[\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::PENDING_TOOL_CALLS] ?? [];
+	$resumedActions = $resumePatch[\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::ACTIONS] ?? null;
 	if (count($resumedCalls) !== 2 || $resumedActions !== []) {
 		$actionIds = is_array($resumedActions) ? array_map(
-			static fn(mixed $action): string => $action instanceof \AssistantFoundation\Dto\AgentAction ? $action->getId() : get_debug_type($action),
+			static fn(mixed $action): string => $action instanceof \Base3\AssistantFoundation\Dto\AgentAction ? $action->getId() : get_debug_type($action),
 			$resumedActions
 		) : [get_debug_type($resumedActions)];
 		throw new \RuntimeException(
@@ -235,14 +221,14 @@ if (
 
 	$result = $toolSet->resumeSuspension(
 		$suspension,
-		new \AssistantFoundation\Dto\AgentInteractionResponse(
+		new \Base3\AssistantFoundation\Dto\AgentInteractionResponse(
 			$request->getId(),
-			\AssistantFoundation\Dto\AgentInteractionResponse::DECISION_APPROVE
+			\Base3\AssistantFoundation\Dto\AgentInteractionResponse::DECISION_APPROVE
 		)
 	);
 	$output = $result->getOutput();
 	$aggregated = $batchResults->aggregate([
-		\AssistantFoundation\Dto\AgentToolResult::success(
+		\Base3\AssistantFoundation\Dto\AgentToolResult::success(
 			'batch-call.batch.001',
 			'set_smoke_plugin_state',
 			['plugin' => 'plugina', 'state' => 'active'],
@@ -254,7 +240,7 @@ if (
 				'label' => 'Plugin A'
 			]]]
 		),
-		\AssistantFoundation\Dto\AgentToolResult::failure(
+		\Base3\AssistantFoundation\Dto\AgentToolResult::failure(
 			'batch-call.batch.002',
 			'set_smoke_plugin_state',
 			['plugin' => 'pluginb', 'state' => 'active'],
@@ -272,8 +258,8 @@ if (
 		throw new \RuntimeException('Batch child observations were not aggregated to one parent result.');
 	}
 	$reportedFailure = $batchResults->aggregateForParent(
-		new \AssistantFoundation\Dto\AiToolCall('reported-failure', $batchFunction, $arguments),
-		[\AssistantFoundation\Dto\AgentToolResult::success(
+		new \Base3\AssistantFoundation\Dto\AiToolCall('reported-failure', $batchFunction, $arguments),
+		[\Base3\AssistantFoundation\Dto\AgentToolResult::success(
 			'reported-failure.batch.001',
 			'set_smoke_plugin_state',
 			['plugin' => 'plugina', 'state' => 'active'],
@@ -295,7 +281,7 @@ if (
 	}
 
 	echo "MissionBay batch tool set smoke test OK.\n";
-})($argv);
+})();
 
 
 

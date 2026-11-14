@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ParserService;
+namespace Base3\MissionBay\ParserService;
 
-use AssistantFoundation\Dto\ParserServiceDefinition;
-use MissionBay\Api\IConfiguredParserServiceResolver;
-use MissionBay\Api\IParserService;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\AssistantFoundation\Dto\ParserServiceDefinition;
+use Base3\MissionBay\Api\IConfiguredParserServiceResolver;
+use Base3\MissionBay\Api\IParserService;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use RuntimeException;
 
 /**

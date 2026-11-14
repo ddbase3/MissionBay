@@ -15,13 +15,13 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\SearchService;
+namespace Base3\MissionBay\SearchService;
 
-use AssistantFoundation\Api\IAiProvider;
-use AssistantFoundation\Dto\AiResultMetadata;
-use Base3\Api\IClassMap;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
-use MissionBay\Api\ISearchService;
+use Base3\AssistantFoundation\Api\IAiProvider;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+use Base3\MissionBay\Api\ISearchService;
 use RuntimeException;
 
 abstract class AbstractSearchService implements ISearchService {

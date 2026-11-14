@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ServiceDriver;
+namespace Base3\MissionBay\ServiceDriver;
 
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use AssistantFoundation\Api\IAiChatModel;
-use MissionBay\ChatModel\OpenAiChatModel;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\MissionBay\ChatModel\OpenAiChatModel;
 
 final class OpenAiChatServiceDriverDefinition implements IServiceDriverDefinition {
 

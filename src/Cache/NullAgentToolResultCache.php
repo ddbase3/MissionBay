@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Cache;
+namespace Base3\MissionBay\Cache;
 
-use AssistantFoundation\Api\IAgentToolResultCache;
-use AssistantFoundation\Dto\AgentToolCacheEntry;
+use Base3\AssistantFoundation\Api\IAgentToolResultCache;
+use Base3\AssistantFoundation\Dto\AgentToolCacheEntry;
 
 /**
  * No-op fallback used when the runtime has no state-store backend.

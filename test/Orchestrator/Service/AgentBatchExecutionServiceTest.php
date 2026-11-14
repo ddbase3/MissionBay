@@ -1,14 +1,29 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Orchestrator\Service;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Dto\AiToolCall;
-use MissionBay\Api\IAgentBatchTool;
-use MissionBay\Context\AgentContext;
-use MissionBay\Orchestrator\AgentActionFingerprint;
-use MissionBay\Orchestrator\Service\AgentBatchExecutionService;
-use MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
-use MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as Keys;
+namespace Base3\MissionBay\Test\Orchestrator\Service;
+
+use Base3\AssistantFoundation\Dto\AiToolCall;
+use Base3\MissionBay\Api\IAgentBatchTool;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Service\AgentBatchExecutionService;
+use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as Keys;
 use PHPUnit\Framework\TestCase;
 
 final class AgentBatchExecutionServiceTest extends TestCase {

@@ -1,20 +1,35 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Node\Ai;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IRetrievalCollectionDefinition;
-use AssistantFoundation\Api\IRetrievalIndex;
-use AssistantFoundation\Dto\RetrievalIndexItem;
-use Base3\Api\IClassMap;
-use MissionBay\Api\IAgentChunker;
-use MissionBay\Api\IAgentContentExtractor;
-use MissionBay\Api\IAgentContentParser;
-use MissionBay\Context\AgentContext;
-use MissionBay\Dto\AgentContentItem;
-use MissionBay\Dto\AgentParsedContent;
-use MissionBay\Node\Ai\AiIndexingNode;
-use MissionBay\Retrieval\PhoneticTextMaterializer;
+namespace Base3\MissionBay\Test\Node\Ai;
+
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IRetrievalCollectionDefinition;
+use Base3\AssistantFoundation\Api\IRetrievalIndex;
+use Base3\AssistantFoundation\Dto\RetrievalIndexItem;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Api\IAgentChunker;
+use Base3\MissionBay\Api\IAgentContentExtractor;
+use Base3\MissionBay\Api\IAgentContentParser;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Dto\AgentContentItem;
+use Base3\MissionBay\Dto\AgentParsedContent;
+use Base3\MissionBay\Node\Ai\AiIndexingNode;
+use Base3\MissionBay\Retrieval\PhoneticTextMaterializer;
 use PHPUnit\Framework\TestCase;
 
 final class AiIndexingNodeTest extends TestCase {

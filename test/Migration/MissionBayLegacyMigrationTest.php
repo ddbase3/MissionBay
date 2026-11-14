@@ -1,12 +1,27 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Migration;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Migration\Api\IDatabaseMigration;
-use Base3\Migration\Api\ILegacyDatabaseMigration;
-use Base3\Migration\Exception\MigrationException;
-use MissionBay\Migration\Migration001AnonymizeAiUsage;
-use MissionBay\Migration\Migration001ConversationIdentityAndEncryption;
+namespace Base3\MissionBay\Test\Migration;
+
+use Base3\CoreFoundation\Migration\Api\IDatabaseMigration;
+use Base3\CoreFoundation\Migration\Api\ILegacyDatabaseMigration;
+use Base3\CoreFoundation\Migration\Exception\MigrationException;
+use Base3\MissionBay\Migration\Migration001AnonymizeAiUsage;
+use Base3\MissionBay\Migration\Migration001ConversationIdentityAndEncryption;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;

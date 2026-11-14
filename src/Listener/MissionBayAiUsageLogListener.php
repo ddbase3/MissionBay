@@ -15,12 +15,12 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Listener;
+namespace Base3\MissionBay\Listener;
 
-use AssistantFoundation\Event\AiProviderRequestCompletedEvent;
-use Base3\Api\IRequest;
-use Base3\Database\Api\IDatabase;
-use Base3\Logger\Api\ILogger;
+use Base3\AssistantFoundation\Event\AiProviderRequestCompletedEvent;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Database\Api\IDatabase;
+use Base3\CoreFoundation\Logger\Api\ILogger;
 use RuntimeException;
 use Throwable;
 

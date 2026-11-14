@@ -15,25 +15,25 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Display;
+namespace Base3\MissionBay\Display;
 
-use Base3\Usermanager\Permission;
-use Base3\Authorization\Dto\AuthorizationRequest;
-use Base3\Authorization\Api\IAuthorizationService;
-use Base3\Api\IAssetResolver;
-use Base3\Api\IClassMap;
-use Base3\Api\IDisplay;
-use Base3\Api\IMvcView;
-use Base3\Api\IRequest;
-use Base3\LinkTarget\Api\ILinkTargetService;
-use AssistantFoundation\Api\IAgentConfigurationService;
-use Base3\Translation\Api\ITranslation;
-use Base3\Worker\Api\IJobExecutionPolicy;
-use AssistantFoundation\Api\IAgentExecutionService;
-use AssistantFoundation\Api\IAgentRuntimeRegistry;
-use AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\CoreFoundation\Usermanager\Permission;
+use Base3\CoreFoundation\Authorization\Dto\AuthorizationRequest;
+use Base3\CoreFoundation\Authorization\Api\IAuthorizationService;
+use Base3\CoreFoundation\Api\IAssetResolver;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Api\IDisplay;
+use Base3\CoreFoundation\Api\IMvcView;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\CoreFoundation\Translation\Api\ITranslation;
+use Base3\CoreFoundation\Worker\Api\IJobExecutionPolicy;
+use Base3\AssistantFoundation\Api\IAgentExecutionService;
+use Base3\AssistantFoundation\Api\IAgentRuntimeRegistry;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
 use JsonException;
-use AssistantFoundation\Api\IAgentConfigFormService;
+use Base3\AssistantFoundation\Api\IAgentConfigFormService;
 use Throwable;
 
 /**
@@ -81,7 +81,7 @@ final class AgentAdminDisplay implements IDisplay {
         public function getOutput(string $out = 'html', bool $final = false): string {
 		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
 			$this->settingsAuthorization->getDefaultAuthority(),
-			Permission::for('feature', \MissionBay\SettingsTab\AgentadminSettingsTab::getName())
+			Permission::for('feature', \Base3\MissionBay\SettingsTab\AgentadminSettingsTab::getName())
 		))->isAllowed()) {
 			http_response_code(403);
 			return '';

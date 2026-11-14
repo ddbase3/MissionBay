@@ -1,18 +1,33 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Context\Profile;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Dto\AgentExecutionRequest;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentComponentPresetRepository;
-use MissionBay\Api\IAgentResourceFactory;
-use MissionBay\Context\AgentContext;
-use MissionBay\Context\Profile\MissionBayContextProfileProvider;
-use MissionBay\Dto\AgentComponentPresetMaterialization;
-use MissionBay\Profile\AgentContextProfileResolver;
+namespace Base3\MissionBay\Test\Context\Profile;
+
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentResourceFactory;
+use Base3\MissionBay\Context\AgentContext;
+use Base3\MissionBay\Context\Profile\MissionBayContextProfileProvider;
+use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
 use PHPUnit\Framework\TestCase;
 
 final class MissionBayContextProfileProviderTest extends TestCase {

@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Resource;
+namespace Base3\MissionBay\Resource;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AiChatResult;
-use Base3\Api\ISchemaProvider;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Agent\AgentNodeDock;
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Exception\AgentRunCancelledException;
-use MissionBay\Api\IAgentResource;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AiChatResult;
+use Base3\CoreFoundation\Api\ISchemaProvider;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Exception\AgentRunCancelledException;
+use Base3\MissionBay\Api\IAgentResource;
 
 /**
  * RoutingChatModelAgentResource

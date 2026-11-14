@@ -2,23 +2,34 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentContextContributor;
-use AssistantFoundation\Api\IAgentTextTaskRuntimeService;
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Dto\AgentTextTaskRequest;
-use AssistantFoundation\Dto\AgentTextTaskResult;
-use MissionBay\Api\IAgentAssistantContextContributionService;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Api\IAgentFlowCompiler;
-use MissionBay\Api\IAgentFlowFactory;
-use MissionBay\Api\IAgentTool;
-use MissionBay\Profile\AgentContextProfileResolver;
-use MissionBay\Profile\AgentToolProfileResolver;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentContextContributor;
+use Base3\AssistantFoundation\Api\IAgentTextTaskRuntimeService;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Dto\AgentTextTaskRequest;
+use Base3\AssistantFoundation\Dto\AgentTextTaskResult;
+use Base3\MissionBay\Api\IAgentAssistantContextContributionService;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Api\IAgentFlowCompiler;
+use Base3\MissionBay\Api\IAgentFlowFactory;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
+use Base3\MissionBay\Profile\AgentToolProfileResolver;
 
 /**
  * Isolated MissionBay text tasks using the configured chat model.

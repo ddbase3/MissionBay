@@ -1,22 +1,37 @@
 <?php declare(strict_types=1);
 
-namespace MissionBay\Test\Resource;
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
 
-use Base3\Api\IClassMap;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Api\IConfiguredParserServiceResolver;
-use MissionBay\Resource\ConfiguredChatModelAgentResource;
-use MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
-use MissionBay\Resource\ConfiguredImageModelAgentResource;
-use MissionBay\Resource\ConfiguredParserServiceAgentResource;
-use MissionBay\Resource\ConfiguredSearchServiceAgentResource;
-use MissionBay\Resource\ConfiguredVectorSearchAgentResource;
-use MissionBay\Resource\ConfiguredVectorStoreAgentResource;
-use MissionBay\Service\ConfiguredServiceRuntimeResolver;
-use Base3\State\Api\IStateStore;
-use MissionBay\Service\AiProviderFileReferenceStateRepository;
-use ResourceFoundation\Api\IManagedFileStorageService;
+namespace Base3\MissionBay\Test\Resource;
+
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Api\IConfiguredParserServiceResolver;
+use Base3\MissionBay\Resource\ConfiguredChatModelAgentResource;
+use Base3\MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\ConfiguredImageModelAgentResource;
+use Base3\MissionBay\Resource\ConfiguredParserServiceAgentResource;
+use Base3\MissionBay\Resource\ConfiguredSearchServiceAgentResource;
+use Base3\MissionBay\Resource\ConfiguredVectorSearchAgentResource;
+use Base3\MissionBay\Resource\ConfiguredVectorStoreAgentResource;
+use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
+use Base3\CoreFoundation\State\Api\IStateStore;
+use Base3\MissionBay\Service\AiProviderFileReferenceStateRepository;
+use Base3\ResourceFoundation\Api\IManagedFileStorageService;
 use PHPUnit\Framework\TestCase;
 
 final class ConfiguredServiceAgentResourceLifecycleTest extends TestCase {

@@ -15,10 +15,10 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Dto\Mcp\McpHttpRequest;
-use MissionBay\Dto\Mcp\McpHttpResponse;
+use Base3\MissionBay\Dto\Mcp\McpHttpRequest;
+use Base3\MissionBay\Dto\Mcp\McpHttpResponse;
 
 /**
  * Sends one MCP Streamable HTTP message.

@@ -15,9 +15,9 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Api;
+namespace Base3\MissionBay\Api;
 
-use MissionBay\Api\IAgentNode;
+use Base3\MissionBay\Api\IAgentNode;
 
 /**
  * Factory interface for instantiating agent nodes by type.

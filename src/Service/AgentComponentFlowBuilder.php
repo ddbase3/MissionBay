@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use MissionBay\Api\IAgentComponentFlowBuilder;
-use MissionBay\Api\IAgentComponentPresetFlowExpander;
-use MissionBay\Api\IAgentComponentPresetRepository;
+use Base3\MissionBay\Api\IAgentComponentFlowBuilder;
+use Base3\MissionBay\Api\IAgentComponentPresetFlowExpander;
+use Base3\MissionBay\Api\IAgentComponentPresetRepository;
 
 /**
  * AgentComponentFlowBuilder

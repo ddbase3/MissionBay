@@ -15,11 +15,11 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\ServiceDriver;
+namespace Base3\MissionBay\ServiceDriver;
 
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use MissionBay\Api\ISearchService;
-use MissionBay\SearchService\OpenAiWebSearchService;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\MissionBay\Api\ISearchService;
+use Base3\MissionBay\SearchService\OpenAiWebSearchService;
 
 final class OpenAiWebSearchServiceDriverDefinition implements IServiceDriverDefinition {
 

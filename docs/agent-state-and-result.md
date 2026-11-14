@@ -13,7 +13,7 @@ This is an incremental compatibility boundary, not a big-bang rewrite of the sta
 
 ## Contracts
 
-`MissionBay` exposes the optional runtime context extension under `MissionBay\Api`:
+`MissionBay` exposes the optional runtime context extension under `Base3\MissionBay\Api`:
 
 ```php
 interface IAgentStateContext extends IAgentContext {

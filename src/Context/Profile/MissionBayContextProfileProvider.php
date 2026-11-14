@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Context\Profile;
+namespace Base3\MissionBay\Context\Profile;
 
-use AssistantFoundation\Api\IAgentContextProfileProvider;
-use AssistantFoundation\Dto\AgentContextProfileResult;
-use AssistantFoundation\Dto\AgentExecutionRequest;
-use AssistantFoundation\Dto\AgentInstructionBlock;
-use MissionBay\Api\IAgentComponentPresetMaterializer;
-use MissionBay\Profile\AgentContextProfileResolver;
+use Base3\AssistantFoundation\Api\IAgentContextProfileProvider;
+use Base3\AssistantFoundation\Dto\AgentContextProfileResult;
+use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
+use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
+use Base3\MissionBay\Profile\AgentContextProfileResolver;
 
 /**
  * Exposes the existing MissionBay context-profile store to all agent runtimes.

@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Orchestrator\Stage;
+namespace Base3\MissionBay\Orchestrator\Stage;
 
-use AssistantFoundation\Api\IAgentContext;
-use AssistantFoundation\Api\IAgentStage;
-use AssistantFoundation\Dto\AgentStageResult;
-use AssistantFoundation\Dto\AgentToolResult;
-use MissionBay\Orchestrator\AgentStageResultAccumulator;
-use MissionBay\Orchestrator\Service\AgentContinuationDecisionService;
-use MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentStage;
+use Base3\AssistantFoundation\Dto\AgentStageResult;
+use Base3\AssistantFoundation\Dto\AgentToolResult;
+use Base3\MissionBay\Orchestrator\AgentStageResultAccumulator;
+use Base3\MissionBay\Orchestrator\Service\AgentContinuationDecisionService;
+use Base3\MissionBay\Orchestrator\Service\AgentSemanticVerificationService;
 
 /**
  * Performs one terminal semantic verification and applies the resulting

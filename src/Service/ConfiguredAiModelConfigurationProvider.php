@@ -15,17 +15,17 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiModelConfigurationProvider;
-use AssistantFoundation\Api\IServiceDriverDefinition;
-use AssistantFoundation\Dto\AiModelConfiguration;
-use Base3\Api\IClassMap;
-use Base3\Settings\Api\ISettingsStore;
-use MissionBay\Api\IAgentConfigValueResolver;
-use MissionBay\Connection\ConnectionConfig;
-use MissionBay\Transport\ChatCompletionEndpointResolver;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiModelConfigurationProvider;
+use Base3\AssistantFoundation\Api\IServiceDriverDefinition;
+use Base3\AssistantFoundation\Dto\AiModelConfiguration;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\CoreFoundation\Settings\Api\ISettingsStore;
+use Base3\MissionBay\Api\IAgentConfigValueResolver;
+use Base3\MissionBay\Connection\ConnectionConfig;
+use Base3\MissionBay\Transport\ChatCompletionEndpointResolver;
 use RuntimeException;
 
 /**

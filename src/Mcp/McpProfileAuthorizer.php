@@ -2,15 +2,26 @@
 
 /***********************************************************************
  * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Mcp;
+namespace Base3\MissionBay\Mcp;
 
-use Base3\Api\IRequest;
-use Base3\Logger\Api\ILogger;
-use CredentialFoundation\Api\ICredentialAccess;
-use CredentialFoundation\Dto\CredentialAuthenticationResult;
-use MissionBay\Dto\Mcp\McpProfileAuthorizationResult;
+use Base3\CoreFoundation\Api\IRequest;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\CredentialFoundation\Api\ICredentialAccess;
+use Base3\CredentialFoundation\Dto\CredentialAuthenticationResult;
+use Base3\MissionBay\Dto\Mcp\McpProfileAuthorizationResult;
 
 /**
  * Authorizes one MCP profile through a fixed bearer token or the current

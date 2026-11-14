@@ -15,15 +15,15 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\EmbeddingModel;
+namespace Base3\MissionBay\EmbeddingModel;
 
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IAiProvider;
-use AssistantFoundation\Dto\AiEmbeddingResult;
-use Base3\Api\IBase;
-use Base3\Api\IClassMap;
-use MissionBay\Ai\AiProviderRequestEventDispatcher;
-use MissionBay\Ai\AiResultNormalizer;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IAiProvider;
+use Base3\AssistantFoundation\Dto\AiEmbeddingResult;
+use Base3\CoreFoundation\Api\IBase;
+use Base3\CoreFoundation\Api\IClassMap;
+use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
+use Base3\MissionBay\Ai\AiResultNormalizer;
 use RuntimeException;
 
 abstract class AbstractEmbeddingModel implements IAiEmbeddingModel, IBase {

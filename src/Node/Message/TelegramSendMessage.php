@@ -15,14 +15,14 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Node\Message;
+namespace Base3\MissionBay\Node\Message;
 
-use AssistantFoundation\Api\IAgentContext;
-use MissionBay\Agent\AgentNodePort;
-use MissionBay\Agent\AgentNodeDock;
-use MissionBay\Api\IAgentResource;
-use MissionBay\Node\AbstractAgentNode;
-use Base3\Logger\Api\ILogger;
+use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\MissionBay\Agent\AgentNodePort;
+use Base3\MissionBay\Agent\AgentNodeDock;
+use Base3\MissionBay\Api\IAgentResource;
+use Base3\MissionBay\Node\AbstractAgentNode;
+use Base3\CoreFoundation\Logger\Api\ILogger;
 
 class TelegramSendMessage extends AbstractAgentNode {
 

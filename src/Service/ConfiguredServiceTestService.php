@@ -15,20 +15,20 @@
  * https://github.com/ddbase3/MissionBay
  **********************************************************************/
 
-namespace MissionBay\Service;
+namespace Base3\MissionBay\Service;
 
-use AssistantFoundation\Api\IAiChatModel;
-use AssistantFoundation\Api\IAiEmbeddingModel;
-use AssistantFoundation\Api\IAiServiceTester;
-use AssistantFoundation\Api\IImageGenerationModel;
-use AssistantFoundation\Dto\AiResultMetadata;
-use AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
-use AssistantFoundation\Dto\TextToSpeechRequest;
-use Base3\Logger\Api\ILogger;
-use MissionBay\Api\ISpeechToTextDriver;
-use MissionBay\Api\ISearchService;
-use MissionBay\Api\ITextToSpeechDriver;
-use MissionBay\Api\IVectorStoreService;
+use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
+use Base3\AssistantFoundation\Api\IAiServiceTester;
+use Base3\AssistantFoundation\Api\IImageGenerationModel;
+use Base3\AssistantFoundation\Dto\AiResultMetadata;
+use Base3\AssistantFoundation\Dto\RealtimeSpeechToTextSessionRequest;
+use Base3\AssistantFoundation\Dto\TextToSpeechRequest;
+use Base3\CoreFoundation\Logger\Api\ILogger;
+use Base3\MissionBay\Api\ISpeechToTextDriver;
+use Base3\MissionBay\Api\ISearchService;
+use Base3\MissionBay\Api\ITextToSpeechDriver;
+use Base3\MissionBay\Api\IVectorStoreService;
 use RuntimeException;
 
 /**
