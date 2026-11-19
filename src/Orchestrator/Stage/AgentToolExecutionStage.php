@@ -21,6 +21,7 @@ use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Api\IAgentStage;
 use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentResume;
 use Base3\AssistantFoundation\Dto\AgentStageResult;
 use Base3\AssistantFoundation\Dto\AgentStageTraceEntry;
 use Base3\AssistantFoundation\Dto\AgentToolContractValidation;
@@ -30,10 +31,12 @@ use Base3\CoreFoundation\Event\Api\IEventManager;
 use Base3\CoreFoundation\Logger\Api\ILogger;
 use Base3\MissionBay\Api\IAgentTool;
 use Base3\MissionBay\Audit\AgentToolAuditContext;
+use Base3\MissionBay\Exception\AgentSubAgentSuspendedException;
 use Base3\MissionBay\Cache\AgentToolCacheKeyBuilder;
 use Base3\MissionBay\Cache\NullAgentToolResultCache;
 use Base3\MissionBay\Orchestrator\AgentStageResultAccumulator;
 use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Orchestrator\Service\AgentActionReviewService;
 use Base3\MissionBay\Orchestrator\Service\AgentBudgetGuardService;
 use Base3\MissionBay\Orchestrator\Service\AgentCapabilitySelectionGuardService;
 use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
@@ -62,6 +65,7 @@ final class AgentToolExecutionStage implements IAgentStage {
 
 	public function __construct(
 		private readonly IEventManager $eventManager,
+		private readonly AgentActionReviewService $actionReviewService,
 		private readonly string $id = 'tool-execution',
 		private readonly string $stageName = 'tool-execution',
 		?AgentToolResultCacheService $toolResultCacheService = null,
@@ -230,7 +234,7 @@ final class AgentToolExecutionStage implements IAgentStage {
 			$trace = [];
 		}
 
-		foreach ($toolCalls as $call) {
+		foreach ($toolCalls as $position => $call) {
 			if ($this->isCancellationRequested($context)) {
 				return AgentStageResult::patch([
 					AgentToolLoopContextKeys::PENDING_TOOL_CALLS => [],
@@ -259,18 +263,40 @@ final class AgentToolExecutionStage implements IAgentStage {
 				$effectiveCallIndex = $callIndex;
 			}
 
-			$toolResults[] = $this->handleToolCall(
-				$call,
-				$tools,
-				$context,
-				$eventCallback,
-				$iteration,
-				$effectiveCallIndex,
-				$executedToolCalls,
-				$nodeId,
-				$trace,
-				$logger
-			);
+			$delegation = $context->getVar(AgentToolLoopContextKeys::DELEGATED_RESUME);
+			$delegatedCall = is_array($delegation)
+				&& ($delegation['call_id'] ?? null) === $call->getId()
+				&& ($delegation['tool_name'] ?? null) === $call->getName()
+				&& ($delegation['resume'] ?? null) instanceof AgentResume;
+			if ($delegatedCall) {
+				$context->setVar(AgentToolLoopContextKeys::DELEGATED_RESUME, $delegation['resume']);
+			}
+			try {
+				$toolResults[] = $this->handleToolCall(
+					$call,
+					$tools,
+					$context,
+					$eventCallback,
+					$iteration,
+					$effectiveCallIndex,
+					$executedToolCalls,
+					$nodeId,
+					$trace,
+					$logger
+				);
+			} catch (AgentSubAgentSuspendedException $exception) {
+				return $this->actionReviewService->suspendDelegation($context, $exception, $call, [
+					AgentToolLoopContextKeys::PENDING_TOOL_CALLS => array_slice($toolCalls, $position),
+					AgentToolLoopContextKeys::TOOL_RESULTS => $toolResults,
+					AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => $executedToolCalls,
+					AgentToolLoopContextKeys::CALL_INDEX => $callIndex,
+					AgentToolLoopContextKeys::TOOL_CALL_INDEXES => $toolCallIndexes
+				]);
+			} finally {
+				if ($delegatedCall) {
+					$context->forgetVar(AgentToolLoopContextKeys::DELEGATED_RESUME);
+				}
+			}
 		}
 
 		return AgentStageResult::patch([
@@ -547,6 +573,8 @@ final class AgentToolExecutionStage implements IAgentStage {
 				$result,
 				$metadata
 			);
+		} catch (AgentSubAgentSuspendedException $exception) {
+			throw $exception;
 		} catch (\Throwable $e) {
 			$this->logError($logger, 'Tool failed (' . $toolName . '): ' . $e->getMessage());
 			$this->mutationCommitGuardService->recordCommitResult(

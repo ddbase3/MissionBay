@@ -52,7 +52,7 @@ final class ComponentPresetTestActionPolicyResolver implements IAgentActionPolic
 	/** @return array<int,IAgentActionPolicy> */
 	public function resolve(array $policyIds): array {
 		return [
-			new MutationApprovalAgentActionPolicy(),
+			new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore()),
 			new AllowAllAgentActionPolicy()
 		];
 	}

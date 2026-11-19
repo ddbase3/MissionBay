@@ -96,6 +96,7 @@ final class AgentComponentPresetToolTestService {
 
 		$this->toolExecutionStage = new AgentToolExecutionStage(
 			$eventManager,
+			$actionReviewService,
 			'component-preset-test-execution',
 			'component-preset-test-execution',
 			$cacheService,

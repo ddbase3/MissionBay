@@ -151,6 +151,24 @@ final class AgentActionPolicyStage implements IAgentStage {
 			$decision = $evaluation['final'];
 
 			if ($decision->isAllowed()) {
+				// A reusable approval covers the definition, not a commit snapshot.
+				// Capture a fresh exact-action snapshot through the existing owner.
+				foreach ($evaluation['decisions'] as $policyDecision) {
+					$metadata = $policyDecision->getMetadata();
+					if (!$policyDecision->isAllowed()
+						|| ($metadata['policy_implementation'] ?? '') !== 'mutationapprovalagentactionpolicy'
+						|| !in_array($metadata['approval_scope'] ?? '', ['agent', 'conversation'], true)) {
+						continue;
+					}
+					try {
+						$effectiveCall = $this->actionReviewService->prepareReusableApprovedCall($action, $effectiveCall, $context);
+					} catch (\Throwable $e) {
+						return $this->failure('mutation_commit_snapshot_failed', $e->getMessage(), [
+							'action_id' => $action->getId()
+						]);
+					}
+					break;
+				}
 				$allowedCalls[] = $effectiveCall;
 				continue;
 			}
@@ -177,6 +195,24 @@ final class AgentActionPolicyStage implements IAgentStage {
 				? AgentToolLoopContextKeys::PHASE_AFTER_TOOLS
 				: AgentToolLoopContextKeys::PHASE_TOOLS
 		];
+
+		$delegation = $context->getVar(AgentToolLoopContextKeys::DELEGATED_RESUME);
+		if (is_array($delegation)) {
+			if ($reviewCandidates !== []) {
+				return $this->failure('delegated_resume_policy_changed', 'Delegated tool execution requires a new policy decision; the prior resume cannot authorize it.', []);
+			}
+			$matchingCall = false;
+			foreach ($allowedCalls as $call) {
+				if ($call->getId() === ($delegation['call_id'] ?? null)
+					&& $call->getName() === ($delegation['tool_name'] ?? null)) {
+					$matchingCall = true;
+					break;
+				}
+			}
+			if (!$matchingCall) {
+				return $this->failure('delegated_resume_not_authorized', 'Delegated tool call is no longer authorized for execution.', []);
+			}
+		}
 
 		if ($reviewCandidates !== []) {
 			return $this->actionReviewService->review($context, $patch);

@@ -76,6 +76,14 @@ The claim contains a private random claim token. Only the owner of the current c
 - Invalid response sets release the claim so the user can correct the response while the suspension TTL remains active.
 - Persistence failures stop the run before a mutation can execute.
 
+## Nested agent calls
+
+For a delegated A to B to C action, each existing MissionBay orchestrator preserves its own run snapshot in the configured `IAgentSuspensionRepository`. Parent suspension state additionally holds the child handle and the exact interrupted tool call ID/name. This is private continuation data inside the existing snapshot, not an extra conversation, state store or approval queue. Only the outermost handle is returned to the user. Parent and child handles are consumed once at their respective original resume boundaries.
+
+Completed actions preceding the interrupted child call remain in the parent's stored tool results and execution records. On resume, the first pending call is the interrupted delegation, and any remaining sibling calls follow in their original order. A new child approval creates a new parent suspension; prior mutations are not repeated. If a child has expired or the configured policy no longer authorizes the paused action, the run fails closed. The parent TTL is limited by a verified child expiry when available. A missing or invalid child handle cannot trigger automatic approval.
+
+This lifecycle does not grant global, chat-wide, agent-wide or scheduled approval. The operation's ordinary authorization and commit guard still apply.
+
 ## Security boundary
 
 An opaque handle protects suspension state from client-side modification and supports one-time use. It is not a replacement for authorization.

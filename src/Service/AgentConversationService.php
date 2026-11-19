@@ -22,6 +22,9 @@ use Base3\AssistantFoundation\Api\IAgentConversationRuntimeService;
 use Base3\AssistantFoundation\Dto\AgentConversation;
 use Base3\AssistantFoundation\Dto\AgentConversationRequest;
 use Base3\AssistantFoundation\Dto\AgentConversationState;
+use Base3\AssistantFoundation\Dto\AgentSuspensionScope;
+use Base3\CoreFoundation\State\Api\IStateStore;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
 use Base3\MissionBay\Api\IAgentComponentPresetMaterializer;
 use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
 
@@ -34,7 +37,9 @@ final class AgentConversationService implements IAgentConversationRuntimeService
 
 	public function __construct(
 		private readonly AgentMemoryProfileResolver $memoryProfileResolver,
-		private readonly IAgentComponentPresetMaterializer $presetMaterializer
+		private readonly IAgentComponentPresetMaterializer $presetMaterializer,
+		private readonly IStateStore $stateStore,
+		private readonly AgentActionFingerprint $fingerprint
 	) {}
 
 	public static function getName(): string {
@@ -89,6 +94,20 @@ final class AgentConversationService implements IAgentConversationRuntimeService
 
 	public function deleteConversation(AgentConversationRequest $request, string $conversationId): AgentConversationState {
 		[$memory, $nodeId, $warnings] = $this->resolveMemory($request);
+		// Consent is tied to the same trusted conversation scope, and must be
+		// withdrawn when the conversation itself is removed.
+		$vars = $request->getContext();
+		$scope = AgentSuspensionScope::forConversation(
+			trim((string)($vars['conversation_channel_id'] ?? '')),
+			$conversationId,
+			trim((string)($vars['agent_suspension_subject'] ?? ''))
+		);
+		$prefix = $this->fingerprint->conversationApprovalPrefix($scope);
+		if ($prefix !== '') {
+			foreach ($this->stateStore->listKeys($prefix) as $key) {
+				$this->stateStore->delete($key);
+			}
+		}
 		$memory->deleteConversation($conversationId);
 
 		return $this->buildState($memory, $nodeId, $warnings);

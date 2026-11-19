@@ -60,12 +60,21 @@ use PHPUnit\Framework\TestCase;
 
 final class AgentToolOrchestratorStageTest extends TestCase {
 
+	private ?AgentActionReviewService $sharedReviewService = null;
+
+	private function createActionReviewService(): AgentActionReviewService {
+		return $this->sharedReviewService ??= new AgentActionReviewService(
+			new AgentActionFingerprint(),
+			new StateStoreAgentSuspensionRepository(new StateStoreStub())
+		);
+	}
+
 	private function createActionPolicyStage(): AgentActionPolicyStage {
 		$fingerprint = new AgentActionFingerprint();
 		return new AgentActionPolicyStage(
 			new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
 			$fingerprint,
-			new AgentActionReviewService($fingerprint, new StateStoreAgentSuspensionRepository(new StateStoreStub())),
+			$this->createActionReviewService(),
 			new AgentToolContractValidationService(),
 			new AgentCapabilitySelectionGuardService(),
 			'action-policy',
@@ -81,7 +90,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		return [
 			new AgentModelDecisionStage(),
 			$this->createActionPolicyStage(),
-			new AgentToolExecutionStage(new RecordingEventManager()),
+			new AgentToolExecutionStage(new RecordingEventManager(), $this->createActionReviewService()),
 			new AgentToolObservationStage()
 		];
 	}
@@ -95,7 +104,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		);
 		$modelStage = new AgentModelDecisionStage();
 		$policyStage = $this->createActionPolicyStage();
-		$toolStage = new AgentToolExecutionStage(new RecordingEventManager());
+		$toolStage = new AgentToolExecutionStage(new RecordingEventManager(), $this->createActionReviewService());
 		$assessmentStage = new AgentContextAssessmentStage();
 		$compactionStage = new AgentContextCompactionStage();
 		$verificationStage = new AgentResultVerificationStage();
@@ -288,7 +297,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$orchestrator = new AgentToolOrchestrator(null, null, [
 			new AgentModelDecisionStage(),
 			$this->createActionPolicyStage(),
-			new AgentToolExecutionStage(new RecordingEventManager()),
+			new AgentToolExecutionStage(new RecordingEventManager(), $this->createActionReviewService()),
 			$enrichmentStage,
 			new AgentToolObservationStage()
 		]);
@@ -435,7 +444,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$stages = [
 			new AgentModelDecisionStage(),
 			$this->createActionPolicyStage(),
-			new AgentToolExecutionStage(new RecordingEventManager()),
+			new AgentToolExecutionStage(new RecordingEventManager(), $this->createActionReviewService()),
 			new AgentContextCompactionStage(minToolResultBytes: 1),
 			new AgentToolObservationStage(),
 			new AgentSemanticVerificationStage()
@@ -477,7 +486,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$stages = [
 			new AgentModelDecisionStage(),
 			$this->createActionPolicyStage(),
-			new AgentToolExecutionStage(new RecordingEventManager()),
+			new AgentToolExecutionStage(new RecordingEventManager(), $this->createActionReviewService()),
 			new AgentToolObservationStage(),
 			new AgentSemanticVerificationStage()
 		];
@@ -616,7 +625,7 @@ final class AgentToolOrchestratorStageTest extends TestCase {
 		$eventManager = new RecordingEventManager();
 		$tool = new LookupTool();
 		$stages = $this->createDefaultTestStages();
-		$stages[2] = new AgentToolExecutionStage($eventManager);
+		$stages[2] = new AgentToolExecutionStage($eventManager, $this->createActionReviewService());
 
 		(new AgentToolOrchestrator(null, null, $stages))->run(
 			$model,

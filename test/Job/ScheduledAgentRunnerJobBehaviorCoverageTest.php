@@ -33,7 +33,9 @@ final class ScheduledAgentRunnerJobBehaviorCoverageTest extends TestCase {
 		$config->method('get')->willReturn($configuration);
 		$classMap = $this->createStub(IClassMap::class);
 		$classMap->method('getInstancesByInterface')->willReturn([]);
-		return new ScheduledAgentRunnerJob($configurations, $classMap, $config, $this->createStub(IAgentExecutionService::class));
+		$state = $this->createStub(\Base3\CoreFoundation\State\Api\IStateStore::class);
+		$state->method('setIfNotExists')->willReturn(true);
+		return new ScheduledAgentRunnerJob($configurations, $classMap, $config, $this->createStub(IAgentExecutionService::class), $this->createStub(\Base3\AssistantFoundation\Api\IAgentSuspensionRepository::class), $state);
 	}
 
 	public function testJobIsInactiveWithoutExplicitConfiguration(): void {
@@ -49,7 +51,7 @@ final class ScheduledAgentRunnerJobBehaviorCoverageTest extends TestCase {
 	}
 
 	public function testEmptyAgentGroupCompletesWithoutExecutions(): void {
-		$this->assertSame('Scheduled agents done - total:0 active:0 due:0 ran:0 skipped:0 disabled:0 errors:0', $this->job()->go());
+		$this->assertSame('Scheduled agents done - total:0 active:0 due:0 ran:0 pending:0 skipped:0 disabled:0 errors:0', $this->job()->go());
 	}
 
 	public function testDisabledAgentIsCountedWithoutLoadingTimingPolicy(): void {
@@ -101,7 +103,7 @@ final class ScheduledAgentRunnerJobBehaviorCoverageTest extends TestCase {
 		$configurations = $this->createStub(IAgentConfigurationService::class);
 		$configurations->method('getAgents')->willThrowException(new \RuntimeException('backend unavailable'));
 		$config = $this->createStub(IConfiguration::class);
-		$job = new ScheduledAgentRunnerJob($configurations, $this->createStub(IClassMap::class), $config, $this->createStub(IAgentExecutionService::class));
+		$job = new ScheduledAgentRunnerJob($configurations, $this->createStub(IClassMap::class), $config, $this->createStub(IAgentExecutionService::class), $this->createStub(\Base3\AssistantFoundation\Api\IAgentSuspensionRepository::class), $this->createStub(\Base3\CoreFoundation\State\Api\IStateStore::class));
 		$this->assertSame('Scheduled agent runner failed: backend unavailable', $job->go());
 	}
 }

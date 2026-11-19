@@ -346,7 +346,9 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentConversationService::class, fn($c) => new AgentConversationService(
 				$c->get(AgentMemoryProfileResolver::class),
-				$c->get(IAgentComponentPresetMaterializer::class)
+				$c->get(IAgentComponentPresetMaterializer::class),
+				$c->get(IStateStore::class),
+				$c->get(AgentActionFingerprint::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentTextTaskService::class, fn($c) => new AgentTextTaskService(
 				$c->get(IAgentFlowCompiler::class),
@@ -460,7 +462,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 					: $c->get(UnavailableAgentSuspensionRepository::class),
 				$c->get(IEventManager::class),
 				$c->get(AgentInteractionResponseResolver::class),
-				$c->get(AgentBatchExecutionService::class)
+				$c->get(AgentBatchExecutionService::class),
+				$c->get(IStateStore::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentActionReviewService::class, fn($c) => new AgentActionReviewService(
 				$c->get(AgentActionFingerprint::class),

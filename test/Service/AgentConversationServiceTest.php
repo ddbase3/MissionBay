@@ -60,7 +60,9 @@ final class AgentConversationServiceTest extends TestCase {
 		$factory = new ConversationResourceFactoryDouble($memory);
 		$service = new AgentConversationService(
 			new AgentMemoryProfileResolver($store, $repository, $factory),
-			new ConversationPresetMaterializerDouble($memory)
+			new ConversationPresetMaterializerDouble($memory),
+			new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore(),
+			new \Base3\MissionBay\Orchestrator\AgentActionFingerprint()
 		);
 		$request = new AgentConversationRequest(
 			['memory_profile' => 'main'],

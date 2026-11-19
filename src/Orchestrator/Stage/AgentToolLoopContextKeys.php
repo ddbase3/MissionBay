@@ -70,6 +70,7 @@ final class AgentToolLoopContextKeys {
 	public const SUSPENSION = self::PREFIX . 'suspension';
 	public const RESUME_HANDLE = self::PREFIX . 'resume_handle';
 	public const RESUME = self::PREFIX . 'resume';
+	public const DELEGATED_RESUME = self::PREFIX . 'delegated_resume';
 	public const SUSPENDED = self::PREFIX . 'suspended';
 	public const EXECUTION_STATUS = self::PREFIX . 'execution_status';
 	public const TOOL_RESULTS = self::PREFIX . 'tool_results';
@@ -154,6 +155,7 @@ final class AgentToolLoopContextKeys {
 			self::SUSPENSION,
 			self::RESUME_HANDLE,
 			self::RESUME,
+			self::DELEGATED_RESUME,
 			self::SUSPENDED,
 			self::EXECUTION_STATUS,
 			self::TOOL_RESULTS,

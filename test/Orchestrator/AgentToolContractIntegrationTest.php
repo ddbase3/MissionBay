@@ -69,19 +69,21 @@ final class AgentToolContractIntegrationTest extends TestCase {
 		]);
 		$tool = new InvalidOutputContractTool();
 		$events = new ContractRecordingEventManager();
+		$fingerprint = new AgentActionFingerprint();
+		$reviewService = new AgentActionReviewService($fingerprint, new StateStoreAgentSuspensionRepository(new StateStoreStub()));
 		$orchestrator = new AgentToolOrchestrator(null, null, [
 			new AgentModelDecisionStage(),
 			new AgentActionPolicyStage(
 				new StaticAgentActionPolicyResolver([new AllowAllAgentActionPolicy()]),
-				new AgentActionFingerprint(),
-				new AgentActionReviewService(new AgentActionFingerprint(), new StateStoreAgentSuspensionRepository(new StateStoreStub())),
+				$fingerprint,
+				$reviewService,
 				new AgentToolContractValidationService(),
 				new AgentCapabilitySelectionGuardService(),
 				'action-policy',
 				'action-policy',
 				['allow-all-actions']
 			),
-			new AgentToolExecutionStage($events),
+			new AgentToolExecutionStage($events, $reviewService),
 			new AgentToolObservationStage()
 		]);
 

@@ -20,6 +20,8 @@ namespace Base3\MissionBay\Test\Display;
 use Base3\AssistantFoundation\Api\IAgentConfigFormService;
 use Base3\AssistantFoundation\Api\IAgentConfigurationService;
 use Base3\AssistantFoundation\Api\IAgentExecutionService;
+use Base3\AssistantFoundation\Api\IAgentSuspensionRepository;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
 use Base3\AssistantFoundation\Api\IAgentRuntimeRegistry;
 use Base3\CoreFoundation\Api\IAssetResolver;
 use Base3\CoreFoundation\Api\IClassMap;
@@ -48,7 +50,9 @@ final class AgentAdminFileDraftTest extends TestCase {
 			$this->createMock(IAgentExecutionService::class),
 			$this->createMock(IAgentRuntimeRegistry::class),
 			$this->createMock(IAuthorizationService::class),
-			$this->createMock(ITranslation::class)
+			$this->createMock(ITranslation::class),
+			$this->createMock(IUsermanager::class),
+			$this->createMock(IAgentSuspensionRepository::class)
 		);
 	}
 

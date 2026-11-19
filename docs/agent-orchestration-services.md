@@ -52,6 +52,8 @@ JsonSchemaValidator
 
 `AgentActionResumeService` is called by `AgentToolOrchestrator` before the normal loop. It claims the handle, restores the server-owned suspension, validates the structured responses, consumes the claim, and returns approved, denied, or revised actions to policy evaluation.
 
+When a `RunConfiguredAgentTool` or `RunAvailableAgentTool` invocation suspends its child, `AgentToolExecutionStage` forwards the typed pause to the same `AgentActionReviewService` for persistence of the parent's existing remaining tool batch. `AgentActionResumeService` restores the paused parent call, validates the user's response and forwards `AgentResume` to the exact child call through the original execution service. Each nested level retains its own one-time repository claim, with only the outermost handle exposed to the originating caller. Tool-result cache lookup is bypassed for this exact resumed call; policy checks and commit guards remain active.
+
 The shared default repository is `Base3\AssistantRuntime\Service\StateStoreAgentSuspensionRepository`. It uses `IStateStore` for TTL state and atomic claim creation. MissionBay depends only on `IAgentSuspensionRepository`, so hosts may replace the storage implementation without changing MissionBay.
 
 `AgentActionReviewService` and `AgentActionResumeService` require that repository explicitly. The default action-policy component definition stores only instance configuration; runtime services are injected when the stage is materialized after plugin composition. MissionBay does not create a placeholder repository when the contract is missing.

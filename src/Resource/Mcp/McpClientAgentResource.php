@@ -327,6 +327,8 @@ final class McpClientAgentResource extends AbstractAgentResource implements
 			}
 
 			$definition = $this->toolDefinitionMapper->toAgentTool($remoteTool);
+			// Bind reusable tool approval to the effective remote destination.
+			$definition['approvalTargetFingerprint'] = hash('sha256', (string)$this->resolvedClientConfig['endpoint']);
 
 			$this->toolNames[$name] = true;
 			if(($definition['mutation'] ?? false) === true) {

@@ -19,6 +19,9 @@ namespace Base3\MissionBay\Policy;
 
 use Base3\AssistantFoundation\Api\IAgentActionPolicy;
 use Base3\AssistantFoundation\Api\IAgentContext;
+use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\CoreFoundation\State\Api\IStateStore;
 use Base3\AssistantFoundation\Dto\AgentAction;
 use Base3\AssistantFoundation\Dto\AgentActionDecision;
 use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
@@ -27,6 +30,9 @@ use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 final class MutationApprovalAgentActionPolicy implements IAgentActionPolicy {
 
 	public function __construct(
+		private readonly IAgentConfigurationService $agentConfigurations,
+		private readonly AgentActionFingerprint $fingerprint,
+		private readonly IStateStore $stateStore,
 		private readonly string $id = 'mutation-approval-actions',
 		private readonly string $policyName = 'mutation-approval-actions'
 	) {}
@@ -52,6 +58,41 @@ final class MutationApprovalAgentActionPolicy implements IAgentActionPolicy {
 			return AgentActionDecision::allow($action->getId(), 'Tool definition does not declare a mutation requiring approval.');
 		}
 
+		$definitionFingerprint = $this->fingerprint->createToolDefinitionFingerprint($definition);
+		$agentId = trim((string)($context->getVar('agent_id') ?? ''));
+		if ($definitionFingerprint !== '' && $agentId !== '' ) {
+			$settings = $this->agentConfigurations->getAgent($agentId);
+			$approvals = is_array($settings['tool_approval_grants'] ?? null) ? $settings['tool_approval_grants'] : [];
+			$approval = $approvals[$action->getName()] ?? null;
+			if (is_array($approval)
+				&& ($approval['scope'] ?? '') === 'agent'
+				&& is_string($approval['fingerprint'] ?? null)
+				&& hash_equals($approval['fingerprint'], $definitionFingerprint)) {
+				return AgentActionDecision::allow($action->getId(), 'Authorized agent-scoped tool approval matches the current tool definition.', [
+					'approval_scope' => 'agent',
+					'tool_definition_fingerprint' => $definitionFingerprint
+				]);
+			}
+		}
+
+		// A chat approval is limited to one verified conversation and one complete
+		// tool definition. Every other policy and native permission still runs.
+		$scope = $this->fingerprint->conversationApprovalScope($context);
+		$key = $this->fingerprint->conversationApprovalKey($scope, $action->getName());
+		if ($key !== '' && $definitionFingerprint !== '') {
+			$grant = $this->stateStore->get($key);
+			if (is_array($grant)
+				&& ($grant['scope'] ?? '') === 'conversation'
+				&& ($grant['tool'] ?? '') === $action->getName()
+				&& is_string($grant['fingerprint'] ?? null)
+				&& hash_equals($grant['fingerprint'], $definitionFingerprint)) {
+				return AgentActionDecision::allow($action->getId(), 'A user-approved chat tool definition matches this conversation.', [
+					'approval_scope' => 'conversation',
+					'tool_definition_fingerprint' => $definitionFingerprint
+				]);
+			}
+		}
+
 		$risk = ($annotations['destructiveHint'] ?? $annotations['destructive'] ?? false) === true
 			? 'high'
 			: 'medium';
@@ -63,7 +104,8 @@ final class MutationApprovalAgentActionPolicy implements IAgentActionPolicy {
 				'interaction' => [
 					'risk' => $risk
 				],
-				'tool_annotations' => $annotations
+				'tool_annotations' => $annotations,
+				'tool_definition_fingerprint' => $definitionFingerprint
 			]
 		);
 	}

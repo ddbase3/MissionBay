@@ -130,8 +130,11 @@ MissionBay distinguishes tool capability from authorization to commit a mutation
 
 The staged path can classify actions, require approval, suspend execution, persist a server-owned suspension handle, resume deterministically, validate action fingerprints and apply a final mutation commit guard.
 
+Nested agent calls through `RunConfiguredAgentTool` and `RunAvailableAgentTool` use the same suspension and resume mechanism. An A to B to C chain exposes only the outermost opaque handle, preserves completed tool-batch results and reuses the existing parent orchestration state. Explicit approval or denial reaches the original child action; already completed sibling tools are not invoked again. The scope of reusable chat-wide or agent-wide approvals is not expanded by this change.
+
 The relevant documents are:
 
+* [docs/agent-hitl-phase-1.md](docs/agent-hitl-phase-1.md) (phase 1 diagnosis, phase 2 integration and phase 3 delegated execution)
 * [docs/agent-action-approval-and-resume.md](docs/agent-action-approval-and-resume.md)
 * [docs/agent-durable-suspensions.md](docs/agent-durable-suspensions.md)
 * [docs/agent-mutation-commit-guard.md](docs/agent-mutation-commit-guard.md)
@@ -332,7 +335,7 @@ See [docs/events-hooks-and-auditing.md](docs/events-hooks-and-auditing.md).
 
 ## Scheduled execution
 
-`ScheduledAgentRunnerJob` is the MissionBay background job for configured agents. It is discoverable through the BASE3 worker system and reads agent definitions from the `agent` Settings Store group while using the framework job configuration for activation and scheduling behavior.
+`ScheduledAgentRunnerJob` is the MissionBay background job for configured agents. It is discoverable through the BASE3 worker system and reads agent definitions from the `agent` Settings Store group while using the framework job configuration for activation and scheduling behavior. Only completed agent results mark the scheduled timing policy. Suspended runs are reviewed through AgentAdmin, and the existing state store prevents automatic replay after suspension expiry. The Admin runner can explicitly grant and revoke tool-specific approvals for the same configured agent, including later scheduled runs; the current tool definition, other action policies and host authorization remain authoritative. See [docs/agent-action-approval-and-resume.md](docs/agent-action-approval-and-resume.md).
 
 `MissionBayToolUseCleanupJob` removes tool-use audit rows after they have remained unchanged for 24 hours. It uses the BASE3 daily-window policy and runs at most once per day between 02:00 and 04:00.
 
@@ -458,3 +461,12 @@ implementation example, compatibility rules and smoke tests.
 ## Historical migration readiness
 
 The existing migration classes in this plugin now implement the independent `ILegacyDatabaseMigration` marker and declare `down(): void` that throws `MigrationException('Not implemented')`. This is not a working reverse migration. Existing `up()` behavior, migration identities, versions, and providers are unchanged. The BASE3 runner skips only the stored checksum comparison for already-applied marked migrations; unapplied migrations still run forward and are recorded in `base3_migrations`. No database data or historical records are modified by this source update. The marker may be removed after the stored checksum has been deliberately reconciled with the final unmarked source file.
+
+## Phase 5: Reusable per-chat tool consent
+
+The existing `MutationApprovalAgentActionPolicy` now checks an explicitly approved same-chat grant in `IStateStore` only after checking its current full tool-definition fingerprint. The grant key derives from the existing `AgentSuspensionScope` for the verified channel, conversation and actor, and is also inherited by nested agent executions. It expires 90 days after approval. `AgentActionResumeService` persists it only after an explicit `approve` with `metadata.approval_scope=conversation` and successful consumption of the one-time handle. Plain approvals and natural language do not create reusable consent. `AgentConversationService::deleteConversation()` revokes grants in that conversation scope. Existing native rights, other action policies and the current-action mutation commit guard are still enforced. The permanent agent-scoped approval from Phase 4 is unchanged.
+
+
+### HITL approval regression and read-only diagnostics
+
+The Agent Execution diagnostic scope includes `AgentApprovalContractDiagnosticCheck` for deterministic approval-envelope, fingerprint and scope invariants. It does not execute AI or tools. Additional executable `test/Display/AgentAdminApprovalAuthorizationSmoke.php` and `test/Display/AgentAdminPersistentApprovalMatrixSmoke.php` cover feature-gated administrative approvals, the real MissionBay resume boundary and negative decision cases without an LLM. A user who may administer agents under the existing `agentadminsettingstab` feature may also grant or revoke agent-scoped tool consent; no separate approval permission is introduced. See `docs/testing-and-diagnostics.md`.

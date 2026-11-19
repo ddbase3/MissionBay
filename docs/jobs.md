@@ -14,7 +14,11 @@ scheduledagentrunnerjob
 
 It is discoverable through the BASE3 worker/class-map mechanism.
 
-The job reads named agents from the `agent` Settings Store group and executes configured agents according to the active job configuration and scheduling rules.
+The job reads named agents from the `agent` Settings Store group and executes configured agents according to the active job configuration and scheduling rules. It checks the typed agent status and marks the scheduling policy only after `completed`. A suspension is shown as pending and can be reviewed through the existing AgentAdmin runner.
+
+The existing `IStateStore` provides a bounded per-agent execution lock and a durable run hold marker. A hold is recorded before a scheduled invocation, preventing automatic replay after a process error or the expiry of an approval. A live suspension must be resumed through the normal `IAgentSuspensionRepository` and `AgentResume`; an expired or failed run requires explicit operator review and reset in AgentAdmin. Resetting does not reverse mutations that may already have occurred. There is no worker-specific approval bypass or second job system.
+
+The manual Admin runner can also explicitly store an agent-scoped reusable tool approval through the existing `IAgentConfigurationService` and `MutationApprovalAgentActionPolicy`. That grant can satisfy later approval prompts for the same effective tool definition in a scheduled run, but it does not confer the administrator's own permissions on the worker. See [agent-action-approval-and-resume.md](agent-action-approval-and-resume.md).
 
 ## MissionBayToolUseCleanupJob
 

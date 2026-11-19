@@ -5,61 +5,61 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const template = fs.readFileSync(new URL('../../tpl/Display/AgentAdminDisplay.php', import.meta.url), 'utf8');
-const begin = template.indexOf('        async function saveEditorPayload() {');
-const end = template.indexOf('        async function deleteAgentById(', begin);
+const begin = template.indexOf('\tasync function saveEditorPayload() {');
+const end = template.indexOf('\tasync function deleteAgentById(', begin);
 assert.ok(begin >= 0 && end > begin, 'save handler must be present');
 const saveFunction = template.slice(begin, end);
 
 async function runScenario(serverBody, options = {}) {
-    const calls = { requests: [], statuses: [], closes: 0, refreshes: 0, waited: 0 };
-    const form = {
-        reportValidity: () => options.valid !== false,
-        __base3AgentResourcesFileManager: {
-            async waitForUploads() { calls.waited++; }
-        }
-    };
-    const context = {
-        FormData,
-        URLSearchParams,
-        savingAgent: false,
-        ENDPOINT_URL: '/base3-agent-admin.json',
-        getEditorElements: () => ({ form }),
-        validateEditorForm: () => 'agent-uuid',
-        getFormFieldValue: () => 'agent-uuid',
-        prepareConfigFormData: () => {
-            const data = new FormData();
-            data.set('mode', 'save');
-            data.set('agent_id', 'agent-uuid');
-            data.set('old_id', 'agent-uuid');
-            data.append('tool_profiles[]', 'tools-a');
-            data.append('tool_profiles[]', 'tools-b');
-            data.append('capability_sources[tools][]', 'tool-1');
-            data.set('chatmodel', 'model-1');
-            data.set('system_prompt', 'Hello & welcome');
-            if (options.file) {
-                data.set('unexpected_file', new Blob(['file']), 'file.txt');
-            }
-            return data;
-        },
-        setEditorStatus: (msg, type) => calls.statuses.push({ msg, type }),
-        setLog: () => undefined,
-        log: () => undefined,
-        mbText: (key, fallback) => fallback,
-        getText: (text) => String(text),
-        closeEditor: () => calls.closes++,
-        refreshGrid: async () => { calls.refreshes++; },
-        fetch: async (url, init) => {
-            calls.requests.push({ url, init });
-            return { ok: true, json: async () => serverBody };
-        }
-    };
-    vm.runInNewContext(saveFunction + '; globalThis.runSave = saveEditorPayload;', context);
-    if (options.concurrent) {
-        await Promise.all([context.runSave(), context.runSave()]);
-    } else {
-        await context.runSave();
-    }
-    return calls;
+	const calls = { requests: [], statuses: [], closes: 0, refreshes: 0, waited: 0 };
+	const form = {
+		reportValidity: () => options.valid !== false,
+		__base3AgentResourcesFileManager: {
+			async waitForUploads() { calls.waited++; }
+		}
+	};
+	const context = {
+		FormData,
+		URLSearchParams,
+		savingAgent: false,
+		ENDPOINT_URL: '/base3-agent-admin.json',
+		getEditorElements: () => ({ form }),
+		validateEditorForm: () => 'agent-uuid',
+		getFormFieldValue: () => 'agent-uuid',
+		prepareConfigFormData: () => {
+			const data = new FormData();
+			data.set('mode', 'save');
+			data.set('agent_id', 'agent-uuid');
+			data.set('old_id', 'agent-uuid');
+			data.append('tool_profiles[]', 'tools-a');
+			data.append('tool_profiles[]', 'tools-b');
+			data.append('capability_sources[tools][]', 'tool-1');
+			data.set('chatmodel', 'model-1');
+			data.set('system_prompt', 'Hello & welcome');
+			if (options.file) {
+				data.set('unexpected_file', new Blob(['file']), 'file.txt');
+			}
+			return data;
+		},
+		setEditorStatus: (msg, type) => calls.statuses.push({ msg, type }),
+		setLog: () => undefined,
+		log: () => undefined,
+		mbText: (key, fallback) => fallback,
+		getText: (text) => String(text),
+		closeEditor: () => calls.closes++,
+		refreshGrid: async () => { calls.refreshes++; },
+		fetch: async (url, init) => {
+			calls.requests.push({ url, init });
+			return { ok: true, json: async () => serverBody };
+		}
+	};
+	vm.runInNewContext(saveFunction + '; globalThis.runSave = saveEditorPayload;', context);
+	if (options.concurrent) {
+		await Promise.all([context.runSave(), context.runSave()]);
+	} else {
+		await context.runSave();
+	}
+	return calls;
 }
 
 const ack = { ok: true, mode: 'save', action: 'saved', record: { agent_id: 'agent-uuid' } };

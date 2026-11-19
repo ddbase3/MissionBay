@@ -25,6 +25,7 @@ use Base3\AssistantFoundation\Dto\AgentActionDecision;
 use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
 use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
 use Base3\AssistantFoundation\Dto\AgentSuspension;
+use Base3\AssistantFoundation\Dto\AgentSuspensionScope;
 use Base3\AssistantFoundation\Dto\AiToolCall;
 use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
 use Base3\MissionBay\Orchestrator\Service\AgentActionReviewService;
@@ -109,6 +110,26 @@ final class AgentActionReviewServiceTest extends TestCase {
 		$this->assertSame('high', $request->getRisk());
 		$this->assertSame('Confirm target', $request->getTitle());
 		$this->assertSame(AgentExecutionStatus::AWAITING_INPUT, $created[0]->getStatus());
+	}
+
+	public function testVerifiedActorScopeIsUsedForStoredSuspension(): void {
+		$saved = null;
+		$repository = $this->createStub(IAgentSuspensionRepository::class);
+		$repository->method('create')->willReturnCallback(static function(AgentSuspension $suspension, int $ttl) use (&$saved): string {
+			$saved = $suspension;
+			return 'opaque-server-handle';
+		});
+		$result = $this->service($repository)->review($this->context([
+			Keys::ACTION_REVIEW_CANDIDATES => [$this->candidate(AgentActionDecision::requireClarification('a1', 'Need input'))],
+			'conversation_id' => 'thread-1',
+			'conversation_channel_id' => 'agent-api:jarvis',
+			'agent_suspension_subject' => 'xrm:user:42'
+		]));
+		$this->assertSame(AgentExecutionStatus::AWAITING_INPUT, $result->getPatch()[Keys::EXECUTION_STATUS]);
+		$this->assertSame(
+			AgentSuspensionScope::forConversation('agent-api:jarvis', 'thread-1', 'xrm:user:42'),
+			$saved->getScopeId()
+		);
 	}
 
 	public function testPersistenceFailureIsReturnedWithoutPretendingToSuspend(): void {

@@ -32,6 +32,7 @@ use Base3\AssistantFoundation\Dto\AgentToolResult;
 use Base3\AssistantFoundation\Dto\AiToolCall;
 use Base3\AssistantFoundation\Exception\AgentSuspensionRepositoryException;
 use Base3\CoreFoundation\Event\Api\IEventManager;
+use Base3\CoreFoundation\State\Api\IStateStore;
 use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
 use Base3\MissionBay\Dto\Assistant\AgentInteractionResolution;
 use Base3\MissionBay\Dto\Assistant\PreparedAgentResume;
@@ -48,7 +49,8 @@ final class AgentActionResumeService {
 		private readonly IAgentSuspensionRepository $suspensionRepository,
 		private readonly ?IEventManager $eventManager = null,
 		?AgentInteractionResponseResolver $responseResolver = null,
-		private readonly ?AgentBatchExecutionService $batchExecutionService = null
+		private readonly ?AgentBatchExecutionService $batchExecutionService = null,
+		private readonly ?IStateStore $stateStore = null
 	) {
 		$this->responseResolver = $responseResolver ?? new AgentInteractionResponseResolver();
 	}
@@ -67,6 +69,10 @@ final class AgentActionResumeService {
 		}
 
 		$resume = $prepared->getResume();
+		$delegation = $prepared->getSuspension()->getState()['delegated_resume'] ?? null;
+		if (is_array($delegation)) {
+			return $this->resumeDelegation($prepared, $delegation);
+		}
 		$resolvedResponses = $resume->getResponses();
 		$resolution = null;
 
@@ -111,6 +117,7 @@ final class AgentActionResumeService {
 		$deniedCount = 0;
 		$submittedCount = 0;
 		$auditEvents = [];
+		$chatApprovals = [];
 
 		foreach ($prepared->getSuspension()->getRequests() as $request) {
 			$validationError = $this->validateRequestIntegrity($request);
@@ -126,6 +133,36 @@ final class AgentActionResumeService {
 				);
 			}
 			unset($responses[$request->getId()]);
+
+			$approvalScope = trim((string)($response->getMetadata()['approval_scope'] ?? ''));
+			if ($approvalScope !== '' && $approvalScope !== 'conversation') {
+				return $this->releaseFailure($prepared, 'invalid_agent_approval_scope', 'Unknown tool approval scope.');
+			}
+			if ($approvalScope === 'conversation') {
+				if ($response->getDecision() !== AgentInteractionResponse::DECISION_APPROVE
+					|| $request->getKind() !== AgentInteractionRequest::KIND_APPROVAL) {
+					return $this->releaseFailure($prepared, 'invalid_agent_approval_scope', 'Chat-wide approval requires an explicit approval decision.');
+				}
+				$scope = $this->fingerprint->conversationApprovalScope($context);
+				$key = $this->fingerprint->conversationApprovalKey($scope, $request->getAction()->getName());
+				$decision = $request->getMetadata()['decision'] ?? null;
+				$policyMetadata = is_array($decision) && is_array($decision['metadata'] ?? null) ? $decision['metadata'] : [];
+				$definitionFingerprint = $policyMetadata['tool_definition_fingerprint'] ?? null;
+				if ($key === '' || !$this->stateStore instanceof IStateStore
+					|| !is_array($decision)
+					|| ($decision['decision'] ?? '') !== 'require_approval'
+					|| ($policyMetadata['policy_implementation'] ?? '') !== 'mutationapprovalagentactionpolicy'
+					|| !is_string($definitionFingerprint)
+					|| preg_match('/^[a-f0-9]{64}$/D', $definitionFingerprint) !== 1) {
+					return $this->releaseFailure($prepared, 'invalid_agent_approval_scope', 'This approval cannot be retained for the conversation.');
+				}
+				$chatApprovals[$key] = [
+					'scope' => 'conversation',
+					'tool' => $request->getAction()->getName(),
+					'fingerprint' => $definitionFingerprint,
+					'approved_at' => gmdate('c')
+				];
+			}
 
 			if ($response->getDecision() === AgentInteractionResponse::DECISION_DENY) {
 				$toolResults[] = $this->createDeclinedResult($request, $response);
@@ -245,6 +282,16 @@ final class AgentActionResumeService {
 			);
 		}
 
+		// Persist only after the one-time handle was consumed. Never grant an
+		// approval for a resume that was rejected or failed its claim.
+		try {
+			foreach ($chatApprovals as $key => $grant) {
+				$this->stateStore->set($key, $grant, 90 * 86400);
+			}
+		} catch (\Throwable $e) {
+			return $this->failure('chat_approval_persistence_failed', 'Conversation approval could not be saved after resume; the tool was not executed.');
+		}
+
 		$this->emitInteractionResolved($context, $prepared, $suspensionResolution);
 
 		foreach ($auditEvents as $auditEvent) {
@@ -288,6 +335,112 @@ final class AgentActionResumeService {
 			'submitted' => $submittedCount,
 			'resume_handle_consumed' => true,
 			'response_source' => $responseSource
+		]);
+	}
+
+
+	/**
+	 * Consumes the outer one-time handle before the already-approved parent
+	 * tool call is continued. The original child service validates and consumes
+	 * the internal child handle when that tool is resumed.
+	 *
+	 * @param array<string,mixed> $delegation
+	 */
+	private function resumeDelegation(PreparedAgentResume $prepared, array $delegation): AgentStageResult {
+		$resume = $prepared->getResume();
+		$state = $prepared->getSuspension()->getState();
+		$calls = $state['pending_tool_calls'] ?? null;
+		$call = is_array($calls) ? ($calls[0] ?? null) : null;
+		$callId = trim((string)($delegation['call_id'] ?? ''));
+		$toolName = trim((string)($delegation['tool_name'] ?? ''));
+		$childHandle = trim((string)($delegation['child_resume_handle'] ?? ''));
+		if (
+			$callId === '' || $toolName === '' || $childHandle === ''
+			|| !is_array($call)
+			|| trim((string)($call['id'] ?? '')) !== $callId
+			|| trim((string)($call['name'] ?? '')) !== $toolName
+		) {
+			return $this->releaseFailure($prepared, 'invalid_delegated_resume_snapshot', 'Delegated tool call does not match the saved parent suspension.');
+		}
+
+		$knownRequests = [];
+		foreach ($prepared->getSuspension()->getRequests() as $request) {
+			if (!hash_equals($request->getActionFingerprint(), $this->fingerprint->create($request->getAction()))) {
+				return $this->releaseFailure($prepared, 'invalid_delegated_resume_snapshot', 'Delegated interaction fingerprint does not match the saved action.');
+			}
+			$knownRequests[$request->getId()] = $request;
+		}
+
+		$responses = $resume->getResponses();
+		if ($responses === [] && !$resume->hasResponseText()) {
+			return $this->releaseFailure($prepared, 'missing_agent_resume_response', 'Delegated interaction requires an explicit response or response text.');
+		}
+		$submitted = [];
+		foreach ($responses as $response) {
+			$id = $response->getRequestId();
+			if (!isset($knownRequests[$id]) || isset($submitted[$id])) {
+				return $this->releaseFailure($prepared, 'invalid_delegated_resume_response', 'Delegated interaction response is unknown or duplicated.');
+			}
+			$request = $knownRequests[$id];
+			if (
+				($response->getDecision() === AgentInteractionResponse::DECISION_APPROVE
+					&& $request->getKind() !== AgentInteractionRequest::KIND_APPROVAL)
+				|| ($response->getDecision() === AgentInteractionResponse::DECISION_SUBMIT
+					&& $request->getKind() === AgentInteractionRequest::KIND_APPROVAL)
+			) {
+				return $this->releaseFailure($prepared, 'invalid_delegated_resume_decision', 'Delegated interaction decision does not match its request kind.');
+			}
+			$submitted[$id] = true;
+		}
+		if ($responses !== [] && count($submitted) !== count($knownRequests)) {
+			return $this->releaseFailure($prepared, 'missing_agent_resume_response', 'Every delegated interaction requires an explicit response.');
+		}
+
+		$pendingCall = AiToolCall::fromArray($call);
+		$metadata = $pendingCall->getMetadata();
+		$priorApproval = trim((string)($metadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_APPROVAL_FINGERPRINT] ?? ''));
+		$preapproved = [];
+		if ($priorApproval !== '') {
+			$action = new AgentAction($callId, AgentAction::TYPE_TOOL_CALL, $toolName, $pendingCall->getArguments());
+			if (!hash_equals($priorApproval, $this->fingerprint->create($action))) {
+				return $this->releaseFailure($prepared, 'invalid_delegated_resume_snapshot', 'Parent tool approval fingerprint was changed.');
+			}
+			$preapproved[$callId] = $priorApproval;
+		}
+
+		$resolution = new AgentSuspensionResolution(
+			$responses,
+			$responses === [] ? 'delegated_natural_language' : 'delegated_explicit',
+			gmdate('c')
+		);
+		try {
+			$this->suspensionRepository->consume($prepared->getClaim(), $resolution);
+		} catch (AgentSuspensionRepositoryException $e) {
+			$this->releaseBestEffort($prepared->getClaim());
+			return $this->failure('agent_resume_consume_failed', $e->getMessage(), ['reason' => $e->getReason()]);
+		} catch (\Throwable $e) {
+			$this->releaseBestEffort($prepared->getClaim());
+			return $this->failure('agent_resume_consume_failed', 'Delegated parent handle could not be consumed.', ['type' => get_class($e)]);
+		}
+
+		return AgentStageResult::patch([
+			AgentToolLoopContextKeys::DELEGATED_RESUME => [
+				'call_id' => $callId,
+				'tool_name' => $toolName,
+				'resume' => new AgentResume($childHandle, $responses, $resume->getResponseText())
+			],
+			AgentToolLoopContextKeys::PREAPPROVED_ACTIONS => $preapproved,
+			AgentToolLoopContextKeys::INTERACTION_REQUESTS => [],
+			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME_HANDLE => '',
+			AgentToolLoopContextKeys::SUSPENDED => false,
+			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::RUNNING,
+			AgentToolLoopContextKeys::ACTION_REVIEW_CANDIDATES => [],
+			AgentToolLoopContextKeys::PHASE => AgentToolLoopContextKeys::PHASE_TOOLS
+		], [
+			'delegated' => true,
+			'resume_handle_consumed' => true,
+			'response_source' => $responses === [] ? 'natural_language' : 'explicit'
 		]);
 	}
 

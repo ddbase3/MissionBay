@@ -21,6 +21,7 @@ use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Api\IAgentSuspensionRepository;
 use Base3\AssistantFoundation\Dto\AgentAction;
+use Base3\AssistantFoundation\Dto\AgentSuspensionState;
 use Base3\AssistantFoundation\Dto\AgentActionReview;
 use Base3\AssistantFoundation\Dto\AgentActionDecision;
 use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
@@ -38,6 +39,7 @@ use Base3\MissionBay\Api\IAgentTool;
 use Base3\MissionBay\Api\IConfirmableAgentTool;
 use Base3\MissionBay\Event\MissionBayAgentActionAuditEvent;
 use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
+use Base3\MissionBay\Exception\AgentSubAgentSuspendedException;
 use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 /** Converts policy review decisions into a durable, transport-neutral suspension. */
@@ -57,6 +59,22 @@ final class AgentActionReviewService {
 		if ($suspensionTtlSeconds < 1) {
 			throw new \InvalidArgumentException('Agent suspension TTL must be greater than zero.');
 		}
+	}
+
+	/**
+	 * Reuses the original commit-guard owner when a previously granted tool
+	 * definition permits a new concrete action. The snapshot is still checked
+	 * against that exact action immediately before executing the tool.
+	 */
+	public function prepareReusableApprovedCall(AgentAction $action, AiToolCall $call, IAgentContext $context): AiToolCall {
+		$snapshot = $this->mutationCommitGuardService->capture($action, $call, $context);
+		if ($snapshot === null) {
+			return $call;
+		}
+		$metadata = $call->getMetadata();
+		$metadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_APPROVAL_FINGERPRINT] = $this->fingerprint->create($action);
+		$metadata[AgentMutationCommitGuardService::TOOL_CALL_METADATA_SNAPSHOT] = $snapshot->toArray();
+		return new AiToolCall($call->getId(), $call->getName(), $call->getArguments(), $metadata);
 	}
 
 	public function review(IAgentContext $context, array $projectedPatch = []): AgentStageResult {
@@ -192,7 +210,8 @@ final class AgentActionReviewService {
 			: AgentExecutionStatus::AWAITING_APPROVAL;
 		$scopeId = AgentSuspensionScope::forConversation(
 			trim((string)($context->getVar('conversation_channel_id') ?? '')),
-			trim((string)($context->getVar('conversation_id') ?? ''))
+			trim((string)($context->getVar('conversation_id') ?? '')),
+			trim((string)($context->getVar('agent_suspension_subject') ?? ''))
 		);
 		$suspension = new AgentSuspension(
 			id: $suspensionId,
@@ -267,6 +286,131 @@ final class AgentActionReviewService {
 			'request_count' => count($requests),
 			'preflight_rejection_count' => $preflightRejectionCount,
 			'ttl_seconds' => $this->suspensionTtlSeconds
+		]);
+	}
+
+
+	/**
+	 * Persists the already-reviewed parent tool batch when a delegated agent pauses.
+	 * The child keeps the authoritative approval snapshot; only the outermost
+	 * handle is returned to the current caller.
+	 *
+	 * @param array<string,mixed> $projectedPatch
+	 */
+	public function suspendDelegation(
+		IAgentContext $context,
+		AgentSubAgentSuspendedException $delegation,
+		AiToolCall $call,
+		array $projectedPatch
+	): AgentStageResult {
+		if ($this->isCancellationRequested($context)) {
+			return $this->cancelled($projectedPatch);
+		}
+
+		$child = $delegation->getSuspension();
+		$requests = $child->getInteractionRequests();
+		if ($requests === [] || trim($child->getResumeHandle()) === '') {
+			return $this->failure('invalid_delegated_suspension', 'Sub-agent did not return a resumable interaction.');
+		}
+		foreach ($requests as $request) {
+			if (!$request instanceof AgentInteractionRequest) {
+				return $this->failure('invalid_delegated_suspension', 'Sub-agent returned an invalid interaction request.');
+			}
+			if (!hash_equals($request->getActionFingerprint(), $this->fingerprint->create($request->getAction()))) {
+				return $this->failure('invalid_delegated_suspension', 'Sub-agent interaction fingerprint is invalid.');
+			}
+		}
+
+		$now = time();
+		$ttl = $this->suspensionTtlSeconds;
+		$childExpiry = trim($delegation->getExpiresAt());
+		if ($childExpiry !== '') {
+			$expiry = strtotime($childExpiry);
+			if ($expiry === false || $expiry <= $now) {
+				return $this->failure('delegated_suspension_expired', 'Sub-agent interaction has expired.');
+			}
+			$ttl = min($ttl, $expiry - $now);
+		}
+
+		$id = $this->createSuspensionId();
+		$createdAt = gmdate('c', $now);
+		$expiresAt = gmdate('c', $now + $ttl);
+		$publicRequests = [];
+		foreach ($requests as $request) {
+			$publicRequests[] = new AgentInteractionRequest(
+				$request->getId(),
+				$request->getKind(),
+				$request->getAction(),
+				$request->getActionFingerprint(),
+				$request->getTitle(),
+				$request->getMessage(),
+				$request->getSummary(),
+				$request->getRisk(),
+				[
+					'suspension_id' => $id,
+					'created_at' => $createdAt,
+					'expires_at' => $expiresAt
+				]
+			);
+		}
+
+		$state = $this->createSnapshot($context, $projectedPatch);
+		$state['delegated_resume'] = [
+			'call_id' => $call->getId(),
+			'tool_name' => $call->getName(),
+			'child_resume_handle' => $child->getResumeHandle()
+		];
+		$scope = AgentSuspensionScope::forConversation(
+			trim((string)($context->getVar('conversation_channel_id') ?? '')),
+			trim((string)($context->getVar('conversation_id') ?? '')),
+			trim((string)($context->getVar('agent_suspension_subject') ?? ''))
+		);
+		$suspension = new AgentSuspension(
+			$id,
+			$child->getStatus(),
+			$publicRequests,
+			$state,
+			$createdAt,
+			[
+				'node_id' => (string)($context->getVar(AgentToolLoopContextKeys::NODE_ID) ?? ''),
+				'iteration' => (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0),
+				'created_at' => $createdAt,
+				'expires_at' => $expiresAt
+			],
+			$scope !== '' ? $scope : $id
+		);
+
+		try {
+			$resumeHandle = $this->suspensionRepository->create($suspension, $ttl);
+		} catch (AgentSuspensionRepositoryException $e) {
+			return $this->failure('suspension_persistence_failed', $e->getMessage(), ['reason' => $e->getReason()]);
+		} catch (\Throwable $e) {
+			return $this->failure('suspension_persistence_failed', 'Delegated suspension could not be persisted.', ['type' => get_class($e)]);
+		}
+
+		if ($this->isCancellationRequested($context)) {
+			$this->consumeCancelledSuspension($resumeHandle);
+			return $this->cancelled($projectedPatch);
+		}
+
+		$status = $child->getStatus();
+		return AgentStageResult::patch(array_merge($projectedPatch, [
+			AgentToolLoopContextKeys::INTERACTION_REQUESTS => $publicRequests,
+			AgentToolLoopContextKeys::SUSPENSION => null,
+			AgentToolLoopContextKeys::RESUME_HANDLE => $resumeHandle,
+			AgentToolLoopContextKeys::EXECUTION_STATUS => $status,
+			AgentToolLoopContextKeys::SUSPENDED => true,
+			AgentToolLoopContextKeys::PHASE => $status === AgentExecutionStatus::AWAITING_INPUT
+				? AgentToolLoopContextKeys::PHASE_AWAITING_INPUT
+				: AgentToolLoopContextKeys::PHASE_AWAITING_APPROVAL,
+			AgentToolLoopContextKeys::FINAL_RESPONSE_MODE => AgentToolLoopContextKeys::FINAL_RESPONSE_NONE,
+			AgentToolLoopContextKeys::DELEGATED_RESUME => null
+		]), [
+			'suspension_id' => $id,
+			'status' => $status,
+			'request_count' => count($publicRequests),
+			'delegated' => true,
+			'ttl_seconds' => $ttl
 		]);
 	}
 
@@ -517,7 +661,7 @@ final class AgentActionReviewService {
 	private function createSnapshot(IAgentContext $context, array $projectedPatch): array {
 		return [
 			'iteration' => (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0),
-			'call_index' => (int)($context->getVar(AgentToolLoopContextKeys::CALL_INDEX) ?? 0),
+			'call_index' => (int)($projectedPatch[AgentToolLoopContextKeys::CALL_INDEX] ?? $context->getVar(AgentToolLoopContextKeys::CALL_INDEX) ?? 0),
 			'messages' => $this->arrayValue($context, AgentToolLoopContextKeys::MESSAGES, $projectedPatch),
 			'pending_tool_calls' => $this->mapObjects($this->arrayValue($context, AgentToolLoopContextKeys::PENDING_TOOL_CALLS, $projectedPatch), AiToolCall::class),
 			'actions' => $this->mapObjects($this->arrayValue($context, AgentToolLoopContextKeys::ACTIONS, $projectedPatch), AgentAction::class),

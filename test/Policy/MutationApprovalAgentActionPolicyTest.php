@@ -28,7 +28,7 @@ use PHPUnit\Framework\TestCase;
 final class MutationApprovalAgentActionPolicyTest extends TestCase {
 
 	public function testIdentifiesPolicyAndIgnoresNonToolActions(): void {
-		$policy = new MutationApprovalAgentActionPolicy('custom-id', 'Custom name');
+		$policy = new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore(), 'custom-id', 'Custom name');
 		$this->assertSame('mutationapprovalagentactionpolicy', $policy::getName());
 		$this->assertSame('custom-id', $policy->id());
 		$this->assertSame('Custom name', $policy->name());
@@ -40,7 +40,7 @@ final class MutationApprovalAgentActionPolicyTest extends TestCase {
 
 	public function testUnannotatedAndMissingToolsDoNotRequireApproval(): void {
 		$context = $this->context([['function' => ['name' => 'read']]]);
-		$policy = new MutationApprovalAgentActionPolicy();
+		$policy = new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore());
 		foreach (['read', 'missing'] as $name) {
 			$this->assertTrue($policy->evaluate(new AgentAction($name, AgentAction::TYPE_TOOL_CALL, $name), $context)->isAllowed());
 		}
@@ -48,7 +48,7 @@ final class MutationApprovalAgentActionPolicyTest extends TestCase {
 	}
 
 	public function testMutatingAnnotationsRequestMediumRiskApproval(): void {
-		$policy = new MutationApprovalAgentActionPolicy();
+		$policy = new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore());
 		foreach (['requiresApproval', 'requires_confirmation', 'requiresConfirmation', 'mutation', 'sideEffectHint', 'side_effect'] as $key) {
 			$decision = $policy->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'set'), $this->context([['function' => ['name' => 'set', $key => true]]]));
 			$this->assertSame(AgentActionDecision::DECISION_REQUIRE_APPROVAL, $decision->getDecision(), $key);
@@ -61,7 +61,7 @@ final class MutationApprovalAgentActionPolicyTest extends TestCase {
 			'name' => 'delete', 'annotations' => ['requiresApproval' => false],
 			'destructiveHint' => true
 		]]]);
-		$decision = (new MutationApprovalAgentActionPolicy())->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'delete'), $context);
+		$decision = (new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore()))->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'delete'), $context);
 		$this->assertSame(AgentActionDecision::DECISION_REQUIRE_APPROVAL, $decision->getDecision());
 		$this->assertSame('high', $decision->getMetadata()['interaction']['risk']);
 		$this->assertSame(true, $decision->getMetadata()['tool_annotations']['destructiveHint']);
@@ -69,11 +69,11 @@ final class MutationApprovalAgentActionPolicyTest extends TestCase {
 
 	public function testExplicitNoApprovalOverridesNonDestructiveMutationHints(): void {
 		$context = $this->context([['function' => ['name' => 'set', 'mutation' => true, 'requiresApproval' => false]]]);
-		$this->assertTrue((new MutationApprovalAgentActionPolicy())->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'set'), $context)->isAllowed());
+		$this->assertTrue((new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore()))->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'set'), $context)->isAllowed());
 	}
 
 	public function testReadOnlyFalseMeansApprovalRequiredButTrueDoesNot(): void {
-		$policy = new MutationApprovalAgentActionPolicy();
+		$policy = new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore());
 		foreach (['readOnlyHint', 'read_only', 'readonly'] as $key) {
 			$deny = $policy->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'set'), $this->context([['function' => ['name' => 'set'], $key => false]]));
 			$this->assertSame(AgentActionDecision::DECISION_REQUIRE_APPROVAL, $deny->getDecision());
@@ -87,7 +87,7 @@ final class MutationApprovalAgentActionPolicyTest extends TestCase {
 			'function' => ['name' => 'set', 'annotations' => ['requiresApproval' => false]],
 			'requiresApproval' => true
 		]]);
-		$decision = (new MutationApprovalAgentActionPolicy())->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'set'), $context);
+		$decision = (new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore()))->evaluate(new AgentAction('a', AgentAction::TYPE_TOOL_CALL, 'set'), $context);
 		$this->assertSame(AgentActionDecision::DECISION_REQUIRE_APPROVAL, $decision->getDecision());
 	}
 

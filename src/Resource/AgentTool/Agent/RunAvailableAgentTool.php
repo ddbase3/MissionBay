@@ -19,6 +19,9 @@ namespace Base3\MissionBay\Resource\AgentTool\Agent;
 
 use Base3\AssistantFoundation\Api\IAgentExecutionService;
 use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\MissionBay\Exception\AgentSubAgentSuspendedException;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use Base3\CoreFoundation\Api\ISchemaProvider;
 use Base3\AssistantFoundation\Api\IAgentConfigurationService;
 use InvalidArgumentException;
@@ -323,7 +326,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 		return match($name) {
 			$this->listToolName => $this->toolListAgents($arguments),
 			$this->describeToolName => $this->toolDescribeAgent($arguments),
-			$this->runToolName => $this->toolRunAgent($arguments),
+			$this->runToolName => $this->toolRunAgent($arguments, $context),
 			default => throw new InvalidArgumentException('Unsupported tool: ' . $name)
 		};
 	}
@@ -410,7 +413,7 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 	 * @param array<string,mixed> $arguments
 	 * @return array<string,mixed>
 	 */
-	private function toolRunAgent(array $arguments): array {
+	private function toolRunAgent(array $arguments, IAgentContext $context): array {
 		$agentId = $this->normalizeTechnicalKey((string)($arguments['agent_id'] ?? ''));
 
 		if($agentId === '') {
@@ -426,11 +429,17 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 				return $this->errorResult('No user prompt was provided and the selected agent has no default prompt.', 'missing_prompt', $agentId);
 			}
 
+			$resume = $context->getVar(AgentToolLoopContextKeys::DELEGATED_RESUME);
+			$inputs = $this->buildAgentInputs($settings, $prompt);
+			if ($resume instanceof AgentResume) {
+				$inputs['resume'] = $resume->toArray();
+			}
 			$result = $this->agentExecutionService->execute(new AgentExecutionRequest(
 				$settings,
-				$this->buildAgentInputs($settings, $prompt),
-				$this->buildAgentContextVars($agentId, $settings, $arguments, $prompt, $promptResult['source'])
+				$inputs,
+				$this->buildAgentContextVars($agentId, $settings, $arguments, $prompt, $promptResult['source'], $context)
 			));
+			$this->requireCompletedChildOrSuspend($result);
 
 			$output = $result->getOutput();
 			$message = $this->extractAssistantMessage($output);
@@ -447,9 +456,25 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 
 			return $this->successResult($agentId, $settings, $prompt, $promptResult['source'], $message, $output);
 		}
+		catch (AgentSubAgentSuspendedException $e) {
+			throw $e;
+		}
 		catch(Throwable $e) {
 			return $this->errorResult('Sub-agent execution failed: ' . $e->getMessage(), 'execution_failed', $agentId);
 		}
+	}
+
+	/** Suspensions remain control-flow outcomes, never tool-result JSON. */
+	private function requireCompletedChildOrSuspend(\Base3\AssistantFoundation\Dto\AgentExecutionResult $result): void {
+		$agentResult = $result->getAgentResult();
+		if ($agentResult === null || !$agentResult->isSuspended()) {
+			return;
+		}
+		$suspension = $agentResult->getState()->getSuspension();
+		if ($suspension === null || !$suspension->isSuspended()) {
+			throw new \RuntimeException('Suspended sub-agent has no valid suspension state.');
+		}
+		throw new AgentSubAgentSuspendedException($suspension, $suspension->getExpiresAt());
 	}
 
 	// ----------------------------------------------------
@@ -616,8 +641,10 @@ class RunAvailableAgentTool extends AbstractAgentResource implements IAgentTool,
 	 * @param array<string,mixed> $arguments
 	 * @return array<string,mixed>
 	 */
-	private function buildAgentContextVars(string $agentId, array $settings, array $arguments, string $prompt, string $promptSource): array {
+	private function buildAgentContextVars(string $agentId, array $settings, array $arguments, string $prompt, string $promptSource, IAgentContext $parent): array {
+		$parentScope = (new \Base3\MissionBay\Orchestrator\AgentActionFingerprint())->conversationApprovalScope($parent);
 		return [
+			'approval_conversation_scope' => $parentScope,
 			'conversation_channel_id' => 'sub-agent-catalog:' . $this->getId() . ':' . $agentId,
 			'sub_agent_id' => $agentId,
 			'agent_id' => $agentId,

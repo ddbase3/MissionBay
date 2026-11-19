@@ -755,7 +755,7 @@ final class AgentActionReviewResumeTest extends TestCase {
 			new AgentModelDecisionStage(),
 			new AgentActionPolicyStage(
 				new StaticAgentActionPolicyResolver([
-					new MutationApprovalAgentActionPolicy(),
+					new MutationApprovalAgentActionPolicy(new \Base3\MissionBay\Test\Policy\Fixture\PolicyTestAgentConfigurations(), new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore()),
 					new AllowAllAgentActionPolicy()
 				]),
 				$fingerprint,
@@ -766,7 +766,7 @@ final class AgentActionReviewResumeTest extends TestCase {
 				'action-policy',
 				['mutation-approval-actions', 'allow-all-actions']
 			),
-			new AgentToolExecutionStage($events, mutationCommitGuardService: $commitGuard),
+			new AgentToolExecutionStage($events, $reviewService, mutationCommitGuardService: $commitGuard),
 			new AgentToolObservationStage()
 		];
 

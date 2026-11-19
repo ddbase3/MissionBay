@@ -19,6 +19,9 @@ namespace Base3\MissionBay\Resource\AgentTool\Agent;
 
 use Base3\AssistantFoundation\Api\IAgentExecutionService;
 use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\MissionBay\Exception\AgentSubAgentSuspendedException;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use Base3\CoreFoundation\Api\ISchemaProvider;
 use Base3\AssistantFoundation\Api\IAgentConfigurationService;
 use InvalidArgumentException;
@@ -228,11 +231,17 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 				return $this->errorResult('No user prompt was provided and the configured agent has no default prompt.', 'missing_prompt');
 			}
 
+			$resume = $context->getVar(AgentToolLoopContextKeys::DELEGATED_RESUME);
+			$inputs = $this->buildAgentInputs($settings, $prompt);
+			if ($resume instanceof AgentResume) {
+				$inputs['resume'] = $resume->toArray();
+			}
 			$result = $this->agentExecutionService->execute(new AgentExecutionRequest(
 				$settings,
-				$this->buildAgentInputs($settings, $prompt),
-				$this->buildAgentContextVars($settings, $arguments, $prompt)
+				$inputs,
+				$this->buildAgentContextVars($settings, $arguments, $prompt, $context)
 			));
+			$this->requireCompletedChildOrSuspend($result);
 
 			$output = $result->getOutput();
 			$message = $this->extractAssistantMessage($output);
@@ -249,9 +258,25 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 
 			return $this->successResult($settings, $prompt, $message, $output);
 		}
+		catch (AgentSubAgentSuspendedException $e) {
+			throw $e;
+		}
 		catch(Throwable $e) {
 			return $this->errorResult('Sub-agent execution failed: ' . $e->getMessage(), 'execution_failed');
 		}
+	}
+
+	/** Suspensions remain control-flow outcomes, never tool-result JSON. */
+	private function requireCompletedChildOrSuspend(\Base3\AssistantFoundation\Dto\AgentExecutionResult $result): void {
+		$agentResult = $result->getAgentResult();
+		if ($agentResult === null || !$agentResult->isSuspended()) {
+			return;
+		}
+		$suspension = $agentResult->getState()->getSuspension();
+		if ($suspension === null || !$suspension->isSuspended()) {
+			throw new \RuntimeException('Suspended sub-agent has no valid suspension state.');
+		}
+		throw new AgentSubAgentSuspendedException($suspension, $suspension->getExpiresAt());
 	}
 
 	// ----------------------------------------------------
@@ -308,8 +333,10 @@ class RunConfiguredAgentTool extends AbstractAgentResource implements IAgentTool
 	 * @param array<string,mixed> $arguments
 	 * @return array<string,mixed>
 	 */
-	private function buildAgentContextVars(array $settings, array $arguments, string $prompt): array {
+	private function buildAgentContextVars(array $settings, array $arguments, string $prompt, IAgentContext $parent): array {
+		$parentScope = (new \Base3\MissionBay\Orchestrator\AgentActionFingerprint())->conversationApprovalScope($parent);
 		return [
+			'approval_conversation_scope' => $parentScope,
 			'conversation_channel_id' => 'sub-agent:' . $this->getId() . ':' . $this->agentId,
 			'sub_agent_id' => $this->agentId,
 			'agent_id' => $this->agentId,

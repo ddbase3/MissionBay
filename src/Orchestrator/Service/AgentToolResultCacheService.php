@@ -133,6 +133,23 @@ final class AgentToolResultCacheService {
 			$resourceId = $this->resolveResourceId($tool);
 			$implementationName = $this->resolveImplementationName($tool);
 
+			$delegation = $context->getVar(AgentToolLoopContextKeys::DELEGATED_RESUME);
+			if (is_array($delegation)
+				&& ($delegation['call_id'] ?? null) === $callId
+				&& ($delegation['tool_name'] ?? null) === $toolName) {
+				$summary['bypassed']++;
+				$records[] = new AgentToolCacheRecord(
+					$iteration,
+					$callId,
+					$toolName,
+					$identity,
+					AgentToolCacheRecord::STATUS_BYPASS,
+					reason: 'delegated_resume_not_cacheable'
+				);
+				$remaining[] = $call;
+				continue;
+			}
+
 			if ($this->mutationCommitGuardService->isMutation($call, $context)) {
 				$summary['bypassed']++;
 				$records[] = new AgentToolCacheRecord(

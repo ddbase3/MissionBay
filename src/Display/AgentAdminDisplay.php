@@ -27,11 +27,21 @@ use Base3\CoreFoundation\Api\IMvcView;
 use Base3\CoreFoundation\Api\IRequest;
 use Base3\CoreFoundation\LinkTarget\Api\ILinkTargetService;
 use Base3\AssistantFoundation\Api\IAgentConfigurationService;
+use Base3\AssistantFoundation\Api\IAgentSuspensionRepository;
+use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentInteractionRequest;
+use Base3\AssistantFoundation\Dto\AgentInteractionResponse;
+use Base3\AssistantFoundation\Dto\AgentSuspensionState;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentSuspensionScope;
+use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
 use Base3\CoreFoundation\Translation\Api\ITranslation;
 use Base3\CoreFoundation\Worker\Api\IJobExecutionPolicy;
 use Base3\AssistantFoundation\Api\IAgentExecutionService;
 use Base3\AssistantFoundation\Api\IAgentRuntimeRegistry;
 use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
+use Base3\AssistantFoundation\Dto\AgentExecutionResult;
+use Base3\MissionBay\Job\ScheduledAgentRunnerJob;
 use JsonException;
 use Base3\AssistantFoundation\Api\IAgentConfigFormService;
 use Throwable;
@@ -44,41 +54,44 @@ use Throwable;
  */
 final class AgentAdminDisplay implements IDisplay {
 
-        private const SETTINGS_GROUP = 'agent';
-        private const ASSISTANT_NODE_ID = 'assistant';
-        private const BATCH_SIZE = 50;
+	private const SETTINGS_GROUP = 'agent';
+	private const ASSISTANT_NODE_ID = 'assistant';
+	private const BATCH_SIZE = 50;
 
-        /**
-         * @var array<int,array<string,mixed>>|null
-         */
-        private ?array $policyOptions = null;
+	/**
+	 * @var array<int,array<string,mixed>>|null
+	 */
+	private ?array $policyOptions = null;
 
-        /** @var array<string,mixed> */
-        private array $data = [];
+	/** @var array<string,mixed> */
+	private array $data = [];
 
-        public function __construct(
-                private readonly IRequest $request,
-                private readonly IMvcView $view,
-                private readonly IAssetResolver $assetResolver,
-                private readonly IAgentConfigurationService $agentConfigurations,
-                private readonly ILinkTargetService $linkTargetService,
-                private readonly IClassMap $classMap,
-                private readonly IAgentConfigFormService $agentConfigFormService,
-                private readonly IAgentExecutionService $agentExecutionService,
-                private readonly IAgentRuntimeRegistry $agentRuntimeRegistry,
+	public function __construct(
+		private readonly IRequest $request,
+		private readonly IMvcView $view,
+		private readonly IAssetResolver $assetResolver,
+		private readonly IAgentConfigurationService $agentConfigurations,
+		private readonly ILinkTargetService $linkTargetService,
+		private readonly IClassMap $classMap,
+		private readonly IAgentConfigFormService $agentConfigFormService,
+		private readonly IAgentExecutionService $agentExecutionService,
+		private readonly IAgentRuntimeRegistry $agentRuntimeRegistry,
 		private readonly IAuthorizationService $settingsAuthorization,
-		private readonly ITranslation $translation
+		private readonly ITranslation $translation,
+		private readonly IUsermanager $usermanager,
+		private readonly IAgentSuspensionRepository $suspensionRepository,
+		private readonly ScheduledAgentRunnerJob $scheduledAgentRunnerJob
 	) {}
 
-        public static function getName(): string {
-                return 'agentadmindisplay';
-        }
+	public static function getName(): string {
+		return 'agentadmindisplay';
+	}
 
-        public function setData($data) {
-                $this->data = is_array($data) ? $data : [];
-        }
+	public function setData($data) {
+		$this->data = is_array($data) ? $data : [];
+	}
 
-        public function getOutput(string $out = 'html', bool $final = false): string {
+	public function getOutput(string $out = 'html', bool $final = false): string {
 		if (!$this->settingsAuthorization->decide(new AuthorizationRequest(
 			$this->settingsAuthorization->getDefaultAuthority(),
 			Permission::for('feature', \Base3\MissionBay\SettingsTab\AgentadminSettingsTab::getName())
@@ -87,1436 +100,1764 @@ final class AgentAdminDisplay implements IDisplay {
 			return '';
 		}
 
-                $out = strtolower((string)$out);
-
-                if($out === 'json') {
-                        return $this->handleJson($final);
-                }
-
-                return $this->handleHtml();
-        }
-
-        public function getHelp(): string {
-                return 'Administrates runtime-selectable agent configurations.';
-        }
-
-        private function handleHtml(): string {
-                $this->view->setPath(dirname(__DIR__, 2));
-                $this->view->setTemplate('Display/AgentAdminDisplay.php');
-
-                $defaultRecord = $this->buildDefaultRecord();
-                $formId = 'base3_agent_admin_editor_form';
-
-                $this->view->assign(
-                        'service',
-                        $this->linkTargetService->getLink(
-                                [
-                                        'name' => self::getName(),
-                                        'out' => 'json'
-                                ]
-                        )
-                );
-
-                $this->view->assign('settings_group', self::SETTINGS_GROUP);
-                $this->view->assign('policy_options', $this->listPolicyOptions());
-                $this->view->assign('default_record', $defaultRecord);
-                $this->view->assign('values', $defaultRecord);
-                $this->view->assign('group', self::SETTINGS_GROUP);
-                $this->view->assign('name', '');
-                $this->view->assign('form_id', $formId);
-                $this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string)$src));
-
-                $resources = is_array($this->data['resources'] ?? null) ? $this->data['resources'] : [];
-                $agentResources = ['enabled' => false];
-                if (!empty($resources['enabled']) && is_array($resources['endpoints'] ?? null)) {
-                        $agentResources = [
-                                'enabled' => true,
-                                'endpoints' => $resources['endpoints'],
-                                'max_file_size' => (int)($resources['max_file_size'] ?? 50 * 1024 * 1024),
-                                'accept' => (string)($resources['accept'] ?? 'application/pdf,.pdf'),
-                                'module_url' => $this->assetResolver->resolve('plugin/ClientStack/assets/filemanager/index.js'),
-                                'css_url' => $this->assetResolver->resolve('plugin/ClientStack/assets/filemanager/styles/filemanager.css'),
-                                'section_label' => $this->translation->translate('Administration', 'missionbay_admin', 'agent_resources_section'),
-                                'help' => $this->translation->translate('Administration', 'missionbay_admin', 'agent_resources_help')
-                        ];
-                }
-
-                $this->agentConfigFormService->assignViewData($this->view, $defaultRecord, [
-                        'form_id' => $formId,
-                        'agent_resources' => $agentResources
-                ]);
-
-                return $this->view->loadTemplate();
-        }
-
-        private function handleJson(bool $final = false): string {
-                try {
-                        $response = $this->buildJsonResponse();
-                }
-                catch(Throwable $e) {
-                        $response = [
-                                'ok' => false,
-                                'mode' => 'error',
-                                'error' => 'Agent admin request failed.',
-                                'details' => $e->getMessage()
-                        ];
-                }
-
-                if($final && !headers_sent()) {
-                        header('Content-Type: application/json; charset=utf-8');
-                }
-
-                return (string)json_encode(
-                        $response,
-                        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
-                );
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function buildJsonResponse(): array {
-                $payload = $this->getRequestPayload();
-                $request = $this->normalizeRequest($payload);
-
-                if($request['mode'] === 'record') {
-                        return $this->buildRecordResponse($request['id']);
-                }
-
-                if($request['mode'] === 'create') {
-                        return $this->buildCreateResponse();
-                }
-
-                if($request['mode'] === 'save') {
-                        return $this->buildSaveResponse();
-                }
-
-                if($request['mode'] === 'delete') {
-                        return $this->buildDeleteResponse($request['id']);
-                }
-
-                if($request['mode'] === 'run') {
-                        return $this->buildRunResponse($request['id'], $payload);
-                }
-
-                if($request['mode'] === 'reload') {
-                        return $this->buildReloadResponse();
-                }
-
-                return $this->buildPageResponse($request);
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function getRequestPayload(): array {
-                $payload = $this->request->getJsonBody();
-
-                if(!is_array($payload)) {
-                        $payload = [];
-                }
-
-                $mode = trim((string)$this->request->request('mode', ''));
-                if($mode !== '') {
-                        $payload['mode'] = $mode;
-                }
-
-                $id = trim((string)$this->request->request('id', ''));
-                if($id === '') {
-                        $id = trim((string)$this->request->request('agent_id', ''));
-                }
-
-                if($id !== '') {
-                        $payload['id'] = $id;
-                }
-
-                return $payload;
-        }
-
-        /**
-         * @param array<string,mixed> $payload
-         * @return array<string,mixed>
-         */
-        private function normalizeRequest(array $payload): array {
-                $mode = 'page';
-                $allowedModes = ['page', 'record', 'create', 'save', 'delete', 'run', 'reload'];
-
-                if(isset($payload['mode']) && is_string($payload['mode']) && in_array($payload['mode'], $allowedModes, true)) {
-                        $mode = $payload['mode'];
-                }
-
-                $page = isset($payload['page']) ? (int)$payload['page'] : 1;
-                $page = max(1, $page);
-
-                $pageSize = isset($payload['pageSize']) ? (int)$payload['pageSize'] : self::BATCH_SIZE;
-                $pageSize = max(1, min(250, $pageSize));
-
-                $search = '';
-                if(isset($payload['search']) && is_scalar($payload['search'])) {
-                        $search = trim((string)$payload['search']);
-                }
-
-                $id = '';
-                if(isset($payload['id']) && is_scalar($payload['id'])) {
-                        $id = $this->normalizeTechnicalKey((string)$payload['id']);
-                }
-
-                return [
-                        'mode' => $mode,
-                        'page' => $page,
-                        'pageSize' => $pageSize,
-                        'search' => $search,
-                        'id' => $id,
-                        'sort' => $this->normalizeSort($payload['sort'] ?? null),
-                        'filters' => $this->normalizeFilters($payload['filters'] ?? [])
-                ];
-        }
-
-        /**
-         * @param array<string,mixed> $request
-         * @return array<string,mixed>
-         */
-        private function buildPageResponse(array $request): array {
-                $rows = $this->loadRows();
-                $rows = $this->applySearch($rows, $request['search']);
-                $rows = $this->applyFilters($rows, $request['filters']);
-                $rows = $this->applySort($rows, $request['sort']);
-
-                $total = count($rows);
-                $pageSize = (int)$request['pageSize'];
-                $page = (int)$request['page'];
-                $totalPages = $pageSize > 0 ? (int)ceil($total / $pageSize) : 0;
-                $offset = max(0, ($page - 1) * $pageSize);
-                $pageRows = array_slice($rows, $offset, $pageSize);
-                $data = [];
-
-                foreach($pageRows as $row) {
-                        $data[] = [
-                                'id' => $row['id'],
-                                'fixed' => $row['fixed'],
-                                'agent_id' => $row['agent_id'],
-                                'label' => $row['label'],
-                                'enabled' => $row['enabled'],
-                                'enabled_label' => $row['enabled_label'],
-                                'policy' => $row['policy'],
-                                'policy_label' => $row['policy_label'],
-                                'policy_data_text' => $row['policy_data_text'],
-                                'agent_runtime' => $row['agent_runtime'],
-                                'agent_provider' => $row['agent_provider'],
-                                'agent_model' => $row['agent_model'],
-                                'orchestrator_profile' => $row['orchestrator_profile'],
-                                'memory_profile' => $row['memory_profile'],
-                                'tool_profile_count' => $row['tool_profile_count'],
-                                'tool_profile_text' => $row['tool_profile_text'],
-                                'component_count' => $row['component_count'],
-                                'user_prompt_preview' => $row['user_prompt_preview']
-                        ];
-                }
-
-                return [
-                        'ok' => true,
-                        'mode' => 'page',
-                        'data' => $data,
-                        'groups' => [],
-                        'page' => $page,
-                        'pageSize' => $pageSize,
-                        'total' => $total,
-                        'totalPages' => $totalPages,
-                        'hasMore' => ($offset + $pageSize) < $total,
-                        'nextCursor' => null,
-                        'appliedSearch' => $request['search'],
-                        'appliedSort' => [$request['sort']],
-                        'appliedFilters' => $request['filters'],
-                        'appliedGroup' => []
-                ];
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function buildRecordResponse(string $id): array {
-                if($id === '') {
-                        return $this->buildErrorResponse('Missing agent id.', 'record');
-                }
-
-                if(!$this->agentConfigurations->hasAgent($id)) {
-                        return $this->buildErrorResponse('Agent not found: ' . $id, 'record');
-                }
-
-                $settings = $this->agentConfigurations->getAgent($id);
-
-                if(!is_array($settings)) {
-                        $settings = [];
-                }
-
-                return [
-                        'ok' => true,
-                        'mode' => 'record',
-                        'record' => $this->normalizeRow($id, $settings)
-                ];
-        }
-
-        /**
-         * Creates a durable, inactive agent before any file can be uploaded.
-         * The UUID is the one canonical agent id, not a separate upload key.
-         *
-         * @return array<string,mixed>
-         */
-        private function buildCreateResponse(): array {
-                $bytes = random_bytes(16);
-                $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
-                $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
-                $hex = bin2hex($bytes);
-                $id = substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-'
-                        . substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
-
-                if ($this->agentConfigurations->hasAgent($id)) {
-                        return $this->buildErrorResponse($this->translation->translate('Administration', 'missionbay_admin', 'agent_create_collision'), 'create');
-                }
-
-                $settings = array_merge($this->agentConfigFormService->getDefaultSettings(), [
-                        'enabled' => false,
-                        'label' => '',
-                        'user_prompt' => '',
-                        'policy' => [
-                                'policy' => $this->getDefaultPolicyId(),
-                                'data' => []
-                        ]
-                ]);
-
-                // Build the editor data first: an invalid form configuration must
-                // never leave a persisted draft whose identity the client never saw.
-                $record = array_merge($this->normalizeRow($id, $settings), ['is_new_draft' => true, 'label' => '']);
-                $this->agentConfigurations->saveAgent($id, $settings);
-
-                return [
-                        'ok' => true,
-                        'mode' => 'create',
-                        'action' => 'created',
-                        'record' => $record
-                ];
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function buildSaveResponse(): array {
-                $oldId = $this->normalizeTechnicalKey((string)$this->request->request('old_id', ''));
-                $id = $this->normalizeTechnicalKey((string)$this->request->request('agent_id', ''));
-
-                if($id === '') {
-                        return $this->buildErrorResponse('Agent ID must not be empty.', 'save');
-                }
-
-                if($oldId !== '' && $oldId !== $id) {
-                        return $this->buildErrorResponse('Renaming agents is not supported in this editor.', 'save');
-                }
-
-                // New agent identities are created only by the server-side UUID
-                // action. A direct save must not create an unregistered owner or
-                // override the canonical identity used by file resources.
-                if ($oldId === '' || !$this->agentConfigurations->hasAgent($id)) {
-                        return $this->buildErrorResponse($this->translation->translate(
-                                'Administration', 'missionbay_admin', 'agent_save_missing_identity'
-                        ), 'save');
-                }
-
-                $errors = [];
-                $settings = $this->getPostedSettings($errors);
-
-                if($errors !== []) {
-                        return $this->buildErrorResponse(implode(' ', $errors), 'save');
-                }
-
-                if($this->agentConfigurations->isFixed($id) &&
-                        $settings['label'] !== ($this->agentConfigurations->getAgent($id)['label'] ?? null)) {
-                        return $this->buildErrorResponse($this->translation->translate(
-                                'Administration', 'missionbay_admin', 'fixed_agent_identity_protected', '', ['id' => $id]
-                        ), 'save');
-                }
-
-                try {
-                        $this->agentConfigurations->saveAgent($id, $settings);
-                }
-                catch(Throwable $e) {
-                        return $this->buildErrorResponse('Agent could not be saved: ' . $e->getMessage(), 'save');
-                }
-
-                return [
-                        'ok' => true,
-                        'mode' => 'save',
-                        'action' => 'saved',
-                        'record' => $this->normalizeRow($id, $settings)
-                ];
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function getPostedSettings(array &$errors): array {
-                $policyId = $this->normalizeTechnicalKey((string)$this->request->request('policy', ''));
-                $policyData = $this->normalizePostedPolicyData($policyId, $errors);
-                $agentSettings = $this->agentConfigFormService->getPostedSettings($errors);
-
-                if($policyId === '') {
-                        $errors[] = 'Please select a timing policy.';
-                }
-                elseif(!$this->policyExists($policyId)) {
-                        $errors[] = 'Selected timing policy does not exist: ' . $policyId;
-                }
-
-                return $this->normalizeAgentSettings(array_merge([
-                        'enabled' => $this->request->request('enabled') !== null,
-                        'label' => $this->normalizeLabel((string)$this->request->request('label', '')),
-                        'user_prompt' => $this->normalizeTextBlock((string)$this->request->request('user_prompt', '')),
-                        'policy' => [
-                                'policy' => $policyId,
-                                'data' => $policyData
-                        ]
-                ], $agentSettings));
-        }
-
-        /**
-         * @param array<string,mixed> $settings
-         * @return array<string,mixed>
-         */
-        private function normalizeAgentSettings(array $settings): array {
-                $policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
-                $policyId = $this->normalizeTechnicalKey((string)($policy['policy'] ?? ''));
-
-                if($policyId === '') {
-                        $policyId = $this->getDefaultPolicyId();
-                }
-
-                $policyData = is_array($policy['data'] ?? null) ? $policy['data'] : [];
-
-                return array_merge([
-                        'enabled' => $this->toBool($settings['enabled'] ?? true),
-                        'label' => $this->normalizeLabel((string)($settings['label'] ?? '')),
-                        'user_prompt' => $this->normalizeTextBlock((string)($settings['user_prompt'] ?? '')),
-                        'policy' => [
-                                'policy' => $policyId,
-                                'data' => $policyData
-                        ]
-                ], $this->agentConfigFormService->normalizeSettings($settings));
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function buildDeleteResponse(string $id): array {
-                $id = $this->normalizeTechnicalKey($id);
-
-                if($id === '') {
-                        return $this->buildErrorResponse('Missing agent id.', 'delete');
-                }
-
-                if($this->agentConfigurations->isFixed($id)) {
-                        return $this->buildErrorResponse($this->translation->translate(
-                                'Administration', 'missionbay_admin', 'fixed_agent_cannot_be_deleted', '', ['id' => $id]
-                        ), 'delete');
-                }
-
-                if(!$this->agentConfigurations->hasAgent($id)) {
-                        return $this->buildErrorResponse('Agent not found: ' . $id, 'delete');
-                }
-
-                try {
-                        $this->agentConfigurations->deleteAgent($id);
-                }
-                catch(Throwable $e) {
-                        return $this->buildErrorResponse('Agent could not be deleted: ' . $e->getMessage(), 'delete');
-                }
-
-                return [
-                        'ok' => true,
-                        'mode' => 'delete',
-                        'action' => 'deleted',
-                        'id' => $id
-                ];
-        }
-
-        /**
-         * @param array<string,mixed> $payload
-         * @return array<string,mixed>
-         */
-        private function buildRunResponse(string $id, array $payload): array {
-                $id = $this->normalizeTechnicalKey($id);
-
-                if($id === '') {
-                        return $this->buildErrorResponse('Missing agent id.', 'run');
-                }
-
-                if(!$this->agentConfigurations->hasAgent($id)) {
-                        return $this->buildErrorResponse('Agent not found: ' . $id, 'run');
-                }
-
-                $settings = $this->agentConfigurations->getAgent($id);
-
-                if(!is_array($settings)) {
-                        return $this->buildErrorResponse('Agent settings are invalid: ' . $id, 'run');
-                }
-
-                $settings = $this->normalizeAgentSettings($settings);
-                $userPrompt = $this->normalizeTextBlock($this->getRunUserPrompt($payload, $settings));
-                if(trim($userPrompt) === '') {
-                        return $this->buildErrorResponse('Please enter a user prompt before running the agent.', 'run');
-                }
-
-                try {
-                        $result = $this->agentExecutionService->execute(new AgentExecutionRequest(
-                                $settings,
-                                $this->buildAgentInputs($settings, $userPrompt),
-                                $this->buildAgentContextVars($id, $settings, $userPrompt)
-                        ));
-                }
-                catch(Throwable $e) {
-                        return $this->buildErrorResponse('Agent execution failed: ' . $e->getMessage(), 'run');
-                }
-
-                $output = $result->getOutput();
-                $agentResult = $result->getAgentResult();
-                if ($output === [] && $agentResult !== null) {
-                        $output = $agentResult->getOutput();
-                }
-
-                $message = $this->extractAssistantMessage($output);
-                $flowError = $this->extractFlowError($output);
-                $messageText = $message !== null ? $this->normalizeMessageContent($message['content'] ?? '') : '';
-                $status = $agentResult?->getStatus() ?? ($flowError === '' ? 'completed' : 'failed');
-
-                if ($flowError === '' && $agentResult?->hasFailure()) {
-                        $metadata = $agentResult->getMetadata();
-                        $flowError = trim((string)($metadata['error'] ?? $metadata['message'] ?? 'Agent runtime reported a failed execution.'));
-                }
-                if ($flowError === '' && $messageText === '') {
-                        $flowError = 'Agent execution returned no assistant message.';
-                }
-
-                $success = $flowError === '' && $messageText !== '';
-
-                return [
-                        'ok' => $success,
-                        'mode' => 'run',
-                        'action' => $success ? 'ran' : 'failed',
-                        'id' => $id,
-                        'status' => $status,
-                        'assistant_node_id' => self::ASSISTANT_NODE_ID,
-                        'message' => $message,
-                        'message_text' => $messageText,
-                        'flow_error' => $flowError,
-                        'result_text' => $this->formatRunResultText($messageText, $flowError, $output),
-                        'output' => $output,
-                        'warnings' => $result->getWarnings(),
-                        'agent_result' => $agentResult?->toArray()
-                ];
-        }
-
-        /**
-         * @param array<string,mixed> $payload
-         * @param array<string,mixed> $settings
-         */
-        private function getRunUserPrompt(array $payload, array $settings): string {
-                if(isset($payload['user_prompt']) && is_scalar($payload['user_prompt'])) {
-                        return (string)$payload['user_prompt'];
-                }
-
-                $postedPrompt = $this->request->request('user_prompt', null);
-
-                if(is_scalar($postedPrompt)) {
-                        return (string)$postedPrompt;
-                }
-
-                return (string)($settings['user_prompt'] ?? '');
-        }
-
-        /**
-         * @param array<string,mixed> $settings
-         * @return array<string,mixed>
-         */
-        private function buildAgentInputs(array $settings, string $userPrompt): array {
-                return [
-                        'system' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? '')),
-                        'prompt' => $userPrompt,
-                        'mode' => 'manual_agent'
-                ];
-        }
-
-        /**
-         * @param array<string,mixed> $settings
-         * @return array<string,mixed>
-         */
-        private function buildAgentContextVars(string $agentId, array $settings, string $userPrompt): array {
-                return [
-                        'conversation_channel_id' => 'agent-admin:' . $agentId,
-                        'agent_id' => $agentId,
-                        'agent_config_group' => self::SETTINGS_GROUP,
-                        'agent_label' => trim((string)($settings['label'] ?? '')),
-                        'agent_config' => $settings,
-                        'agent_run_mode' => 'manual',
-                        'agent_user_prompt' => $userPrompt
-                ];
-        }
-
-        /**
-         * @param array<string,mixed> $output
-         * @return ?array<string,mixed>
-         */
-        private function extractAssistantMessage(array $output): ?array {
-                if(isset($output[self::ASSISTANT_NODE_ID]['message']) && is_array($output[self::ASSISTANT_NODE_ID]['message'])) {
-                        return $output[self::ASSISTANT_NODE_ID]['message'];
-                }
-
-                return null;
-        }
-
-        /**
-         * @param array<string,mixed> $output
-         */
-        private function extractFlowError(array $output): string {
-                if(isset($output[self::ASSISTANT_NODE_ID]['error']) && is_scalar($output[self::ASSISTANT_NODE_ID]['error'])) {
-                        return trim((string)$output[self::ASSISTANT_NODE_ID]['error']);
-                }
-
-                return '';
-        }
-
-        /**
-         * @param array<string,mixed> $output
-         */
-        private function formatRunResultText(string $messageText, string $flowError, array $output): string {
-                if($messageText !== '') {
-                        return $messageText;
-                }
-
-                if($flowError !== '') {
-                        return 'Flow error: ' . $flowError;
-                }
-
-                return 'Agent run finished, but no assistant message was returned. ' . $this->describeFlowOutput($output);
-        }
-
-        /**
-         * @param array<string,mixed> $output
-         */
-        private function describeFlowOutput(array $output): string {
-                $nodeIds = array_keys($output);
-                $nodeIds = array_map('strval', $nodeIds);
-                $nodeIds = array_values(array_filter($nodeIds, static fn(string $id): bool => $id !== ''));
-
-                if($nodeIds === []) {
-                        return 'No terminal node output was returned.';
-                }
-
-                return 'Terminal nodes: ' . implode(', ', $nodeIds) . '.';
-        }
-
-        private function normalizeMessageContent(mixed $content): string {
-                if($content === null) {
-                        return '';
-                }
-
-                if(is_string($content)) {
-                        return $content;
-                }
-
-                if(is_bool($content)) {
-                        return $content ? 'true' : 'false';
-                }
-
-                if(is_int($content) || is_float($content)) {
-                        return (string)$content;
-                }
-
-                $json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-                return is_string($json) && $json !== 'null' ? $json : '';
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function buildReloadResponse(): array {
-                try {
-                        $this->agentConfigurations->reload();
-                }
-                catch(Throwable $e) {
-                        return $this->buildErrorResponse('Agent store could not be reloaded: ' . $e->getMessage(), 'reload');
-                }
-
-                return [
-                        'ok' => true,
-                        'mode' => 'reload',
-                        'action' => 'reloaded'
-                ];
-        }
-
-        /**
-         * @return array<int,array<string,mixed>>
-         */
-        private function loadRows(): array {
-                $group = $this->agentConfigurations->getAgents();
-
-                if(!is_array($group)) {
-                        return [];
-                }
-
-                $rows = [];
-
-                foreach($group as $id => $settings) {
-                        if(!is_string($id) && !is_int($id)) {
-                                continue;
-                        }
-
-                        if(!is_array($settings)) {
-                                $settings = [];
-                        }
-
-                        $rows[] = $this->normalizeOverviewRow((string)$id, $settings);
-                }
-
-                return $rows;
-        }
-
-        /**
-         * @param array<string,mixed> $settings
-         * @return array<string,mixed>
-         */
-        private function normalizeRow(string $id, array $settings): array {
-                return $this->buildRowFromValues($id, $settings, $this->settingsToViewValues($id, $settings));
-        }
-
-        /**
-         * Grid rows describe stored settings without resolving the execution runtime.
-         * A runtime that is not installed must not make every other agent disappear.
-         *
-         * @param array<string,mixed> $settings
-         * @return array<string,mixed>
-         */
-        private function normalizeOverviewRow(string $id, array $settings): array {
-                $policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
-                $policyId = $this->normalizeTechnicalKey((string)($policy['policy'] ?? ''));
-                if($policyId === '') {
-                        $policyId = $this->getDefaultPolicyId();
-                }
-                $runtimeId = trim((string)($settings['agent_runtime'] ?? ''));
-                $runtimeSummary = [];
-                if($runtimeId !== '' && $this->agentRuntimeRegistry->hasRuntime($runtimeId)) {
-                        $runtimeSummary = $this->agentRuntimeRegistry
-                                ->getConfigFormService($runtimeId)
-                                ->getConfigurationSummary($settings);
-                }
-
-                $values = array_merge($settings, [
-                        'enabled' => $this->toBool($settings['enabled'] ?? true),
-                        'label' => $this->normalizeLabel((string)($settings['label'] ?? '')),
-                        'user_prompt' => $this->normalizeTextBlock((string)($settings['user_prompt'] ?? '')),
-                        'policy_policy' => $policyId,
-                        'policy_data' => is_array($policy['data'] ?? null) ? $policy['data'] : [],
-                        'agent_runtime' => $runtimeId,
-                        'agent_runtime_summary' => $runtimeSummary
-                ]);
-
-                return $this->buildRowFromValues($id, $settings, $values);
-        }
-
-        /**
-         * @param array<string,mixed> $settings
-         * @param array<string,mixed> $values
-         * @return array<string,mixed>
-         */
-        private function buildRowFromValues(string $id, array $settings, array $values): array {
-                $id = $this->normalizeTechnicalKey($id);
-                $policyId = (string)($values['policy_policy'] ?? '');
-                $policyData = is_array($values['policy_data'] ?? null) ? $values['policy_data'] : [];
-                $label = $this->normalizeLabel((string)($values['label'] ?? ''));
-                $agentComponents = is_array($values['agent_components'] ?? null) ? $values['agent_components'] : [];
-                $toolProfiles = is_array($values['tool_profiles'] ?? null) ? array_values(array_map('strval', $values['tool_profiles'])) : [];
-                $orchestratorProfile = trim((string)($values['orchestrator_profile'] ?? 'standard'));
-                $memoryProfile = trim((string)($values['memory_profile'] ?? ''));
-                $settingsJson = $this->encodePrettyJson($this->redactSensitiveData($settings));
-                $runtimeSummary = is_array($values['agent_runtime_summary'] ?? null)
-                        ? $values['agent_runtime_summary']
-                        : [];
-
-                return array_merge($values, [
-                        'id' => $id,
-                        'agent_id' => $id,
-                        'old_id' => $id,
-                        'fixed' => $this->agentConfigurations->isFixed($id),
-                        'label' => $label !== '' ? $label : $id,
-                        'agent_config_group' => self::SETTINGS_GROUP,
-                        'agent_config_name' => $id,
-                        'enabled_label' => !empty($values['enabled']) ? 'enabled' : 'disabled',
-                        'policy' => $policyId,
-                        'policy_label' => $this->getPolicyLabel($policyId),
-                        'policy_data_text' => $this->formatPolicyDataText($policyData),
-                        'agent_runtime' => trim((string)($values['agent_runtime'] ?? '')),
-                        'agent_provider' => trim((string)($runtimeSummary['provider'] ?? '')),
-                        'agent_model' => trim((string)($runtimeSummary['model'] ?? '')),
-                        'orchestrator_profile' => $orchestratorProfile !== '' ? $orchestratorProfile : 'standard',
-                        'memory_profile' => $memoryProfile,
-                        'tool_profile_count' => count($toolProfiles),
-                        'tool_profile_text' => implode(', ', $toolProfiles),
-                        'component_count' => count($agentComponents),
-                        'user_prompt_preview' => $this->shorten((string)($values['user_prompt'] ?? ''), 160),
-                        'settings_json' => $settingsJson
-                ]);
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function buildDefaultRecord(): array {
-                $settings = array_merge([
-                        'enabled' => true,
-                        'label' => '',
-                        'user_prompt' => '',
-                        'policy' => [
-                                'policy' => $this->getDefaultPolicyId(),
-                                'data' => []
-                        ]
-                ], $this->agentConfigFormService->getDefaultSettings());
-
-                return $this->normalizeRow('', $settings);
-        }
-
-        /**
-         * @param array<string,mixed> $settings
-         * @return array<string,mixed>
-         */
-        private function settingsToViewValues(string $id, array $settings): array {
-                $policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
-                $policyId = $this->normalizeTechnicalKey((string)($policy['policy'] ?? ''));
-
-                if($policyId === '') {
-                        $policyId = $this->getDefaultPolicyId();
-                }
-
-                $policyData = is_array($policy['data'] ?? null) ? $policy['data'] : [];
-
-                return array_merge([
-                        'enabled' => $this->toBool($settings['enabled'] ?? true),
-                        'label' => $this->normalizeLabel((string)($settings['label'] ?? '')),
-                        'user_prompt' => $this->normalizeTextBlock((string)($settings['user_prompt'] ?? '')),
-                        'policy_policy' => $policyId,
-                        'policy_data' => $policyData,
-                        'agent_config_group' => self::SETTINGS_GROUP,
-                        'agent_config_name' => $id
-                ], $this->agentConfigFormService->settingsToViewValues($settings));
-        }
-
-        /**
-         * @param mixed $sortPayload
-         * @return array<string,string>
-         */
-        private function normalizeSort(mixed $sortPayload): array {
-                $allowedKeys = [
-                        'agent_id',
-                        'label',
-                        'enabled_label',
-                        'policy_label',
-                        'agent_runtime',
-                        'agent_model',
-                        'tool_profile_count',
-                        'component_count',
-                        'user_prompt_preview'
-                ];
-
-                $sort = [
-                        'key' => 'agent_id',
-                        'dir' => 'asc',
-                        'type' => 'string'
-                ];
-
-                if(!is_array($sortPayload) || count($sortPayload) === 0) {
-                        return $sort;
-                }
-
-                $first = reset($sortPayload);
-
-                if(!is_array($first)) {
-                        return $sort;
-                }
-
-                $key = isset($first['key']) ? (string)$first['key'] : 'agent_id';
-                if(!in_array($key, $allowedKeys, true)) {
-                        $key = 'agent_id';
-                }
-
-                $dir = isset($first['dir']) ? strtolower((string)$first['dir']) : 'asc';
-                $dir = $dir === 'desc' ? 'desc' : 'asc';
-                $type = in_array($key, ['tool_profile_count', 'component_count'], true) ? 'int' : 'string';
-
-                return [
-                        'key' => $key,
-                        'dir' => $dir,
-                        'type' => $type
-                ];
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function normalizeFilters(mixed $filters): array {
-                if(!is_array($filters)) {
-                        return [];
-                }
-
-                $out = [];
-
-                foreach(['enabled', 'policy', 'model'] as $key) {
-                        if(!array_key_exists($key, $filters) || $filters[$key] === null || $filters[$key] === '') {
-                                continue;
-                        }
-
-                        $out[$key] = trim((string)$filters[$key]);
-                }
-
-                return $out;
-        }
-
-        /**
-         * @param array<int,array<string,mixed>> $rows
-         * @return array<int,array<string,mixed>>
-         */
-        private function applySearch(array $rows, string $search): array {
-                if($search === '') {
-                        return $rows;
-                }
-
-                $needle = $this->toLower($search);
-                $result = [];
-
-                foreach($rows as $row) {
-                        $haystack = implode("\n", [
-                                (string)($row['agent_id'] ?? ''),
-                                (string)($row['label'] ?? ''),
-                                (string)($row['enabled_label'] ?? ''),
-                                (string)($row['policy'] ?? ''),
-                                (string)($row['policy_label'] ?? ''),
-                                (string)($row['agent_runtime'] ?? ''),
-                                (string)($row['agent_provider'] ?? ''),
-                                (string)($row['agent_model'] ?? ''),
-                                (string)($row['orchestrator_profile'] ?? ''),
-                                (string)($row['memory_profile'] ?? ''),
-                                (string)($row['tool_profile_text'] ?? ''),
-                                (string)($row['user_prompt_preview'] ?? ''),
-                                (string)($row['settings_json'] ?? '')
-                        ]);
-
-                        if(str_contains($this->toLower($haystack), $needle)) {
-                                $result[] = $row;
-                        }
-                }
-
-                return $result;
-        }
-
-        /**
-         * @param array<int,array<string,mixed>> $rows
-         * @param array<string,mixed> $filters
-         * @return array<int,array<string,mixed>>
-         */
-        private function applyFilters(array $rows, array $filters): array {
-                if($filters === []) {
-                        return $rows;
-                }
-
-                $result = [];
-
-                foreach($rows as $row) {
-                        if(isset($filters['enabled'])) {
-                                $enabled = $this->toBool($row['enabled'] ?? false) ? '1' : '0';
-
-                                if($enabled !== (string)$filters['enabled']) {
-                                        continue;
-                                }
-                        }
-
-                        if(isset($filters['policy']) && (string)($row['policy'] ?? '') !== (string)$filters['policy']) {
-                                continue;
-                        }
-
-                        if(isset($filters['model'])) {
-                                $modelText = trim((string)($row['agent_provider'] ?? '') . ' ' . (string)($row['agent_model'] ?? ''));
-                                if(str_contains($this->toLower($modelText), $this->toLower((string)$filters['model'])) === false) {
-                                        continue;
-                                }
-                        }
-
-                        $result[] = $row;
-                }
-
-                return $result;
-        }
-
-        /**
-         * @param array<int,array<string,mixed>> $rows
-         * @param array<string,string> $sort
-         * @return array<int,array<string,mixed>>
-         */
-        private function applySort(array $rows, array $sort): array {
-                $key = $sort['key'] ?? 'agent_id';
-                $dir = $sort['dir'] ?? 'asc';
-
-                usort($rows, function(array $left, array $right) use ($key, $dir): int {
-                        if(in_array($key, ['tool_profile_count', 'component_count'], true)) {
-                                $result = ((int)($left[$key] ?? 0)) <=> ((int)($right[$key] ?? 0));
-                        }
-                        else {
-                                $result = strcmp($this->toLower((string)($left[$key] ?? '')), $this->toLower((string)($right[$key] ?? '')));
-                        }
-
-                        if($result === 0) {
-                                $result = strcmp($this->toLower((string)($left['agent_id'] ?? '')), $this->toLower((string)($right['agent_id'] ?? '')));
-                        }
-
-                        return $dir === 'desc' ? -$result : $result;
-                });
-
-                return $rows;
-        }
-
-        /**
-         * @return array<int,array<string,mixed>>
-         */
-        private function listPolicyOptions(): array {
-                if($this->policyOptions !== null) {
-                        return $this->policyOptions;
-                }
-
-                $rows = [];
-
-                try {
-                        $policies = $this->classMap->getInstancesByInterface(IJobExecutionPolicy::class);
-                }
-                catch(Throwable) {
-                        $this->policyOptions = [];
-                        return [];
-                }
-
-                foreach($policies as $policy) {
-                        if(!$policy instanceof IJobExecutionPolicy) {
-                                continue;
-                        }
-
-                        $class = $policy::class;
-                        $id = $this->normalizeTechnicalKey((string)$class::getName());
-
-                        if($id === '') {
-                                continue;
-                        }
-
-                        $schema = $policy->getSchema();
-
-                        if(!is_array($schema)) {
-                                $schema = [];
-                        }
-
-                        $rows[$id] = [
-                                'id' => $id,
-                                'label' => $this->policyLabelFromClass($class, $id),
-                                'class' => $class,
-                                'schema' => $schema
-                        ];
-                }
-
-                $rows = array_values($rows);
-
-                usort($rows, static function(array $a, array $b): int {
-                        return strcasecmp((string)($a['label'] ?? ''), (string)($b['label'] ?? ''));
-                });
-
-                $this->policyOptions = $rows;
-
-                return $rows;
-        }
-
-        private function policyLabelFromClass(string $class, string $fallback): string {
-                $parts = explode('\\', $class);
-                $short = end($parts);
-
-                if(!is_string($short) || $short === '') {
-                        return $fallback;
-                }
-
-                $label = preg_replace('/(?<!^)[A-Z]/', ' $0', $short) ?? $short;
-                $label = trim(str_replace(' Job Policy', '', $label));
-
-                return $label !== '' ? $label : $fallback;
-        }
-
-        private function getPolicyLabel(string $id): string {
-                foreach($this->listPolicyOptions() as $option) {
-                        if((string)($option['id'] ?? '') === $id) {
-                                $label = trim((string)($option['label'] ?? ''));
-                                return $label !== '' ? $label : $id;
-                        }
-                }
-
-                return $id;
-        }
-
-        private function policyExists(string $id): bool {
-                if($id === '') {
-                        return false;
-                }
-
-                foreach($this->listPolicyOptions() as $option) {
-                        if((string)($option['id'] ?? '') === $id) {
-                                return true;
-                        }
-                }
-
-                return false;
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function getPolicySchema(string $id): array {
-                foreach($this->listPolicyOptions() as $option) {
-                        if((string)($option['id'] ?? '') !== $id) {
-                                continue;
-                        }
-
-                        $schema = $option['schema'] ?? [];
-
-                        return is_array($schema) ? $schema : [];
-                }
-
-                return [];
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function getPolicySchemaProperties(array $schema): array {
-                if(is_array($schema['properties'] ?? null)) {
-                        return $schema['properties'];
-                }
-
-                if(is_array($schema['fields'] ?? null)) {
-                        return $schema['fields'];
-                }
-
-                $data = is_array($schema['data'] ?? null) ? $schema['data'] : [];
-
-                if(is_array($data['properties'] ?? null)) {
-                        return $data['properties'];
-                }
-
-                return [];
-        }
-
-        /**
-         * @return array<int,string>
-         */
-        private function getPolicySchemaRequired(array $schema): array {
-                if(is_array($schema['required'] ?? null)) {
-                        return array_map('strval', $schema['required']);
-                }
-
-                $data = is_array($schema['data'] ?? null) ? $schema['data'] : [];
-
-                if(is_array($data['required'] ?? null)) {
-                        return array_map('strval', $data['required']);
-                }
-
-                return [];
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function normalizePostedPolicyData(string $policyId, array &$errors): array {
-                $raw = [];
-                $jsonRaw = $this->decodePostedBase64Field('policy_data_b64', 'Timing policy data', $errors);
-
-                if($jsonRaw === '') {
-                        $jsonRaw = trim((string)$this->request->request('policy_data_json', ''));
-                }
-
-                if($jsonRaw !== '') {
-                        try {
-                                $decoded = json_decode($jsonRaw, true, 512, JSON_THROW_ON_ERROR);
-
-                                if(is_array($decoded)) {
-                                        $raw = $decoded;
-                                }
-                        }
-                        catch(JsonException $e) {
-                                $errors[] = 'Timing policy data must be valid JSON: ' . $e->getMessage();
-                        }
-                }
-
-                if($raw === []) {
-                        $raw = $this->request->request('policy_data', []);
-
-                        if(!is_array($raw)) {
-                                $raw = [];
-                        }
-                }
-
-                $schema = $this->getPolicySchema($policyId);
-                $properties = $this->getPolicySchemaProperties($schema);
-                $required = $this->getPolicySchemaRequired($schema);
-                $result = [];
-
-                foreach($properties as $key => $property) {
-                        if(!is_string($key) || !is_array($property)) {
-                                continue;
-                        }
-
-                        $type = (string)($property['type'] ?? 'string');
-                        $value = $raw[$key] ?? null;
-                        $isRequired = in_array($key, $required, true);
-
-                        if(($value === null || $value === '') && !$isRequired) {
-                                continue;
-                        }
-
-                        if(($value === null || $value === '') && $isRequired) {
-                                $errors[] = 'Timing policy field "' . $key . '" is required.';
-                                continue;
-                        }
-
-                        if($type === 'integer') {
-                                if(!is_numeric($value)) {
-                                        $errors[] = 'Timing policy field "' . $key . '" must be numeric.';
-                                        continue;
-                                }
-
-                                $result[$key] = (int)$value;
-                                continue;
-                        }
-
-                        if($type === 'number') {
-                                if(!is_numeric($value)) {
-                                        $errors[] = 'Timing policy field "' . $key . '" must be numeric.';
-                                        continue;
-                                }
-
-                                $result[$key] = (float)$value;
-                                continue;
-                        }
-
-                        if($type === 'boolean') {
-                                $result[$key] = $this->toBool($value);
-                                continue;
-                        }
-
-                        if($type === 'object' || $type === 'array') {
-                                $decoded = $this->decodePolicyJsonField((string)$value, $key, $errors);
-
-                                if($decoded !== null) {
-                                        $result[$key] = $decoded;
-                                }
-
-                                continue;
-                        }
-
-                        $value = trim((string)$value);
-                        $enum = is_array($property['enum'] ?? null) ? array_map('strval', $property['enum']) : [];
-
-                        if($enum !== [] && !in_array($value, $enum, true)) {
-                                $errors[] = 'Timing policy field "' . $key . '" has an invalid value.';
-                                continue;
-                        }
-
-                        $result[$key] = $value;
-                }
-
-                return $result;
-        }
-
-        private function decodePostedBase64Field(string $field, string $label, array &$errors): string {
-                $raw = trim((string)$this->request->request($field, ''));
-
-                if($raw === '') {
-                        return '';
-                }
-
-                $decoded = base64_decode($raw, true);
-
-                if(!is_string($decoded)) {
-                        $errors[] = $label . ' could not be decoded from base64.';
-
-                        return '';
-                }
-
-                return trim($decoded);
-        }
-
-        private function decodePolicyJsonField(string $raw, string $key, array &$errors): mixed {
-                $raw = trim($raw);
-
-                if($raw === '') {
-                        return [];
-                }
-
-                try {
-                        return json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-                }
-                catch(JsonException $e) {
-                        $errors[] = 'Timing policy field "' . $key . '" must be valid JSON: ' . $e->getMessage();
-
-                        return null;
-                }
-        }
-
-        private function getDefaultPolicyId(): string {
-                $options = $this->listPolicyOptions();
-
-                foreach(['manualonlyjobpolicy', 'dailyaftertimejobpolicy', 'dailywindowjobpolicy', 'cronjobpolicy', 'intervaljobpolicy'] as $preferred) {
-                        foreach($options as $option) {
-                                if((string)($option['id'] ?? '') === $preferred) {
-                                        return $preferred;
-                                }
-                        }
-                }
-
-                $first = $options[0]['id'] ?? '';
-
-                return is_string($first) ? $first : '';
-        }
-
-        /**
-         * @param array<string,mixed> $policyData
-         */
-        private function formatPolicyDataText(array $policyData): string {
-                if($policyData === []) {
-                        return '-';
-                }
-
-                $parts = [];
-
-                foreach($policyData as $key => $value) {
-                        if(is_scalar($value) || $value === null) {
-                                $parts[] = (string)$key . ': ' . (string)$value;
-                                continue;
-                        }
-
-                        $parts[] = (string)$key . ': ' . $this->shorten($this->encodePrettyJson($value), 60);
-                }
-
-                return implode(', ', $parts);
-        }
-
-        /**
-         * @return array<string,mixed>
-         */
-        private function buildErrorResponse(string $message, string $mode): array {
-                return [
-                        'ok' => false,
-                        'mode' => $mode,
-                        'error' => $message
-                ];
-        }
-
-        private function normalizeTextBlock(string $value): string {
-                return str_replace(["\r\n", "\r"], "\n", $value);
-        }
-
-        private function normalizeLabel(string $value): string {
-                return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
-        }
-
-        private function normalizeTechnicalKey(string $value): string {
-                $value = strtolower(trim($value));
-
-                return preg_replace('/[^a-z0-9._-]+/', '', $value) ?? '';
-        }
-
-        private function toBool(mixed $value): bool {
-                if(is_bool($value)) {
-                        return $value;
-                }
-
-                if(is_int($value)) {
-                        return $value === 1;
-                }
-
-                $value = strtolower(trim((string)$value));
-
-                return in_array($value, ['1', 'true', 'yes', 'on'], true);
-        }
-
-        private function toLower(string $value): string {
-                return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
-        }
-
-        private function shorten(string $value, int $maxLength): string {
-                $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
-
-                if($value === '') {
-                        return '';
-                }
-
-                if(strlen($value) <= $maxLength) {
-                        return $value;
-                }
-
-                return substr($value, 0, max(0, $maxLength - 3)) . '...';
-        }
-
-        private function redactSensitiveData(mixed $value, string $key = ''): mixed {
-                if($this->isSensitiveSettingsKey($key)) {
-                        return '[redacted]';
-                }
-
-                if(!is_array($value)) {
-                        return $value;
-                }
-
-                $result = [];
-
-                foreach($value as $childKey => $childValue) {
-                        $result[$childKey] = $this->redactSensitiveData($childValue, (string)$childKey);
-                }
-
-                return $result;
-        }
-
-        private function isSensitiveSettingsKey(string $key): bool {
-                $key = trim(strtolower(preg_replace('/[^a-z0-9]+/i', '_', $key) ?? $key), '_');
-
-                if($key === '') {
-                        return false;
-                }
-
-                if(in_array($key, [
-                        'password',
-                        'passwd',
-                        'secret',
-                        'token',
-                        'api_key',
-                        'apikey',
-                        'authorization',
-                        'credential',
-                        'credentials',
-                        'private_key',
-                        'client_secret',
-                        'access_token',
-                        'auth_token',
-                        'bearer_token'
-                ], true)) {
-                        return true;
-                }
-
-                foreach(['_password', '_passwd', '_secret', '_api_key', '_private_key', '_access_token', '_auth_token', '_bearer_token'] as $suffix) {
-                        if(str_ends_with($key, $suffix)) {
-                                return true;
-                        }
-                }
-
-                return false;
-        }
-
-        private function encodePrettyJson(mixed $value): string {
-                $json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-
-                return is_string($json) ? $json : '';
-        }
+		$out = strtolower((string)$out);
+
+		if($out === 'json') {
+			return $this->handleJson($final);
+		}
+
+		return $this->handleHtml();
+	}
+
+	public function getHelp(): string {
+		return 'Administrates runtime-selectable agent configurations.';
+	}
+
+	private function handleHtml(): string {
+		$this->view->setPath(dirname(__DIR__, 2));
+		$this->view->setTemplate('Display/AgentAdminDisplay.php');
+
+		$defaultRecord = $this->buildDefaultRecord();
+		$formId = 'base3_agent_admin_editor_form';
+
+		$this->view->assign(
+			'service',
+			$this->linkTargetService->getLink(
+				[
+					'name' => self::getName(),
+					'out' => 'json'
+				]
+			)
+		);
+
+		$this->view->assign('settings_group', self::SETTINGS_GROUP);
+		$this->view->assign('policy_options', $this->listPolicyOptions());
+		$this->view->assign('default_record', $defaultRecord);
+		$this->view->assign('values', $defaultRecord);
+		$this->view->assign('group', self::SETTINGS_GROUP);
+		$this->view->assign('name', '');
+		$this->view->assign('form_id', $formId);
+		$this->view->assign('resolve', fn($src) => $this->assetResolver->resolve((string)$src));
+
+		$resources = is_array($this->data['resources'] ?? null) ? $this->data['resources'] : [];
+		$agentResources = ['enabled' => false];
+		if (!empty($resources['enabled']) && is_array($resources['endpoints'] ?? null)) {
+			$agentResources = [
+				'enabled' => true,
+				'endpoints' => $resources['endpoints'],
+				'max_file_size' => (int)($resources['max_file_size'] ?? 50 * 1024 * 1024),
+				'accept' => (string)($resources['accept'] ?? 'application/pdf,.pdf'),
+				'module_url' => $this->assetResolver->resolve('plugin/ClientStack/assets/filemanager/index.js'),
+				'css_url' => $this->assetResolver->resolve('plugin/ClientStack/assets/filemanager/styles/filemanager.css'),
+				'section_label' => $this->translation->translate('Administration', 'missionbay_admin', 'agent_resources_section'),
+				'help' => $this->translation->translate('Administration', 'missionbay_admin', 'agent_resources_help')
+			];
+		}
+
+		$this->agentConfigFormService->assignViewData($this->view, $defaultRecord, [
+			'form_id' => $formId,
+			'agent_resources' => $agentResources
+		]);
+
+		return $this->view->loadTemplate();
+	}
+
+	private function handleJson(bool $final = false): string {
+		try {
+			$response = $this->buildJsonResponse();
+		}
+		catch(Throwable $e) {
+			$response = [
+				'ok' => false,
+				'mode' => 'error',
+				'error' => 'Agent admin request failed.',
+				'details' => $e->getMessage()
+			];
+		}
+
+		if($final && !headers_sent()) {
+			header('Content-Type: application/json; charset=utf-8');
+		}
+
+		return (string)json_encode(
+			$response,
+			JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT
+		);
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildJsonResponse(): array {
+		$payload = $this->getRequestPayload();
+		$request = $this->normalizeRequest($payload);
+
+		if($request['mode'] === 'record') {
+			return $this->buildRecordResponse($request['id']);
+		}
+
+		if($request['mode'] === 'create') {
+			return $this->buildCreateResponse();
+		}
+
+		if($request['mode'] === 'save') {
+			return $this->buildSaveResponse();
+		}
+
+		if($request['mode'] === 'delete') {
+			return $this->buildDeleteResponse($request['id']);
+		}
+
+		if($request['mode'] === 'run') {
+			return $this->buildRunResponse($request['id'], $payload);
+		}
+
+		if($request['mode'] === 'job_review') {
+			return $this->buildJobReviewResponse($request['id'], $payload);
+		}
+
+		if($request['mode'] === 'revoke_approval') {
+			return $this->buildRevokeApprovalResponse($request['id'], $payload);
+		}
+
+		if($request['mode'] === 'job_reset') {
+			return $this->buildJobResetResponse($request['id']);
+		}
+
+		if($request['mode'] === 'reload') {
+			return $this->buildReloadResponse();
+		}
+
+		return $this->buildPageResponse($request);
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function getRequestPayload(): array {
+		$payload = $this->request->getJsonBody();
+
+		if(!is_array($payload)) {
+			$payload = [];
+		}
+
+		$mode = trim((string)$this->request->request('mode', ''));
+		if($mode !== '') {
+			$payload['mode'] = $mode;
+		}
+
+		$id = trim((string)$this->request->request('id', ''));
+		if($id === '') {
+			$id = trim((string)$this->request->request('agent_id', ''));
+		}
+
+		if($id !== '') {
+			$payload['id'] = $id;
+		}
+
+		return $payload;
+	}
+
+	/**
+	 * @param array<string,mixed> $payload
+	 * @return array<string,mixed>
+	 */
+	private function normalizeRequest(array $payload): array {
+		$mode = 'page';
+		$allowedModes = ['page', 'record', 'create', 'save', 'delete', 'run', 'job_review', 'revoke_approval', 'job_reset', 'reload'];
+
+		if(isset($payload['mode']) && is_string($payload['mode']) && in_array($payload['mode'], $allowedModes, true)) {
+			$mode = $payload['mode'];
+		}
+
+		$page = isset($payload['page']) ? (int)$payload['page'] : 1;
+		$page = max(1, $page);
+
+		$pageSize = isset($payload['pageSize']) ? (int)$payload['pageSize'] : self::BATCH_SIZE;
+		$pageSize = max(1, min(250, $pageSize));
+
+		$search = '';
+		if(isset($payload['search']) && is_scalar($payload['search'])) {
+			$search = trim((string)$payload['search']);
+		}
+
+		$id = '';
+		if(isset($payload['id']) && is_scalar($payload['id'])) {
+			$id = $this->normalizeTechnicalKey((string)$payload['id']);
+		}
+
+		return [
+			'mode' => $mode,
+			'page' => $page,
+			'pageSize' => $pageSize,
+			'search' => $search,
+			'id' => $id,
+			'sort' => $this->normalizeSort($payload['sort'] ?? null),
+			'filters' => $this->normalizeFilters($payload['filters'] ?? [])
+		];
+	}
+
+	/**
+	 * @param array<string,mixed> $request
+	 * @return array<string,mixed>
+	 */
+	private function buildPageResponse(array $request): array {
+		$rows = $this->loadRows();
+		$rows = $this->applySearch($rows, $request['search']);
+		$rows = $this->applyFilters($rows, $request['filters']);
+		$rows = $this->applySort($rows, $request['sort']);
+
+		$total = count($rows);
+		$pageSize = (int)$request['pageSize'];
+		$page = (int)$request['page'];
+		$totalPages = $pageSize > 0 ? (int)ceil($total / $pageSize) : 0;
+		$offset = max(0, ($page - 1) * $pageSize);
+		$pageRows = array_slice($rows, $offset, $pageSize);
+		$data = [];
+
+		foreach($pageRows as $row) {
+			$data[] = [
+				'id' => $row['id'],
+				'fixed' => $row['fixed'],
+				'agent_id' => $row['agent_id'],
+				'label' => $row['label'],
+				'enabled' => $row['enabled'],
+				'enabled_label' => $row['enabled_label'],
+				'policy' => $row['policy'],
+				'policy_label' => $row['policy_label'],
+				'policy_data_text' => $row['policy_data_text'],
+				'agent_runtime' => $row['agent_runtime'],
+				'agent_provider' => $row['agent_provider'],
+				'agent_model' => $row['agent_model'],
+				'orchestrator_profile' => $row['orchestrator_profile'],
+				'memory_profile' => $row['memory_profile'],
+				'tool_profile_count' => $row['tool_profile_count'],
+				'tool_profile_text' => $row['tool_profile_text'],
+				'component_count' => $row['component_count'],
+				'user_prompt_preview' => $row['user_prompt_preview']
+			];
+		}
+
+		return [
+			'ok' => true,
+			'mode' => 'page',
+			'data' => $data,
+			'groups' => [],
+			'page' => $page,
+			'pageSize' => $pageSize,
+			'total' => $total,
+			'totalPages' => $totalPages,
+			'hasMore' => ($offset + $pageSize) < $total,
+			'nextCursor' => null,
+			'appliedSearch' => $request['search'],
+			'appliedSort' => [$request['sort']],
+			'appliedFilters' => $request['filters'],
+			'appliedGroup' => []
+		];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildRecordResponse(string $id): array {
+		if($id === '') {
+			return $this->buildErrorResponse('Missing agent id.', 'record');
+		}
+
+		if(!$this->agentConfigurations->hasAgent($id)) {
+			return $this->buildErrorResponse('Agent not found: ' . $id, 'record');
+		}
+
+		$settings = $this->agentConfigurations->getAgent($id);
+
+		if(!is_array($settings)) {
+			$settings = [];
+		}
+
+		return [
+			'ok' => true,
+			'mode' => 'record',
+			'record' => $this->normalizeRow($id, $settings)
+		];
+	}
+
+	/**
+	 * Creates a durable, inactive agent before any file can be uploaded.
+	 * The UUID is the one canonical agent id, not a separate upload key.
+	 *
+	 * @return array<string,mixed>
+	 */
+	private function buildCreateResponse(): array {
+		$bytes = random_bytes(16);
+		$bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+		$bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+		$hex = bin2hex($bytes);
+		$id = substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-'
+			. substr($hex, 12, 4) . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
+
+		if ($this->agentConfigurations->hasAgent($id)) {
+			return $this->buildErrorResponse($this->translation->translate('Administration', 'missionbay_admin', 'agent_create_collision'), 'create');
+		}
+
+		$settings = array_merge($this->agentConfigFormService->getDefaultSettings(), [
+			'enabled' => false,
+			'label' => '',
+			'user_prompt' => '',
+			'policy' => [
+				'policy' => $this->getDefaultPolicyId(),
+				'data' => []
+			]
+		]);
+
+		// Build the editor data first: an invalid form configuration must
+		// never leave a persisted draft whose identity the client never saw.
+		$record = array_merge($this->normalizeRow($id, $settings), ['is_new_draft' => true, 'label' => '']);
+		$this->agentConfigurations->saveAgent($id, $settings);
+
+		return [
+			'ok' => true,
+			'mode' => 'create',
+			'action' => 'created',
+			'record' => $record
+		];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildSaveResponse(): array {
+		$oldId = $this->normalizeTechnicalKey((string)$this->request->request('old_id', ''));
+		$id = $this->normalizeTechnicalKey((string)$this->request->request('agent_id', ''));
+
+		if($id === '') {
+			return $this->buildErrorResponse('Agent ID must not be empty.', 'save');
+		}
+
+		if($oldId !== '' && $oldId !== $id) {
+			return $this->buildErrorResponse('Renaming agents is not supported in this editor.', 'save');
+		}
+
+		// New agent identities are created only by the server-side UUID
+		// action. A direct save must not create an unregistered owner or
+		// override the canonical identity used by file resources.
+		if ($oldId === '' || !$this->agentConfigurations->hasAgent($id)) {
+			return $this->buildErrorResponse($this->translation->translate(
+				'Administration', 'missionbay_admin', 'agent_save_missing_identity'
+			), 'save');
+		}
+
+		$errors = [];
+		$settings = $this->getPostedSettings($errors);
+
+		if($errors !== []) {
+			return $this->buildErrorResponse(implode(' ', $errors), 'save');
+		}
+
+		if($this->agentConfigurations->isFixed($id) &&
+			$settings['label'] !== ($this->agentConfigurations->getAgent($id)['label'] ?? null)) {
+			return $this->buildErrorResponse($this->translation->translate(
+				'Administration', 'missionbay_admin', 'fixed_agent_identity_protected', '', ['id' => $id]
+			), 'save');
+		}
+
+		try {
+			// Approval grants belong to the trusted review action, never to form input.
+			$current = $this->agentConfigurations->getAgent($id);
+			if (is_array($current) && is_array($current['tool_approval_grants'] ?? null)) {
+				$settings['tool_approval_grants'] = $current['tool_approval_grants'];
+			}
+			$this->agentConfigurations->saveAgent($id, $settings);
+		}
+		catch(Throwable $e) {
+			return $this->buildErrorResponse('Agent could not be saved: ' . $e->getMessage(), 'save');
+		}
+
+		return [
+			'ok' => true,
+			'mode' => 'save',
+			'action' => 'saved',
+			'record' => $this->normalizeRow($id, $settings)
+		];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function getPostedSettings(array &$errors): array {
+		$policyId = $this->normalizeTechnicalKey((string)$this->request->request('policy', ''));
+		$policyData = $this->normalizePostedPolicyData($policyId, $errors);
+		$agentSettings = $this->agentConfigFormService->getPostedSettings($errors);
+
+		if($policyId === '') {
+			$errors[] = 'Please select a timing policy.';
+		}
+		elseif(!$this->policyExists($policyId)) {
+			$errors[] = 'Selected timing policy does not exist: ' . $policyId;
+		}
+
+		return $this->normalizeAgentSettings(array_merge([
+			'enabled' => $this->request->request('enabled') !== null,
+			'label' => $this->normalizeLabel((string)$this->request->request('label', '')),
+			'user_prompt' => $this->normalizeTextBlock((string)$this->request->request('user_prompt', '')),
+			'policy' => [
+				'policy' => $policyId,
+				'data' => $policyData
+			]
+		], $agentSettings));
+	}
+
+	/**
+	 * @param array<string,mixed> $settings
+	 * @return array<string,mixed>
+	 */
+	private function normalizeAgentSettings(array $settings): array {
+		$policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
+		$policyId = $this->normalizeTechnicalKey((string)($policy['policy'] ?? ''));
+
+		if($policyId === '') {
+			$policyId = $this->getDefaultPolicyId();
+		}
+
+		$policyData = is_array($policy['data'] ?? null) ? $policy['data'] : [];
+
+		return array_merge([
+			'enabled' => $this->toBool($settings['enabled'] ?? true),
+			'label' => $this->normalizeLabel((string)($settings['label'] ?? '')),
+			'user_prompt' => $this->normalizeTextBlock((string)($settings['user_prompt'] ?? '')),
+			'policy' => [
+				'policy' => $policyId,
+				'data' => $policyData
+			]
+		], $this->agentConfigFormService->normalizeSettings($settings));
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildDeleteResponse(string $id): array {
+		$id = $this->normalizeTechnicalKey($id);
+
+		if($id === '') {
+			return $this->buildErrorResponse('Missing agent id.', 'delete');
+		}
+
+		if($this->agentConfigurations->isFixed($id)) {
+			return $this->buildErrorResponse($this->translation->translate(
+				'Administration', 'missionbay_admin', 'fixed_agent_cannot_be_deleted', '', ['id' => $id]
+			), 'delete');
+		}
+
+		if(!$this->agentConfigurations->hasAgent($id)) {
+			return $this->buildErrorResponse('Agent not found: ' . $id, 'delete');
+		}
+
+		try {
+			$this->agentConfigurations->deleteAgent($id);
+		}
+		catch(Throwable $e) {
+			return $this->buildErrorResponse('Agent could not be deleted: ' . $e->getMessage(), 'delete');
+		}
+
+		return [
+			'ok' => true,
+			'mode' => 'delete',
+			'action' => 'deleted',
+			'id' => $id
+		];
+	}
+
+	/**
+	 * @param array<string,mixed> $payload
+	 * @return array<string,mixed>
+	 */
+	private function buildRunResponse(string $id, array $payload): array {
+		$id = $this->normalizeTechnicalKey($id);
+		if ($id === '') {
+			return $this->buildErrorResponse('Missing agent id.', 'run');
+		}
+		if (!$this->agentConfigurations->hasAgent($id)) {
+			return $this->buildErrorResponse('Agent not found: ' . $id, 'run');
+		}
+
+		$settings = $this->agentConfigurations->getAgent($id);
+		if (!is_array($settings)) {
+			return $this->buildErrorResponse('Agent settings are invalid: ' . $id, 'run');
+		}
+
+		$actor = $this->usermanager->getUser();
+		if ($actor === null || trim((string)$actor->id) === '') {
+			return $this->buildErrorResponse(
+				$this->translation->translate('Administration', 'missionbay_admin', 'hitl_actor_required'),
+				'run'
+			);
+		}
+
+		$channelId = 'agent-admin:' . $id;
+		$conversationId = 'manual:' . hash('sha256',
+			$this->settingsAuthorization->getDefaultAuthority() . "\0" . (string)$actor->id
+		);
+		$subjectKey = 'agent-admin:' . $this->settingsAuthorization->getDefaultAuthority() . ':user:' . (string)$actor->id;
+		$scopeId = AgentSuspensionScope::forConversation($channelId, $conversationId, $subjectKey);
+		$resume = null;
+		$grants = [];
+
+		try {
+			$pending = $this->suspensionRepository->findPending($scopeId);
+			if (array_key_exists('resume', $payload)) {
+				if (!is_array($payload['resume'])) {
+					return $this->buildRunResumeError('hitl_resume_invalid');
+				}
+				try {
+					$resume = AgentResume::fromArray($payload['resume']);
+				} catch (\InvalidArgumentException $e) {
+					return $this->buildRunResumeError('hitl_resume_invalid');
+				}
+				if (!$resume->hasExplicitResponses() && !$resume->hasResponseText()) {
+					return $this->buildRunResumeError('hitl_response_required_server');
+				}
+				if ($pending === null || !hash_equals($pending->getResumeHandle(), $resume->getResumeHandle())) {
+					return $this->buildRunResumeError('hitl_resume_unavailable');
+				}
+				$grants = $this->validatePersistentApprovals($resume, $pending);
+				if ($grants === null) {
+					return $this->buildRunResumeError('hitl_agent_approval_invalid');
+				}
+			}
+			elseif ($pending !== null) {
+				return $this->buildRunInteractionResponse(
+					$id,
+					$pending->getStatus(),
+					$pending->getResumeHandle(),
+					$pending->getInteractionRequests(),
+					$pending->getCreatedAt(),
+					$pending->getExpiresAt()
+				);
+			}
+
+			$settings = $this->normalizeAgentSettings($settings);
+			$userPrompt = $resume === null
+				? $this->normalizeTextBlock($this->getRunUserPrompt($payload, $settings))
+				: '';
+			if ($resume === null && trim($userPrompt) === '') {
+				return $this->buildErrorResponse('Please enter a user prompt before running the agent.', 'run');
+			}
+
+			$inputs = $this->buildAgentInputs($settings, $userPrompt);
+			if ($resume !== null) {
+				$runtimeResume = $resume->toArray();
+				// The admin owns durable agent approvals. The runtime must only
+				// receive the explicit, one-time action decision for this resume.
+				foreach ($runtimeResume['responses'] as &$response) {
+					if (($response['metadata']['approval_scope'] ?? '') === 'agent') {
+						unset($response['metadata']['approval_scope']);
+					}
+				}
+				unset($response);
+				$inputs['resume'] = $runtimeResume;
+			}
+			$result = $this->agentExecutionService->execute(new AgentExecutionRequest(
+				$settings,
+				$inputs,
+				array_merge(
+					$this->buildAgentContextVars($id, $settings, $userPrompt),
+					[
+						'conversation_id' => $conversationId,
+						'agent_suspension_subject' => $subjectKey
+					]
+				)
+			));
+		}
+		catch (Throwable $e) {
+			return $this->buildErrorResponse('Agent execution failed: ' . $e->getMessage(), 'run');
+		}
+
+		if ($grants !== [] && $result->getAgentResult() !== null
+			&& !$result->getAgentResult()->hasFailure()) {
+			try {
+				$this->savePersistentApprovals($id, $grants, (string)$actor->id);
+			} catch (Throwable $e) {
+				return $this->buildErrorResponse(
+					$this->translation->translate('Administration', 'missionbay_admin', 'hitl_agent_approval_save_failed'),
+					'run'
+				);
+			}
+		}
+		return $this->buildExecutedRunResponse($id, $result);
+	}
+
+	/** @param array<string,mixed> $payload */
+	private function buildJobReviewResponse(string $id, array $payload): array {
+		$id = $this->normalizeTechnicalKey($id);
+		if ($id === '' || !$this->agentConfigurations->hasAgent($id)) {
+			return $this->buildRunResumeError('hitl_resume_unavailable');
+		}
+		try {
+			$pending = $this->scheduledAgentRunnerJob->getPendingReview($id);
+			if (!array_key_exists('resume', $payload)) {
+				if ($pending === null) {
+					return [
+						'ok' => true,
+						'mode' => 'job_review',
+						'action' => $this->scheduledAgentRunnerJob->hasHeldRun($id) ? 'expired_hold' : 'no_pending',
+						'id' => $id,
+						'message_text' => $this->translation->translate('Administration', 'missionbay_admin', 'hitl_job_none'),
+						'output' => []
+					];
+				}
+				$response = $this->buildRunInteractionResponse($id, $pending->getStatus(), $pending->getResumeHandle(), $pending->getInteractionRequests(), $pending->getCreatedAt(), $pending->getExpiresAt());
+				$response['mode'] = 'job_review';
+				return $response;
+			}
+			if (!is_array($payload['resume'])) {
+				return $this->buildRunResumeError('hitl_resume_invalid');
+			}
+			$resume = AgentResume::fromArray($payload['resume']);
+			if (!$resume->hasExplicitResponses() && !$resume->hasResponseText()) {
+				return $this->buildRunResumeError('hitl_response_required_server');
+			}
+			if ($pending === null || !hash_equals($pending->getResumeHandle(), $resume->getResumeHandle())) {
+				return $this->buildRunResumeError('hitl_resume_unavailable');
+			}
+			$response = $this->buildExecutedRunResponse($id, $this->scheduledAgentRunnerJob->resumePendingReview($id, $resume));
+			$response['mode'] = 'job_review';
+			return $response;
+		} catch (\InvalidArgumentException $e) {
+			return $this->buildRunResumeError('hitl_resume_invalid');
+		} catch (Throwable $e) {
+			return $this->buildErrorResponse('Scheduled agent review failed: ' . $e->getMessage(), 'job_review');
+		}
+	}
+
+
+	/**
+	 * A reusable approval must correspond to a pending policy-owned request.
+	 * No value supplied by the browser may determine a tool fingerprint.
+	 *
+	 * @return ?array<string,string>
+	 */
+	private function validatePersistentApprovals(AgentResume $resume, AgentSuspensionState $pending): ?array {
+		$requests = [];
+		foreach ($pending->getInteractionRequests() as $request) {
+			if (!$request instanceof AgentInteractionRequest) {
+				return null;
+			}
+			$requests[$request->getId()] = $request;
+		}
+		$grants = [];
+		foreach ($resume->getResponses() as $response) {
+			if (($response->getMetadata()['approval_scope'] ?? '') !== 'agent') {
+				if (array_key_exists('approval_scope', $response->getMetadata())) {
+					return null;
+				}
+				continue;
+			}
+			$request = $requests[$response->getRequestId()] ?? null;
+			if ($response->getDecision() !== AgentInteractionResponse::DECISION_APPROVE
+				|| !$request instanceof AgentInteractionRequest
+				|| $request->getKind() !== AgentInteractionRequest::KIND_APPROVAL) {
+				return null;
+			}
+			$review = $request->getMetadata()['decision'] ?? null;
+			$reviewMeta = is_array($review) && is_array($review['metadata'] ?? null) ? $review['metadata'] : [];
+			$fingerprint = $reviewMeta['tool_definition_fingerprint'] ?? null;
+			$toolName = $request->getAction()->getName();
+			if (!is_array($review) || ($review['decision'] ?? '') !== 'require_approval'
+				|| ($reviewMeta['policy_id'] ?? '') !== 'mutation-approval-actions'
+				|| !is_string($fingerprint) || preg_match('/^[0-9a-f]{64}$/D', $fingerprint) !== 1
+				|| $toolName === '') {
+				return null;
+			}
+			if (isset($grants[$toolName]) && !hash_equals($grants[$toolName], $fingerprint)) {
+				return null;
+			}
+			$grants[$toolName] = $fingerprint;
+		}
+		return $grants;
+	}
+
+	/** @param array<string,string> $grants */
+	private function savePersistentApprovals(string $agentId, array $grants, string $actorId): void {
+		$current = $this->agentConfigurations->getAgent($agentId);
+		if ($current === null) {
+			throw new \RuntimeException('Agent was removed while approving the tool.');
+		}
+		$approved = is_array($current['tool_approval_grants'] ?? null) ? $current['tool_approval_grants'] : [];
+		foreach ($grants as $name => $fingerprint) {
+			$approved[$name] = [
+				'scope' => 'agent',
+				'fingerprint' => $fingerprint,
+				'approved_by' => $this->settingsAuthorization->getDefaultAuthority() . ':user:' . $actorId,
+				'approved_at' => gmdate('c')
+			];
+		}
+		$current['tool_approval_grants'] = $approved;
+		$this->agentConfigurations->saveAgent($agentId, $current);
+	}
+
+	/** @param array<string,mixed> $payload */
+	private function buildRevokeApprovalResponse(string $agentId, array $payload): array {
+		if ($agentId === '' || !$this->agentConfigurations->hasAgent($agentId)) {
+			return $this->buildRunResumeError('hitl_resume_unavailable');
+		}
+		$name = isset($payload['tool_name']) && is_string($payload['tool_name'])
+			? trim($payload['tool_name']) : '';
+		if ($name === '') {
+			return $this->buildRunResumeError('hitl_agent_approval_invalid');
+		}
+		try {
+			$settings = $this->agentConfigurations->getAgent($agentId);
+			$grants = is_array($settings['tool_approval_grants'] ?? null) ? $settings['tool_approval_grants'] : [];
+			if (!array_key_exists($name, $grants)) {
+				return $this->buildRunResumeError('hitl_agent_approval_invalid');
+			}
+			unset($grants[$name]);
+			$settings['tool_approval_grants'] = $grants;
+			$this->agentConfigurations->saveAgent($agentId, $settings);
+			return ['ok' => true, 'mode' => 'revoke_approval', 'action' => 'revoked', 'record' => $this->normalizeRow($agentId, $settings)];
+		} catch (Throwable $e) {
+			return $this->buildErrorResponse(
+				$this->translation->translate('Administration', 'missionbay_admin', 'hitl_agent_approval_revoke_failed'), 'revoke_approval'
+			);
+		}
+	}
+
+	private function buildJobResetResponse(string $agentId): array {
+		if ($agentId === '' || !$this->agentConfigurations->hasAgent($agentId)) {
+			return $this->buildRunResumeError('hitl_resume_unavailable');
+		}
+		try {
+			$this->scheduledAgentRunnerJob->resetExpiredRun($agentId);
+			return ['ok' => true, 'mode' => 'job_reset', 'action' => 'reset'];
+		} catch (Throwable $e) {
+			return $this->buildErrorResponse(
+				$this->translation->translate('Administration', 'missionbay_admin', 'hitl_job_reset_failed'), 'job_reset'
+			);
+		}
+	}
+
+	private function buildExecutedRunResponse(string $id, AgentExecutionResult $result): array {
+		$output = $result->getOutput();
+		$agentResult = $result->getAgentResult();
+		if ($output === [] && $agentResult !== null) {
+			$output = $agentResult->getOutput();
+		}
+
+		if ($agentResult?->isSuspended()) {
+			$suspension = $agentResult->getState()->getSuspension();
+			if ($suspension !== null && $suspension->isSuspended()) {
+				return $this->buildRunInteractionResponse(
+					$id,
+					$suspension->getStatus(),
+					$suspension->getResumeHandle(),
+					$suspension->getInteractionRequests(),
+					$suspension->getCreatedAt(),
+					$suspension->getExpiresAt()
+				);
+			}
+		}
+
+		$nodeOutput = $output[self::ASSISTANT_NODE_ID] ?? null;
+		if (is_array($nodeOutput) && AgentExecutionStatus::isSuspended((string)($nodeOutput['status'] ?? ''))) {
+			return $this->buildRunInteractionResponse(
+				$id,
+				(string)$nodeOutput['status'],
+				trim((string)($nodeOutput['resume_handle'] ?? '')),
+				is_array($nodeOutput['interaction_requests'] ?? null) ? $nodeOutput['interaction_requests'] : [],
+				trim((string)($nodeOutput['created_at'] ?? '')),
+				trim((string)($nodeOutput['expires_at'] ?? ''))
+			);
+		}
+
+		$message = $this->extractAssistantMessage($output);
+		$flowError = $this->extractFlowError($output);
+		$messageText = $message !== null ? $this->normalizeMessageContent($message['content'] ?? '') : '';
+		$status = $agentResult?->getStatus() ?? ($flowError === '' ? 'completed' : 'failed');
+		if ($flowError === '' && $agentResult?->hasFailure()) {
+			$metadata = $agentResult->getMetadata();
+			$flowError = trim((string)($metadata['error'] ?? $metadata['message'] ?? 'Agent runtime reported a failed execution.'));
+		}
+		if ($flowError === '' && $messageText === '') {
+			$flowError = 'Agent execution returned no assistant message.';
+		}
+
+		$success = $flowError === '' && $messageText !== '';
+		return [
+			'ok' => $success,
+			'mode' => 'run',
+			'action' => $success ? 'ran' : 'failed',
+			'id' => $id,
+			'status' => $status,
+			'assistant_node_id' => self::ASSISTANT_NODE_ID,
+			'message' => $message,
+			'message_text' => $messageText,
+			'flow_error' => $flowError,
+			'result_text' => $this->formatRunResultText($messageText, $flowError, $output),
+			'output' => $output,
+			'warnings' => $result->getWarnings(),
+			'agent_result' => $agentResult?->toArray()
+		];
+	}
+
+	/** @param array<int,mixed> $requests */
+	private function buildRunInteractionResponse(
+		string $id,
+		string $status,
+		string $resumeHandle,
+		array $requests,
+		string $createdAt,
+		string $expiresAt
+	): array {
+		if (!AgentExecutionStatus::isSuspended($status) || $resumeHandle === '' || $requests === []) {
+			return $this->buildRunResumeError('hitl_suspension_invalid');
+		}
+		foreach ($requests as $request) {
+			if (!$request instanceof AgentInteractionRequest && !is_array($request)) {
+				return $this->buildRunResumeError('hitl_suspension_invalid');
+			}
+		}
+
+		return [
+			'ok' => true,
+			'mode' => 'run',
+			'action' => 'interaction_required',
+			'id' => $id,
+			'status' => $status,
+			'assistant_node_id' => self::ASSISTANT_NODE_ID,
+			'message' => null,
+			'message_text' => '',
+			'flow_error' => '',
+			'result_text' => '',
+			'interaction_requests' => array_map(
+				static fn(mixed $request): array => ($request instanceof AgentInteractionRequest
+					? $request
+					: AgentInteractionRequest::fromArray($request))->toPublicArray(),
+				$requests
+			),
+			'resume_handle' => $resumeHandle,
+			'created_at' => $createdAt,
+			'expires_at' => $expiresAt,
+			'output' => [],
+			'warnings' => [],
+			'agent_result' => null
+		];
+	}
+
+	private function buildRunResumeError(string $key): array {
+		$response = $this->buildErrorResponse(
+			$this->translation->translate('Administration', 'missionbay_admin', $key),
+			'run'
+		);
+		$response['code'] = $key;
+		return $response;
+	}
+
+	/**
+	 * @param array<string,mixed> $payload
+	 * @param array<string,mixed> $settings
+	 */
+	private function getRunUserPrompt(array $payload, array $settings): string {
+		if(isset($payload['user_prompt']) && is_scalar($payload['user_prompt'])) {
+			return (string)$payload['user_prompt'];
+		}
+
+		$postedPrompt = $this->request->request('user_prompt', null);
+
+		if(is_scalar($postedPrompt)) {
+			return (string)$postedPrompt;
+		}
+
+		return (string)($settings['user_prompt'] ?? '');
+	}
+
+	/**
+	 * @param array<string,mixed> $settings
+	 * @return array<string,mixed>
+	 */
+	private function buildAgentInputs(array $settings, string $userPrompt): array {
+		return [
+			'system' => $this->normalizeTextBlock((string)($settings['system_prompt'] ?? '')),
+			'prompt' => $userPrompt,
+			'mode' => 'manual_agent'
+		];
+	}
+
+	/**
+	 * @param array<string,mixed> $settings
+	 * @return array<string,mixed>
+	 */
+	private function buildAgentContextVars(string $agentId, array $settings, string $userPrompt): array {
+		return [
+			'conversation_channel_id' => 'agent-admin:' . $agentId,
+			'agent_id' => $agentId,
+			'agent_config_group' => self::SETTINGS_GROUP,
+			'agent_label' => trim((string)($settings['label'] ?? '')),
+			'agent_config' => $settings,
+			'agent_run_mode' => 'manual',
+			'agent_user_prompt' => $userPrompt
+		];
+	}
+
+	/**
+	 * @param array<string,mixed> $output
+	 * @return ?array<string,mixed>
+	 */
+	private function extractAssistantMessage(array $output): ?array {
+		if(isset($output[self::ASSISTANT_NODE_ID]['message']) && is_array($output[self::ASSISTANT_NODE_ID]['message'])) {
+			return $output[self::ASSISTANT_NODE_ID]['message'];
+		}
+
+		return null;
+	}
+
+	/**
+	 * @param array<string,mixed> $output
+	 */
+	private function extractFlowError(array $output): string {
+		if(isset($output[self::ASSISTANT_NODE_ID]['error']) && is_scalar($output[self::ASSISTANT_NODE_ID]['error'])) {
+			return trim((string)$output[self::ASSISTANT_NODE_ID]['error']);
+		}
+
+		return '';
+	}
+
+	/**
+	 * @param array<string,mixed> $output
+	 */
+	private function formatRunResultText(string $messageText, string $flowError, array $output): string {
+		if($messageText !== '') {
+			return $messageText;
+		}
+
+		if($flowError !== '') {
+			return 'Flow error: ' . $flowError;
+		}
+
+		return 'Agent run finished, but no assistant message was returned. ' . $this->describeFlowOutput($output);
+	}
+
+	/**
+	 * @param array<string,mixed> $output
+	 */
+	private function describeFlowOutput(array $output): string {
+		$nodeIds = array_keys($output);
+		$nodeIds = array_map('strval', $nodeIds);
+		$nodeIds = array_values(array_filter($nodeIds, static fn(string $id): bool => $id !== ''));
+
+		if($nodeIds === []) {
+			return 'No terminal node output was returned.';
+		}
+
+		return 'Terminal nodes: ' . implode(', ', $nodeIds) . '.';
+	}
+
+	private function normalizeMessageContent(mixed $content): string {
+		if($content === null) {
+			return '';
+		}
+
+		if(is_string($content)) {
+			return $content;
+		}
+
+		if(is_bool($content)) {
+			return $content ? 'true' : 'false';
+		}
+
+		if(is_int($content) || is_float($content)) {
+			return (string)$content;
+		}
+
+		$json = json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+		return is_string($json) && $json !== 'null' ? $json : '';
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildReloadResponse(): array {
+		try {
+			$this->agentConfigurations->reload();
+		}
+		catch(Throwable $e) {
+			return $this->buildErrorResponse('Agent store could not be reloaded: ' . $e->getMessage(), 'reload');
+		}
+
+		return [
+			'ok' => true,
+			'mode' => 'reload',
+			'action' => 'reloaded'
+		];
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function loadRows(): array {
+		$group = $this->agentConfigurations->getAgents();
+
+		if(!is_array($group)) {
+			return [];
+		}
+
+		$rows = [];
+
+		foreach($group as $id => $settings) {
+			if(!is_string($id) && !is_int($id)) {
+				continue;
+			}
+
+			if(!is_array($settings)) {
+				$settings = [];
+			}
+
+			$rows[] = $this->normalizeOverviewRow((string)$id, $settings);
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * @param array<string,mixed> $settings
+	 * @return array<string,mixed>
+	 */
+	private function normalizeRow(string $id, array $settings): array {
+		$values = $this->settingsToViewValues($id, $settings);
+		$values['tool_approval_grants'] = is_array($settings['tool_approval_grants'] ?? null) ? $settings['tool_approval_grants'] : [];
+		return $this->buildRowFromValues($id, $settings, $values);
+	}
+
+	/**
+	 * Grid rows describe stored settings without resolving the execution runtime.
+	 * A runtime that is not installed must not make every other agent disappear.
+	 *
+	 * @param array<string,mixed> $settings
+	 * @return array<string,mixed>
+	 */
+	private function normalizeOverviewRow(string $id, array $settings): array {
+		$policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
+		$policyId = $this->normalizeTechnicalKey((string)($policy['policy'] ?? ''));
+		if($policyId === '') {
+			$policyId = $this->getDefaultPolicyId();
+		}
+		$runtimeId = trim((string)($settings['agent_runtime'] ?? ''));
+		$runtimeSummary = [];
+		if($runtimeId !== '' && $this->agentRuntimeRegistry->hasRuntime($runtimeId)) {
+			$runtimeSummary = $this->agentRuntimeRegistry
+				->getConfigFormService($runtimeId)
+				->getConfigurationSummary($settings);
+		}
+
+		$values = array_merge($settings, [
+			'enabled' => $this->toBool($settings['enabled'] ?? true),
+			'label' => $this->normalizeLabel((string)($settings['label'] ?? '')),
+			'user_prompt' => $this->normalizeTextBlock((string)($settings['user_prompt'] ?? '')),
+			'policy_policy' => $policyId,
+			'policy_data' => is_array($policy['data'] ?? null) ? $policy['data'] : [],
+			'agent_runtime' => $runtimeId,
+			'agent_runtime_summary' => $runtimeSummary
+		]);
+
+		return $this->buildRowFromValues($id, $settings, $values);
+	}
+
+	/**
+	 * @param array<string,mixed> $settings
+	 * @param array<string,mixed> $values
+	 * @return array<string,mixed>
+	 */
+	private function buildRowFromValues(string $id, array $settings, array $values): array {
+		$id = $this->normalizeTechnicalKey($id);
+		$policyId = (string)($values['policy_policy'] ?? '');
+		$policyData = is_array($values['policy_data'] ?? null) ? $values['policy_data'] : [];
+		$label = $this->normalizeLabel((string)($values['label'] ?? ''));
+		$agentComponents = is_array($values['agent_components'] ?? null) ? $values['agent_components'] : [];
+		$toolProfiles = is_array($values['tool_profiles'] ?? null) ? array_values(array_map('strval', $values['tool_profiles'])) : [];
+		$orchestratorProfile = trim((string)($values['orchestrator_profile'] ?? 'standard'));
+		$memoryProfile = trim((string)($values['memory_profile'] ?? ''));
+		$settingsJson = $this->encodePrettyJson($this->redactSensitiveData($settings));
+		$runtimeSummary = is_array($values['agent_runtime_summary'] ?? null)
+			? $values['agent_runtime_summary']
+			: [];
+
+		return array_merge($values, [
+			'id' => $id,
+			'agent_id' => $id,
+			'old_id' => $id,
+			'fixed' => $this->agentConfigurations->isFixed($id),
+			'label' => $label !== '' ? $label : $id,
+			'agent_config_group' => self::SETTINGS_GROUP,
+			'agent_config_name' => $id,
+			'enabled_label' => !empty($values['enabled']) ? 'enabled' : 'disabled',
+			'policy' => $policyId,
+			'policy_label' => $this->getPolicyLabel($policyId),
+			'policy_data_text' => $this->formatPolicyDataText($policyData),
+			'agent_runtime' => trim((string)($values['agent_runtime'] ?? '')),
+			'agent_provider' => trim((string)($runtimeSummary['provider'] ?? '')),
+			'agent_model' => trim((string)($runtimeSummary['model'] ?? '')),
+			'orchestrator_profile' => $orchestratorProfile !== '' ? $orchestratorProfile : 'standard',
+			'memory_profile' => $memoryProfile,
+			'tool_profile_count' => count($toolProfiles),
+			'tool_profile_text' => implode(', ', $toolProfiles),
+			'component_count' => count($agentComponents),
+			'user_prompt_preview' => $this->shorten((string)($values['user_prompt'] ?? ''), 160),
+			'settings_json' => $settingsJson
+		]);
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildDefaultRecord(): array {
+		$settings = array_merge([
+			'enabled' => true,
+			'label' => '',
+			'user_prompt' => '',
+			'policy' => [
+				'policy' => $this->getDefaultPolicyId(),
+				'data' => []
+			]
+		], $this->agentConfigFormService->getDefaultSettings());
+
+		return $this->normalizeRow('', $settings);
+	}
+
+	/**
+	 * @param array<string,mixed> $settings
+	 * @return array<string,mixed>
+	 */
+	private function settingsToViewValues(string $id, array $settings): array {
+		$policy = is_array($settings['policy'] ?? null) ? $settings['policy'] : [];
+		$policyId = $this->normalizeTechnicalKey((string)($policy['policy'] ?? ''));
+
+		if($policyId === '') {
+			$policyId = $this->getDefaultPolicyId();
+		}
+
+		$policyData = is_array($policy['data'] ?? null) ? $policy['data'] : [];
+
+		return array_merge([
+			'enabled' => $this->toBool($settings['enabled'] ?? true),
+			'label' => $this->normalizeLabel((string)($settings['label'] ?? '')),
+			'user_prompt' => $this->normalizeTextBlock((string)($settings['user_prompt'] ?? '')),
+			'policy_policy' => $policyId,
+			'policy_data' => $policyData,
+			'agent_config_group' => self::SETTINGS_GROUP,
+			'agent_config_name' => $id
+		], $this->agentConfigFormService->settingsToViewValues($settings));
+	}
+
+	/**
+	 * @param mixed $sortPayload
+	 * @return array<string,string>
+	 */
+	private function normalizeSort(mixed $sortPayload): array {
+		$allowedKeys = [
+			'agent_id',
+			'label',
+			'enabled_label',
+			'policy_label',
+			'agent_runtime',
+			'agent_model',
+			'tool_profile_count',
+			'component_count',
+			'user_prompt_preview'
+		];
+
+		$sort = [
+			'key' => 'agent_id',
+			'dir' => 'asc',
+			'type' => 'string'
+		];
+
+		if(!is_array($sortPayload) || count($sortPayload) === 0) {
+			return $sort;
+		}
+
+		$first = reset($sortPayload);
+
+		if(!is_array($first)) {
+			return $sort;
+		}
+
+		$key = isset($first['key']) ? (string)$first['key'] : 'agent_id';
+		if(!in_array($key, $allowedKeys, true)) {
+			$key = 'agent_id';
+		}
+
+		$dir = isset($first['dir']) ? strtolower((string)$first['dir']) : 'asc';
+		$dir = $dir === 'desc' ? 'desc' : 'asc';
+		$type = in_array($key, ['tool_profile_count', 'component_count'], true) ? 'int' : 'string';
+
+		return [
+			'key' => $key,
+			'dir' => $dir,
+			'type' => $type
+		];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function normalizeFilters(mixed $filters): array {
+		if(!is_array($filters)) {
+			return [];
+		}
+
+		$out = [];
+
+		foreach(['enabled', 'policy', 'model'] as $key) {
+			if(!array_key_exists($key, $filters) || $filters[$key] === null || $filters[$key] === '') {
+				continue;
+			}
+
+			$out[$key] = trim((string)$filters[$key]);
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function applySearch(array $rows, string $search): array {
+		if($search === '') {
+			return $rows;
+		}
+
+		$needle = $this->toLower($search);
+		$result = [];
+
+		foreach($rows as $row) {
+			$haystack = implode("\n", [
+				(string)($row['agent_id'] ?? ''),
+				(string)($row['label'] ?? ''),
+				(string)($row['enabled_label'] ?? ''),
+				(string)($row['policy'] ?? ''),
+				(string)($row['policy_label'] ?? ''),
+				(string)($row['agent_runtime'] ?? ''),
+				(string)($row['agent_provider'] ?? ''),
+				(string)($row['agent_model'] ?? ''),
+				(string)($row['orchestrator_profile'] ?? ''),
+				(string)($row['memory_profile'] ?? ''),
+				(string)($row['tool_profile_text'] ?? ''),
+				(string)($row['user_prompt_preview'] ?? ''),
+				(string)($row['settings_json'] ?? '')
+			]);
+
+			if(str_contains($this->toLower($haystack), $needle)) {
+				$result[] = $row;
+			}
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 * @param array<string,mixed> $filters
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function applyFilters(array $rows, array $filters): array {
+		if($filters === []) {
+			return $rows;
+		}
+
+		$result = [];
+
+		foreach($rows as $row) {
+			if(isset($filters['enabled'])) {
+				$enabled = $this->toBool($row['enabled'] ?? false) ? '1' : '0';
+
+				if($enabled !== (string)$filters['enabled']) {
+					continue;
+				}
+			}
+
+			if(isset($filters['policy']) && (string)($row['policy'] ?? '') !== (string)$filters['policy']) {
+				continue;
+			}
+
+			if(isset($filters['model'])) {
+				$modelText = trim((string)($row['agent_provider'] ?? '') . ' ' . (string)($row['agent_model'] ?? ''));
+				if(str_contains($this->toLower($modelText), $this->toLower((string)$filters['model'])) === false) {
+					continue;
+				}
+			}
+
+			$result[] = $row;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * @param array<int,array<string,mixed>> $rows
+	 * @param array<string,string> $sort
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function applySort(array $rows, array $sort): array {
+		$key = $sort['key'] ?? 'agent_id';
+		$dir = $sort['dir'] ?? 'asc';
+
+		usort($rows, function(array $left, array $right) use ($key, $dir): int {
+			if(in_array($key, ['tool_profile_count', 'component_count'], true)) {
+				$result = ((int)($left[$key] ?? 0)) <=> ((int)($right[$key] ?? 0));
+			}
+			else {
+				$result = strcmp($this->toLower((string)($left[$key] ?? '')), $this->toLower((string)($right[$key] ?? '')));
+			}
+
+			if($result === 0) {
+				$result = strcmp($this->toLower((string)($left['agent_id'] ?? '')), $this->toLower((string)($right['agent_id'] ?? '')));
+			}
+
+			return $dir === 'desc' ? -$result : $result;
+		});
+
+		return $rows;
+	}
+
+	/**
+	 * @return array<int,array<string,mixed>>
+	 */
+	private function listPolicyOptions(): array {
+		if($this->policyOptions !== null) {
+			return $this->policyOptions;
+		}
+
+		$rows = [];
+
+		try {
+			$policies = $this->classMap->getInstancesByInterface(IJobExecutionPolicy::class);
+		}
+		catch(Throwable) {
+			$this->policyOptions = [];
+			return [];
+		}
+
+		foreach($policies as $policy) {
+			if(!$policy instanceof IJobExecutionPolicy) {
+				continue;
+			}
+
+			$class = $policy::class;
+			$id = $this->normalizeTechnicalKey((string)$class::getName());
+
+			if($id === '') {
+				continue;
+			}
+
+			$schema = $policy->getSchema();
+
+			if(!is_array($schema)) {
+				$schema = [];
+			}
+
+			$rows[$id] = [
+				'id' => $id,
+				'label' => $this->policyLabelFromClass($class, $id),
+				'class' => $class,
+				'schema' => $schema
+			];
+		}
+
+		$rows = array_values($rows);
+
+		usort($rows, static function(array $a, array $b): int {
+			return strcasecmp((string)($a['label'] ?? ''), (string)($b['label'] ?? ''));
+		});
+
+		$this->policyOptions = $rows;
+
+		return $rows;
+	}
+
+	private function policyLabelFromClass(string $class, string $fallback): string {
+		$parts = explode('\\', $class);
+		$short = end($parts);
+
+		if(!is_string($short) || $short === '') {
+			return $fallback;
+		}
+
+		$label = preg_replace('/(?<!^)[A-Z]/', ' $0', $short) ?? $short;
+		$label = trim(str_replace(' Job Policy', '', $label));
+
+		return $label !== '' ? $label : $fallback;
+	}
+
+	private function getPolicyLabel(string $id): string {
+		foreach($this->listPolicyOptions() as $option) {
+			if((string)($option['id'] ?? '') === $id) {
+				$label = trim((string)($option['label'] ?? ''));
+				return $label !== '' ? $label : $id;
+			}
+		}
+
+		return $id;
+	}
+
+	private function policyExists(string $id): bool {
+		if($id === '') {
+			return false;
+		}
+
+		foreach($this->listPolicyOptions() as $option) {
+			if((string)($option['id'] ?? '') === $id) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function getPolicySchema(string $id): array {
+		foreach($this->listPolicyOptions() as $option) {
+			if((string)($option['id'] ?? '') !== $id) {
+				continue;
+			}
+
+			$schema = $option['schema'] ?? [];
+
+			return is_array($schema) ? $schema : [];
+		}
+
+		return [];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function getPolicySchemaProperties(array $schema): array {
+		if(is_array($schema['properties'] ?? null)) {
+			return $schema['properties'];
+		}
+
+		if(is_array($schema['fields'] ?? null)) {
+			return $schema['fields'];
+		}
+
+		$data = is_array($schema['data'] ?? null) ? $schema['data'] : [];
+
+		if(is_array($data['properties'] ?? null)) {
+			return $data['properties'];
+		}
+
+		return [];
+	}
+
+	/**
+	 * @return array<int,string>
+	 */
+	private function getPolicySchemaRequired(array $schema): array {
+		if(is_array($schema['required'] ?? null)) {
+			return array_map('strval', $schema['required']);
+		}
+
+		$data = is_array($schema['data'] ?? null) ? $schema['data'] : [];
+
+		if(is_array($data['required'] ?? null)) {
+			return array_map('strval', $data['required']);
+		}
+
+		return [];
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function normalizePostedPolicyData(string $policyId, array &$errors): array {
+		$raw = [];
+		$jsonRaw = $this->decodePostedBase64Field('policy_data_b64', 'Timing policy data', $errors);
+
+		if($jsonRaw === '') {
+			$jsonRaw = trim((string)$this->request->request('policy_data_json', ''));
+		}
+
+		if($jsonRaw !== '') {
+			try {
+				$decoded = json_decode($jsonRaw, true, 512, JSON_THROW_ON_ERROR);
+
+				if(is_array($decoded)) {
+					$raw = $decoded;
+				}
+			}
+			catch(JsonException $e) {
+				$errors[] = 'Timing policy data must be valid JSON: ' . $e->getMessage();
+			}
+		}
+
+		if($raw === []) {
+			$raw = $this->request->request('policy_data', []);
+
+			if(!is_array($raw)) {
+				$raw = [];
+			}
+		}
+
+		$schema = $this->getPolicySchema($policyId);
+		$properties = $this->getPolicySchemaProperties($schema);
+		$required = $this->getPolicySchemaRequired($schema);
+		$result = [];
+
+		foreach($properties as $key => $property) {
+			if(!is_string($key) || !is_array($property)) {
+				continue;
+			}
+
+			$type = (string)($property['type'] ?? 'string');
+			$value = $raw[$key] ?? null;
+			$isRequired = in_array($key, $required, true);
+
+			if(($value === null || $value === '') && !$isRequired) {
+				continue;
+			}
+
+			if(($value === null || $value === '') && $isRequired) {
+				$errors[] = 'Timing policy field "' . $key . '" is required.';
+				continue;
+			}
+
+			if($type === 'integer') {
+				if(!is_numeric($value)) {
+					$errors[] = 'Timing policy field "' . $key . '" must be numeric.';
+					continue;
+				}
+
+				$result[$key] = (int)$value;
+				continue;
+			}
+
+			if($type === 'number') {
+				if(!is_numeric($value)) {
+					$errors[] = 'Timing policy field "' . $key . '" must be numeric.';
+					continue;
+				}
+
+				$result[$key] = (float)$value;
+				continue;
+			}
+
+			if($type === 'boolean') {
+				$result[$key] = $this->toBool($value);
+				continue;
+			}
+
+			if($type === 'object' || $type === 'array') {
+				$decoded = $this->decodePolicyJsonField((string)$value, $key, $errors);
+
+				if($decoded !== null) {
+					$result[$key] = $decoded;
+				}
+
+				continue;
+			}
+
+			$value = trim((string)$value);
+			$enum = is_array($property['enum'] ?? null) ? array_map('strval', $property['enum']) : [];
+
+			if($enum !== [] && !in_array($value, $enum, true)) {
+				$errors[] = 'Timing policy field "' . $key . '" has an invalid value.';
+				continue;
+			}
+
+			$result[$key] = $value;
+		}
+
+		return $result;
+	}
+
+	private function decodePostedBase64Field(string $field, string $label, array &$errors): string {
+		$raw = trim((string)$this->request->request($field, ''));
+
+		if($raw === '') {
+			return '';
+		}
+
+		$decoded = base64_decode($raw, true);
+
+		if(!is_string($decoded)) {
+			$errors[] = $label . ' could not be decoded from base64.';
+
+			return '';
+		}
+
+		return trim($decoded);
+	}
+
+	private function decodePolicyJsonField(string $raw, string $key, array &$errors): mixed {
+		$raw = trim($raw);
+
+		if($raw === '') {
+			return [];
+		}
+
+		try {
+			return json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+		}
+		catch(JsonException $e) {
+			$errors[] = 'Timing policy field "' . $key . '" must be valid JSON: ' . $e->getMessage();
+
+			return null;
+		}
+	}
+
+	private function getDefaultPolicyId(): string {
+		$options = $this->listPolicyOptions();
+
+		foreach(['manualonlyjobpolicy', 'dailyaftertimejobpolicy', 'dailywindowjobpolicy', 'cronjobpolicy', 'intervaljobpolicy'] as $preferred) {
+			foreach($options as $option) {
+				if((string)($option['id'] ?? '') === $preferred) {
+					return $preferred;
+				}
+			}
+		}
+
+		$first = $options[0]['id'] ?? '';
+
+		return is_string($first) ? $first : '';
+	}
+
+	/**
+	 * @param array<string,mixed> $policyData
+	 */
+	private function formatPolicyDataText(array $policyData): string {
+		if($policyData === []) {
+			return '-';
+		}
+
+		$parts = [];
+
+		foreach($policyData as $key => $value) {
+			if(is_scalar($value) || $value === null) {
+				$parts[] = (string)$key . ': ' . (string)$value;
+				continue;
+			}
+
+			$parts[] = (string)$key . ': ' . $this->shorten($this->encodePrettyJson($value), 60);
+		}
+
+		return implode(', ', $parts);
+	}
+
+	/**
+	 * @return array<string,mixed>
+	 */
+	private function buildErrorResponse(string $message, string $mode): array {
+		return [
+			'ok' => false,
+			'mode' => $mode,
+			'error' => $message
+		];
+	}
+
+	private function normalizeTextBlock(string $value): string {
+		return str_replace(["\r\n", "\r"], "\n", $value);
+	}
+
+	private function normalizeLabel(string $value): string {
+		return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+	}
+
+	private function normalizeTechnicalKey(string $value): string {
+		$value = strtolower(trim($value));
+
+		return preg_replace('/[^a-z0-9._-]+/', '', $value) ?? '';
+	}
+
+	private function toBool(mixed $value): bool {
+		if(is_bool($value)) {
+			return $value;
+		}
+
+		if(is_int($value)) {
+			return $value === 1;
+		}
+
+		$value = strtolower(trim((string)$value));
+
+		return in_array($value, ['1', 'true', 'yes', 'on'], true);
+	}
+
+	private function toLower(string $value): string {
+		return function_exists('mb_strtolower') ? mb_strtolower($value, 'UTF-8') : strtolower($value);
+	}
+
+	private function shorten(string $value, int $maxLength): string {
+		$value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+
+		if($value === '') {
+			return '';
+		}
+
+		if(strlen($value) <= $maxLength) {
+			return $value;
+		}
+
+		return substr($value, 0, max(0, $maxLength - 3)) . '...';
+	}
+
+	private function redactSensitiveData(mixed $value, string $key = ''): mixed {
+		if($this->isSensitiveSettingsKey($key)) {
+			return '[redacted]';
+		}
+
+		if(!is_array($value)) {
+			return $value;
+		}
+
+		$result = [];
+
+		foreach($value as $childKey => $childValue) {
+			$result[$childKey] = $this->redactSensitiveData($childValue, (string)$childKey);
+		}
+
+		return $result;
+	}
+
+	private function isSensitiveSettingsKey(string $key): bool {
+		$key = trim(strtolower(preg_replace('/[^a-z0-9]+/i', '_', $key) ?? $key), '_');
+
+		if($key === '') {
+			return false;
+		}
+
+		if(in_array($key, [
+			'password',
+			'passwd',
+			'secret',
+			'token',
+			'api_key',
+			'apikey',
+			'authorization',
+			'credential',
+			'credentials',
+			'private_key',
+			'client_secret',
+			'access_token',
+			'auth_token',
+			'bearer_token'
+		], true)) {
+			return true;
+		}
+
+		foreach(['_password', '_passwd', '_secret', '_api_key', '_private_key', '_access_token', '_auth_token', '_bearer_token'] as $suffix) {
+			if(str_ends_with($key, $suffix)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function encodePrettyJson(mixed $value): string {
+		$json = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+
+		return is_string($json) ? $json : '';
+	}
 }
