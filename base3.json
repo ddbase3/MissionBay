@@ -2,7 +2,7 @@
 	"manifestVersion": 1,
 	"name": "MissionBay",
 	"namespace": "Base3\\MissionBay",
-	"version": "4.40.0",
+	"version": "5.0.0",
 	"description": "Configurable AI services, agent execution, AgentFlow processing, tools, retrieval, MCP integration, parsing and speech for BASE3.",
 	"license": "GPL-3.0-or-later",
 	"maintainers": [
@@ -14,14 +14,14 @@
 	],
 	"repository": "https://github.com/ddbase3/MissionBay",
 	"dependencies": {
-		"Core": ">=4.10.0",
-		"CoreFoundation": ">=4.10.0",
-		"AssistantFoundation": ">=4.18.0",
-		"AssistantRuntime": ">=4.5.0",
-		"ClientStack": ">=4.23.0",
-		"CredentialFoundation": ">=4.2.0",
-		"MediaFoundation": ">=4.1.0",
-		"ResourceFoundation": ">=4.5.0",
-		"UiFoundation": ">=4.3.0"
+		"Core": ">=5.0.0",
+		"CoreFoundation": ">=5.0.0",
+		"AssistantFoundation": ">=5.0.0",
+		"AssistantRuntime": ">=5.0.0",
+		"ClientStack": ">=5.0.0",
+		"CredentialFoundation": ">=5.0.0",
+		"MediaFoundation": ">=5.0.0",
+		"ResourceFoundation": ">=5.0.0",
+		"UiFoundation": ">=5.0.0"
 	}
 }
