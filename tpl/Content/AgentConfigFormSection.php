@@ -233,10 +233,11 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 					<option value="<?php echo $e($currentProfileId); ?>" data-missing-profile="1" selected="selected"><?php echo $e($currentProfileId . ' [' . $translations['orchestrator_unavailable_marker'] . ']'); ?></option>
 <?php } ?>
 <?php foreach($orchestratorProfiles as $profile): $id=(string)($profile['id']??''); if($id==='') continue; ?>
-					<option value="<?php echo $e($id); ?>" data-description="<?php echo $e($profile['description']??''); ?>" data-stages="<?php echo $e(implode(',', (array)($profile['stage_ids']??[]))); ?>"<?php echo $selected($currentProfileId,$id); ?>><?php echo $e(($profile['label']??$id) . (!empty($profile['builtin']) ? ' [' . $t('builtin_marker', 'built-in') . ']' : '') . (empty($profile['enabled']) ? ' [' . $t('disabled_marker', 'disabled') . ']' : '')); ?></option>
+					<option value="<?php echo $e($id); ?>" data-description="<?php echo $e($profile['description']??''); ?>" data-max-tool-loops="<?php echo $e($profile['max_tool_loops']??''); ?>" data-stages="<?php echo $e(implode(',', (array)($profile['stage_ids']??[]))); ?>"<?php echo $selected($currentProfileId,$id); ?>><?php echo $e(($profile['label']??$id) . (!empty($profile['builtin']) ? ' [' . $t('builtin_marker', 'built-in') . ']' : '') . (empty($profile['enabled']) ? ' [' . $t('disabled_marker', 'disabled') . ']' : '')); ?></option>
 <?php endforeach; ?>
 				</select>
 				<div class="base3-agent-config-profile-card" data-orchestrator-profile-summary></div>
+				<p class="base3-agent-config-help" data-direct-call-tool-notice role="status" hidden><?php echo $e($translations['direct_call_tools_inactive']); ?></p>
 				<p class="base3-agent-config-help"><?php echo $e($t('stage_order_help', 'Stage order is fixed and validated. Profiles only enable optional stages and set limits.')); ?></p>
 			</div>
 		</div>
@@ -392,7 +393,7 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 		}
 		profileSelect.value = id;
 	}
-	function updateSummary(){if(!profileSelect||!summary)return;var o=profileSelect.options[profileSelect.selectedIndex];summary.innerHTML='';if(!o)return;var d=document.createElement('div');d.textContent=o.dataset.description||'';summary.appendChild(d);var stages=document.createElement('div');stages.className='base3-agent-config-stage-preview';String(o.dataset.stages||'').split(',').filter(Boolean).forEach(function(id){var p=document.createElement('span');p.className='base3-agent-config-stage-pill';p.textContent=id;stages.appendChild(p)});summary.appendChild(stages)}
+	function updateSummary(){if(!profileSelect||!summary)return;var o=profileSelect.options[profileSelect.selectedIndex];summary.innerHTML='';var notice=root.querySelector('[data-direct-call-tool-notice]');if(notice)notice.hidden=!o||o.dataset.maxToolLoops!=='0';if(!o)return;var d=document.createElement('div');d.textContent=o.dataset.description||'';summary.appendChild(d);var stages=document.createElement('div');stages.className='base3-agent-config-stage-preview';String(o.dataset.stages||'').split(',').filter(Boolean).forEach(function(id){var p=document.createElement('span');p.className='base3-agent-config-stage-pill';p.textContent=id;stages.appendChild(p)});summary.appendChild(stages)}
 	if(profileSelect)profileSelect.addEventListener('change',updateSummary); updateSummary();
 	root.addEventListener('input',sync);root.addEventListener('change',sync);renderComponents(initialComponents);
 	function field(name,scope){return (scope||root).querySelector('[name="'+name+'"]');}

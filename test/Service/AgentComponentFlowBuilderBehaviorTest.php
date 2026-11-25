@@ -87,6 +87,21 @@ final class AgentComponentFlowBuilderBehaviorTest extends TestCase {
 		$this->assertSame(['preset_component'], $memory['docks']['memory']);
 	}
 
+	public function testZeroLoopFlowKeepsMemoryAndContextWithoutToolBindings(): void {
+		$builder = $this->builder(['multi' => ['capabilities' => ['tool', 'memory', 'context']]]);
+		$base = $this->base();
+		$base['nodes'][0]['inputs']['maxtoolloops'] = 0;
+		$flow = $builder->build($base, [
+			['preset' => 'missing-tool', 'attach_as' => ['tool']],
+			['preset' => 'multi', 'attach_as' => ['tool', 'memory', 'context']]
+		]);
+		$this->assertSame([], $builder->getWarnings());
+		$this->assertArrayNotHasKey('tools', $flow['nodes'][0]['docks']);
+		$this->assertSame(['preset_multi'], $flow['nodes'][0]['docks']['contextcontributors']);
+		$this->assertCount(1, $flow['nodes'][0]['docks']['memory']);
+		$this->assertSame(['configuredagentmemoryresource'], array_column($flow['resources'], 'type'));
+	}
+
 	public function testMemoryPriorityDefaultsToComponentOrder(): void {
 		$builder = $this->builder(['memory-main' => ['capabilities' => ['memory']]]);
 		$flow = $builder->build($this->base(), [[

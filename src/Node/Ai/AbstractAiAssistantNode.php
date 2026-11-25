@@ -88,7 +88,7 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			),
 			new AgentNodePort(
 				name: 'maxtoolloops',
-				description: 'Maximum number of tool orchestration loops.',
+				description: 'Maximum number of tool orchestration loops. Zero disables tool orchestration.',
 				type: 'int',
 				default: 10,
 				required: false
@@ -117,7 +117,7 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			),
 			new AgentNodePort(
 				name: 'stages',
-				description: 'Ordered configured IAgentStage component ids. An empty list uses the MissionBay default pipeline.',
+				description: 'Ordered configured IAgentStage component ids. An empty list uses the default pipeline only when tool orchestration is enabled.',
 				type: 'array',
 				default: [],
 				required: false
@@ -395,8 +395,8 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 
 		$maxToolLoops = (int)$value;
 
-		if ($maxToolLoops < 1) {
-			throw new \RuntimeException('Input maxtoolloops must be greater than zero.');
+		if ($maxToolLoops < 0 || ($maxToolLoops === 0 && (float)$value !== 0.0)) {
+			throw new \RuntimeException('Input maxtoolloops must be zero or a positive loop count.');
 		}
 
 		return $maxToolLoops;

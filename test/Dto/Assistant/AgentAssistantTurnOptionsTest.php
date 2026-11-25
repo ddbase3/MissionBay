@@ -62,6 +62,18 @@ final class AgentAssistantTurnOptionsTest extends TestCase {
 		$this->assertSame(10, $options->getMaxToolLoops());
 	}
 
+	public function testZeroLoopsCannotBeOverriddenByToolEnableFlag(): void {
+		$options = new AgentAssistantTurnOptions(
+			prompt: 'test', maxToolLoops: 0, toolsEnabled: true,
+			stageIds: ['model-decision'], deliberatePlanningEnabled: true
+		);
+		$this->assertFalse($options->areToolsEnabled());
+		$this->assertFalse($options->isDeliberatePlanningEnabled());
+		$this->assertSame([], $options->getStageIds());
+		$this->assertTrue($options->isMemoryReadEnabled());
+		$this->assertTrue($options->isMemoryWriteEnabled());
+	}
+
 	public function testBudgetIsExposedAsRunState(): void {
 		$budget = new AgentBudget(maxTotalTokens: 5000, maxToolCalls: 10);
 		$options = new AgentAssistantTurnOptions(

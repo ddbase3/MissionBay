@@ -67,6 +67,25 @@ final class AgentToolProfileResolverTest extends TestCase {
 		], $resolver->resolveComponents(['main-tools']));
 	}
 
+	public function testZeroLoopSelectionKeepsOnlyNonToolRoles(): void {
+		$resolver = new AgentToolProfileResolver(
+			$this->settingsStore([
+				AgentToolProfileResolver::SETTINGS_GROUP => [
+					'main-tools' => ['enabled' => true, 'internal_enabled' => true,
+						'tools' => ['tool-only', 'user-prefs', 'tool-memory', 'tool-context-memory', 'missing']]
+				]
+			]),
+			$this->presetRepository()
+		);
+		$this->assertSame([
+			['preset' => 'user-prefs', 'attach_as' => ['context'], 'enabled' => true, 'order' => 20],
+			['preset' => 'tool-memory', 'attach_as' => ['memory'], 'enabled' => true, 'order' => 30],
+			['preset' => 'tool-context-memory', 'attach_as' => ['context', 'memory'], 'enabled' => true, 'order' => 40]
+		], $resolver->resolveComponents(['missing-profile', 'main-tools'], false));
+		$this->expectException(\RuntimeException::class);
+		$resolver->resolveComponents(['main-tools']);
+	}
+
 	public function testRepeatedPresetAcrossToolProfilesIsResolvedOnceWithAllCapabilities(): void {
 		$resolver = new AgentToolProfileResolver(
 			$this->settingsStore([

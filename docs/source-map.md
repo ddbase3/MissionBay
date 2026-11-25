@@ -376,6 +376,7 @@ This reference inventories the current PHP source files by package area. It is i
 | `AgentOrchestratorProfile` |  | `src/Orchestrator/Profile/AgentOrchestratorProfile.php` |
 | `AgentOrchestratorProfileRepository` |  | `src/Orchestrator/Profile/AgentOrchestratorProfileRepository.php` |
 | `NativeToolLoopOrchestratorProfile` | `nativetoollooporchestratorprofile` | `src/Orchestrator/Profile/NativeToolLoopOrchestratorProfile.php` |
+| `DirectCallOrchestratorProfile` | `directcallorchestratorprofile` | `src/Orchestrator/Profile/DirectCallOrchestratorProfile.php` |
 | `LargeCatalogNativeOrchestratorProfile` | `largecatalognativeorchestratorprofile` | `src/Orchestrator/Profile/LargeCatalogNativeOrchestratorProfile.php` |
 | `AgentSelectedNativeOrchestratorProfile` | `agentselectednativeorchestratorprofile` | `src/Orchestrator/Profile/AgentSelectedNativeOrchestratorProfile.php` |
 | `AgentActionResumeService` |  | `src/Orchestrator/Service/AgentActionResumeService.php` |

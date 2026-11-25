@@ -60,8 +60,8 @@ final class AgentAssistantTurnOptions {
 			$this->mode = 'chat';
 		}
 
-		if ($this->maxToolLoops < 1) {
-			throw new \RuntimeException('Max tool loops must be greater than zero.');
+		if ($this->maxToolLoops < 0) {
+			throw new \RuntimeException('Max tool loops must not be negative.');
 		}
 
 		if ($this->assistantMessageId === '') {
@@ -82,7 +82,7 @@ final class AgentAssistantTurnOptions {
 	}
 
 	public function areToolsEnabled(): bool {
-		return $this->toolsEnabled;
+		return $this->toolsEnabled && $this->maxToolLoops > 0;
 	}
 
 	public function isMemoryReadEnabled(): bool {
@@ -128,7 +128,7 @@ final class AgentAssistantTurnOptions {
 	}
 
 	public function isDeliberatePlanningEnabled(): bool {
-		return $this->deliberatePlanningEnabled;
+		return $this->maxToolLoops > 0 && $this->deliberatePlanningEnabled;
 	}
 
 	public function getModelDecisionConfig(): AgentModelDecisionConfig {
@@ -138,12 +138,12 @@ final class AgentAssistantTurnOptions {
 	/**
 	 * Returns the ordered configured IAgentStage component ids.
 	 *
-	 * An empty list selects the MissionBay default pipeline.
+	 * An empty list selects the MissionBay default pipeline only when tools are enabled.
 	 *
 	 * @return array<int,string>
 	 */
 	public function getStageIds(): array {
-		return $this->stageIds;
+		return $this->maxToolLoops === 0 ? [] : $this->stageIds;
 	}
 
 	/**

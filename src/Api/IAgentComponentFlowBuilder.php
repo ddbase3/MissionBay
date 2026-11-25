@@ -25,7 +25,8 @@ namespace Base3\MissionBay\Api;
 interface IAgentComponentFlowBuilder {
 
 	/**
-	 * Builds the effective agent flow.
+	 * Builds the effective agent flow. A compiled assistant node with zero tool
+	 * loops does not attach tool roles; other selected roles remain available.
 	 *
 	 * @param array<string,mixed> $baseFlow
 	 * @param array<int,array<string,mixed>> $components

@@ -22,6 +22,7 @@ use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 use Base3\CoreFoundation\Translation\Api\ITranslation;
 use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use Base3\MissionBay\Orchestrator\Profile\NativeToolLoopOrchestratorProfile;
+use Base3\MissionBay\Orchestrator\Profile\DirectCallOrchestratorProfile;
 use Base3\MissionBay\Orchestrator\Profile\LargeCatalogNativeOrchestratorProfile;
 use Base3\MissionBay\Orchestrator\Profile\AgentSelectedNativeOrchestratorProfile;
 
@@ -34,7 +35,8 @@ trait NativeProfileRepositoryTestSupport {
 		return [
 			new NativeToolLoopOrchestratorProfile($translation),
 			new LargeCatalogNativeOrchestratorProfile($translation),
-			new AgentSelectedNativeOrchestratorProfile($translation)
+			new AgentSelectedNativeOrchestratorProfile($translation),
+			new DirectCallOrchestratorProfile($translation)
 		];
 	}
 

@@ -90,7 +90,7 @@ The assistant node exposes the input:
 maxtoolloops
 ```
 
-Its default is defined in `MissionBay/src/Node/Ai/AbstractAiAssistantNode.php` and is currently `10`. The same defensive default exists in `AgentAssistantTurnOptions` and `AgentToolOrchestrator`. The orchestrator stops when `iteration < maxLoops` is no longer true and returns the partial failure code `max_tool_loops`.
+Its default is defined in `MissionBay/src/Node/Ai/AbstractAiAssistantNode.php` and is currently `10`. A limit of `0` disables the tool orchestrator entirely: the regular assistant turn prepares memory/context and generates the answer directly. Its stage list is intentionally empty, rather than selecting the default tool pipeline. The same defensive default exists in `AgentAssistantTurnOptions` and `AgentToolOrchestrator`. The orchestrator stops when `iteration < maxLoops` is no longer true and returns the partial failure code `max_tool_loops`.
 
 ## Profile-controlled optional stages
 

@@ -116,7 +116,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			</div>
 			<div>
 				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('maximum_tool_loops', 'Maximum tool loops'); ?></label>
-				<input type="number" name="max_tool_loops" min="1" max="100" class="orchestrator-profile-input" />
+				<input type="number" name="max_tool_loops" min="0" max="100" class="orchestrator-profile-input" />
 			</div>
 			<div>
 				<label class="orchestrator-profile-label"><?php echo $mbTextEsc('model_decision_strategy', 'Model decision strategy'); ?></label>
@@ -295,6 +295,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		return editorContent;
 	}
 	function stageIdsFromForm(form) {
+		if (getValue(form, 'max_tool_loops') === '0') return [];
 		const ids = [];
 		if (getChecked(form, 'capability_discovery')) ids.push('capability-discovery');
 		if (getChecked(form, 'capability_selection')) ids.push('capability-selection');
@@ -316,6 +317,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		}
 	}
 	function updateCapabilitySelectionControls(form, readonly = false) {
+		const noLoops = getValue(form, 'max_tool_loops') === '0';
+		for (const name of ['capability_discovery', 'capability_selection', 'ai_capability_selection', 'context_compaction', 'deliberate_planning', 'max_tools', 'select_all_threshold', 'sticky']) {
+			const control = field(form, name);
+			if (control) control.disabled = readonly || noLoops;
+		}
+		readonly = readonly || noLoops;
 		const aiEnabled = getChecked(form, 'ai_capability_selection');
 		const strategy = field(form, 'selection_strategy');
 		const selectionUnit = field(form, 'selection_unit');
@@ -330,6 +337,10 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		if (semanticPromptLimit) semanticPromptLimit.disabled = readonly || !aiEnabled;
 	}
 	function updateModelDecisionControls(form, readonly = false) {
+		const noLoops = getValue(form, 'max_tool_loops') === '0';
+		const strategyControl = field(form, 'model_decision_strategy');
+		if (strategyControl) strategyControl.disabled = readonly || noLoops;
+		readonly = readonly || noLoops;
 		const strategy = getValue(form, 'model_decision_strategy');
 		const native = strategy === 'native-model-decision';
 		const legacy = strategy === 'simple-model-decision';
@@ -345,7 +356,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		if (threshold) threshold.disabled = readonly || native;
 		if (verification) verification.disabled = readonly || native;
 		if (hint) {
-			hint.textContent = native
+			hint.textContent = noLoops ? MB_UI_TEXT.direct_call_tools_inactive : native
 				? 'Native mode streams a normal terminal assistant response directly, skips the separate final-response model call, and requires semantic verification to be disabled.'
 				: legacy
 					? 'Compatibility only. This strategy uses the textual TOOL_PHASE_COMPLETE sentinel and a separate final-response call. Existing saved profiles remain supported; use AI-guarded or native model decision for new profiles.'
@@ -356,6 +367,10 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const preview = form.querySelector('[data-pipeline-preview]');
 		if (!preview) return;
 		preview.replaceChildren();
+		if (getValue(form, 'max_tool_loops') === '0') {
+			preview.appendChild(element('orchestrator-profile-hint', MB_UI_TEXT.direct_call_tools_inactive));
+			return;
+		}
 		stageIdsFromForm(form).forEach((id, index) => {
 			if (index > 0) preview.appendChild(element('orchestrator-profile-arrow', '→'));
 			preview.appendChild(pill(id));

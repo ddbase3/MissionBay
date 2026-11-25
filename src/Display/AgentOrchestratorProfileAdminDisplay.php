@@ -238,12 +238,16 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			return $this->error('Target profile already exists: ' . $id, 'save');
 		}
 
-		$capabilitySelectionEnabled = $this->toBool($payload['capability_selection'] ?? false);
-		$aiCapabilitySelectionEnabled = $this->toBool($payload['ai_capability_selection'] ?? false);
+		$loopLimit = $payload['max_tool_loops'] ?? 10;
+		$maxToolLoops = is_numeric($loopLimit) && (float)$loopLimit === 0.0
+			? 0
+			: max(1, min(100, (int)$loopLimit));
+		$capabilitySelectionEnabled = $maxToolLoops > 0 && $this->toBool($payload['capability_selection'] ?? false);
+		$aiCapabilitySelectionEnabled = $maxToolLoops > 0 && $this->toBool($payload['ai_capability_selection'] ?? false);
 		if ($capabilitySelectionEnabled && $aiCapabilitySelectionEnabled) {
 			return $this->error('Capability selection stages are mutually exclusive.', 'save');
 		}
-		$selectionUnit = strtolower(trim((string)($payload['selection_unit'] ?? AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION)));
+		$selectionUnit = $maxToolLoops === 0 ? AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION : strtolower(trim((string)($payload['selection_unit'] ?? AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION)));
 		if (!in_array($selectionUnit, [AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION, AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE], true)) {
 			return $this->error('Unsupported capability selection unit: ' . $selectionUnit, 'save');
 		}
@@ -256,7 +260,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'description' => trim((string)($payload['description'] ?? '')),
 			'enabled' => $this->toBool($payload['enabled'] ?? true),
 			'mode' => strtolower(trim((string)($payload['profile_mode'] ?? AgentOrchestratorProfile::MODE_STANDARD))),
-			'max_tool_loops' => max(1, min(100, (int)($payload['max_tool_loops'] ?? 10))),
+			'max_tool_loops' => $maxToolLoops,
 			'model_decision' => [
 				'strategy' => strtolower(trim((string)($payload['model_decision_strategy'] ?? AgentModelDecisionConfig::STRATEGY_AI_GUARDED))),
 				'repair_enabled' => $this->toBool($payload['model_decision_repair_enabled'] ?? true),

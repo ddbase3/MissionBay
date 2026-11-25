@@ -83,6 +83,14 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 			return;
 		}
 
+		$loopLimit = $flow['nodes'][$assistantIndex]['inputs']['maxtoolloops'] ?? 10;
+		$toolsEnabled = !is_numeric($loopLimit) || (float)$loopLimit !== 0.0;
+		if (!$toolsEnabled && isset($component['attach_as'])) {
+			$roles = $this->normalizeStringList($component['attach_as']);
+			if ($roles === ['tool']) {
+				return;
+			}
+		}
 		$presetId = trim((string)($component['preset'] ?? ''));
 
 		if ($presetId === '') {
@@ -102,8 +110,14 @@ class AgentComponentFlowBuilder implements IAgentComponentFlowBuilder {
 			return;
 		}
 
-		$baseResourceId = $this->ensurePresetResource($flow, $presetId);
 		$attachAs = $this->normalizeStringList($component['attach_as'] ?? ($preset['capabilities'] ?? []));
+		if (!$toolsEnabled) {
+			$attachAs = array_values(array_diff($attachAs, ['tool']));
+			if ($attachAs === []) {
+				return;
+			}
+		}
+		$baseResourceId = $this->ensurePresetResource($flow, $presetId);
 
 		if (in_array('chatmodel', $attachAs, true)) {
 			$this->addChatModel($flow, $assistantIndex, $baseResourceId);

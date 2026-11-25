@@ -191,7 +191,8 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 			[$finalContent, $responseWarning, $streamStatus] = $this->createFinalResponse(
 				$eventSink,
 				$turnResources->getModel(),
-				$turnResult
+				$turnResult,
+				$options->getMaxToolLoops() > 0
 			);
 
 			$assistantMessage = $this->finalResponseService->createAssistantMessage($turnResult, $finalContent);
@@ -345,7 +346,8 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 	private function createFinalResponse(
 		?IAgentEventSink $eventSink,
 		IAiChatModel $model,
-		AgentAssistantTurnResult $turnResult
+		AgentAssistantTurnResult $turnResult,
+		bool $allowStreamRecovery = true
 	): array {
 		if ($eventSink === null) {
 			try {
@@ -386,16 +388,18 @@ class AiAssistantNode extends AbstractAiAssistantNode {
 				return [$finalContent, '', 'complete'];
 			}
 
-			$this->logError('Streaming response completed without visible content. Starting one buffered recovery request.');
-			try {
-				$recoveredContent = $this->finalResponseService->createDirectResponse($model, $turnResult);
-			}
-			catch (AgentRunCancelledException $e) {
-				throw $e;
-			}
-			catch (\Throwable $e) {
-				$this->logError('Buffered final-response recovery failed: ' . $e->getMessage());
-				$recoveredContent = '';
+			$recoveredContent = '';
+			if ($allowStreamRecovery) {
+				$this->logError('Streaming response completed without visible content. Starting one buffered recovery request.');
+				try {
+					$recoveredContent = $this->finalResponseService->createDirectResponse($model, $turnResult);
+				}
+				catch (AgentRunCancelledException $e) {
+					throw $e;
+				}
+				catch (\Throwable $e) {
+					$this->logError('Buffered final-response recovery failed: ' . $e->getMessage());
+				}
 			}
 
 			if (trim($recoveredContent) === '') {

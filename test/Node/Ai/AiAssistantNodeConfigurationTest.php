@@ -146,8 +146,20 @@ final class AiAssistantNodeConfigurationTest extends TestCase {
 		$this->assertSame(10, $this->buildOptions(['maxtoolloops' => null])->getMaxToolLoops());
 	}
 
-	public function testMaxToolLoopsRejectsZeroNegativeOrNonnumericValues(): void {
-		foreach ([0, -1, '0', 'invalid', [], new \stdClass()] as $value) {
+	public function testZeroToolLoopsPreserveMemoryAndDisableOrchestration(): void {
+		foreach ([0, '0', 0.0] as $value) {
+			$options = $this->buildOptions(['maxtoolloops' => $value, 'stages' => ['model-decision'], 'deliberateplanning' => true]);
+			$this->assertSame(0, $options->getMaxToolLoops());
+			$this->assertFalse($options->areToolsEnabled());
+			$this->assertFalse($options->isDeliberatePlanningEnabled());
+			$this->assertSame([], $options->getStageIds());
+			$this->assertTrue($options->isMemoryReadEnabled());
+			$this->assertTrue($options->isMemoryWriteEnabled());
+		}
+	}
+
+	public function testMaxToolLoopsRejectsNegativeOrNonnumericValues(): void {
+		foreach ([-1, -0.1, 0.5, 'invalid', [], new \stdClass()] as $value) {
 			try {
 				$this->buildOptions(['maxtoolloops' => $value]);
 				$this->fail('Invalid tool loop count was accepted');

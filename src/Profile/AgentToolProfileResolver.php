@@ -68,36 +68,58 @@ final class AgentToolProfileResolver {
 
 	/**
 	 * @param array<int,string> $profileIds
+	 * @param bool $toolsEnabled Whether to include callable tool roles. When false,
+	 *     unavailable tool-profile selections are ignored and available memory/context
+	 *     roles retain their normal configuration.
 	 * @return array<int,array<string,mixed>>
+	 * @throws \RuntimeException If an active tool selection is invalid.
 	 */
-	public function resolveComponents(array $profileIds): array {
+	public function resolveComponents(array $profileIds, bool $toolsEnabled = true): array {
 		$resolved = [];
 		$order = 10;
 
 		foreach ($this->normalizeIds($profileIds) as $profileId) {
 			$settings = $this->settingsStore->get(self::SETTINGS_GROUP, $profileId, []);
 			if (!is_array($settings) || $settings === []) {
+				if (!$toolsEnabled) {
+					continue;
+				}
 				throw new \RuntimeException('Tool profile not found: ' . $profileId);
 			}
 			$profile = $this->normalizeProfile($profileId, $settings);
 			if (!$profile['enabled']) {
+				if (!$toolsEnabled) {
+					continue;
+				}
 				throw new \RuntimeException('Tool profile is disabled: ' . $profileId);
 			}
 			if (!$profile['internal_enabled']) {
+				if (!$toolsEnabled) {
+					continue;
+				}
 				throw new \RuntimeException('Tool profile is not enabled for internal agents: ' . $profileId);
 			}
 
 			foreach ($profile['tools'] as $presetId) {
 				$preset = $this->presetRepository->getPreset($presetId, []);
 				if ($preset === []) {
+					if (!$toolsEnabled) {
+						continue;
+					}
 					throw new \RuntimeException('Tool profile references an unknown component preset: ' . $presetId);
 				}
 				if (!$this->toBool($preset['enabled'] ?? true)) {
+					if (!$toolsEnabled) {
+						continue;
+					}
 					throw new \RuntimeException('Tool profile references a disabled component preset: ' . $presetId);
 				}
 
 				$capabilities = $this->normalizeCapabilities($preset['capabilities'] ?? []);
 				if (!in_array('tool', $capabilities, true)) {
+					if (!$toolsEnabled) {
+						continue;
+					}
 					throw new \RuntimeException('Tool profile preset does not expose the tool capability: ' . $presetId);
 				}
 
@@ -121,6 +143,15 @@ final class AgentToolProfileResolver {
 			}
 		}
 
+		if (!$toolsEnabled) {
+			foreach ($resolved as $presetId => &$component) {
+				$component['attach_as'] = array_values(array_diff($component['attach_as'], ['tool']));
+				if ($component['attach_as'] === []) {
+					unset($resolved[$presetId]);
+				}
+			}
+			unset($component);
+		}
 		return array_values($resolved);
 	}
 

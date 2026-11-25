@@ -24,7 +24,8 @@ use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
  * Immutable, runtime-ready orchestration profile.
  *
  * Stage ordering is intentionally not configurable. Profiles only toggle
- * optional stages inside the canonical MissionBay pipeline.
+ * optional stages inside the canonical MissionBay pipeline. Zero tool loops
+ * disable that pipeline entirely.
  */
 final class AgentOrchestratorProfile {
 
@@ -67,8 +68,12 @@ final class AgentOrchestratorProfile {
 		if (!in_array($this->mode, self::MODES, true)) {
 			throw new \InvalidArgumentException('Unknown orchestrator profile mode: ' . $this->mode);
 		}
-		if ($this->maxToolLoops < 1 || $this->maxToolLoops > 100) {
-			throw new \InvalidArgumentException('Max tool loops must be between 1 and 100.');
+		if ($this->maxToolLoops < 0 || $this->maxToolLoops > 100) {
+			throw new \InvalidArgumentException('Max tool loops must be between 0 and 100.');
+		}
+		if ($this->maxToolLoops === 0 && (in_array(true, $this->getOptionalStages(), true)
+			|| $this->capabilitySelection->isEnabled() || $this->deliberatePlanningEnabled)) {
+			throw new \InvalidArgumentException('A profile without tool loops cannot enable orchestration stages or planning.');
 		}
 		if ($this->capabilitySelectionEnabled && $this->aiCapabilitySelectionEnabled) {
 			throw new \InvalidArgumentException('Deterministic and AI capability selection stages are mutually exclusive.');
@@ -101,11 +106,14 @@ final class AgentOrchestratorProfile {
 
 	/**
 	 * Returns the canonical ordered stage ids. Required stages cannot be
-	 * disabled and callers never receive a freely reordered pipeline.
+	 * disabled for a positive loop limit. A zero limit has no stages.
 	 *
 	 * @return array<int,string>
 	 */
 	public function getStageIds(): array {
+		if ($this->maxToolLoops === 0) {
+			return [];
+		}
 		$stageIds = [];
 
 		if ($this->capabilityDiscoveryEnabled) {

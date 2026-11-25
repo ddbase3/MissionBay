@@ -240,6 +240,20 @@ final class AgentCompositionInspectorBehaviorTest extends TestCase {
 		$this->assertSame(['model-decision', 'action-policy', 'tool-execution', 'tool-observation'], $report['final_stage_ids']);
 	}
 
+	public function testDirectCallDoesNotResolveDefaultStagesOrInactiveCapabilities(): void {
+		$flow = ['nodes' => [['id' => 'assistant', 'inputs' => ['maxtoolloops' => 0, 'stages' => []]]]];
+		$report = $this->inspector(flow: $flow, runtime: true)->inspect('agent-one', [
+			'orchestrator_profile' => 'direct-call',
+			'tool_profiles' => ['missing-profile'],
+			'capability_sources' => ['tools' => ['unknown-tool'], 'strict' => true]
+		]);
+		$this->assertSame('valid', $report['status']);
+		$this->assertSame([], $report['errors']);
+		$this->assertSame([], $report['tools']);
+		$this->assertSame([], $report['core_stage_ids']);
+		$this->assertSame([], $report['final_stage_ids']);
+	}
+
 	public function testStrictDiscoveryReportsMissingConfiguredToolsAsErrors(): void {
 		$flow = ['nodes' => [['id' => 'assistant', 'inputs' => ['stages' => ['model-decision', 'action-policy', 'tool-execution', 'tool-observation']]]]];
 		$report = $this->inspector(flow: $flow, runtime: true)->inspect('agent-one', ['capability_sources' => ['tools' => ['unknown-tool'], 'strict' => true]]);

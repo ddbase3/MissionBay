@@ -40,7 +40,7 @@ Each record is addressed by preset ID and normally contains a resource `type`, o
 
 ### `agent-orchestrator-profile`
 
-Named orchestrator pipeline profiles. A profile can control stage IDs, maximum tool loops, capability selection, model-decision configuration and planning behavior.
+Named orchestrator pipeline profiles. A profile can control stage IDs, maximum tool loops, capability selection, model-decision configuration and planning behavior. The built-in `direct-call` profile sets `max_tool_loops` to zero, disabling tools and the stage pipeline while preserving the normal conversation, context and file lifecycle. Existing selections are not rewritten.
 
 ### `agent-memory-profile`
 

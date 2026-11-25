@@ -237,6 +237,7 @@ Each resource is listed once by its stable technical `getName()`. Its path refle
 | Stable ID | Class |
 |---|---|
 | `native-tool-loop` (default) | `NativeToolLoopOrchestratorProfile` |
+| `direct-call` | `DirectCallOrchestratorProfile` |
 | `large-catalog-native` | `LargeCatalogNativeOrchestratorProfile` |
 | `agent-selected-native` | `AgentSelectedNativeOrchestratorProfile` |
 

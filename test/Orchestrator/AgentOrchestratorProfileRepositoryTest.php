@@ -34,8 +34,33 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 		$actual = array_map(static fn($profile): array => $profile->toArray(), $profiles);
 		ksort($actual);
 		$expected = json_decode(file_get_contents(__DIR__ . '/fixtures/builtin-profiles-before-refactor.json'), true, 512, JSON_THROW_ON_ERROR);
+		$this->assertCount(4, $profiles);
+		unset($actual['direct-call']);
 		$this->assertSame($expected, $actual);
-		$this->assertCount(3, $profiles);
+	}
+
+	public function testDirectCallHasNoOrchestrationStages(): void {
+		$repository = $this->nativeRepository();
+		$profile = $repository->getProfile('direct-call');
+		$this->assertTrue($profile->isBuiltin());
+		$this->assertSame(0, $profile->getMaxToolLoops());
+		$this->assertSame([], $profile->getStageIds());
+		$this->assertFalse($profile->getCapabilitySelection()->isEnabled());
+		$this->assertNotContains(true, $profile->getOptionalStages());
+	}
+
+	public function testStoredZeroLoopLimitDisablesStagesAndSurvivesReload(): void {
+		$repository = $this->nativeRepository($this->settingsStore());
+		$profile = $repository->save('custom-direct', [
+			'mode' => 'deliberate',
+			'max_tool_loops' => 0,
+			'optional_stages' => ['capability-selection' => true],
+			'capability_selection' => ['enabled' => true]
+		]);
+		$repository->reload();
+		$this->assertSame(0, $profile->getMaxToolLoops());
+		$this->assertSame([], $profile->getStageIds());
+		$this->assertSame($profile->toArray(), $repository->getProfile('custom-direct')->toArray());
 	}
 
 	public function testMissingChoiceUsesNativeDefaultAndMissingLabProfileFails(): void {
@@ -63,7 +88,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 	public function testForeignRuntimeIsIgnoredBeforeMaterialization(): void {
 		$definitions = $this->nativeDefinitions();
 		$definitions[] = new OtherRuntimeProfileDefinition();
-		$this->assertCount(3, $this->nativeRepository(null, $definitions)->getProfiles());
+		$this->assertCount(4, $this->nativeRepository(null, $definitions)->getProfiles());
 	}
 
 	public function testInvalidDefinitionIdIsRejected(): void {

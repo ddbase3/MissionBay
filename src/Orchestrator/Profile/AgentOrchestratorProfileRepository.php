@@ -136,6 +136,7 @@ final class AgentOrchestratorProfileRepository {
 				'label' => $profile->getLabel(),
 				'description' => $profile->getDescription(),
 				'mode' => $profile->getMode(),
+				'max_tool_loops' => $profile->getMaxToolLoops(),
 				'enabled' => $profile->isEnabled(),
 				'builtin' => $profile->isBuiltin(),
 				'stage_ids' => $profile->getStageIds(),
@@ -174,6 +175,15 @@ final class AgentOrchestratorProfileRepository {
 		$optional = is_array($settings['optional_stages'] ?? null) ? $settings['optional_stages'] : [];
 		$selection = is_array($settings['capability_selection'] ?? null) ? $settings['capability_selection'] : [];
 		$modelDecision = is_array($settings['model_decision'] ?? null) ? $settings['model_decision'] : [];
+		$loopLimit = $settings['max_tool_loops'] ?? $defaults['max_tool_loops'];
+		// Preserve the previous normalization for non-zero and malformed limits.
+		$maxToolLoops = is_numeric($loopLimit) && (float)$loopLimit === 0.0
+			? 0
+			: max(1, min(100, (int)$loopLimit));
+		if ($maxToolLoops === 0) {
+			$optional = array_fill_keys(array_keys($defaults['optional_stages']), false);
+			$selection['selection_unit'] = AgentCapabilitySelectionConfig::SELECTION_UNIT_FUNCTION;
+		}
 		$selectionStrategy = strtolower(trim((string)($selection['strategy'] ?? $defaults['capability_selection']['strategy'])));
 		$hasExplicitAiSelectionStage = array_key_exists('ai-capability-selection', $optional);
 		$legacySemanticSelection = !$hasExplicitAiSelectionStage
@@ -202,7 +212,7 @@ final class AgentOrchestratorProfileRepository {
 			description: trim((string)($settings['description'] ?? '')),
 			enabled: $this->toBool($settings['enabled'] ?? true),
 			mode: $mode,
-			maxToolLoops: max(1, min(100, (int)($settings['max_tool_loops'] ?? $defaults['max_tool_loops']))),
+			maxToolLoops: $maxToolLoops,
 			capabilityDiscoveryEnabled: $this->toBool($optional['capability-discovery'] ?? $defaults['optional_stages']['capability-discovery']),
 			capabilitySelectionEnabled: $capabilitySelectionEnabled,
 			aiCapabilitySelectionEnabled: $aiCapabilitySelectionEnabled,
@@ -210,7 +220,7 @@ final class AgentOrchestratorProfileRepository {
 			semanticVerificationEnabled: $this->toBool($optional['semantic-verification'] ?? $defaults['optional_stages']['semantic-verification']),
 			capabilitySelection: AgentCapabilitySelectionConfig::fromArray(array_merge($defaults['capability_selection'], $selection)),
 			modelDecision: AgentModelDecisionConfig::fromArray(array_merge($defaults['model_decision'], $modelDecision)),
-			deliberatePlanningEnabled: $this->toBool($settings['deliberate_planning'] ?? $defaults['deliberate_planning']),
+			deliberatePlanningEnabled: $maxToolLoops > 0 && $this->toBool($settings['deliberate_planning'] ?? $defaults['deliberate_planning']),
 			builtin: $builtin
 		);
 	}

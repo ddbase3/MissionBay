@@ -141,6 +141,26 @@ final class AgentFlowCompilerTest extends TestCase {
 		}
 	}
 
+	public function testDirectCallDisablesToolConfigurationWithoutDroppingOtherRoles(): void {
+		$flow = [];
+		$components = [];
+		(new AgentFlowCompiler($this->builder($flow, $components), $this->nativeRepository()))->compile([
+			'chatmodel' => 'model', 'orchestrator_profile' => 'direct-call',
+			'tool_profiles' => ['missing-profile'], 'expert_overrides_enabled' => true,
+			'capability_sources' => ['tools' => ['read']], 'capability_selection' => ['enabled' => true],
+			'agent_components' => [
+				['preset' => 'memory', 'attach_as' => ['memory']],
+				['preset' => 'context', 'attach_as' => ['context']]
+			]
+		]);
+		$inputs = $flow['nodes'][0]['inputs'];
+		$this->assertSame(0, $inputs['maxtoolloops']);
+		$this->assertSame([], $inputs['stages']);
+		$this->assertArrayNotHasKey('capabilitysources', $inputs);
+		$this->assertFalse($inputs['capabilityselection']['enabled']);
+		$this->assertSame(['model', 'memory', 'context'], array_column($components, 'preset'));
+	}
+
 	public function testBuilderCannotOmitAssistantNode(): void {
 		$builder = $this->createStub(IAgentComponentFlowBuilder::class);
 		$builder->method('build')->willReturn(['nodes' => [], 'resources' => [], 'connections' => []]);

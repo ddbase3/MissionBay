@@ -30,6 +30,7 @@ use Base3\MissionBay\Api\IAgentResource;
 use Base3\MissionBay\Api\IAgentTool;
 use Base3\MissionBay\Capability\AgentCapabilityCatalogBuilder;
 use Base3\MissionBay\Capability\AgentCapabilityDiscoveryService;
+use Base3\MissionBay\Dto\Assistant\AgentCapabilityDiscoveryResult;
 use Base3\MissionBay\Orchestrator\AgentStagePipelineResolver;
 use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use Base3\MissionBay\Profile\AgentContextProfileResolver;
@@ -81,14 +82,15 @@ final class AgentCompositionInspector {
 			$errors[] = $e->getMessage();
 		}
 
+		$toolsEnabled = $profile === null || $profile->getMaxToolLoops() > 0;
 		$toolProfileIds = $this->normalizeIds($settings['tool_profiles'] ?? []);
-		$toolProfiles = $this->describeToolProfiles($toolProfileIds, $warnings, $errors);
+		$toolProfiles = $this->describeToolProfiles($toolProfileIds, $warnings, $errors, $toolsEnabled);
 		$memoryProfileId = $this->normalizeId((string)($settings['memory_profile'] ?? ''));
 		$contextProfileId = $this->normalizeId((string)($settings['context_profile'] ?? ''));
 		$memoryProfile = $this->describeMemoryProfile($memoryProfileId, $warnings, $errors);
 		$contextProfile = $this->describeContextProfile($contextProfileId, $warnings, $errors);
 		$componentSources = $this->buildComponentSources($toolProfiles, $memoryProfile, $contextProfile);
-		$components = $this->describeConfiguredComponents($settings, $memoryProfileId, $contextProfileId, $componentSources, $warnings, $errors);
+		$components = $this->describeConfiguredComponents($settings, $memoryProfileId, $contextProfileId, $componentSources, $warnings, $errors, $toolsEnabled);
 
 		$effectiveFlow = [];
 		try {
@@ -104,11 +106,11 @@ final class AgentCompositionInspector {
 		$assistantNodeId = (string)($assistantNode['id'] ?? self::ASSISTANT_NODE_ID);
 		$nodeInputs = is_array($assistantNode['inputs'] ?? null) ? $assistantNode['inputs'] : [];
 		$coreStageIds = $this->normalizeIds($nodeInputs['stages'] ?? ($profile?->getStageIds() ?? []), false);
-		$sourceConfig = AgentCapabilitySourceConfig::fromArray(
+		$sourceConfig = AgentCapabilitySourceConfig::fromArray(!$toolsEnabled ? [] : (
 			is_array($nodeInputs['capabilitysources'] ?? null)
 				? $nodeInputs['capabilitysources']
 				: (is_array($settings['capability_sources'] ?? null) ? $settings['capability_sources'] : [])
-		);
+		));
 
 		$runtime = [
 			'tools' => [],
@@ -132,7 +134,8 @@ final class AgentCompositionInspector {
 					$coreStageIds,
 					$sourceConfig,
 					$warnings,
-					$errors
+					$errors,
+					$toolsEnabled
 				);
 			}
 			catch (\Throwable $e) {
@@ -192,7 +195,8 @@ final class AgentCompositionInspector {
 		array $coreStageIds,
 		AgentCapabilitySourceConfig $sourceConfig,
 		array &$warnings,
-		array &$errors
+		array &$errors,
+		bool $toolsEnabled
 	): array {
 		$context = $this->contextFactory->createContext();
 		$flow = $this->flowFactory->createFromArray('strictflow', $effectiveFlow, $context);
@@ -205,7 +209,9 @@ final class AgentCompositionInspector {
 			$docks['contextcontributors'] ?? [],
 			IAgentContextContributor::class
 		);
-		$discovery = $this->capabilityDiscoveryService->discover($baseTools, $sourceConfig, $context);
+		$discovery = $toolsEnabled
+			? $this->capabilityDiscoveryService->discover($baseTools, $sourceConfig, $context)
+			: new AgentCapabilityDiscoveryResult($sourceConfig);
 		$warnings = array_merge($warnings, $discovery->getWarnings());
 		$errors = array_merge($errors, $discovery->getErrors());
 		$toolDefinitions = [];
@@ -252,10 +258,10 @@ final class AgentCompositionInspector {
 
 		$finalStageIds = $coreStageIds;
 		try {
-			$finalStageIds = array_map(
+			$finalStageIds = $toolsEnabled ? array_map(
 				static fn($stage): string => $stage->id(),
 				$this->stagePipelineResolver->resolve($coreStageIds, $discovery->getStageMounts())
-			);
+			) : [];
 		}
 		catch (\Throwable $e) {
 			$errors[] = 'Effective stage pipeline is invalid: ' . $e->getMessage();
@@ -512,12 +518,12 @@ final class AgentCompositionInspector {
 	 * @param array<int,string> $errors
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function describeToolProfiles(array $profileIds, array &$warnings, array &$errors): array {
+	private function describeToolProfiles(array $profileIds, array &$warnings, array &$errors, bool $toolsEnabled): array {
 		$rows = [];
 		foreach ($profileIds as $profileId) {
 			$settings = $this->settingsStore->get(self::TOOL_PROFILE_SETTINGS_GROUP, $profileId, []);
 			if (!is_array($settings) || $settings === []) {
-				$errors[] = 'Tool profile not found: ' . $profileId;
+				if ($toolsEnabled) $errors[] = 'Tool profile not found: ' . $profileId;
 				$rows[] = [
 					'id' => $profileId,
 					'label' => $profileId,
@@ -531,7 +537,7 @@ final class AgentCompositionInspector {
 			}
 			$enabled = $this->toBool($settings['enabled'] ?? true);
 			$internal = array_key_exists('internal_enabled', $settings) ? $this->toBool($settings['internal_enabled']) : true;
-			if (!$enabled || !$internal) {
+			if ($toolsEnabled && (!$enabled || !$internal)) {
 				$errors[] = 'Tool profile is not active for internal agents: ' . $profileId;
 			}
 			$rows[] = [
@@ -542,7 +548,7 @@ final class AgentCompositionInspector {
 				'internal_enabled' => $internal,
 				'mcp_enabled' => $this->toBool($settings['mcp_enabled'] ?? false),
 				'tools' => $this->normalizeIds($settings['tools'] ?? []),
-				'status' => $enabled && $internal ? 'active' : 'inactive'
+				'status' => $toolsEnabled && $enabled && $internal ? 'active' : 'inactive'
 			];
 		}
 		return $rows;
@@ -580,11 +586,12 @@ final class AgentCompositionInspector {
 	 * @param array<int,string> $errors
 	 * @return array<int,array<string,mixed>>
 	 */
-	private function describeConfiguredComponents(array $settings, string $memoryProfileId, string $contextProfileId, array $componentSources, array &$warnings, array &$errors): array {
+	private function describeConfiguredComponents(array $settings, string $memoryProfileId, string $contextProfileId, array $componentSources, array &$warnings, array &$errors, bool $toolsEnabled): array {
 		$components = [];
 		try {
 			$components = $this->toolProfileResolver->resolveComponents(
-				$this->normalizeIds($settings['tool_profiles'] ?? [])
+				$this->normalizeIds($settings['tool_profiles'] ?? []),
+				$toolsEnabled
 			);
 			if ($memoryProfileId !== '') {
 				$components = array_merge($components, $this->memoryProfileResolver->resolveComponents($memoryProfileId));
@@ -635,6 +642,11 @@ final class AgentCompositionInspector {
 		$rows = [];
 		foreach ($merged as $presetId => $component) {
 			$preset = $this->presetRepository->getPreset($presetId, []);
+			$roles = $this->normalizeIds($component['attach_as'] ?? ($preset['capabilities'] ?? []));
+			if (!$toolsEnabled) {
+				$roles = array_values(array_diff($roles, ['tool']));
+				if ($roles === []) continue;
+			}
 			if ($preset === []) {
 				$errors[] = 'Component preset not found: ' . $presetId;
 			}
@@ -643,7 +655,7 @@ final class AgentCompositionInspector {
 				'label' => trim((string)($preset['label'] ?? '')) ?: $presetId,
 				'type' => trim((string)($preset['type'] ?? '')),
 				'enabled' => $this->toBool($preset['enabled'] ?? true),
-				'roles' => $this->normalizeIds($component['attach_as'] ?? ($preset['capabilities'] ?? [])),
+				'roles' => $roles,
 				'sources' => array_values(array_unique($componentSources[$presetId] ?? ['expert/legacy'])),
 				'tool_names' => [],
 				'memory_resources' => [],

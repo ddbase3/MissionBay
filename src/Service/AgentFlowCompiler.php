@@ -63,18 +63,21 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 		$profileId = trim((string)($agentSettings['orchestrator_profile'] ?? ''));
 		$profile = $this->orchestratorProfileRepository->getProfile($profileId);
 		$flow = $this->applyOrchestratorProfile($flow, $profile, $warnings);
-		$flow = $this->applyCapabilityConfiguration($flow, $agentSettings);
+		$toolsEnabled = $profile->getMaxToolLoops() > 0;
+		if ($toolsEnabled) {
+			$flow = $this->applyCapabilityConfiguration($flow, $agentSettings);
+		}
 
 		$memoryProfileId = $this->normalizeTechnicalKey((string)($agentSettings['memory_profile'] ?? ''));
 		$contextProfileId = $this->normalizeTechnicalKey((string)($agentSettings['context_profile'] ?? ''));
 		$toolProfileIds = $this->normalizeStringIds($agentSettings['tool_profiles'] ?? []);
 		$profileComponents = [];
 
-		if ($toolProfileIds !== [] && !$this->toolProfileResolver instanceof AgentToolProfileResolver) {
+		if ($toolsEnabled && $toolProfileIds !== [] && !$this->toolProfileResolver instanceof AgentToolProfileResolver) {
 			throw new \RuntimeException('Agent tool profile resolver is not available.');
 		}
 		if ($this->toolProfileResolver instanceof AgentToolProfileResolver) {
-			$profileComponents = $this->toolProfileResolver->resolveComponents($toolProfileIds);
+			$profileComponents = $this->toolProfileResolver->resolveComponents($toolProfileIds, $toolsEnabled);
 		}
 
 		$memoryProfileComponents = [];

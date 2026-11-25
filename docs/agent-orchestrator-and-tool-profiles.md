@@ -51,11 +51,12 @@ The administration UI therefore uses checkboxes instead of drag-and-drop orderin
 
 The repository discovers read-only definitions implementing `Base3\AssistantFoundation\Api\IAgentOrchestratorProfile` through `IClassMap`. Each definition supplies the lowercase class name, stable configuration ID, static runtime ID `missionbay`, and runtime-specific settings. Other runtimes are ignored; invalid or duplicate IDs within MissionBay are errors. The existing `fromArray()` validation and canonical stage order remain authoritative.
 
-MissionBay exposes three native profiles. Optional MissionBayLab exposes five controlled profiles. Stored custom profiles remain in `agent-orchestrator-profile`; discovered definitions take precedence over stored records with the same ID, as before.
+MissionBay exposes three native profiles and `direct-call`. Optional MissionBayLab exposes five controlled profiles. Stored custom profiles remain in `agent-orchestrator-profile`; discovered definitions take precedence over stored records with the same ID, as before.
 
 | Profile | Owner | Intended use |
 |---|---|---|
 | `simple` | MissionBayLab | One bounded tool loop for small, direct tool tasks. |
+| `direct-call` | MissionBay | Direct model response without callable tools or orchestration stages. Memory, context and native file input remain active. |
 | `native-tool-loop` | MissionBay | Neuron-like provider-native tool loop: tool calls continue through MissionBay, while a normal terminal assistant response is streamed directly without a control signal or separate final-response model call. |
 | `standard` | MissionBayLab | General multi-step tool orchestration with discovery, deterministic hybrid selection, compaction, and verification. |
 | `large-catalog` | MissionBayLab | Uses the explicit `ai-capability-selection` stage for large, heterogeneous tool catalogs with deterministic fallback. |
@@ -69,6 +70,16 @@ Built-in profiles can be duplicated into custom profiles. They cannot be overwri
 `native-tool-loop` is the default for missing or blank profile IDs in high-level agent compilation and administration. Explicitly selected IDs are not automatically replaced. If a selected definition is no longer installed and there is no stored custom profile with that ID, resolution fails explicitly. Keep MissionBayLab installed until affected agents and component presets have been deliberately reconfigured.
 
 Legacy high-level records without the `orchestrator_profile` key retain directly configured capability source/selection settings. If they explicitly contain `capability_selection`, the existing deterministic selection stage is retained at its canonical position so configured filters and limits are not bypassed by the new native default. Explicit profile choices continue to own their stage list; expert overrides affect settings, not stage ownership. When editing a legacy record to select an explicit profile, verify its selection stage and expert overrides before saving. Directly composed AgentFlows retain their node and stage configuration. Discovery does not rewrite settings records.
+
+### Direct call
+
+Select `direct-call` to use a normal configured agent or chatbot without a tool loop. Its immutable profile has `max_tool_loops = 0` and an empty effective stage list. Zero is also supported by stored custom profiles; it disables all orchestration stages and deliberate planning. A positive limit retains the existing canonical pipeline and defaults.
+
+The existing `AgentFlowCompiler` and `AgentComponentFlowBuilder` omit callable tool attachments and capability source/selection overrides. Tool-profile selections are retained in settings; their available memory and context facets still participate, while tool-only presets are not expanded. Separate memory and context profiles and direct components with those roles remain unchanged. Unavailable inactive tool-profile selections do not block the turn. Independently selected memory and context profiles still undergo their normal validation. Switching back to a positive-loop profile reactivates the saved tools.
+
+The existing assistant node and turn service build the regular system, context, conversation history and user messages, persist the user message, and skip capability discovery, tool setup, stage resolution and the tool orchestrator. The existing final-response service calls the selected model with no tools. Streaming, events, response handling, usage metadata, memory writes and native agent-file input use their existing owners. No new storage or model/file transport is introduced. An empty direct-call stream does not trigger another generation request. A pending tool suspension cannot be resumed with a zero-loop profile. Provider-side file transfers and model-internal activity are distinct from generation calls.
+
+The effective composition inspector and profile editor show no stages at zero loops. The normal agent configuration form marks tool configuration as inactive without removing saved selections.
 
 ### Model-decision semantics
 

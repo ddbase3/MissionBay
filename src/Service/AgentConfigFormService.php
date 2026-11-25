@@ -124,8 +124,9 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'orchestrator_profile',
 			AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID
 		));
+		$toolsEnabled = true;
 		try {
-			$this->orchestratorProfileRepository->getProfile($orchestratorProfile);
+			$toolsEnabled = $this->orchestratorProfileRepository->getProfile($orchestratorProfile)->getMaxToolLoops() > 0;
 		}
 		catch (\Throwable $e) {
 			$errors[] = sprintf($this->translate('orchestrator_missing', 'Selected orchestrator profile is not available: %s (%s)'), $orchestratorProfile, $e->getMessage());
@@ -137,7 +138,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$availableToolProfiles[(string)($option['id'] ?? '')] = true;
 		}
 		foreach ($toolProfiles as $toolProfile) {
-			if (!isset($availableToolProfiles[$toolProfile])) {
+			if ($toolsEnabled && !isset($availableToolProfiles[$toolProfile])) {
 				$errors[] = sprintf($this->translate('tool_profile_missing', 'Selected tool profile is not available for internal agents: %s'), $toolProfile);
 			}
 		}
