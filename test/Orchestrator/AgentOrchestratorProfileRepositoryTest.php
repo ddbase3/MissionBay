@@ -34,9 +34,21 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 		$actual = array_map(static fn($profile): array => $profile->toArray(), $profiles);
 		ksort($actual);
 		$expected = json_decode(file_get_contents(__DIR__ . '/fixtures/builtin-profiles-before-refactor.json'), true, 512, JSON_THROW_ON_ERROR);
-		$this->assertCount(4, $profiles);
-		unset($actual['direct-call']);
+		$this->assertCount(5, $profiles);
+		unset($actual['direct-call'], $actual['program-tool-loop']);
 		$this->assertSame($expected, $actual);
+	}
+
+	public function testProgramProfileUsesExistingAgentSelectedPipelineAndRoundTrips(): void {
+		$repository = $this->nativeRepository($this->settingsStore());
+		$program = $repository->getProfile('program-tool-loop');
+		$native = $repository->getProfile('agent-selected-native');
+		$this->assertTrue($program->getModelDecision()->isProgramEnabled());
+		$this->assertFalse($native->getModelDecision()->isProgramEnabled());
+		$this->assertSame($native->getStageIds(), $program->getStageIds());
+		$copy = $repository->save('custom-program', $program->toArray());
+		$repository->reload();
+		$this->assertSame($copy->toArray(), $repository->getProfile('custom-program')->toArray());
 	}
 
 	public function testDirectCallHasNoOrchestrationStages(): void {
@@ -88,7 +100,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 	public function testForeignRuntimeIsIgnoredBeforeMaterialization(): void {
 		$definitions = $this->nativeDefinitions();
 		$definitions[] = new OtherRuntimeProfileDefinition();
-		$this->assertCount(4, $this->nativeRepository(null, $definitions)->getProfiles());
+		$this->assertCount(5, $this->nativeRepository(null, $definitions)->getProfiles());
 	}
 
 	public function testInvalidDefinitionIdIsRejected(): void {

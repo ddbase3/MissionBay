@@ -493,6 +493,8 @@ replay marker: 86400 seconds
 
 The client receives only an opaque resume handle, not the serialized suspension.
 
+With the optional `program-tool-loop` profile, the existing suspension can additionally hold the generated program source, declared contract fingerprints, pending tool call identity, bounded local JSON variables, operand stack and execution counters. These can contain user content and personal or business data returned by authorized tools. The existing actor-scoped approval state and expiry/deletion mechanisms apply; the program feature creates no new state store. Previously committed tool actions are not automatically rolled back. The interpreter has no direct filesystem, network or host-code access. Each actual tool remains subject to its existing authorization, policy and data recipient rules.
+
 ## 17. Human-in-the-loop response data
 
 Natural-language approval replies are themselves user content. When MissionBay must interpret such a reply, it sends the current interaction request and response text to the active chat model for structured classification.
@@ -516,6 +518,9 @@ A snapshot can include:
 The snapshot is not returned as client-editable suspension data. It can still contain personal or business data and is retained for the lifetime of the suspension state.
 
 ## 19. Tool lifecycle audit table
+
+The optional programmable profile records model-generated source in the existing tool log's arguments and structured program results or partial failures in its result data. Concrete tool and action audit records can carry a parent program call ID and step. Source may include personal data or sensitive argument values; do not put secrets into model-visible contracts or generated programs. Logs remain privileged, use the existing access and retention controls, and must be included in deletion/retention planning. Selected tool schemas and the program result are sent to the existing active chat-model provider. Internal intermediate results are processed within the host and are not automatically appended as individual model messages. Individual tools may still transfer data to their own configured recipients. No additional provider, database table or default retention period is introduced.
+
 
 The database-backed tool listener creates and writes:
 

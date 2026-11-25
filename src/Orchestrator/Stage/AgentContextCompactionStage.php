@@ -138,6 +138,7 @@ final class AgentContextCompactionStage implements IAgentStage {
 			$originalBytes = $this->measureValue($toolResult->getOutput());
 			if (
 				!$toolResult->isSuccess()
+				|| ($toolResult->getMetadata()['program'] ?? false) === true
 				|| $this->isTerminalAnswerReady($toolResult)
 				|| $originalBytes < max(1, $this->minToolResultBytes)
 			) {

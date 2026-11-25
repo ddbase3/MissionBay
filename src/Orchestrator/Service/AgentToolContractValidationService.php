@@ -21,6 +21,8 @@ use Base3\AssistantFoundation\Dto\AgentToolContractValidation;
 use Base3\AssistantFoundation\Dto\AiToolCall;
 use Base3\CoreFoundation\Api\IOutputSchemaProvider;
 use Base3\MissionBay\Api\IAgentTool;
+use Base3\MissionBay\Api\IAgentBatchTool;
+use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
 use Base3\MissionBay\Orchestrator\Validation\JsonSchemaValidator;
 
 /**
@@ -59,6 +61,38 @@ final class AgentToolContractValidationService {
 			$tools,
 			AgentToolContractValidation::DIRECTION_OUTPUT
 		);
+	}
+
+	/**
+	 * Returns the same declared input and output contracts used for validation,
+	 * only when a concrete function is eligible for deterministic programs.
+	 * Batch envelopes must remain in the existing batch orchestration path.
+	 *
+	 * @param array<int,mixed> $tools
+	 * @return array{input:mixed,output:mixed,fingerprint:string}|null
+	 */
+	public function getProgramContract(string $name, array $tools): ?array {
+		$resolved = $this->resolveDefinition($name, $tools);
+		$tool = $resolved['tool'];
+		if (!$tool instanceof IAgentTool || ($tool instanceof IAgentBatchTool && $tool->isBatchFunction($name))) {
+			return null;
+		}
+		$input = $this->resolveSchema($tool, $resolved['definition'], $name, AgentToolContractValidation::DIRECTION_INPUT);
+		$output = $this->resolveSchema($tool, $resolved['definition'], $name, AgentToolContractValidation::DIRECTION_OUTPUT);
+		if (!$input['declared'] || !$output['declared']
+			|| !$this->validator->isProgramSchema($input['schema']) || !$this->validator->isProgramSchema($output['schema'])) {
+			return null;
+		}
+		return [
+			'input' => $input['schema'],
+			'output' => $output['schema'],
+			'fingerprint' => (new AgentActionFingerprint())->createToolDefinitionFingerprint([
+				'definition' => $resolved['definition'],
+				'input' => $input['schema'],
+				'output' => $output['schema'],
+				'implementation' => $tool::class
+			])
+		];
 	}
 
 	/**

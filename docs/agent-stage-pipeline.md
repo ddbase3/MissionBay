@@ -135,3 +135,5 @@ Model-generated arguments are validated before policy evaluation. Successful run
 ## Capability selection boundary
 
 The run-local catalog contains all functions assigned to the agent after profile filtering. `capability-selection` exposes only a bounded subset to each model call, and later stages reject calls outside that exact subset. See [agent-capability-catalog-and-selection.md](agent-capability-catalog-and-selection.md).
+
+The `program-tool-loop` profile uses the same canonical stage order. The existing tool-execution stage drives an interpreter and sends every concrete call through the configured action-policy and ordinary execution stages before emitting one parent observation. See [Programmable tool execution](agent-tool-programs.md).

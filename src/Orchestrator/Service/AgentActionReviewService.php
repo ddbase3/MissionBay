@@ -666,6 +666,7 @@ final class AgentActionReviewService {
 			'pending_tool_calls' => $this->mapObjects($this->arrayValue($context, AgentToolLoopContextKeys::PENDING_TOOL_CALLS, $projectedPatch), AiToolCall::class),
 			'actions' => $this->mapObjects($this->arrayValue($context, AgentToolLoopContextKeys::ACTIONS, $projectedPatch), AgentAction::class),
 			'action_decisions' => $this->mapObjects($this->arrayValue($context, AgentToolLoopContextKeys::ACTION_DECISIONS, $projectedPatch), AgentActionDecision::class),
+			'program_state' => $this->arrayValue($context, AgentToolLoopContextKeys::PROGRAM_STATE, $projectedPatch),
 			'tool_results' => $this->mapObjects($this->arrayValue($context, AgentToolLoopContextKeys::TOOL_RESULTS, $projectedPatch), AgentToolResult::class),
 			'observations' => $this->mapObjects($this->arrayValue($context, AgentToolLoopContextKeys::OBSERVATIONS, $projectedPatch), AgentToolResult::class),
 			'executed_tool_calls' => $this->arrayValue($context, AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS, $projectedPatch),

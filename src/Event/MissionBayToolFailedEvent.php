@@ -42,7 +42,8 @@ class MissionBayToolFailedEvent extends BaseEvent {
 		private int $iteration,
 		private string $timestamp = '',
 		private int $callIndex = 0,
-		private array $trace = []
+		private array $trace = [],
+		private mixed $result = null
 	) {
 		if ($this->timestamp === '') {
 			$this->timestamp = gmdate('c');
@@ -70,6 +71,11 @@ class MissionBayToolFailedEvent extends BaseEvent {
 	 */
 	public function getArguments(): array {
 		return $this->arguments;
+	}
+
+	/** Optional structured partial result for failed executions. */
+	public function getResult(): mixed {
+		return $this->result;
 	}
 
 	public function getErrorMessage(): string {

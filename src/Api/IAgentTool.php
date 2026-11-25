@@ -59,7 +59,10 @@ interface IAgentTool extends IBase {
 	 * The schema under function.parameters describes input arguments. Resource
 	 * configuration belongs to ISchemaProvider, while operation result schemas
 	 * belong to IOutputSchemaProvider. Do not use either of those contracts as a
-	 * replacement for function.parameters.
+	 * replacement for function.parameters. Programmatic calls require explicit,
+	 * supported JSON input and output schemas, either through IOutputSchemaProvider
+	 * or outputSchema in the function definition. Describe every returned variant,
+	 * including domain errors. An untyped function remains callable individually.
 	 *
 	 * Every operation should explicitly declare its safety semantics. Typical
 	 * read-only annotations are readOnlyHint=true, mutation=false and

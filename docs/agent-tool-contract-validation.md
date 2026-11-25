@@ -190,3 +190,5 @@ AgentToolResultCacheService
 ```
 
 This keeps the public default pipeline compact while enforcing contracts at the points where bypass would be unsafe.
+
+For program execution, the existing input/output schema resolution also determines program eligibility. See [Programmable tool execution](agent-tool-programs.md) for supported contracts and the unchanged ordinary-call behavior.

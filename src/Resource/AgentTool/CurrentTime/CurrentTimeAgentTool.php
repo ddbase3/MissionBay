@@ -52,6 +52,12 @@ class CurrentTimeAgentTool extends AbstractAgentResource implements IAgentTool {
 			'readOnlyHint' => true,
 			'mutation' => false,
 			'requiresApproval' => false,
+			'outputSchema' => [
+				'type' => 'object',
+				'properties' => ['time' => ['type' => 'string'], 'timezone' => ['type' => 'string']],
+				'required' => ['time', 'timezone'],
+				'additionalProperties' => false
+			],
 			'function' => [
 				'name' => 'get_current_time',
 				'description' => 'Returns the current server time and date.',

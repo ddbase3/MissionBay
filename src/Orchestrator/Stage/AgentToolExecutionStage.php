@@ -35,6 +35,8 @@ use Base3\MissionBay\Exception\AgentSubAgentSuspendedException;
 use Base3\MissionBay\Cache\AgentToolCacheKeyBuilder;
 use Base3\MissionBay\Cache\NullAgentToolResultCache;
 use Base3\MissionBay\Orchestrator\AgentStageResultAccumulator;
+use Base3\MissionBay\Orchestrator\Program\ToolProgramDefinitionService;
+use Base3\MissionBay\Orchestrator\Program\ToolProgramExecutionService;
 use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
 use Base3\MissionBay\Orchestrator\Service\AgentActionReviewService;
 use Base3\MissionBay\Orchestrator\Service\AgentBudgetGuardService;
@@ -122,6 +124,12 @@ final class AgentToolExecutionStage implements IAgentStage {
 			)
 			&& $context->getVar(AgentToolLoopContextKeys::COMPLETED) !== true
 			&& (string)($context->getVar(AgentToolLoopContextKeys::FAILURE_CODE) ?? '') === '';
+	}
+
+	/** Executes a program through this stage and its configured policy stage. */
+	public function processProgram(IAgentContext $context, AgentActionPolicyStage $policy, callable $synchronize): AgentStageResult {
+		$programs = new ToolProgramExecutionService($this->eventManager, new ToolProgramDefinitionService($this->toolContractValidationService));
+		return $programs->process($context, $policy, fn(): AgentStageResult => $this->process($context), $synchronize);
 	}
 
 	public function process(IAgentContext $context): AgentStageResult {
@@ -368,7 +376,7 @@ final class AgentToolExecutionStage implements IAgentStage {
 			}
 		}
 
-		$trace = $this->withTimingTrace($context, $trace);
+		$trace = $this->withTimingTrace($context, ToolProgramExecutionService::trace($context, $trace, $callId, $call->getMetadata()));
 
 		$metadata = [
 			'label' => $label,

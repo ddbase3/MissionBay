@@ -45,6 +45,9 @@ use Base3\MissionBay\Orchestrator\Service\AgentBudgetGuardService;
 use Base3\MissionBay\Orchestrator\Service\AgentLoopProgressService;
 use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolExecutionStage;
+use Base3\MissionBay\Orchestrator\Stage\AgentActionPolicyStage;
+use Base3\MissionBay\Orchestrator\Program\ToolProgramExecutionService;
 
 /**
  * AgentToolOrchestrator
@@ -204,6 +207,7 @@ class AgentToolOrchestrator {
 					);
 				}
 
+				$programPolicy = null;
 				foreach ($effectiveStages as $stage) {
 					$this->applyCancellationIfRequested($context);
 					if ($this->hasFailure($context) || $this->isSuspended($context) || $this->isCancelled($context)) {
@@ -211,7 +215,22 @@ class AgentToolOrchestrator {
 					}
 
 					$phaseBeforeStage = $context->getVar(AgentToolLoopContextKeys::PHASE);
-					$this->executeStage($context, $stage, $eventCallback);
+					if (ToolProgramExecutionService::hasWork($context)) {
+						if ($stage->id() === 'action-policy') {
+							$programPolicy = $stage;
+							continue;
+						}
+						if ($stage->id() === 'tool-execution') {
+							if (!$programPolicy instanceof AgentActionPolicyStage || !$stage instanceof AgentToolExecutionStage) {
+								throw new \RuntimeException('Program execution requires the existing action-policy and tool-execution stages.');
+							}
+							$this->executeStage($context, $stage, $eventCallback, $programPolicy);
+						} else {
+							$this->executeStage($context, $stage, $eventCallback);
+						}
+					} else {
+						$this->executeStage($context, $stage, $eventCallback);
+					}
 
 					if (
 						$phaseBeforeStage !== AgentToolLoopContextKeys::PHASE_OBSERVED
@@ -352,6 +371,7 @@ class AgentToolOrchestrator {
 			AgentToolLoopContextKeys::SUSPENDED => false,
 			AgentToolLoopContextKeys::EXECUTION_STATUS => AgentExecutionStatus::RUNNING,
 			AgentToolLoopContextKeys::TOOL_RESULTS => [],
+			AgentToolLoopContextKeys::PROGRAM_STATE => [],
 			AgentToolLoopContextKeys::TOOL_CONTRACT_VALIDATIONS => [],
 			AgentToolLoopContextKeys::OBSERVATIONS => [],
 			AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS => [],
@@ -393,14 +413,15 @@ class AgentToolOrchestrator {
 	private function executeStage(
 		IAgentContext $context,
 		IAgentStage $stage,
-		?callable $eventCallback
+		?callable $eventCallback,
+		?AgentActionPolicyStage $programPolicy = null
 	): void {
 		$iteration = $this->getInt($context, AgentToolLoopContextKeys::ITERATION);
 		$phaseBefore = (string)($context->getVar(AgentToolLoopContextKeys::PHASE) ?? '');
 		$startedAt = microtime(true);
 
 		try {
-			$supported = $stage->supports($context);
+			$supported = $programPolicy !== null || $stage->supports($context);
 		} catch (\Throwable $e) {
 			$this->recordStageTrace(
 				$context,
@@ -441,7 +462,12 @@ class AgentToolOrchestrator {
 		]);
 
 		try {
-			$stageResult = $stage->process($context);
+			$stageResult = $programPolicy !== null && $stage instanceof AgentToolExecutionStage
+				? $stage->processProgram($context, $programPolicy, function () use ($context): void {
+					$this->applyCancellationIfRequested($context);
+					$this->stateSynchronizer->synchronize($context);
+				})
+				: $stage->process($context);
 			$this->applyStageResult($context, $stageResult);
 			$resultMetadata = $stageResult->getMetadata();
 			$phaseAfter = (string)($context->getVar(AgentToolLoopContextKeys::PHASE) ?? $phaseBefore);
@@ -744,6 +770,7 @@ class AgentToolOrchestrator {
 		$context->setVar(AgentToolLoopContextKeys::ACTIONS, $this->restoreActions($state['actions'] ?? []));
 		$context->setVar(AgentToolLoopContextKeys::ACTION_DECISIONS, $this->restoreActionDecisions($state['action_decisions'] ?? []));
 		$context->setVar(AgentToolLoopContextKeys::TOOL_RESULTS, $this->restoreToolResults($state['tool_results'] ?? []));
+		$context->setVar(AgentToolLoopContextKeys::PROGRAM_STATE, is_array($state['program_state'] ?? null) ? $state['program_state'] : []);
 		$context->setVar(AgentToolLoopContextKeys::OBSERVATIONS, $this->restoreToolResults($state['observations'] ?? []));
 		$context->setVar(AgentToolLoopContextKeys::EXECUTED_TOOL_CALLS, is_array($state['executed_tool_calls'] ?? null) ? $state['executed_tool_calls'] : []);
 		$context->setVar(AgentToolLoopContextKeys::TOOL_CALL_INDEXES, is_array($state['tool_call_indexes'] ?? null) ? $state['tool_call_indexes'] : []);

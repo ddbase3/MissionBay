@@ -61,6 +61,7 @@ final class AgentToolLoopContextKeys {
 	public const PHASE = self::PREFIX . 'phase';
 	public const ITERATION = self::PREFIX . 'iteration';
 	public const CALL_INDEX = self::PREFIX . 'call_index';
+	public const PROGRAM_STATE = self::PREFIX . 'program_state';
 	public const PENDING_TOOL_CALLS = self::PREFIX . 'pending_tool_calls';
 	public const ACTIONS = self::PREFIX . 'actions';
 	public const ACTION_DECISIONS = self::PREFIX . 'action_decisions';
@@ -159,6 +160,7 @@ final class AgentToolLoopContextKeys {
 			self::SUSPENDED,
 			self::EXECUTION_STATUS,
 			self::TOOL_RESULTS,
+			self::PROGRAM_STATE,
 			self::TOOL_CALL_INDEXES,
 			self::TOOL_CACHE_PLANS,
 			self::CONSECUTIVE_STALLED_ITERATIONS,

@@ -301,6 +301,7 @@ class MissionBayToolEventDisplayListener {
 		}
 
 		if ($event instanceof MissionBayToolFailedEvent) {
+			$result = $event->getResult() !== null ? $this->encodeJson($event->getResult()) : null;
 			$errorMessage = $event->getErrorMessage();
 			$errorType = $event->getErrorType();
 			$errorCode = (string)$event->getErrorCode();
@@ -400,6 +401,14 @@ class MissionBayToolEventDisplayListener {
 	private function buildActionMeta(MissionBayAgentActionAuditEvent $event, array $currentMeta): array {
 		$type = $event->getType();
 		$trace = $event->getTrace();
+		$callMetadata = $event->getAction()->getMetadata()['tool_call'] ?? [];
+		$parent = $callMetadata['program_call_id'] ?? null;
+		$step = $callMetadata['program_step'] ?? null;
+		if (is_string($parent) && $parent !== '' && is_int($step) && $step > 0
+			&& $event->getAction()->getId() === 'program-' . hash('sha256', $parent . ':' . $step)) {
+			$trace['program_call_id'] = $parent;
+			$trace['program_step'] = $step;
+		}
 		$entry = [
 			'type' => $type,
 			'reason' => $event->getReason(),

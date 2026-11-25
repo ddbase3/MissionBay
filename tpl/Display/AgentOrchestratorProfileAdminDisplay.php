@@ -168,6 +168,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 					<label class="orchestrator-profile-check"><input type="checkbox" name="context_compaction" /><span><strong><?php echo $mbTextEsc('context_compaction', 'Context compaction'); ?></strong><span><?php echo $mbTextEsc('compact_large_contexts_before_the_next_tool_observation_model_step', 'Compact large contexts before the next tool observation/model step.'); ?></span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="semantic_verification" /><span><strong><?php echo $mbTextEsc('semantic_verification', 'Semantic verification'); ?></strong><span><?php echo $mbTextEsc('check_whether_enough_information_exists_before_producing_the_final_answer', 'Check whether enough information exists before producing the final answer.'); ?></span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="deliberate_planning" /><span><strong><?php echo $mbTextEsc('deliberate_planning', 'Deliberate planning'); ?></strong><span><?php echo $mbTextEsc('build_a_concise_typed_execution_plan_from_the_normalized_task_without_an_extra_model_call_or_a_separate_planni', 'Build a concise typed execution plan from the normalized task without an extra model call or a separate planning stage.'); ?></span></span></label>
+					<label class="orchestrator-profile-check"><input type="checkbox" name="model_decision_program_enabled" /><span><strong><?php echo $e($mbUiText['program_tools_label']); ?></strong><span><?php echo $e($mbUiText['program_tools_description']); ?></span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="model_decision_repair_enabled" /><span><strong><?php echo $mbTextEsc('decision_repair', 'Decision repair'); ?></strong><span><?php echo $mbTextEsc('allow_one_guarded_ai_retry_when_the_first_model_decision_emits_neither_a_real_tool_call_nor_a_reliable_termina', 'Allow one guarded AI retry when the first model decision emits neither a real tool call nor a reliable terminal decision.'); ?></span></span></label>
 					<label class="orchestrator-profile-check"><input type="checkbox" name="sticky" /><span><strong><?php echo $mbTextEsc('sticky_selection', 'Sticky selection'); ?></strong><span><?php echo $mbTextEsc('keep_recently_selected_or_used_tools_stable_across_adjacent_loops', 'Keep recently selected or used tools stable across adjacent loops.'); ?></span></span></label>
 				</div>
@@ -262,6 +263,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	function renderModelDecision(value, row) {
 		const wrapper = element('orchestrator-profile-cell');
 		wrapper.appendChild(element('orchestrator-profile-cell-main', text(row.model_decision_strategy)));
+		if (row.model_decision_program_enabled) wrapper.appendChild(element('orchestrator-profile-cell-sub', MB_UI_TEXT.program_tools_label));
 		wrapper.appendChild(element('orchestrator-profile-cell-sub', 'repair ' + (row.model_decision_repair_enabled ? 'enabled' : 'disabled') + '; threshold ' + text(row.model_decision_confidence_threshold)));
 		return wrapper;
 	}
@@ -323,6 +325,15 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			if (control) control.disabled = readonly || noLoops;
 		}
 		readonly = readonly || noLoops;
+		const agentSelected = getValue(form, 'model_decision_strategy') === 'native-capability-model-decision';
+		const program = agentSelected && getChecked(form, 'model_decision_program_enabled');
+		if (program) {
+			setValue(form, 'selection_unit', 'function');
+			for (const name of ['capability_selection', 'ai_capability_selection', 'deliberate_planning']) {
+				setChecked(form, name, false);
+				field(form, name).disabled = true;
+			}
+		}
 		const aiEnabled = getChecked(form, 'ai_capability_selection');
 		const strategy = field(form, 'selection_strategy');
 		const selectionUnit = field(form, 'selection_unit');
@@ -332,9 +343,9 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		if (aiEnabled) setValue(form, 'selection_strategy', 'hybrid');
 		if (strategy) strategy.disabled = readonly || aiEnabled;
 		if (selectionUnit) selectionUnit.disabled = readonly || !aiEnabled;
-		if (maxSources) maxSources.disabled = readonly || !aiEnabled || getValue(form, 'selection_unit') !== 'source';
+		if (maxSources) maxSources.disabled = readonly || (!agentSelected && (!aiEnabled || getValue(form, 'selection_unit') !== 'source'));
 		if (semanticCandidates) semanticCandidates.disabled = readonly || !aiEnabled;
-		if (semanticPromptLimit) semanticPromptLimit.disabled = readonly || !aiEnabled;
+		if (semanticPromptLimit) semanticPromptLimit.disabled = readonly || (!aiEnabled && !agentSelected);
 	}
 	function updateModelDecisionControls(form, readonly = false) {
 		const noLoops = getValue(form, 'max_tool_loops') === '0';
@@ -342,7 +353,13 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		if (strategyControl) strategyControl.disabled = readonly || noLoops;
 		readonly = readonly || noLoops;
 		const strategy = getValue(form, 'model_decision_strategy');
-		const native = strategy === 'native-model-decision';
+		const agentSelected = strategy === 'native-capability-model-decision';
+		const native = strategy === 'native-model-decision' || agentSelected;
+		const program = field(form, 'model_decision_program_enabled');
+		if (program) {
+			if (!agentSelected || noLoops) program.checked = false;
+			program.disabled = readonly || !agentSelected;
+		}
 		const legacy = strategy === 'simple-model-decision';
 		const repair = field(form, 'model_decision_repair_enabled');
 		const threshold = field(form, 'model_decision_confidence_threshold');
@@ -357,7 +374,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		if (verification) verification.disabled = readonly || native;
 		if (hint) {
 			hint.textContent = noLoops ? MB_UI_TEXT.direct_call_tools_inactive : native
-				? 'Native mode streams a normal terminal assistant response directly, skips the separate final-response model call, and requires semantic verification to be disabled.'
+				? MB_UI_TEXT.program_native_hint
 				: legacy
 					? 'Compatibility only. This strategy uses the textual TOOL_PHASE_COMPLETE sentinel and a separate final-response call. Existing saved profiles remain supported; use AI-guarded or native model decision for new profiles.'
 					: 'Controlled strategies terminate the tool phase explicitly and generate the visible response afterwards.';
@@ -378,11 +395,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 	}
 	function applyModeDefaults(form) {
 		const defaults = MODE_DEFAULTS[getValue(form, 'profile_mode')] || MODE_DEFAULTS.standard;
+		setChecked(form, 'model_decision_program_enabled', false);
 		Object.entries(defaults).forEach(([name, value]) => {
 			if (typeof value === 'boolean') setChecked(form, name, value); else setValue(form, name, value);
 		});
-		updateCapabilitySelectionControls(form);
 		updateModelDecisionControls(form);
+		updateCapabilitySelectionControls(form);
 		updatePipelinePreview(form);
 	}
 	function setDialogStatus(message, type = '') { if (dialog) dialog.execute('setStatus', { message, type }); }
@@ -392,7 +410,7 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		const payload = {
 			mode: 'save', old_id: getValue(form, 'old_id'), id: getValue(form, 'id'), label: getValue(form, 'label'), description: getValue(form, 'description'),
 			profile_mode: getValue(form, 'profile_mode'), enabled: getChecked(form, 'enabled'), max_tool_loops: Number(getValue(form, 'max_tool_loops') || 0),
-			model_decision_strategy: getValue(form, 'model_decision_strategy'), model_decision_repair_enabled: getChecked(form, 'model_decision_repair_enabled'), model_decision_confidence_threshold: Number(getValue(form, 'model_decision_confidence_threshold') || 0),
+			model_decision_strategy: getValue(form, 'model_decision_strategy'), model_decision_program_enabled: getChecked(form, 'model_decision_program_enabled'), model_decision_repair_enabled: getChecked(form, 'model_decision_repair_enabled'), model_decision_confidence_threshold: Number(getValue(form, 'model_decision_confidence_threshold') || 0),
 			deliberate_planning: getChecked(form, 'deliberate_planning'), capability_discovery: getChecked(form, 'capability_discovery'), capability_selection: getChecked(form, 'capability_selection'), ai_capability_selection: getChecked(form, 'ai_capability_selection'), context_compaction: getChecked(form, 'context_compaction'), semantic_verification: getChecked(form, 'semantic_verification'),
 			selection_strategy: getValue(form, 'selection_strategy'), selection_unit: getValue(form, 'selection_unit'), max_tools: Number(getValue(form, 'max_tools') || 0), max_sources: Number(getValue(form, 'max_sources') || 0), select_all_threshold: Number(getValue(form, 'select_all_threshold') || 0), semantic_candidate_tools: Number(getValue(form, 'semantic_candidate_tools') || 0), semantic_max_prompt_characters: Number(getValue(form, 'semantic_max_prompt_characters') || 0), sticky: getChecked(form, 'sticky')
 		};
@@ -473,11 +491,12 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 		setChecked(form, 'context_compaction', !!record.context_compaction);
 		setChecked(form, 'semantic_verification', !!record.semantic_verification);
 		setChecked(form, 'model_decision_repair_enabled', record.model_decision_repair_enabled !== false);
+		setChecked(form, 'model_decision_program_enabled', !!record.model_decision_program_enabled);
 		setChecked(form, 'sticky', record.sticky !== false);
 		const readonly = !!record.builtin;
 		form.querySelectorAll('input, select, textarea, button[data-action="apply-mode-defaults"]').forEach((node) => node.disabled = readonly);
-		updateCapabilitySelectionControls(form, readonly);
 		updateModelDecisionControls(form, readonly);
+		updateCapabilitySelectionControls(form, readonly);
 		updatePipelinePreview(form);
 		dialog.execute('setTitle', readonly ? 'Built-in orchestrator profile' : (record.profile_id ? 'Edit orchestrator profile' : 'Add orchestrator profile'));
 		dialog.execute('setButtons', dialogButtons(record));
@@ -515,8 +534,8 @@ $e = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES | 
 			form.addEventListener('change', (event) => {
 				const name = event.target && event.target.name ? String(event.target.name) : '';
 				enforceCapabilitySelectionStageChoice(form, name);
-				updateCapabilitySelectionControls(form);
 				updateModelDecisionControls(form);
+				updateCapabilitySelectionControls(form);
 				updatePipelinePreview(form);
 			});
 			form.addEventListener('click', (event) => { const button = event.target.closest('[data-action="apply-mode-defaults"]'); if (button) applyModeDefaults(form); });

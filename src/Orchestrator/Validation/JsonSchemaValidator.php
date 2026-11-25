@@ -54,6 +54,72 @@ final class JsonSchemaValidator {
 		];
 	}
 
+	/**
+	 * Checks whether a declared schema can describe a program value before a
+	 * tool is invoked. Runtime values still use validate() at the normal boundary.
+	 * Restricts programs to explicitly shaped contracts; untyped legacy tools
+	 * remain available for ordinary calls.
+	 */
+	public function isProgramSchema(mixed $schema): bool {
+		$root = $this->normalizeSchema($schema);
+		return is_array($root) && $root !== []
+			&& (isset($root['type']) || isset($root['$ref']) || isset($root['allOf'])
+				|| isset($root['anyOf']) || isset($root['oneOf']) || isset($root['enum']) || array_key_exists('const', $root))
+			&& $this->inspectSchema($root, $root, 0, []);
+	}
+
+	private function inspectSchema(mixed $schema, array $root, int $depth, array $refs): bool {
+		if ($depth > $this->maxDepth) { return false; }
+		if (is_bool($schema)) { return true; }
+		if (!is_array($schema)) { return false; }
+		$keywords = ['$schema', '$id', '$comment', '$ref', '$defs', 'definitions', 'type', 'properties', 'patternProperties', 'additionalProperties', 'required', 'dependentRequired', 'minProperties', 'maxProperties', 'items', 'prefixItems', 'contains', 'minContains', 'maxContains', 'minItems', 'maxItems', 'uniqueItems', 'minLength', 'maxLength', 'pattern', 'minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'enum', 'const', 'allOf', 'anyOf', 'oneOf', 'not', 'nullable', 'title', 'description', 'default', 'examples', 'example', 'format', 'deprecated', 'readOnly', 'writeOnly'];
+		if (array_diff(array_keys($schema), $keywords) !== []) { return false; }
+		if (array_key_exists('type', $schema)) {
+			$types = is_string($schema['type']) ? [$schema['type']] : $schema['type'];
+			if (!is_array($types) || $types === []) { return false; }
+			foreach ($types as $type) {
+				if (!is_string($type) || !$this->isKnownType($type)) { return false; }
+			}
+		}
+		if (array_key_exists('$ref', $schema)) {
+			$ref = $schema['$ref'];
+			if (!is_string($ref) || in_array($ref, $refs, true)) { return false; }
+			$resolved = $this->resolveLocalReference($root, $ref);
+			if (!$resolved['found'] || !$this->inspectSchema($resolved['schema'], $root, $depth + 1, [...$refs, $ref])) { return false; }
+		}
+		foreach (['properties', 'patternProperties', '$defs', 'definitions', 'allOf', 'anyOf', 'oneOf', 'prefixItems'] as $key) {
+			if (!array_key_exists($key, $schema)) { continue; }
+			if (!is_array($schema[$key]) || (in_array($key, ['anyOf', 'oneOf'], true) && $schema[$key] === [])) { return false; }
+			foreach ($schema[$key] as $name => $child) {
+				if ($key === 'patternProperties' && $this->buildRegex((string)$name) === null) { return false; }
+				if (!$this->inspectSchema($child, $root, $depth + 1, $refs)) { return false; }
+			}
+		}
+		foreach (['items', 'contains', 'not', 'additionalProperties'] as $key) {
+			if (array_key_exists($key, $schema) && !$this->inspectSchema($schema[$key], $root, $depth + 1, $refs)) { return false; }
+		}
+		foreach (['required', 'enum'] as $key) {
+			if (array_key_exists($key, $schema) && !is_array($schema[$key])) { return false; }
+		}
+		foreach ($schema['required'] ?? [] as $name) { if (!is_string($name)) { return false; } }
+		if (array_key_exists('dependentRequired', $schema)) {
+			if (!is_array($schema['dependentRequired'])) { return false; }
+			foreach ($schema['dependentRequired'] as $names) {
+				if (!is_array($names)) { return false; }
+				foreach ($names as $name) { if (!is_string($name)) { return false; } }
+			}
+		}
+		foreach (['minLength', 'maxLength', 'minItems', 'maxItems', 'minProperties', 'maxProperties', 'minContains', 'maxContains'] as $key) {
+			if (array_key_exists($key, $schema) && (!is_int($schema[$key]) || $schema[$key] < 0)) { return false; }
+		}
+		foreach (['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum'] as $key) {
+			if (array_key_exists($key, $schema) && !is_int($schema[$key]) && !is_float($schema[$key])) { return false; }
+		}
+		if (array_key_exists('pattern', $schema) && (!is_string($schema['pattern']) || $this->buildRegex($schema['pattern']) === null)) { return false; }
+		if (array_key_exists('multipleOf', $schema) && (!is_numeric($schema['multipleOf']) || (float)$schema['multipleOf'] <= 0)) { return false; }
+		return true;
+	}
+
 	private function normalizeSchema(mixed $schema): mixed {
 		if ($schema instanceof \stdClass) {
 			$schema = get_object_vars($schema);

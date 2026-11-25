@@ -264,6 +264,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'model_decision' => [
 				'strategy' => strtolower(trim((string)($payload['model_decision_strategy'] ?? AgentModelDecisionConfig::STRATEGY_AI_GUARDED))),
 				'repair_enabled' => $this->toBool($payload['model_decision_repair_enabled'] ?? true),
+				'program_enabled' => $this->toBool($payload['model_decision_program_enabled'] ?? false),
 				'confidence_threshold' => max(0.0, min(1.0, (float)($payload['model_decision_confidence_threshold'] ?? 0.7)))
 			],
 			'deliberate_planning' => $this->toBool($payload['deliberate_planning'] ?? false),
@@ -372,6 +373,7 @@ final class AgentOrchestratorProfileAdminDisplay implements IDisplay {
 			'sticky' => (bool)($selection['sticky'] ?? true),
 			'model_decision_strategy' => (string)($modelDecision['strategy'] ?? AgentModelDecisionConfig::STRATEGY_AI_GUARDED),
 			'model_decision_repair_enabled' => (bool)($modelDecision['repair_enabled'] ?? true),
+			'model_decision_program_enabled' => (bool)($modelDecision['program_enabled'] ?? false),
 			'model_decision_confidence_threshold' => (float)($modelDecision['confidence_threshold'] ?? 0.7),
 			'deliberate_planning' => $profile->isDeliberatePlanningEnabled(),
 			'profile_json' => $this->pretty($data)

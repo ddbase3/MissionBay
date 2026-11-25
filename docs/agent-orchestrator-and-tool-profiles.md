@@ -51,7 +51,7 @@ The administration UI therefore uses checkboxes instead of drag-and-drop orderin
 
 The repository discovers read-only definitions implementing `Base3\AssistantFoundation\Api\IAgentOrchestratorProfile` through `IClassMap`. Each definition supplies the lowercase class name, stable configuration ID, static runtime ID `missionbay`, and runtime-specific settings. Other runtimes are ignored; invalid or duplicate IDs within MissionBay are errors. The existing `fromArray()` validation and canonical stage order remain authoritative.
 
-MissionBay exposes three native profiles and `direct-call`. Optional MissionBayLab exposes five controlled profiles. Stored custom profiles remain in `agent-orchestrator-profile`; discovered definitions take precedence over stored records with the same ID, as before.
+MissionBay exposes three native profiles, `direct-call` and `program-tool-loop`. Optional MissionBayLab exposes five controlled profiles. Stored custom profiles remain in `agent-orchestrator-profile`; discovered definitions take precedence over stored records with the same ID, as before.
 
 | Profile | Owner | Intended use |
 |---|---|---|
@@ -62,6 +62,7 @@ MissionBay exposes three native profiles and `direct-call`. Optional MissionBayL
 | `large-catalog` | MissionBayLab | Uses the explicit `ai-capability-selection` stage for large, heterogeneous tool catalogs with deterministic fallback. |
 | `large-catalog-native` | MissionBay | Uses AI selection of complete tool sources, then the same native streaming decision semantics as `native-tool-loop`. |
 | `agent-selected-native` | MissionBay | Gives the main native agent a compact catalog of all eligible capability sources and lets that same agent replace its active source set repeatedly during the turn. |
+| `program-tool-loop` | MissionBay | Agent-selected native loop with bounded, programmable tool execution. See [Programmable tool execution](agent-tool-programs.md). |
 | `deliberate` | MissionBayLab | Evidence-oriented orchestration with concise typed planning and a smaller loop limit. |
 | `governed` | MissionBayLab | Full orchestration for agents that may execute approved mutations. |
 

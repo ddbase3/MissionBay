@@ -75,6 +75,10 @@ final class AgentOrchestratorProfile {
 			|| $this->capabilitySelection->isEnabled() || $this->deliberatePlanningEnabled)) {
 			throw new \InvalidArgumentException('A profile without tool loops cannot enable orchestration stages or planning.');
 		}
+		if ($this->modelDecision->isProgramEnabled() && ($this->maxToolLoops === 0
+			|| $this->capabilitySelectionEnabled || $this->aiCapabilitySelectionEnabled || $this->deliberatePlanningEnabled)) {
+			throw new \InvalidArgumentException('Tool programs require positive loops and agent-selected capabilities without a second selection or planning stage.');
+		}
 		if ($this->capabilitySelectionEnabled && $this->aiCapabilitySelectionEnabled) {
 			throw new \InvalidArgumentException('Deterministic and AI capability selection stages are mutually exclusive.');
 		}

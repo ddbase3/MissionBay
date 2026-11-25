@@ -36,10 +36,14 @@ final class AgentModelDecisionConfig {
 	public function __construct(
 		private readonly string $strategy = self::STRATEGY_AI_GUARDED,
 		private readonly bool $repairEnabled = true,
-		private readonly float $confidenceThreshold = 0.7
+		private readonly float $confidenceThreshold = 0.7,
+		private readonly bool $programEnabled = false
 	) {
 		if (!in_array($this->strategy, self::STRATEGIES, true)) {
 			throw new \InvalidArgumentException('Unsupported model decision strategy: ' . $this->strategy);
+		}
+		if ($this->programEnabled && $this->strategy !== self::STRATEGY_NATIVE_CAPABILITY) {
+			throw new \InvalidArgumentException('Tool programs require the agent-selected native model decision strategy.');
 		}
 		if ($this->confidenceThreshold < 0.0 || $this->confidenceThreshold > 1.0) {
 			throw new \InvalidArgumentException('Model decision confidence threshold must be between 0 and 1.');
@@ -59,8 +63,8 @@ final class AgentModelDecisionConfig {
 		return new self(self::STRATEGY_NATIVE, false, 0.7);
 	}
 
-	public static function nativeCapability(): self {
-		return new self(self::STRATEGY_NATIVE_CAPABILITY, false, 0.7);
+	public static function nativeCapability(bool $programEnabled = false): self {
+		return new self(self::STRATEGY_NATIVE_CAPABILITY, false, 0.7, $programEnabled);
 	}
 
 	public function usesNativeStreaming(): bool {
@@ -82,7 +86,8 @@ final class AgentModelDecisionConfig {
 		return new self(
 			strategy: $strategy,
 			repairEnabled: $repairEnabled,
-			confidenceThreshold: max(0.0, min(1.0, (float)($data['confidence_threshold'] ?? 0.7)))
+			confidenceThreshold: max(0.0, min(1.0, (float)($data['confidence_threshold'] ?? 0.7))),
+			programEnabled: self::toBool($data['program_enabled'] ?? false)
 		);
 	}
 
@@ -98,13 +103,17 @@ final class AgentModelDecisionConfig {
 		return $this->confidenceThreshold;
 	}
 
+	public function isProgramEnabled(): bool {
+		return $this->programEnabled;
+	}
+
 	/** @return array<string,mixed> */
 	public function toArray(): array {
 		return [
 			'strategy' => $this->strategy,
 			'repair_enabled' => $this->repairEnabled,
 			'confidence_threshold' => $this->confidenceThreshold
-		];
+		] + ($this->programEnabled ? ['program_enabled' => true] : []);
 	}
 
 	private static function toBool(mixed $value): bool {

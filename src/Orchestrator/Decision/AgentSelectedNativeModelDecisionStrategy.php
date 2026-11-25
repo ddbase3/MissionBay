@@ -27,6 +27,7 @@ use Base3\AssistantFoundation\Dto\AiToolCall;
 use Base3\MissionBay\Api\IAgentModelDecisionStrategy;
 use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use Base3\MissionBay\Orchestrator\Service\AgentCapabilitySourceCatalogService;
+use Base3\MissionBay\Orchestrator\Program\ToolProgramDefinitionService;
 use Base3\MissionBay\Orchestrator\Service\AgentToolDefinitionSemantics;
 use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
@@ -91,6 +92,9 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 			if (isset($this->toolNameMap($catalog)[self::SOURCE_SELECTION_TOOL])) {
 				throw new \RuntimeException('Configured tool catalog already contains reserved MissionBay tool name: ' . self::SOURCE_SELECTION_TOOL);
 			}
+			if ($config->isProgramEnabled() && isset($this->toolNameMap($catalog)[ToolProgramDefinitionService::TOOL_NAME])) {
+				throw new \RuntimeException('Configured tool catalog contains the reserved program function name.');
+			}
 			$activeSelection = $this->resolveActiveSelection(
 				$context,
 				$catalog,
@@ -114,13 +118,21 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 			$selectionConfig
 		);
 
+		$modelDefinitions = array_merge($activeDefinitions, [$this->sourceSelectionToolDefinition($selectionConfig)]);
+		if ($config->isProgramEnabled()) {
+			$programDefinitions = new ToolProgramDefinitionService();
+			$contracts = $programDefinitions->getContracts($activeDefinitions, $tools);
+			$modelDefinitions[] = $programDefinitions->getDefinition();
+			$catalogInstruction .= "\n\n" . $programDefinitions->getInstruction($contracts);
+		}
+
 		$originalDefinitions = $context->getVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS);
 		$originalContinuationHint = $context->getVar(AgentToolLoopContextKeys::CONTINUATION_HINT);
 		$originalMutationToolNames = $context->getVar(AgentToolLoopContextKeys::MUTATION_TOOL_NAMES);
 
 		$context->setVar(
 			AgentToolLoopContextKeys::TOOL_DEFINITIONS,
-			array_merge($activeDefinitions, [$this->sourceSelectionToolDefinition($selectionConfig)])
+			$modelDefinitions
 		);
 		$context->setVar(
 			AgentToolLoopContextKeys::CONTINUATION_HINT,
@@ -142,7 +154,13 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 		$pendingCalls = is_array($pendingCalls) ? $pendingCalls : [];
 		$sourceCall = $this->sourceSelectionCall($pendingCalls);
 
-		if ($sourceCall instanceof AiToolCall) {
+		$hasProgram = false;
+		if ($config->isProgramEnabled()) {
+			foreach ($pendingCalls as $pendingCall) {
+				if ($pendingCall instanceof AiToolCall && $pendingCall->getName() === ToolProgramDefinitionService::TOOL_NAME) { $hasProgram = true; break; }
+			}
+		}
+		if ($sourceCall instanceof AiToolCall && !$hasProgram) {
 			return $this->handleSourceSelectionCall(
 				$context,
 				$result,
