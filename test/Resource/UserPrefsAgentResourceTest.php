@@ -26,9 +26,9 @@ use Base3\CoreFoundation\Session\Api\ISession;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\MissionBay\Api\IAgentMutationGuardedTool;
-use Base3\MissionBay\Resource\UserPrefsAgentResource;
+use Base3\MissionBay\Resource\AgentContext\UserPrefs\UserPrefsAgentResource;
 
-#[CoversClass(\Base3\MissionBay\Resource\UserPrefsAgentResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\AgentContext\UserPrefs\UserPrefsAgentResource::class)]
 class UserPrefsAgentResourceTest extends TestCase {
 
 	private function makeResolverStub(array $map): IAgentConfigValueResolver {

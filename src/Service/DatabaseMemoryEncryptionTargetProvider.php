@@ -20,7 +20,7 @@ namespace Base3\MissionBay\Service;
 use Base3\CredentialFoundation\Api\IEncryptionTargetProvider;
 use Base3\CredentialFoundation\Dto\EncryptionTargetDefinition;
 use Base3\MissionBay\Api\IAgentComponentPresetRepository;
-use Base3\MissionBay\Resource\DatabaseMemoryAgentResource;
+use Base3\MissionBay\Resource\AgentMemory\Database\DatabaseMemoryAgentResource;
 
 /**
  * Makes actual configured database-memory presets available to KeyHarbor.

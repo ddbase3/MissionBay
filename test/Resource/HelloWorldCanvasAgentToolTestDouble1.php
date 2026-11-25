@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\HelloWorldCanvasAgentTool;
+use Base3\MissionBay\Resource\AgentTool\Canvas\HelloWorldCanvasAgentTool;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Dto\AgentExecutionEvent;

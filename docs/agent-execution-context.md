@@ -96,7 +96,7 @@ retrieval service or shadow agent merely to access files already attached in Age
 
 ## Source ownership
 
-- `MissionBay/src/Resource/ConfiguredChatModelAgentResource.php` owns the managed-file
+- `MissionBay/src/Resource/ChatModel/Configured/ConfiguredChatModelAgentResource.php` owns the managed-file
   reference lookup and safe agent/chatbot separation.
 - `MissionBay/src/Display/AgentAdminDisplay.php::buildAgentContextVars()` provides the
   working manual-execution pattern.

@@ -270,7 +270,7 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 				continue;
 			}
 			$agentId = $this->normalizeId((string)$id);
-			$profileId = $this->normalizeId((string)($settings['orchestrator_profile'] ?? AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID));
+			$profileId = AgentOrchestratorProfileRepository::resolveProfileId((string)($settings['orchestrator_profile'] ?? ''));
 			$toolProfileIds = $this->normalizeIds($settings['tool_profiles'] ?? []);
 			$memoryProfileId = $this->normalizeId((string)($settings['memory_profile'] ?? ''));
 			$contextProfileId = $this->normalizeId((string)($settings['context_profile'] ?? ''));

@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\CrmProductXrmExtractorAgentResource;
+use Base3\MissionBay\Resource\Extractor\CrmProductXrm\CrmProductXrmExtractorAgentResource;
 use Base3\MissionBay\Api\IAgentContentExtractor;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\MissionBay\Dto\AgentContentItem;

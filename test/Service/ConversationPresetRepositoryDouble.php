@@ -30,7 +30,7 @@ use Base3\MissionBay\Api\IAgentResourceFactory;
 use Base3\MissionBay\Context\AgentContext;
 use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
 use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
-use Base3\MissionBay\Resource\SessionMemoryAgentResource;
+use Base3\MissionBay\Resource\AgentMemory\Session\SessionMemoryAgentResource;
 use Base3\MissionBay\Service\AgentConversationService;
 use PHPUnit\Framework\TestCase;
 

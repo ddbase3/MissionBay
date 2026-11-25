@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Service;
 
 use Base3\MissionBay\Api\IAgentComponentPresetRepository;
-use Base3\MissionBay\Resource\DatabaseMemoryAgentResource;
+use Base3\MissionBay\Resource\AgentMemory\Database\DatabaseMemoryAgentResource;
 use Base3\MissionBay\Service\AgentComponentPresetFlowExpander;
 use Base3\MissionBay\Service\DatabaseMemoryEncryptionTargetProvider;
 use PHPUnit\Framework\TestCase;

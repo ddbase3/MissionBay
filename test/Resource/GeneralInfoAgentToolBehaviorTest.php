@@ -22,7 +22,7 @@ use Base3\CoreFoundation\Api\IClassMap;
 use Base3\MissionBay\Context\AgentContext;
 use Base3\MissionBay\InfoProvider\StaticDemoInfoTopicProvider;
 use Base3\MissionBay\InfoProvider\SystemInfoTopicProvider;
-use Base3\MissionBay\Resource\GeneralInfoAgentTool;
+use Base3\MissionBay\Resource\AgentTool\GeneralInfo\GeneralInfoAgentTool;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/GeneralInfoTestTopicProvider.php';

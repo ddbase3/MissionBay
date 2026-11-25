@@ -42,6 +42,7 @@ use Base3\AssistantFoundation\Api\IAgentRuntimeRegistry;
 use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
 use Base3\AssistantFoundation\Dto\AgentExecutionResult;
 use Base3\MissionBay\Job\ScheduledAgentRunnerJob;
+use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use JsonException;
 use Base3\AssistantFoundation\Api\IAgentConfigFormService;
 use Throwable;
@@ -1173,7 +1174,7 @@ final class AgentAdminDisplay implements IDisplay {
 		$label = $this->normalizeLabel((string)($values['label'] ?? ''));
 		$agentComponents = is_array($values['agent_components'] ?? null) ? $values['agent_components'] : [];
 		$toolProfiles = is_array($values['tool_profiles'] ?? null) ? array_values(array_map('strval', $values['tool_profiles'])) : [];
-		$orchestratorProfile = trim((string)($values['orchestrator_profile'] ?? 'standard'));
+		$orchestratorProfile = trim((string)($values['orchestrator_profile'] ?? AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID));
 		$memoryProfile = trim((string)($values['memory_profile'] ?? ''));
 		$settingsJson = $this->encodePrettyJson($this->redactSensitiveData($settings));
 		$runtimeSummary = is_array($values['agent_runtime_summary'] ?? null)
@@ -1195,7 +1196,7 @@ final class AgentAdminDisplay implements IDisplay {
 			'agent_runtime' => trim((string)($values['agent_runtime'] ?? '')),
 			'agent_provider' => trim((string)($runtimeSummary['provider'] ?? '')),
 			'agent_model' => trim((string)($runtimeSummary['model'] ?? '')),
-			'orchestrator_profile' => $orchestratorProfile !== '' ? $orchestratorProfile : 'standard',
+			'orchestrator_profile' => $orchestratorProfile !== '' ? $orchestratorProfile : AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
 			'memory_profile' => $memoryProfile,
 			'tool_profile_count' => count($toolProfiles),
 			'tool_profile_text' => implode(', ', $toolProfiles),

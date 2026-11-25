@@ -25,7 +25,7 @@ use Base3\CoreFoundation\Session\Api\ISession;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\MissionBay\Api\IAgentMutationGuardedTool;
-use Base3\MissionBay\Resource\UserPrefsAgentResource;
+use Base3\MissionBay\Resource\AgentContext\UserPrefs\UserPrefsAgentResource;
 
 final class UserPrefsAgentResourceTestDouble1 implements IAgentConfigValueResolver {
 			private array $map;

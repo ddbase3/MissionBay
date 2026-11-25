@@ -312,7 +312,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(\Base3\ClientStack\FileManager\FileUploadService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentOrchestratorProfileRepository::class, fn($c) => new AgentOrchestratorProfileRepository(
-				$c->get(ISettingsStore::class)
+				$c->get(ISettingsStore::class),
+				$c->get(IClassMap::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentToolProfileResolver::class, fn($c) => new AgentToolProfileResolver(
 				$c->get(ISettingsStore::class),

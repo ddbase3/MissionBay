@@ -47,70 +47,63 @@ This catalog is derived from the current source tree. It lists discoverable tech
 
 ## Resources and tools
 
+Each resource is listed once by its stable technical `getName()`. Its path reflects its primary capability, even when it implements multiple resource or agent roles.
+
 | Technical name | Class | File |
 | --- | --- | --- |
-| `statictextcontextagentresource` | `StaticTextContextAgentResource` | `src/Resource/AgentContext/Text/StaticTextContextAgentResource.php` |
-| `timememoryagentresource` | `TimeMemoryAgentResource` | `src/Resource/AgentMemory/Time/TimeMemoryAgentResource.php` |
-| `runavailableagenttool` | `RunAvailableAgentTool` | `src/Resource/AgentTool/Agent/RunAvailableAgentTool.php` |
-| `runconfiguredagenttool` | `RunConfiguredAgentTool` | `src/Resource/AgentTool/Agent/RunConfiguredAgentTool.php` |
 | `batchagenttool` | `BatchAgentTool` | `src/Resource/AgentTool/Batch/BatchAgentTool.php` |
+| `blockchatbotagenttool` | `BlockChatbotAgentTool` | `src/Resource/AgentTool/Chatbot/BlockChatbotAgentTool.php` |
+| `canvascloseagenttool` | `CanvasCloseAgentTool` | `src/Resource/AgentTool/Canvas/CanvasCloseAgentTool.php` |
+| `configuredagentmemoryresource` | `ConfiguredAgentMemoryResource` | `src/Resource/AgentMemory/Configured/ConfiguredAgentMemoryResource.php` |
+| `configuredagenttoolresource` | `ConfiguredAgentToolResource` | `src/Resource/AgentTool/Configured/ConfiguredAgentToolResource.php` |
+| `configuredchatmodelagentresource` | `ConfiguredChatModelAgentResource` | `src/Resource/ChatModel/Configured/ConfiguredChatModelAgentResource.php` |
+| `configuredembeddingmodelagentresource` | `ConfiguredEmbeddingModelAgentResource` | `src/Resource/EmbeddingModel/Configured/ConfiguredEmbeddingModelAgentResource.php` |
+| `configuredimagemodelagentresource` | `ConfiguredImageModelAgentResource` | `src/Resource/ImageModel/Configured/ConfiguredImageModelAgentResource.php` |
+| `configuredparserserviceagentresource` | `ConfiguredParserServiceAgentResource` | `src/Resource/Parser/Configured/ConfiguredParserServiceAgentResource.php` |
+| `configuredsearchserviceagentresource` | `ConfiguredSearchServiceAgentResource` | `src/Resource/SearchService/Configured/ConfiguredSearchServiceAgentResource.php` |
+| `configuredvectorsearchagentresource` | `ConfiguredVectorSearchAgentResource` | `src/Resource/VectorSearch/Configured/ConfiguredVectorSearchAgentResource.php` |
+| `configuredvectorstoreagentresource` | `ConfiguredVectorStoreAgentResource` | `src/Resource/VectorStore/Configured/ConfiguredVectorStoreAgentResource.php` |
+| `crmproductxrmextractoragentresource` | `CrmProductXrmExtractorAgentResource` | `src/Resource/Extractor/CrmProductXrm/CrmProductXrmExtractorAgentResource.php` |
 | `currencyconvertagenttool` | `CurrencyConvertAgentTool` | `src/Resource/AgentTool/CurrencyConvert/CurrencyConvertAgentTool.php` |
 | `currenttimeagenttool` | `CurrentTimeAgentTool` | `src/Resource/AgentTool/CurrentTime/CurrentTimeAgentTool.php` |
+| `databasememoryagentresource` | `DatabaseMemoryAgentResource` | `src/Resource/AgentMemory/Database/DatabaseMemoryAgentResource.php` |
+| `dummyembeddingmodelagentresource` | `DummyEmbeddingModelAgentResource` | `src/Resource/EmbeddingModel/Dummy/DummyEmbeddingModelAgentResource.php` |
+| `dummyextractoragentresource` | `DummyExtractorAgentResource` | `src/Resource/Extractor/Dummy/DummyExtractorAgentResource.php` |
+| `embeddingcacheagentresource` | `EmbeddingCacheAgentResource` | `src/Resource/EmbeddingModel/Cache/EmbeddingCacheAgentResource.php` |
+| `focusagentresource` | `FocusAgentResource` | `src/Resource/AgentContext/Focus/FocusAgentResource.php` |
+| `generalinfoagenttool` | `GeneralInfoAgentTool` | `src/Resource/AgentTool/GeneralInfo/GeneralInfoAgentTool.php` |
+| `genericchatmodelagentresource` | `GenericChatModelAgentResource` | `src/Resource/ChatModel/Generic/GenericChatModelAgentResource.php` |
+| `helloworldcanvasagenttool` | `HelloWorldCanvasAgentTool` | `src/Resource/AgentTool/Canvas/HelloWorldCanvasAgentTool.php` |
+| `knowledgeagentresource` | `KnowledgeAgentResource` | `src/Resource/AgentTool/Knowledge/KnowledgeAgentResource.php` |
 | `logagenttool` | `LogAgentTool` | `src/Resource/AgentTool/Log/LogAgentTool.php` |
-| `systemstatusagenttool` | `SystemStatusAgentTool` | `src/Resource/AgentTool/SystemStatus/SystemStatusAgentTool.php` |
-| `weatheragenttool` | `WeatherAgentTool` | `src/Resource/AgentTool/Weather/WeatherAgentTool.php` |
-| `webfetchtextagenttool` | `WebFetchTextAgentTool` | `src/Resource/AgentTool/WebFetchText/WebFetchTextAgentTool.php` |
-| `anthropicchatmodelagentresource` | `AnthropicChatModelAgentResource` | `src/Resource/AnthropicChatModelAgentResource.php` |
-| `blockchatbotagenttool` | `BlockChatbotAgentTool` | `src/Resource/BlockChatbotAgentTool.php` |
-| `canvascloseagenttool` | `CanvasCloseAgentTool` | `src/Resource/CanvasCloseAgentTool.php` |
-| `configuredagentmemoryresource` | `ConfiguredAgentMemoryResource` | `src/Resource/ConfiguredAgentMemoryResource.php` |
-| `configuredagenttoolresource` | `ConfiguredAgentToolResource` | `src/Resource/ConfiguredAgentToolResource.php` |
-| `configuredchatmodelagentresource` | `ConfiguredChatModelAgentResource` | `src/Resource/ConfiguredChatModelAgentResource.php` |
-| `configuredembeddingmodelagentresource` | `ConfiguredEmbeddingModelAgentResource` | `src/Resource/ConfiguredEmbeddingModelAgentResource.php` |
-| `configuredimagemodelagentresource` | `ConfiguredImageModelAgentResource` | `src/Resource/ConfiguredImageModelAgentResource.php` |
-| `configuredparserserviceagentresource` | `ConfiguredParserServiceAgentResource` | `src/Resource/ConfiguredParserServiceAgentResource.php` |
-| `configuredsearchserviceagentresource` | `ConfiguredSearchServiceAgentResource` | `src/Resource/ConfiguredSearchServiceAgentResource.php` |
-| `configuredvectorsearchagentresource` | `ConfiguredVectorSearchAgentResource` | `src/Resource/ConfiguredVectorSearchAgentResource.php` |
-| `configuredvectorstoreagentresource` | `ConfiguredVectorStoreAgentResource` | `src/Resource/ConfiguredVectorStoreAgentResource.php` |
-| `crmproductxrmextractoragentresource` | `CrmProductXrmExtractorAgentResource` | `src/Resource/CrmProductXrmExtractorAgentResource.php` |
-| `databasememoryagentresource` | `DatabaseMemoryAgentResource` | `src/Resource/DatabaseMemoryAgentResource.php` |
-| `deepseekchatmodelagentresource` | `DeepSeekChatModelAgentResource` | `src/Resource/DeepSeekChatModelAgentResource.php` |
-| `dummyembeddingmodelagentresource` | `DummyEmbeddingModelAgentResource` | `src/Resource/DummyEmbeddingModelAgentResource.php` |
-| `dummyextractoragentresource` | `DummyExtractorAgentResource` | `src/Resource/DummyExtractorAgentResource.php` |
-| `embeddingcacheagentresource` | `EmbeddingCacheAgentResource` | `src/Resource/EmbeddingCacheAgentResource.php` |
-| `fireworkschatmodelagentresource` | `FireworksChatModelAgentResource` | `src/Resource/FireworksChatModelAgentResource.php` |
-| `focusagentresource` | `FocusAgentResource` | `src/Resource/FocusAgentResource.php` |
-| `geminichatmodelagentresource` | `GeminiChatModelAgentResource` | `src/Resource/GeminiChatModelAgentResource.php` |
-| `generalinfoagenttool` | `GeneralInfoAgentTool` | `src/Resource/GeneralInfoAgentTool.php` |
-| `genericchatmodelagentresource` | `GenericChatModelAgentResource` | `src/Resource/GenericChatModelAgentResource.php` |
-| `grokchatmodelagentresource` | `GrokChatModelAgentResource` | `src/Resource/GrokChatModelAgentResource.php` |
-| `groqchatmodelagentresource` | `GroqChatModelAgentResource` | `src/Resource/GroqChatModelAgentResource.php` |
-| `helloworldcanvasagenttool` | `HelloWorldCanvasAgentTool` | `src/Resource/HelloWorldCanvasAgentTool.php` |
-| `knowledgeagentresource` | `KnowledgeAgentResource` | `src/Resource/KnowledgeAgentResource.php` |
 | `loggerresource` | `LoggerResource` | `src/Resource/Logger/Logger/LoggerResource.php` |
 | `mcpclientagentresource` | `McpClientAgentResource` | `src/Resource/Mcp/McpClientAgentResource.php` |
-| `mermaidsyntaxagenttool` | `MermaidSyntaxAgentTool` | `src/Resource/MermaidSyntaxAgentTool.php` |
-| `mistralchatmodelagentresource` | `MistralChatModelAgentResource` | `src/Resource/MistralChatModelAgentResource.php` |
-| `nochunkeragentresource` | `NoChunkerAgentResource` | `src/Resource/NoChunkerAgentResource.php` |
-| `noembeddingmodelagentresource` | `NoEmbeddingModelAgentResource` | `src/Resource/NoEmbeddingModelAgentResource.php` |
-| `noparseragentresource` | `NoParserAgentResource` | `src/Resource/NoParserAgentResource.php` |
-| `openaichatmodelagentresource` | `OpenAiChatModelAgentResource` | `src/Resource/OpenAiChatModelAgentResource.php` |
-| `openaiembeddingmodelagentresource` | `OpenAiEmbeddingModelAgentResource` | `src/Resource/OpenAiEmbeddingModelAgentResource.php` |
-| `openrouterchatmodelagentresource` | `OpenRouterChatModelAgentResource` | `src/Resource/OpenRouterChatModelAgentResource.php` |
-| `perplexitychatmodelagentresource` | `PerplexityChatModelAgentResource` | `src/Resource/PerplexityChatModelAgentResource.php` |
-| `productxrmextractoragentresource` | `ProductXrmExtractorAgentResource` | `src/Resource/ProductXrmExtractorAgentResource.php` |
-| `qdrantvectorsearch` | `QdrantVectorSearch` | `src/Resource/QdrantVectorSearch.php` |
-| `ragsearchagenttool` | `RagSearchAgentTool` | `src/Resource/RagSearchAgentTool.php` |
-| `retrievalagenttool` | `RetrievalAgentTool` | `src/Resource/RetrievalAgentTool.php` |
-| `routingchatmodelagentresource` | `RoutingChatModelAgentResource` | `src/Resource/RoutingChatModelAgentResource.php` |
-| `semanticchunkeragentresource` | `SemanticChunkerAgentResource` | `src/Resource/SemanticChunkerAgentResource.php` |
-| `sessionmemoryagentresource` | `SessionMemoryAgentResource` | `src/Resource/SessionMemoryAgentResource.php` |
-| `structuredobjectparseragentresource` | `StructuredObjectParserAgentResource` | `src/Resource/StructuredObjectParserAgentResource.php` |
-| `telegramagenttool` | `TelegramAgentTool` | `src/Resource/TelegramAgentTool.php` |
-| `toolproxyagenttool` | `ToolProxyAgentTool` | `src/Resource/ToolProxyAgentTool.php` |
-| `uploadstreamextractoragentresource` | `UploadStreamExtractorAgentResource` | `src/Resource/UploadStreamExtractorAgentResource.php` |
-| `userprefsagentresource` | `UserPrefsAgentResource` | `src/Resource/UserPrefsAgentResource.php` |
-| `xrmchunkeragentresource` | `XrmChunkerAgentResource` | `src/Resource/XrmChunkerAgentResource.php` |
+| `mermaidsyntaxagenttool` | `MermaidSyntaxAgentTool` | `src/Resource/AgentTool/MermaidSyntax/MermaidSyntaxAgentTool.php` |
+| `nochunkeragentresource` | `NoChunkerAgentResource` | `src/Resource/Chunker/No/NoChunkerAgentResource.php` |
+| `noembeddingmodelagentresource` | `NoEmbeddingModelAgentResource` | `src/Resource/EmbeddingModel/No/NoEmbeddingModelAgentResource.php` |
+| `noparseragentresource` | `NoParserAgentResource` | `src/Resource/Parser/No/NoParserAgentResource.php` |
+| `openaiembeddingmodelagentresource` | `OpenAiEmbeddingModelAgentResource` | `src/Resource/EmbeddingModel/OpenAi/OpenAiEmbeddingModelAgentResource.php` |
+| `productxrmextractoragentresource` | `ProductXrmExtractorAgentResource` | `src/Resource/Extractor/ProductXrm/ProductXrmExtractorAgentResource.php` |
+| `qdrantvectorsearch` | `QdrantVectorSearch` | `src/Resource/VectorSearch/Qdrant/QdrantVectorSearch.php` |
+| `ragsearchagenttool` | `RagSearchAgentTool` | `src/Resource/AgentTool/RagSearch/RagSearchAgentTool.php` |
+| `retrievalagenttool` | `RetrievalAgentTool` | `src/Resource/AgentTool/Retrieval/RetrievalAgentTool.php` |
+| `routedconversationmemoryagentresource` | `RoutedConversationMemoryAgentResource` | `src/Resource/AgentMemory/Routed/RoutedConversationMemoryAgentResource.php` |
+| `routingchatmodelagentresource` | `RoutingChatModelAgentResource` | `src/Resource/ChatModel/Routing/RoutingChatModelAgentResource.php` |
+| `runavailableagenttool` | `RunAvailableAgentTool` | `src/Resource/AgentTool/Agent/RunAvailableAgentTool.php` |
+| `runconfiguredagenttool` | `RunConfiguredAgentTool` | `src/Resource/AgentTool/Agent/RunConfiguredAgentTool.php` |
+| `semanticchunkeragentresource` | `SemanticChunkerAgentResource` | `src/Resource/Chunker/Semantic/SemanticChunkerAgentResource.php` |
+| `sessionmemoryagentresource` | `SessionMemoryAgentResource` | `src/Resource/AgentMemory/Session/SessionMemoryAgentResource.php` |
+| `statictextcontextagentresource` | `StaticTextContextAgentResource` | `src/Resource/AgentContext/Text/StaticTextContextAgentResource.php` |
+| `structuredobjectparseragentresource` | `StructuredObjectParserAgentResource` | `src/Resource/Parser/StructuredObject/StructuredObjectParserAgentResource.php` |
+| `systemstatusagenttool` | `SystemStatusAgentTool` | `src/Resource/AgentTool/SystemStatus/SystemStatusAgentTool.php` |
+| `telegramagenttool` | `TelegramAgentTool` | `src/Resource/AgentTool/Telegram/TelegramAgentTool.php` |
+| `timememoryagentresource` | `TimeMemoryAgentResource` | `src/Resource/AgentMemory/Time/TimeMemoryAgentResource.php` |
+| `toolproxyagenttool` | `ToolProxyAgentTool` | `src/Resource/AgentTool/Proxy/ToolProxyAgentTool.php` |
+| `uploadstreamextractoragentresource` | `UploadStreamExtractorAgentResource` | `src/Resource/Extractor/UploadStream/UploadStreamExtractorAgentResource.php` |
+| `userprefsagentresource` | `UserPrefsAgentResource` | `src/Resource/AgentContext/UserPrefs/UserPrefsAgentResource.php` |
+| `weatheragenttool` | `WeatherAgentTool` | `src/Resource/AgentTool/Weather/WeatherAgentTool.php` |
+| `webfetchtextagenttool` | `WebFetchTextAgentTool` | `src/Resource/AgentTool/WebFetchText/WebFetchTextAgentTool.php` |
+| `xrmchunkeragentresource` | `XrmChunkerAgentResource` | `src/Resource/Chunker/Xrm/XrmChunkerAgentResource.php` |
 
 ## Displays
 
@@ -238,3 +231,13 @@ This catalog is derived from the current source tree. It lists discoverable tech
 * Component preset IDs live in `agent-component-preset` and may point to the same resource implementation multiple times.
 * Container service names are not listed here unless the class is also discoverable by `getName()`.
 * Host extension packages contribute additional resources, jobs and collection definitions.
+
+## Orchestrator profiles
+
+| Stable ID | Class |
+|---|---|
+| `native-tool-loop` (default) | `NativeToolLoopOrchestratorProfile` |
+| `large-catalog-native` | `LargeCatalogNativeOrchestratorProfile` |
+| `agent-selected-native` | `AgentSelectedNativeOrchestratorProfile` |
+
+Definitions live in `src/Orchestrator/Profile/`. MissionBayLab supplies controlled definitions and direct provider chat resources. The existing repository also resolves stored custom profiles.

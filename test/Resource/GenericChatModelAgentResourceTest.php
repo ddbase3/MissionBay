@@ -21,10 +21,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Base3\Core\Event\EventManager;
 use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
-use Base3\MissionBay\Resource\GenericChatModelAgentResource;
+use Base3\MissionBay\Resource\ChatModel\Generic\GenericChatModelAgentResource;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
-#[CoversClass(\Base3\MissionBay\Resource\GenericChatModelAgentResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\ChatModel\Generic\GenericChatModelAgentResource::class)]
 class GenericChatModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

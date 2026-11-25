@@ -19,7 +19,7 @@ namespace Base3\MissionBay\Test\Resource;
 
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
+use Base3\MissionBay\Resource\AgentMemory\Configured\ConfiguredAgentMemoryResource;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/ConfiguredMemoryTestStub.php';

@@ -21,22 +21,28 @@ use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use Base3\AssistantFoundation\Dto\AgentCapabilitySourceConfig;
 use Base3\MissionBay\Api\IAgentComponentFlowBuilder;
 use Base3\MissionBay\Service\AgentFlowCompiler;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Test\Orchestrator\NativeProfileRepositoryTestSupport;
 use PHPUnit\Framework\TestCase;
 
+require_once dirname(__DIR__) . '/Orchestrator/NativeProfileRepositoryTestSupport.php';
+
 final class AgentFlowCompilerTest extends TestCase {
+
+	use NativeProfileRepositoryTestSupport;
 
 	public function testMissingChatModelIsRejectedBeforeBuildingFlow(): void {
 		$builder = $this->createMock(IAgentComponentFlowBuilder::class);
 		$builder->expects($this->never())->method('build');
 		$this->expectException(\RuntimeException::class);
-		(new AgentFlowCompiler($builder))->compile(['chatmodel' => ' ? ']);
+		(new AgentFlowCompiler($builder, $this->nativeRepository()))->compile(['chatmodel' => ' ? ']);
 	}
 
 	public function testBaseFlowAndChatModelAreNormalized(): void {
 		$receivedFlow = [];
 		$receivedComponents = [];
 		$builder = $this->builder($receivedFlow, $receivedComponents);
-		$result = (new AgentFlowCompiler($builder))->compile(['chatmodel' => ' MODEL / A-1 ']);
+		$result = (new AgentFlowCompiler($builder, $this->nativeRepository()))->compile(['chatmodel' => ' MODEL / A-1 ']);
 		$this->assertSame('agentflowcompiler', AgentFlowCompiler::getName());
 		$this->assertSame('assistant', $receivedFlow['nodes'][0]['id']);
 		$this->assertSame('aiassistantnode', $receivedFlow['nodes'][0]['type']);
@@ -45,12 +51,15 @@ final class AgentFlowCompilerTest extends TestCase {
 		$this->assertSame(['chatmodel'], $receivedComponents[0]['attach_as']);
 		$this->assertSame('assistant', $result->getFlow()['nodes'][0]['id']);
 		$this->assertSame([], $result->getWarnings());
+		$this->assertSame('native-tool-loop', $receivedFlow['nodes'][0]['inputs']['orchestratorprofile']);
+		$this->assertSame(AgentModelDecisionConfig::native()->toArray(), $receivedFlow['nodes'][0]['inputs']['modeldecision']);
+		$this->assertSame(['model-decision', 'action-policy', 'tool-execution', 'tool-observation'], $receivedFlow['nodes'][0]['inputs']['stages']);
 	}
 
 	public function testDirectComponentsOverrideAndMergeChatModelDockAssignments(): void {
 		$flow = [];
 		$components = [];
-		$compiler = new AgentFlowCompiler($this->builder($flow, $components));
+		$compiler = new AgentFlowCompiler($this->builder($flow, $components), $this->nativeRepository());
 		$compiler->compile([
 			'chatmodel' => 'model',
 			'agent_components' => [
@@ -72,7 +81,7 @@ final class AgentFlowCompilerTest extends TestCase {
 		$flow = [];
 		$components = [];
 		$builder = $this->builder($flow, $components, ['not expanded', 'not expanded', 'unknown dock']);
-		$result = (new AgentFlowCompiler($builder))->compile(['chatmodel' => 'model']);
+		$result = (new AgentFlowCompiler($builder, $this->nativeRepository()))->compile(['chatmodel' => 'model']);
 		$this->assertSame(['not expanded', 'unknown dock'], $result->getWarnings());
 	}
 
@@ -84,28 +93,32 @@ final class AgentFlowCompilerTest extends TestCase {
 			'capability_sources' => ['tools' => ['read']],
 			'capability_selection' => ['enabled' => true]
 		];
-		(new AgentFlowCompiler($this->builder($flow, $components)))->compile($settings);
+		(new AgentFlowCompiler($this->builder($flow, $components), $this->nativeRepository()))->compile($settings);
 		$this->assertSame(AgentCapabilitySourceConfig::fromArray($settings['capability_sources'])->toArray(), $flow['nodes'][0]['inputs']['capabilitysources']);
 		$this->assertSame(AgentCapabilitySelectionConfig::fromArray($settings['capability_selection'])->toArray(), $flow['nodes'][0]['inputs']['capabilityselection']);
+		$this->assertSame('native-tool-loop', $flow['nodes'][0]['inputs']['orchestratorprofile']);
+		$this->assertSame(['capability-selection', 'model-decision', 'action-policy', 'tool-execution', 'tool-observation'], $flow['nodes'][0]['inputs']['stages']);
 	}
 
 	public function testExplicitOrchestratorProfileSettingSuppressesLegacyOverridesWithoutExpertMode(): void {
 		$flow = [];
 		$components = [];
-		(new AgentFlowCompiler($this->builder($flow, $components)))->compile([
+		(new AgentFlowCompiler($this->builder($flow, $components), $this->nativeRepository()))->compile([
 			'chatmodel' => 'model',
 			'orchestrator_profile' => '',
 			'capability_sources' => ['tools' => ['read']],
 			'capability_selection' => ['enabled' => true]
 		]);
 		$this->assertArrayNotHasKey('capabilitysources', $flow['nodes'][0]['inputs']);
-		$this->assertArrayNotHasKey('capabilityselection', $flow['nodes'][0]['inputs']);
+		$this->assertSame('native-tool-loop', $flow['nodes'][0]['inputs']['orchestratorprofile']);
+		$this->assertFalse($flow['nodes'][0]['inputs']['capabilityselection']['enabled']);
+		$this->assertNotContains('capability-selection', $flow['nodes'][0]['inputs']['stages']);
 	}
 
 	public function testExpertOverridesCanBeEnabledByStringFlag(): void {
 		$flow = [];
 		$components = [];
-		(new AgentFlowCompiler($this->builder($flow, $components)))->compile([
+		(new AgentFlowCompiler($this->builder($flow, $components), $this->nativeRepository()))->compile([
 			'chatmodel' => 'model',
 			'orchestrator_profile' => '',
 			'expert_overrides_enabled' => ' YES ',
@@ -117,13 +130,13 @@ final class AgentFlowCompilerTest extends TestCase {
 	}
 
 	public function testUnresolvableProfilesAreRejectedWithoutInventingDefaults(): void {
-		$compiler = new AgentFlowCompiler($this->createStub(IAgentComponentFlowBuilder::class));
+		$compiler = new AgentFlowCompiler($this->createStub(IAgentComponentFlowBuilder::class), $this->nativeRepository());
 		foreach (['orchestrator_profile' => 'managed', 'tool_profiles' => "tool-a,\ntool-b", 'memory_profile' => 'work', 'context_profile' => 'history'] as $key => $value) {
 			try {
 				$compiler->compile(['chatmodel' => 'model', $key => $value]);
 				$this->fail('Expected missing resolver for ' . $key);
 			} catch (\RuntimeException $e) {
-				$this->assertStringContainsString('not available', $e->getMessage());
+				$this->assertStringContainsString($key === 'orchestrator_profile' ? 'not found' : 'not available', $e->getMessage());
 			}
 		}
 	}
@@ -132,7 +145,7 @@ final class AgentFlowCompilerTest extends TestCase {
 		$builder = $this->createStub(IAgentComponentFlowBuilder::class);
 		$builder->method('build')->willReturn(['nodes' => [], 'resources' => [], 'connections' => []]);
 		$this->expectException(\RuntimeException::class);
-		(new AgentFlowCompiler($builder))->compile(['chatmodel' => 'model']);
+		(new AgentFlowCompiler($builder, $this->nativeRepository()))->compile(['chatmodel' => 'model']);
 	}
 
 	public function testCompiledFlowRequiresExactlyOneChatModelDock(): void {
@@ -140,7 +153,7 @@ final class AgentFlowCompilerTest extends TestCase {
 			$builder = $this->createStub(IAgentComponentFlowBuilder::class);
 			$builder->method('build')->willReturn(['nodes' => [['id' => 'assistant', 'docks' => ['chatmodel' => $dock]]]]);
 			try {
-				(new AgentFlowCompiler($builder))->compile(['chatmodel' => 'model']);
+				(new AgentFlowCompiler($builder, $this->nativeRepository()))->compile(['chatmodel' => 'model']);
 				$this->fail('Expected model dock cardinality validation.');
 			} catch (\RuntimeException $e) {
 				$this->assertStringContainsString('exactly once', $e->getMessage());

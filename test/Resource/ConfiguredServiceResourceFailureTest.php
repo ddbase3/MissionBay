@@ -21,10 +21,10 @@ use Base3\CoreFoundation\Api\IClassMap;
 use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\Api\IConfiguredParserServiceResolver;
-use Base3\MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
-use Base3\MissionBay\Resource\ConfiguredParserServiceAgentResource;
-use Base3\MissionBay\Resource\ConfiguredVectorSearchAgentResource;
-use Base3\MissionBay\Resource\ConfiguredVectorStoreAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\Configured\ConfiguredEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\Parser\Configured\ConfiguredParserServiceAgentResource;
+use Base3\MissionBay\Resource\VectorSearch\Configured\ConfiguredVectorSearchAgentResource;
+use Base3\MissionBay\Resource\VectorStore\Configured\ConfiguredVectorStoreAgentResource;
 use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use PHPUnit\Framework\TestCase;
 

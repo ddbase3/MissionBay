@@ -35,7 +35,7 @@ use Base3\MissionBay\Event\MissionBayToolStartedEvent;
 use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
 use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use Base3\MissionBay\Resource\ConfiguredAgentToolResource;
+use Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource;
 use PHPUnit\Framework\TestCase;
 
 final class ConfiguredToolRecordingEventManager implements IEventManager {

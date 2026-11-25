@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use Base3\AssistantFoundation\Api\IAgentContext;
-use Base3\MissionBay\Resource\UploadStreamExtractorAgentResource;
+use Base3\MissionBay\Resource\Extractor\UploadStream\UploadStreamExtractorAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class UploadStreamExtractorInputBoundaryTest extends TestCase {

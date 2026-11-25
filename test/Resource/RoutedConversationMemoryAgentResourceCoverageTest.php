@@ -23,7 +23,7 @@ use Base3\CoreFoundation\Translation\Api\ITranslation;
 use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
 use Base3\CoreFoundation\Usermanager\User;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\RoutedConversationMemoryAgentResource;
+use Base3\MissionBay\Resource\AgentMemory\Routed\RoutedConversationMemoryAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class RoutedConversationMemoryAgentResourceCoverageTest extends TestCase {

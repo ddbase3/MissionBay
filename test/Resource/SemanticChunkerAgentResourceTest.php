@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use Base3\MissionBay\Dto\AgentParsedContent;
-use Base3\MissionBay\Resource\SemanticChunkerAgentResource;
+use Base3\MissionBay\Resource\Chunker\Semantic\SemanticChunkerAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class SemanticChunkerAgentResourceTest extends TestCase {

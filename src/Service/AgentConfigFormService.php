@@ -120,7 +120,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			$errors[] = sprintf($this->translate('selected_chatmodel_missing', 'Selected chat model preset is not available or does not implement IAiChatModel: %s'), $chatModel);
 		}
 
-		$orchestratorProfile = $this->normalizeTechnicalKey((string)$this->request->request(
+		$orchestratorProfile = AgentOrchestratorProfileRepository::resolveProfileId((string)$this->request->request(
 			'orchestrator_profile',
 			AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID
 		));
@@ -197,7 +197,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 		return [
 			'chatmodel' => $this->normalizeTechnicalKey((string)$this->request->request('chatmodel')),
-			'orchestrator_profile' => $this->normalizeTechnicalKey((string)$this->request->request('orchestrator_profile', AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID)),
+			'orchestrator_profile' => AgentOrchestratorProfileRepository::resolveProfileId((string)$this->request->request('orchestrator_profile', AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID)),
 			'tool_profiles' => $this->normalizeTechnicalKeyList($this->request->request('tool_profiles', [])),
 			'memory_profile' => $this->normalizeTechnicalKey((string)$this->request->request('memory_profile', '')),
 			'context_profile' => $this->normalizeTechnicalKey((string)$this->request->request('context_profile', '')),
@@ -225,7 +225,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 		return [
 			'chatmodel' => $chatModel,
-			'orchestrator_profile' => $this->normalizeTechnicalKey((string)($settings['orchestrator_profile'] ?? $defaults['orchestrator_profile'])) ?: AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID,
+			'orchestrator_profile' => AgentOrchestratorProfileRepository::resolveProfileId((string)($settings['orchestrator_profile'] ?? $defaults['orchestrator_profile'])),
 			'tool_profiles' => $this->normalizeTechnicalKeyList($settings['tool_profiles'] ?? $defaults['tool_profiles']),
 			'memory_profile' => $memoryProfile,
 			'context_profile' => $contextProfile,

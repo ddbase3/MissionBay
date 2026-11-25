@@ -153,6 +153,39 @@ Examples include:
 * loggers
 * extractors and chunkers
 
+## Resource implementation layout
+
+Concrete resources are stored under `src/Resource/<primary capability>/<implementation>/`.
+The folder identifies the resource's main responsibility, not the complete list of interfaces it implements.
+For example:
+
+```text
+src/Resource/
+	AbstractAgentResource.php
+	AbstractConfiguredServiceAgentResource.php
+	AgentContext/Focus/FocusAgentResource.php
+	AgentContext/UserPrefs/UserPrefsAgentResource.php
+	AgentMemory/Database/DatabaseMemoryAgentResource.php
+	AgentMemory/Time/TimeMemoryAgentResource.php
+	AgentTool/Weather/WeatherAgentTool.php
+	AgentTool/Retrieval/RetrievalAgentTool.php
+	ChatModel/Configured/ConfiguredChatModelAgentResource.php
+	EmbeddingModel/Cache/EmbeddingCacheAgentResource.php
+	Mcp/McpClientAgentResource.php
+```
+
+`FocusAgentResource` and `UserPrefsAgentResource` are context contributors and callable tools.
+`ConfiguredSearchServiceAgentResource` is both a search service and a tool, and
+`McpClientAgentResource` exposes tools, resources, prompts and context.
+Each retains one implementation class in its primary domain. No parallel resource
+registration or role-specific proxy is necessary.
+
+The abstract base classes remain at the root of `src/Resource/` for existing
+plugin extensions. The published `getName()` value is independent of the PHP
+namespace and remains the identifier in saved presets and AgentFlow definitions.
+`AgentResourceFactory` resolves these names through the existing `IClassMap`.
+See [source-map.md](source-map.md) for every implementation path.
+
 ## Docks
 
 A node declares which resource interface it needs at each named dock. A flow definition associates resource IDs with the dock.
@@ -199,3 +232,5 @@ To add a node:
 To add a resource, follow the same discovery rule and implement the interfaces the consuming docks expect.
 
 Do not add a central switch statement for new node or resource types. Discovery already provides that extension boundary.
+
+MissionBay contains the `Configured`, `Generic` and `Routing` chat-model resources. Ten direct provider-specific resources are discoverable from optional MissionBayLab under their existing technical names. Configured LLM service drivers remain in MissionBay. Direct resource configurations require the module containing the corresponding implementation.

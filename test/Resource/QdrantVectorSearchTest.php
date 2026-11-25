@@ -76,11 +76,11 @@ namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\QdrantVectorSearch;
+use Base3\MissionBay\Resource\VectorSearch\Qdrant\QdrantVectorSearch;
 use Base3\MissionBay\Resource\FakeCurlState;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
-#[CoversClass(\Base3\MissionBay\Resource\QdrantVectorSearch::class)]
+#[CoversClass(\Base3\MissionBay\Resource\VectorSearch\Qdrant\QdrantVectorSearch::class)]
 class QdrantVectorSearchTest extends TestCase {
 
 	protected function setUp(): void {

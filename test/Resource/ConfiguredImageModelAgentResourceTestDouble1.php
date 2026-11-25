@@ -23,7 +23,7 @@ use Base3\CoreFoundation\Api\IClassMap;
 use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\ImageModel\MistralImageModel;
-use Base3\MissionBay\Resource\ConfiguredImageModelAgentResource;
+use Base3\MissionBay\Resource\ImageModel\Configured\ConfiguredImageModelAgentResource;
 use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use Base3\MissionBay\ServiceDriver\MistralImageServiceDriverDefinition;
 use PHPUnit\Framework\TestCase;

@@ -33,7 +33,7 @@ use Base3\MissionBay\Api\IAgentComponentPresetRepository;
 use Base3\MissionBay\Api\IAgentResource;
 use Base3\MissionBay\Api\IAgentTool;
 use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
-use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
+use Base3\MissionBay\Resource\AgentMemory\Configured\ConfiguredAgentMemoryResource;
 use Base3\MissionBay\Service\AgentComponentPresetToolTestService;
 
 /**

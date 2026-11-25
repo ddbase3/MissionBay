@@ -25,7 +25,7 @@ use Base3\AssistantFoundation\Dto\AgentConversation;
 use Base3\AssistantFoundation\Dto\AgentConversationScope;
 use Base3\AssistantFoundation\Dto\AgentInstructionBlock;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\KnowledgeAgentResource;
+use Base3\MissionBay\Resource\AgentTool\Knowledge\KnowledgeAgentResource;
 use Base3\MissionBay\Service\Assistant\AgentAssistantContextContributionService;
 use Base3\MissionBay\Service\Assistant\AgentAssistantMemoryService;
 use Base3\MissionBay\Service\Assistant\AgentAssistantMessageFactory;

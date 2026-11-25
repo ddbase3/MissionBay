@@ -20,7 +20,7 @@ namespace Base3\MissionBay\Test\Resource;
 use PHPUnit\Framework\TestCase;
 use Base3\Core\Event\EventManager;
 use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
-use Base3\MissionBay\Resource\GenericChatModelAgentResource;
+use Base3\MissionBay\Resource\ChatModel\Generic\GenericChatModelAgentResource;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
 final class GenericChatModelAgentResourceTestDouble1 implements IAgentConfigValueResolver {

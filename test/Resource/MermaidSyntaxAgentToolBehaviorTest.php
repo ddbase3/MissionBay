@@ -19,7 +19,7 @@ namespace Base3\MissionBay\Test\Resource;
 
 use Base3\CoreFoundation\Logger\Api\ILogger;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\MermaidSyntaxAgentTool;
+use Base3\MissionBay\Resource\AgentTool\MermaidSyntax\MermaidSyntaxAgentTool;
 use PHPUnit\Framework\TestCase;
 
 final class MermaidSyntaxAgentToolBehaviorTest extends TestCase {

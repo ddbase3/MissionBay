@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use Base3\MissionBay\Dto\AgentContentItem;
-use Base3\MissionBay\Resource\StructuredObjectParserAgentResource;
+use Base3\MissionBay\Resource\Parser\StructuredObject\StructuredObjectParserAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class StructuredObjectParserAgentResourceTest extends TestCase {

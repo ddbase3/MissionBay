@@ -22,7 +22,7 @@ use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
 use Base3\AssistantFoundation\Api\IVectorSearch;
 use Base3\CoreFoundation\Logger\Api\ILogger;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
-use Base3\MissionBay\Resource\RagSearchAgentTool;
+use Base3\MissionBay\Resource\AgentTool\RagSearch\RagSearchAgentTool;
 use PHPUnit\Framework\TestCase;
 
 final class RagSearchAgentToolExecutionTest extends TestCase {

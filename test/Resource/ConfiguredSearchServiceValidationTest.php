@@ -21,7 +21,7 @@ use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\CoreFoundation\Api\IClassMap;
 use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
-use Base3\MissionBay\Resource\ConfiguredSearchServiceAgentResource;
+use Base3\MissionBay\Resource\SearchService\Configured\ConfiguredSearchServiceAgentResource;
 use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use PHPUnit\Framework\TestCase;
 

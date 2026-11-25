@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\BlockChatbotAgentTool;
+use Base3\MissionBay\Resource\AgentTool\Chatbot\BlockChatbotAgentTool;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\MissionBay\Api\IAgentTool;
 

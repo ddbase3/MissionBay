@@ -24,7 +24,7 @@ use Base3\MissionBay\Context\AgentContext;
 use Base3\MissionBay\Event\MissionBayToolFailedEvent;
 use Base3\MissionBay\Event\MissionBayToolFinishedEvent;
 use Base3\MissionBay\Event\MissionBayToolStartedEvent;
-use Base3\MissionBay\Resource\ConfiguredAgentToolResource;
+use Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

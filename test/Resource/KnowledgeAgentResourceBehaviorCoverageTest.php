@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\KnowledgeAgentResource;
+use Base3\MissionBay\Resource\AgentTool\Knowledge\KnowledgeAgentResource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 

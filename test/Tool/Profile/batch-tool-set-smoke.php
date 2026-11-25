@@ -67,10 +67,10 @@ if (
 	]);
 	$configResolver = new \Base3\MissionBay\Test\Tool\Profile\BatchToolSetSmokeDouble2();
 	$eventManager = new \Base3\Core\Event\EventManager();
-	$batchWrapper = new \Base3\MissionBay\Resource\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-batch');
+	$batchWrapper = new \Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-batch');
 	$batchWrapper->setConfig(['namespace' => 'batch']);
 	$batchWrapper->init(['tool' => [$batchTool]], $context);
-	$targetWrapper = new \Base3\MissionBay\Resource\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-target');
+	$targetWrapper = new \Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource($configResolver, $eventManager, 'configured-target');
 	$targetWrapper->setConfig(['namespace' => 'plugins']);
 	$targetWrapper->init(['tool' => [$targetTool]], $context);
 

@@ -49,20 +49,26 @@ The administration UI therefore uses checkboxes instead of drag-and-drop orderin
 
 ### Built-in profiles
 
-MissionBay always exposes eight read-only profiles:
+The repository discovers read-only definitions implementing `Base3\AssistantFoundation\Api\IAgentOrchestratorProfile` through `IClassMap`. Each definition supplies the lowercase class name, stable configuration ID, static runtime ID `missionbay`, and runtime-specific settings. Other runtimes are ignored; invalid or duplicate IDs within MissionBay are errors. The existing `fromArray()` validation and canonical stage order remain authoritative.
 
-| Profile | Intended use |
-|---|---|
-| `simple` | One bounded tool loop for small, direct tool tasks. |
-| `native-tool-loop` | Neuron-like provider-native tool loop: tool calls continue through MissionBay, while a normal terminal assistant response is streamed directly without a control signal or separate final-response model call. |
-| `standard` | General multi-step tool orchestration with discovery, deterministic hybrid selection, compaction, and verification. |
-| `large-catalog` | Uses the explicit `ai-capability-selection` stage for large, heterogeneous tool catalogs with deterministic fallback. |
-| `large-catalog-native` | Uses AI selection of complete tool sources, then the same native streaming decision semantics as `native-tool-loop`. |
-| `agent-selected-native` | Gives the main native agent a compact catalog of all eligible capability sources and lets that same agent replace its active source set repeatedly during the turn. |
-| `deliberate` | Evidence-oriented orchestration with concise typed planning and a smaller loop limit. |
-| `governed` | Full orchestration for agents that may execute approved mutations. |
+MissionBay exposes three native profiles. Optional MissionBayLab exposes five controlled profiles. Stored custom profiles remain in `agent-orchestrator-profile`; discovered definitions take precedence over stored records with the same ID, as before.
 
-Built-in profiles can be duplicated into custom profiles. They cannot be overwritten or deleted.
+| Profile | Owner | Intended use |
+|---|---|---|
+| `simple` | MissionBayLab | One bounded tool loop for small, direct tool tasks. |
+| `native-tool-loop` | MissionBay | Neuron-like provider-native tool loop: tool calls continue through MissionBay, while a normal terminal assistant response is streamed directly without a control signal or separate final-response model call. |
+| `standard` | MissionBayLab | General multi-step tool orchestration with discovery, deterministic hybrid selection, compaction, and verification. |
+| `large-catalog` | MissionBayLab | Uses the explicit `ai-capability-selection` stage for large, heterogeneous tool catalogs with deterministic fallback. |
+| `large-catalog-native` | MissionBay | Uses AI selection of complete tool sources, then the same native streaming decision semantics as `native-tool-loop`. |
+| `agent-selected-native` | MissionBay | Gives the main native agent a compact catalog of all eligible capability sources and lets that same agent replace its active source set repeatedly during the turn. |
+| `deliberate` | MissionBayLab | Evidence-oriented orchestration with concise typed planning and a smaller loop limit. |
+| `governed` | MissionBayLab | Full orchestration for agents that may execute approved mutations. |
+
+Built-in profiles can be duplicated into custom profiles. They cannot be overwritten or deleted while installed.
+
+`native-tool-loop` is the default for missing or blank profile IDs in high-level agent compilation and administration. Explicitly selected IDs are not automatically replaced. If a selected definition is no longer installed and there is no stored custom profile with that ID, resolution fails explicitly. Keep MissionBayLab installed until affected agents and component presets have been deliberately reconfigured.
+
+Legacy high-level records without the `orchestrator_profile` key retain directly configured capability source/selection settings. If they explicitly contain `capability_selection`, the existing deterministic selection stage is retained at its canonical position so configured filters and limits are not bypassed by the new native default. Explicit profile choices continue to own their stage list; expert overrides affect settings, not stage ownership. When editing a legacy record to select an explicit profile, verify its selection stage and expert overrides before saving. Directly composed AgentFlows retain their node and stage configuration. Discovery does not rewrite settings records.
 
 ### Model-decision semantics
 
@@ -77,7 +83,7 @@ simple-model-decision
 ai-guarded-model-decision
 ```
 
-`simple-model-decision` is retained only for persisted compatibility profiles that still use the textual `TOOL_PHASE_COMPLETE` sentinel. No built-in profile uses it, and new profiles should use `ai-guarded-model-decision`, `native-model-decision`, or `native-capability-model-decision`. `ai-guarded-model-decision` uses the structured MissionBay control tool and remains the controlled default for the existing built-in profiles.
+`simple-model-decision` is retained only for persisted compatibility profiles that still use the textual `TOOL_PHASE_COMPLETE` sentinel. No built-in profile uses it, and new profiles should use `ai-guarded-model-decision`, `native-model-decision`, or `native-capability-model-decision`. `ai-guarded-model-decision` uses the structured MissionBay control tool and remains the decision strategy of the controlled MissionBayLab profiles.
 
 The native strategy uses the provider's normal tool-calling contract:
 

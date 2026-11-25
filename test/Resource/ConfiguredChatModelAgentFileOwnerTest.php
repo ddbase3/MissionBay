@@ -20,7 +20,7 @@ namespace Base3\MissionBay\Test\Resource;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAiChatModel;
 use Base3\CoreFoundation\State\Api\IStateStore;
-use Base3\MissionBay\Resource\ConfiguredChatModelAgentResource;
+use Base3\MissionBay\Resource\ChatModel\Configured\ConfiguredChatModelAgentResource;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use Base3\ResourceFoundation\Api\IManagedFileStorageService;

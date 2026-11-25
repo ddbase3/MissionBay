@@ -34,7 +34,7 @@ use Base3\MissionBay\Dto\Mcp\McpClientConfig;
 use Base3\MissionBay\Mcp\Client\McpRemoteToolDefinitionMapper;
 use Base3\MissionBay\Mcp\Client\McpRemoteToolResultMapper;
 use Base3\MissionBay\Profile\AgentAssistantToolSetupFactory;
-use Base3\MissionBay\Resource\ConfiguredAgentToolResource;
+use Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource;
 use Base3\MissionBay\Resource\Mcp\McpClientAgentResource;
 use Base3\MissionBay\Service\AgentComponentPresetMaterializer;
 use PHPUnit\Framework\TestCase;

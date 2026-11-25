@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\DummyEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\Dummy\DummyEmbeddingModelAgentResource;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
 final class DummyEmbeddingModelAgentResourceTestDouble1 implements IAgentConfigValueResolver {

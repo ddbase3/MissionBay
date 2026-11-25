@@ -29,22 +29,35 @@ use Base3\MissionBay\Service\AgentComponentFlowBuilder;
 use Base3\MissionBay\Service\AgentComponentPresetFlowExpander;
 use Base3\MissionBay\Service\AgentExecutionService;
 use Base3\MissionBay\Service\AgentFlowCompiler;
+use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
+use Base3\MissionBay\Test\Orchestrator\NativeProfileRepositoryTestSupport;
 use PHPUnit\Framework\TestCase;
 
+require_once dirname(__DIR__) . '/Orchestrator/NativeProfileRepositoryTestSupport.php';
+
 final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
+
+	use NativeProfileRepositoryTestSupport;
 
 	public function testCompilerBuildsCanonicalChatModelPresetFlow(): void {
 		$flow = $this->createCompiler()->compile([
 			'chatmodel' => 'chat-main'
 		])->getFlow();
 
+		$inputs = $flow['nodes'][0]['inputs'];
+		$this->assertSame('native-tool-loop', $inputs['orchestratorprofile']);
+		$this->assertSame(AgentModelDecisionConfig::native()->toArray(), $inputs['modeldecision']);
+		$this->assertSame(['model-decision', 'action-policy', 'tool-execution', 'tool-observation'], $inputs['stages']);
+		$this->assertSame(10, $inputs['maxtoolloops']);
+		$this->assertFalse($inputs['capabilityselection']['enabled']);
+		$this->assertFalse($inputs['deliberateplanning']);
 		$this->assertSame([[
 			'id' => 'assistant',
 			'type' => 'aiassistantnode',
 			'docks' => [
 				'chatmodel' => ['preset_chat_main']
 			],
-			'inputs' => []
+			'inputs' => $inputs
 		]], $flow['nodes']);
 		$this->assertSame([[
 			'id' => 'preset_chat_main',
@@ -168,7 +181,7 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 
 	private function createCompiler(): AgentFlowCompiler {
 		$repository = $this->componentPresetRepository();
-		return new AgentFlowCompiler(new AgentComponentFlowBuilder($repository, new AgentComponentPresetFlowExpander($repository)));
+		return new AgentFlowCompiler(new AgentComponentFlowBuilder($repository, new AgentComponentPresetFlowExpander($repository)), $this->nativeRepository());
 	}
 
 	private function componentPresetRepository(): IAgentComponentPresetRepository {

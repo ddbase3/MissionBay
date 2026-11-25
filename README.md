@@ -152,6 +152,13 @@ Current flow implementations are:
 
 A flow consists of nodes, connections, initial values, resources and dock assignments. Nodes and resources are selected by their stable `getName()` value.
 
+Concrete resources are organized under `src/Resource/` by primary capability and
+implementation (for example `AgentTool/Weather/`, `AgentMemory/Database/` and
+`ChatModel/Configured/`). Resources that implement multiple agent roles remain one
+class. The two shared abstract bases retain their existing root namespace.
+See [docs/flows-nodes-and-resources.md](docs/flows-nodes-and-resources.md)
+and [docs/source-map.md](docs/source-map.md) for the structure and full inventory.
+
 Current factory usage is:
 
 ```php
@@ -470,3 +477,7 @@ The existing `MutationApprovalAgentActionPolicy` now checks an explicitly approv
 ### HITL approval regression and read-only diagnostics
 
 The Agent Execution diagnostic scope includes `AgentApprovalContractDiagnosticCheck` for deterministic approval-envelope, fingerprint and scope invariants. It does not execute AI or tools. Additional executable `test/Display/AgentAdminApprovalAuthorizationSmoke.php` and `test/Display/AgentAdminPersistentApprovalMatrixSmoke.php` cover feature-gated administrative approvals, the real MissionBay resume boundary and negative decision cases without an LLM. A user who may administer agents under the existing `agentadminsettingstab` feature may also grant or revoke agent-scoped tool consent; no separate approval permission is introduced. See `docs/testing-and-diagnostics.md`.
+
+## Orchestrator definitions and optional extensions
+
+The native profiles implement `Base3\AssistantFoundation\Api\IAgentOrchestratorProfile`. The existing repository discovers their stable IDs and validates them with the same materialization logic as stored custom profiles. The default for a missing or blank `orchestrator_profile` is `native-tool-loop`. Explicit profile IDs retain their behavior. Optional MissionBayLab contributes the five controlled profiles and ten direct provider chat resources. Configured service drivers, generic and routing resources, and the common engine remain in MissionBay. See [Orchestrator and tool profiles](docs/agent-orchestrator-and-tool-profiles.md).

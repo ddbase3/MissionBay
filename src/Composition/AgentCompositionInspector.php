@@ -35,7 +35,7 @@ use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use Base3\MissionBay\Profile\AgentContextProfileResolver;
 use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
 use Base3\MissionBay\Profile\AgentToolProfileResolver;
-use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
+use Base3\MissionBay\Resource\AgentMemory\Configured\ConfiguredAgentMemoryResource;
 
 /**
  * Builds a read-only diagnostic view of the effective configured composition
@@ -71,7 +71,7 @@ final class AgentCompositionInspector {
 	public function inspect(string $agentId, array $settings): array {
 		$warnings = [];
 		$errors = [];
-		$profileId = $this->normalizeId((string)($settings['orchestrator_profile'] ?? AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID));
+		$profileId = AgentOrchestratorProfileRepository::resolveProfileId((string)($settings['orchestrator_profile'] ?? ''));
 		$profile = null;
 
 		try {

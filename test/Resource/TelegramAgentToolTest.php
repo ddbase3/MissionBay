@@ -19,7 +19,7 @@ namespace Base3\MissionBay\Test\Resource;
 
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\TelegramAgentTool;
+use Base3\MissionBay\Resource\AgentTool\Telegram\TelegramAgentTool;
 use PHPUnit\Framework\TestCase;
 
 final class TelegramAgentToolTest extends TestCase {

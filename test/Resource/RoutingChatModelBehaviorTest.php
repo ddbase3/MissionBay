@@ -20,7 +20,7 @@ namespace Base3\MissionBay\Test\Resource;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAiChatModel;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
-use Base3\MissionBay\Resource\RoutingChatModelAgentResource;
+use Base3\MissionBay\Resource\ChatModel\Routing\RoutingChatModelAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class RoutingChatModelBehaviorTest extends TestCase {

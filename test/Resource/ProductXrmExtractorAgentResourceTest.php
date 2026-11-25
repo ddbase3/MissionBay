@@ -19,12 +19,12 @@ namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\ProductXrmExtractorAgentResource;
+use Base3\MissionBay\Resource\Extractor\ProductXrm\ProductXrmExtractorAgentResource;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\MissionBay\Dto\AgentContentItem;
 use Base3\ResourceFoundation\Api\IEntityDataService;
 
-#[CoversClass(\Base3\MissionBay\Resource\ProductXrmExtractorAgentResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\Extractor\ProductXrm\ProductXrmExtractorAgentResource::class)]
 class ProductXrmExtractorAgentResourceTest extends TestCase {
 
 	private function makeContextStub(): IAgentContext {

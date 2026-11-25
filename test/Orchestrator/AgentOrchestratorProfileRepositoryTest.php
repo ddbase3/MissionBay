@@ -23,48 +23,78 @@ use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/NativeProfileRepositoryTestSupport.php';
+
 final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 
-	public function testExposesEightBuiltinProfilesIncludingAgentSelectedNativeToolLoop(): void {
-		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
-		$profiles = $repository->getProfiles();
+	use NativeProfileRepositoryTestSupport;
 
-		$this->assertCount(8, $profiles);
-		$this->assertArrayHasKey('large-catalog', $profiles);
-		$this->assertArrayHasKey('native-tool-loop', $profiles);
-		$this->assertArrayHasKey('large-catalog-native', $profiles);
-		$this->assertArrayHasKey('agent-selected-native', $profiles);
-
-		$profile = $profiles['large-catalog'];
-		$config = $profile->getCapabilitySelection();
-
-		$this->assertTrue($profile->isBuiltin());
-		$this->assertFalse($profile->isCapabilitySelectionEnabled());
-		$this->assertTrue($profile->isAiCapabilitySelectionEnabled());
-		$this->assertContains('ai-capability-selection', $profile->getStageIds());
-		$this->assertNotContains('capability-selection', $profile->getStageIds());
-		$this->assertSame(AgentCapabilitySelectionConfig::STRATEGY_HYBRID, $config->getStrategy());
-		$this->assertSame(16, $config->getMaxTools());
-		$this->assertSame(12, $config->getSelectAllThreshold());
-		$this->assertSame(48, $config->getSemanticCandidateTools());
-		$this->assertSame(48000, $config->getSemanticMaxPromptCharacters());
-		$this->assertFalse($config->isSticky());
+	public function testNativeProfilesMatchThePreviousRuntimeDefinitions(): void {
+		$profiles = $this->nativeRepository()->getProfiles();
+		$actual = array_map(static fn($profile): array => $profile->toArray(), $profiles);
+		ksort($actual);
+		$expected = json_decode(file_get_contents(__DIR__ . '/fixtures/builtin-profiles-before-refactor.json'), true, 512, JSON_THROW_ON_ERROR);
+		$this->assertSame($expected, $actual);
+		$this->assertCount(3, $profiles);
 	}
 
-	public function testControlledBuiltinProfilesUseAiGuardedModelDecisionByDefault(): void {
-		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
+	public function testMissingChoiceUsesNativeDefaultAndMissingLabProfileFails(): void {
+		$repository = $this->nativeRepository();
+		$this->assertSame('native-tool-loop', $repository->getProfile('')->getId());
+		$this->assertSame('native-tool-loop', $repository->getProfile('  ')->getId());
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('Orchestrator profile not found: standard');
+		$repository->getProfile('standard');
+	}
 
-		foreach ($repository->getProfiles() as $id => $profile) {
-			if (in_array($id, ['native-tool-loop', 'large-catalog-native', 'agent-selected-native'], true)) {
-				continue;
-			}
-			$this->assertSame(AgentModelDecisionConfig::STRATEGY_AI_GUARDED, $profile->getModelDecision()->getStrategy());
-			$this->assertTrue($profile->getModelDecision()->isRepairEnabled());
-		}
+	public function testInvalidExplicitChoiceDoesNotResolveToDefault(): void {
+		$this->expectException(\RuntimeException::class);
+		$this->nativeRepository()->getProfile('!?');
+	}
+
+	public function testDuplicateDefinitionIdsAreRejected(): void {
+		$definitions = $this->nativeDefinitions();
+		$definitions[] = $definitions[0];
+		$this->expectException(\LogicException::class);
+		$this->expectExceptionMessage('Duplicate orchestrator profile id: native-tool-loop');
+		$this->nativeRepository(null, $definitions)->getProfiles();
+	}
+
+	public function testForeignRuntimeIsIgnoredBeforeMaterialization(): void {
+		$definitions = $this->nativeDefinitions();
+		$definitions[] = new OtherRuntimeProfileDefinition();
+		$this->assertCount(3, $this->nativeRepository(null, $definitions)->getProfiles());
+	}
+
+	public function testInvalidDefinitionIdIsRejected(): void {
+		$this->expectException(\InvalidArgumentException::class);
+		$this->nativeRepository(null, [new InvalidProfileDefinition()])->getProfiles();
+	}
+
+	public function testStoredRecordCannotOverrideCodeOwnedProfile(): void {
+		$store = $this->settingsStore([AgentOrchestratorProfileRepository::SETTINGS_GROUP => [
+			'native-tool-loop' => ['enabled' => false, 'mode' => 'governed'],
+			'custom' => ['label' => 'My profile', 'mode' => 'simple']
+		]]);
+		$repository = $this->nativeRepository($store);
+		$this->assertTrue($repository->getProfile('native-tool-loop')->isEnabled());
+		$this->assertFalse($repository->getProfile('custom')->isBuiltin());
+		$this->assertSame('My profile', $repository->getProfile('custom')->getLabel());
+		$this->assertFalse($store->get(AgentOrchestratorProfileRepository::SETTINGS_GROUP, 'native-tool-loop')['enabled']);
+	}
+
+	public function testCodeOwnedProfilesCannotBeOverwritten(): void {
+		$this->expectException(\RuntimeException::class);
+		$this->nativeRepository()->save('native-tool-loop', []);
+	}
+
+	public function testCodeOwnedProfilesCannotBeRemoved(): void {
+		$this->expectException(\RuntimeException::class);
+		$this->nativeRepository()->remove('native-tool-loop');
 	}
 
 	public function testNoBuiltinProfileUsesLegacySimpleModelDecision(): void {
-		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
+		$repository = $this->nativeRepository($this->settingsStore());
 
 		foreach ($repository->getProfiles() as $profile) {
 			$this->assertFalse(
@@ -74,7 +104,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 	}
 
 	public function testNativeToolLoopProfileUsesLiveNativeSemantics(): void {
-		$profile = (new AgentOrchestratorProfileRepository($this->settingsStore()))->getProfile('native-tool-loop');
+		$profile = ($this->nativeRepository($this->settingsStore()))->getProfile('native-tool-loop');
 
 		$this->assertSame('Native tool loop', $profile->getLabel());
 		$this->assertSame(AgentModelDecisionConfig::STRATEGY_NATIVE, $profile->getModelDecision()->getStrategy());
@@ -92,7 +122,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 
 
 	public function testLargeCatalogNativeUsesSourceCompleteSelectionAndNativeStreaming(): void {
-		$profile = (new AgentOrchestratorProfileRepository($this->settingsStore()))->getProfile('large-catalog-native');
+		$profile = ($this->nativeRepository($this->settingsStore()))->getProfile('large-catalog-native');
 		$config = $profile->getCapabilitySelection();
 
 		$this->assertSame('Large catalog native tool loop', $profile->getLabel());
@@ -117,7 +147,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 
 
 	public function testAgentSelectedNativeUsesMainAgentSourceControlWithoutPreselectionStage(): void {
-		$profile = (new AgentOrchestratorProfileRepository($this->settingsStore()))->getProfile('agent-selected-native');
+		$profile = ($this->nativeRepository($this->settingsStore()))->getProfile('agent-selected-native');
 		$config = $profile->getCapabilitySelection();
 
 		$this->assertSame('Agent-selected native tool loop', $profile->getLabel());
@@ -141,7 +171,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 	}
 
 	public function testNativeCustomProfileRejectsSemanticVerificationUntilNativeVerificationIsSupported(): void {
-		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
+		$repository = $this->nativeRepository($this->settingsStore());
 
 		$this->expectException(\InvalidArgumentException::class);
 		$this->expectExceptionMessage('Native model decision cannot be combined with semantic verification');
@@ -161,7 +191,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 	}
 
 	public function testSourceCompleteSelectionRequiresAiCapabilitySelectionStage(): void {
-		$repository = new AgentOrchestratorProfileRepository($this->settingsStore());
+		$repository = $this->nativeRepository($this->settingsStore());
 
 		$this->expectException(\InvalidArgumentException::class);
 		$this->expectExceptionMessage('Source-complete capability selection requires the AI capability selection stage.');
@@ -184,7 +214,7 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 	}
 
 	public function testLegacySemanticCustomProfileMigratesToExplicitAiStage(): void {
-		$repository = new AgentOrchestratorProfileRepository($this->settingsStore([
+		$repository = $this->nativeRepository($this->settingsStore([
 			AgentOrchestratorProfileRepository::SETTINGS_GROUP => [
 				'legacy-semantic' => [
 					'label' => 'Legacy semantic',
@@ -219,3 +249,5 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 }
 
 require_once __DIR__ . '/AgentOrchestratorProfileRepositoryTestDouble1.php';
+require_once __DIR__ . '/OtherRuntimeProfileDefinition.php';
+require_once __DIR__ . '/InvalidProfileDefinition.php';

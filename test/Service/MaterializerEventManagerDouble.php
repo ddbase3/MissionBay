@@ -30,7 +30,7 @@ use Base3\MissionBay\Api\IAgentResourceFactory;
 use Base3\MissionBay\Api\IAgentTool;
 use Base3\MissionBay\Context\AgentContext;
 use Base3\MissionBay\Resource\AbstractAgentResource;
-use Base3\MissionBay\Resource\ConfiguredAgentToolResource;
+use Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource;
 use Base3\MissionBay\Service\AgentComponentPresetMaterializer;
 use PHPUnit\Framework\TestCase;
 

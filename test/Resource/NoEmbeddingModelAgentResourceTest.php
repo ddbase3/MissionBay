@@ -19,10 +19,10 @@ namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\NoEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\No\NoEmbeddingModelAgentResource;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
-#[CoversClass(\Base3\MissionBay\Resource\NoEmbeddingModelAgentResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\EmbeddingModel\No\NoEmbeddingModelAgentResource::class)]
 class NoEmbeddingModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

@@ -23,7 +23,7 @@ use Base3\MissionBay\Api\IConfiguredParserServiceResolver;
 use Base3\MissionBay\Api\IParserService;
 use Base3\MissionBay\Dto\AgentContentItem;
 use Base3\MissionBay\Dto\AgentParsedContent;
-use Base3\MissionBay\Resource\ConfiguredParserServiceAgentResource;
+use Base3\MissionBay\Resource\Parser\Configured\ConfiguredParserServiceAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class ConfiguredParserServiceDelegationTest extends TestCase {

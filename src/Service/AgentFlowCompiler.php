@@ -41,7 +41,7 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 
 	public function __construct(
 		private readonly IAgentComponentFlowBuilder $componentFlowBuilder,
-		private readonly ?AgentOrchestratorProfileRepository $orchestratorProfileRepository = null,
+		private readonly AgentOrchestratorProfileRepository $orchestratorProfileRepository,
 		private readonly ?AgentToolProfileResolver $toolProfileResolver = null,
 		private readonly ?AgentMemoryProfileResolver $memoryProfileResolver = null,
 		private readonly ?AgentContextProfileResolver $contextProfileResolver = null
@@ -61,13 +61,8 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 
 		$flow = $this->createBaseFlow();
 		$profileId = trim((string)($agentSettings['orchestrator_profile'] ?? ''));
-		if ($profileId !== '') {
-			if (!$this->orchestratorProfileRepository instanceof AgentOrchestratorProfileRepository) {
-				throw new \RuntimeException('Agent orchestrator profile repository is not available.');
-			}
-			$profile = $this->orchestratorProfileRepository->getProfile($profileId);
-			$flow = $this->applyOrchestratorProfile($flow, $profile, $warnings);
-		}
+		$profile = $this->orchestratorProfileRepository->getProfile($profileId);
+		$flow = $this->applyOrchestratorProfile($flow, $profile, $warnings);
 		$flow = $this->applyCapabilityConfiguration($flow, $agentSettings);
 
 		$memoryProfileId = $this->normalizeTechnicalKey((string)($agentSettings['memory_profile'] ?? ''));
@@ -163,6 +158,17 @@ final class AgentFlowCompiler implements IAgentFlowCompiler {
 		if (($legacyMode || $expertOverrides) && array_key_exists('capability_selection', $settings)) {
 			$value = is_array($settings['capability_selection']) ? $settings['capability_selection'] : [];
 			$flow['nodes'][$nodeIndex]['inputs']['capabilityselection'] = AgentCapabilitySelectionConfig::fromArray($value)->toArray();
+			// Legacy records explicitly configuring selection previously ran the
+			// deterministic selection stage. Preserve their configured filters and
+			// limits when applying the new native default. Explicit profile choices
+			// still own their stage list, including expert settings.
+			if ($legacyMode && !in_array('capability-selection', $flow['nodes'][$nodeIndex]['inputs']['stages'], true)
+				&& !in_array('ai-capability-selection', $flow['nodes'][$nodeIndex]['inputs']['stages'], true)) {
+				$stages = &$flow['nodes'][$nodeIndex]['inputs']['stages'];
+				$decisionIndex = array_search('model-decision', $stages, true);
+				array_splice($stages, $decisionIndex, 0, ['capability-selection']);
+				unset($stages);
+			}
 		}
 		return $flow;
 	}

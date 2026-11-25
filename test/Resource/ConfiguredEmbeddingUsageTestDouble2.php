@@ -27,7 +27,7 @@ use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\EmbeddingModel\OpenAiEmbeddingModel;
-use Base3\MissionBay\Resource\ConfiguredEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\Configured\ConfiguredEmbeddingModelAgentResource;
 use Base3\MissionBay\Service\ConfiguredServiceRuntimeResolver;
 use Base3\MissionBay\ServiceDriver\OpenAiEmbeddingServiceDriverDefinition;
 use Base3\MissionBay\Transport\OpenAiTransport;

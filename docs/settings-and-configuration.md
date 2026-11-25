@@ -166,3 +166,7 @@ missionbay:mcp:
 ## Administration
 
 The displays in `src/Display/` provide editing and diagnostics for these settings groups. See [administration.md](administration.md).
+
+### Orchestrator profile definitions
+
+An agent's `orchestrator_profile` stores the stable profile ID, not a PHP class name or ClassMap name. The default for missing or blank IDs is `native-tool-loop`. The repository discovers definitions from MissionBay and optional MissionBayLab and merges the existing `agent-orchestrator-profile` settings group without rewriting records. Explicit selections are preserved when their definitions remain installed. Before removing MissionBayLab, inspect explicit profile IDs, component presets and direct flows using its resource types. See [Orchestrator and tool profiles](agent-orchestrator-and-tool-profiles.md) for legacy selection and editing considerations.

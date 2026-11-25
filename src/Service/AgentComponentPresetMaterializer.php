@@ -29,8 +29,8 @@ use Base3\MissionBay\Api\IAgentResource;
 use Base3\MissionBay\Api\IAgentResourceFactory;
 use Base3\MissionBay\Api\IAgentTool;
 use Base3\MissionBay\Dto\AgentComponentPresetMaterialization;
-use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
-use Base3\MissionBay\Resource\ConfiguredAgentToolResource;
+use Base3\MissionBay\Resource\AgentMemory\Configured\ConfiguredAgentMemoryResource;
+use Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource;
 
 /**
  * Canonical materializer for stored agent component presets.

@@ -23,9 +23,9 @@ use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Dto\AgentExecutionEvent;
 use Base3\MissionBay\Api\IAgentTool;
-use Base3\MissionBay\Resource\ToolProxyAgentTool;
+use Base3\MissionBay\Resource\AgentTool\Proxy\ToolProxyAgentTool;
 
-#[CoversClass(\Base3\MissionBay\Resource\ToolProxyAgentTool::class)]
+#[CoversClass(\Base3\MissionBay\Resource\AgentTool\Proxy\ToolProxyAgentTool::class)]
 class ToolProxyAgentToolTest extends TestCase {
 
 	private function makeContextWithEventSink(array &$events): IAgentContext {

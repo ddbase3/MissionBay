@@ -23,7 +23,7 @@ use Base3\CoreFoundation\Database\Api\IDatabase;
 use Base3\CoreFoundation\Session\Api\ISession;
 use Base3\CoreFoundation\Usermanager\Api\IUsermanager;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
-use Base3\MissionBay\Resource\FocusAgentResource;
+use Base3\MissionBay\Resource\AgentContext\Focus\FocusAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class FocusAgentResourceValidationTest extends TestCase {

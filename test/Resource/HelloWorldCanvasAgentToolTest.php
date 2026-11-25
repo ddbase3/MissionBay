@@ -19,13 +19,13 @@ namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\HelloWorldCanvasAgentTool;
+use Base3\MissionBay\Resource\AgentTool\Canvas\HelloWorldCanvasAgentTool;
 use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Dto\AgentExecutionEvent;
 use Base3\AssistantFoundation\Api\IAgentMemory;
 
-#[CoversClass(\Base3\MissionBay\Resource\HelloWorldCanvasAgentTool::class)]
+#[CoversClass(\Base3\MissionBay\Resource\AgentTool\Canvas\HelloWorldCanvasAgentTool::class)]
 class HelloWorldCanvasAgentToolTest extends TestCase {
 
 	private function makeContext(array $vars = []): IAgentContext {

@@ -58,8 +58,8 @@ The memory backend determines the owner from the authenticated user or active se
 MissionBay provides exactly two conversation-memory implementations:
 
 ```text
-Base3\MissionBay\Resource\SessionMemoryAgentResource
-Base3\MissionBay\Resource\DatabaseMemoryAgentResource
+Base3\MissionBay\Resource\AgentMemory\Session\SessionMemoryAgentResource
+Base3\MissionBay\Resource\AgentMemory\Database\DatabaseMemoryAgentResource
 ```
 
 `SessionMemoryAgentResource` stores the complete canonical conversation structure through `ISession`.

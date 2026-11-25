@@ -21,7 +21,7 @@ use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAiEmbeddingModel;
 use Base3\CoreFoundation\Database\Api\IDatabase;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
-use Base3\MissionBay\Resource\EmbeddingCacheAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\Cache\EmbeddingCacheAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class EmbeddingCacheAgentResourceBoundaryTest extends TestCase {

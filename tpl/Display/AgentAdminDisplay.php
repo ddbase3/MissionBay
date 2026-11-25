@@ -565,6 +565,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 	const ENDPOINT_URL = <?php echo json_encode($serviceUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const MODULARGRID_URL = <?php echo json_encode($modularGridJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const MODULAR_DIALOG_URL = <?php echo json_encode($modularDialogJsUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+	const DEFAULT_ORCHESTRATOR_PROFILE = <?php echo json_encode(\Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID); ?>;
 	const DEFAULT_RECORD = <?php echo json_encode($defaultRecord, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const POLICY_OPTIONS = <?php echo json_encode(array_values($policyOptions), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 	const SETTINGS_GROUP = <?php echo json_encode($settingsGroup, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
@@ -831,7 +832,7 @@ $mbTextEsc = static fn(string $key, string $fallback): string => htmlspecialchar
 
 	function renderAgentProfiles(value, row) {
 		const wrapper = createElement('agent-admin-cell-stack');
-		const main = createElement('agent-admin-cell-main', getText(row.orchestrator_profile, 'standard'));
+		const main = createElement('agent-admin-cell-main', getText(row.orchestrator_profile, DEFAULT_ORCHESTRATOR_PROFILE));
 		const toolText = row.tool_profile_count > 0 ? getText(row.tool_profile_text) : 'no tool profile';
 		const memoryText = row.memory_profile ? 'memory: ' + getText(row.memory_profile) : 'memory: legacy';
 		const sub = createElement('agent-admin-cell-sub', toolText + ' / ' + memoryText);

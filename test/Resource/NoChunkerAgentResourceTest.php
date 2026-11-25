@@ -19,10 +19,10 @@ namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\NoChunkerAgentResource;
+use Base3\MissionBay\Resource\Chunker\No\NoChunkerAgentResource;
 use Base3\MissionBay\Dto\AgentParsedContent;
 
-#[CoversClass(\Base3\MissionBay\Resource\NoChunkerAgentResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\Chunker\No\NoChunkerAgentResource::class)]
 class NoChunkerAgentResourceTest extends TestCase {
 
 	private function makeParsedContent(?string $text): AgentParsedContent {

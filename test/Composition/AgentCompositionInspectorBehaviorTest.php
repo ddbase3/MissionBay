@@ -39,9 +39,14 @@ use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
 use Base3\MissionBay\Profile\AgentContextProfileResolver;
 use Base3\MissionBay\Profile\AgentMemoryProfileResolver;
 use Base3\MissionBay\Profile\AgentToolProfileResolver;
+use Base3\MissionBay\Test\Orchestrator\NativeProfileRepositoryTestSupport;
 use PHPUnit\Framework\TestCase;
 
+require_once dirname(__DIR__) . '/Orchestrator/NativeProfileRepositoryTestSupport.php';
+
 final class AgentCompositionInspectorBehaviorTest extends TestCase {
+
+	use NativeProfileRepositoryTestSupport;
 
 	private function inspector(array $flow = [], array $warnings = [], array $groups = [], array $presets = [], bool $runtime = false): AgentCompositionInspector {
 		$settings = $this->createStub(ISettingsStore::class);
@@ -80,7 +85,7 @@ final class AgentCompositionInspectorBehaviorTest extends TestCase {
 			$compiler,
 			$contextFactory,
 			$flowFactory,
-			new AgentOrchestratorProfileRepository($settings),
+			$this->nativeRepository($settings),
 			new AgentToolProfileResolver($settings, $repository),
 			new AgentMemoryProfileResolver($settings, $repository, $resourceFactory),
 			new AgentContextProfileResolver($settings, $repository, $resourceFactory),

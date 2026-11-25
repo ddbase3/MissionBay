@@ -18,7 +18,7 @@
 namespace Base3\MissionBay\Test\Resource;
 
 use Base3\MissionBay\Dto\AgentParsedContent;
-use Base3\MissionBay\Resource\XrmChunkerAgentResource;
+use Base3\MissionBay\Resource\Chunker\Xrm\XrmChunkerAgentResource;
 use PHPUnit\Framework\TestCase;
 
 require_once __DIR__ . '/XrmChunkerIdentityResolverStub.php';

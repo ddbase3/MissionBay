@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 use Base3\CoreFoundation\Api\IClassMap;
 use Base3\Core\Event\EventManager;
 use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
-use Base3\MissionBay\Resource\OpenAiEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\OpenAi\OpenAiEmbeddingModelAgentResource;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
 final class OpenAiEmbeddingModelAgentResourceTestDouble2 extends OpenAiEmbeddingModelAgentResource {

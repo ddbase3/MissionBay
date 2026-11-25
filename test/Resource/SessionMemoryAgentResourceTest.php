@@ -22,7 +22,7 @@ use Base3\AssistantFoundation\Dto\AgentConversationScope;
 use Base3\CoreFoundation\Session\Api\ISession;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\SessionMemoryAgentResource;
+use Base3\MissionBay\Resource\AgentMemory\Session\SessionMemoryAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class SessionMemoryAgentResourceTest extends TestCase {

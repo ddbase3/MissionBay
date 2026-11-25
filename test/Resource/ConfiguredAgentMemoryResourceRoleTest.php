@@ -23,7 +23,7 @@ use Base3\AssistantFoundation\Dto\AgentConversation;
 use Base3\AssistantFoundation\Dto\AgentConversationScope;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\ConfiguredAgentMemoryResource;
+use Base3\MissionBay\Resource\AgentMemory\Configured\ConfiguredAgentMemoryResource;
 use PHPUnit\Framework\TestCase;
 
 final class ConfiguredAgentMemoryResourceRoleTest extends TestCase {

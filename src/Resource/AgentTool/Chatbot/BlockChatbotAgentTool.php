@@ -1,0 +1,83 @@
+<?php declare(strict_types=1);
+
+/***********************************************************************
+ * This file is part of MissionBay for BASE3 Framework.
+ *
+ * MissionBay extends the BASE3 framework with a modular runtime
+ * foundation for agent flows, reusable nodes, and dockable resources.
+ * It provides declarative execution for AI-driven workflows.
+ *
+ * Developed by Daniel Dahme
+ * Licensed under GPL-3.0
+ * https://www.gnu.org/licenses/gpl-3.0.en.html
+ *
+ * https://base3.de/v/missionbay
+ * https://github.com/ddbase3/MissionBay
+ **********************************************************************/
+
+namespace Base3\MissionBay\Resource\AgentTool\Chatbot;
+
+use Base3\MissionBay\Resource\AbstractAgentResource;
+use Base3\MissionBay\Api\IAgentTool;
+use Base3\AssistantFoundation\Api\IAgentContext;
+
+/**
+ * BlockChatbotAgentTool
+ *
+ * Tool zum Blockieren des Chatbots durch Setzen einer Session-Variable.
+ * Prüfen tut nicht das Tool, sondern z. B. der ConditionalPassNode.
+ */
+class BlockChatbotAgentTool extends AbstractAgentResource implements IAgentTool {
+
+	public static function getName(): string {
+		return 'blockchatbotagenttool';
+	}
+
+	public function getDescription(): string {
+		return 'Sets $_SESSION["chatblocker"] = "block". '
+		     . 'Flows können diese Variable prüfen und darauf reagieren.';
+	}
+
+	/**
+	 * OpenAI-kompatible Tool-Definition
+	 */
+	public function getToolDefinitions(): array {
+		return [[
+			'type' => 'function',
+			'label' => 'Chatbot Blocking',
+			'category' => 'control',
+			'tags' => ['block', 'safe', 'security'],
+			'priority' => 50,
+			'function' => [
+				'name' => 'block_chatbot',
+				'description' => 'Blocks the chatbot by setting $_SESSION["chatblocker"] = "block". '
+				               . 'Nodes like ConditionalPassNode can check this value.',
+				'parameters' => [
+					'type' => 'object',
+					'properties' => new \stdClass(),
+					'required' => []
+				]
+			]
+		]];
+	}
+
+	/**
+	 * Führt den Tool-Call aus.
+	 */
+	public function callTool(string $toolName, array $arguments, IAgentContext $context): array {
+		if ($toolName !== 'block_chatbot') {
+			throw new \InvalidArgumentException("Unsupported tool: $toolName");
+		}
+
+		if (session_status() !== PHP_SESSION_ACTIVE) {
+			session_start();
+		}
+
+		$_SESSION['chatblocker'] = 'block';
+
+		return [
+			'status'  => 'ok',
+			'message' => 'Chatbot blocked: $_SESSION["chatblocker"]="block" gesetzt.'
+		];
+	}
+}

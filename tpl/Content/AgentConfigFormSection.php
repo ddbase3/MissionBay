@@ -2,6 +2,7 @@
 $agentConfigForm = is_array($runtimeAgentConfigForm ?? null)
 	? $runtimeAgentConfigForm
 	: (is_array($this->_['agent_config_form'] ?? null) ? $this->_['agent_config_form'] : []);
+$defaultOrchestratorProfile = \Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID;
 $values = is_array($agentConfigForm['values'] ?? null) ? $agentConfigForm['values'] : [];
 $chatModelPresets = is_array($agentConfigForm['chatmodel_preset_options'] ?? null) ? $agentConfigForm['chatmodel_preset_options'] : [];
 $orchestratorProfiles = is_array($agentConfigForm['orchestrator_profile_options'] ?? null) ? $agentConfigForm['orchestrator_profile_options'] : [];
@@ -225,8 +226,14 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 			<label class="base3-agent-config-label" for="<?php echo $e($formId); ?>_orchestrator"><?php echo $e($t('orchestrator_profile_label', 'Orchestrator profile')); ?></label>
 			<div>
 				<select id="<?php echo $e($formId); ?>_orchestrator" name="orchestrator_profile" data-orchestrator-profile>
+<?php
+	$currentProfileId = \Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository::resolveProfileId((string)($values['orchestrator_profile'] ?? ''));
+	if (!in_array($currentProfileId, array_column($orchestratorProfiles, 'id'), true)) {
+?>
+					<option value="<?php echo $e($currentProfileId); ?>" data-missing-profile="1" selected="selected"><?php echo $e($currentProfileId . ' [' . $translations['orchestrator_unavailable_marker'] . ']'); ?></option>
+<?php } ?>
 <?php foreach($orchestratorProfiles as $profile): $id=(string)($profile['id']??''); if($id==='') continue; ?>
-					<option value="<?php echo $e($id); ?>" data-description="<?php echo $e($profile['description']??''); ?>" data-stages="<?php echo $e(implode(',', (array)($profile['stage_ids']??[]))); ?>"<?php echo $selected($values['orchestrator_profile']??'standard',$id); ?>><?php echo $e(($profile['label']??$id) . (!empty($profile['builtin']) ? ' [' . $t('builtin_marker', 'built-in') . ']' : '') . (empty($profile['enabled']) ? ' [' . $t('disabled_marker', 'disabled') . ']' : '')); ?></option>
+					<option value="<?php echo $e($id); ?>" data-description="<?php echo $e($profile['description']??''); ?>" data-stages="<?php echo $e(implode(',', (array)($profile['stage_ids']??[]))); ?>"<?php echo $selected($currentProfileId,$id); ?>><?php echo $e(($profile['label']??$id) . (!empty($profile['builtin']) ? ' [' . $t('builtin_marker', 'built-in') . ']' : '') . (empty($profile['enabled']) ? ' [' . $t('disabled_marker', 'disabled') . ']' : '')); ?></option>
 <?php endforeach; ?>
 				</select>
 				<div class="base3-agent-config-profile-card" data-orchestrator-profile-summary></div>
@@ -338,11 +345,13 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 <script>
 (function(){
 	var root=document.getElementById(<?php echo json_encode($rootId); ?>); if(!root||root.dataset.ready==='1')return; root.dataset.ready='1';
+	var defaultOrchestratorProfile=<?php echo json_encode($defaultOrchestratorProfile); ?>;
 	var presets=<?php echo json_encode(array_values($agentComponentPresets), JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); ?>;
 	var initialComponents=<?php echo json_encode(array_values($agentComponents), JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); ?>;
 	var exportCatalog=<?php echo json_encode($exportCatalog, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); ?>;
 	var i18n=<?php echo json_encode([
 		'selectPreset'=>$t('select_preset', 'Select preset'),
+		'orchestratorUnavailable'=>$translations['orchestrator_unavailable_marker'],
 		'active'=>$t('active', 'active'),
 		'order'=>$t('order', 'order'),
 		'remove'=>$t('remove', 'Remove'),
@@ -370,6 +379,19 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 	function renderComponents(list){if(!items)return;items.innerHTML='';(Array.isArray(list)?list:[]).forEach(addComponent);sync();}
 	var add=root.querySelector('[data-agent-component-add]'); if(add)add.onclick=function(){addComponent({enabled:true});sync()};
 	var profileSelect=root.querySelector('[data-orchestrator-profile]'); var summary=root.querySelector('[data-orchestrator-profile-summary]');
+	function setOrchestratorProfile(value) {
+		if (!profileSelect) return;
+		var id = String(value || defaultOrchestratorProfile);
+		Array.from(profileSelect.querySelectorAll('[data-missing-profile]')).forEach(function(option) { option.remove(); });
+		if (!Array.from(profileSelect.options).some(function(option) { return option.value === id; })) {
+			var option = document.createElement('option');
+			option.value = id;
+			option.textContent = id + ' [' + i18n.orchestratorUnavailable + ']';
+			option.dataset.missingProfile = '1';
+			profileSelect.appendChild(option);
+		}
+		profileSelect.value = id;
+	}
 	function updateSummary(){if(!profileSelect||!summary)return;var o=profileSelect.options[profileSelect.selectedIndex];summary.innerHTML='';if(!o)return;var d=document.createElement('div');d.textContent=o.dataset.description||'';summary.appendChild(d);var stages=document.createElement('div');stages.className='base3-agent-config-stage-preview';String(o.dataset.stages||'').split(',').filter(Boolean).forEach(function(id){var p=document.createElement('span');p.className='base3-agent-config-stage-pill';p.textContent=id;stages.appendChild(p)});summary.appendChild(stages)}
 	if(profileSelect)profileSelect.addEventListener('change',updateSummary); updateSummary();
 	root.addEventListener('input',sync);root.addEventListener('change',sync);renderComponents(initialComponents);
@@ -385,7 +407,7 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 	function outerFieldValue(names){var scope=root.closest('form')||root.closest('[data-base3-chatbot-config-root]')||root.closest('[data-base3-agent-config-display-root]')||root.closest('[data-base3-agent-fields]')||root;for(var i=0;i<names.length;i++){var f=scope.querySelector('[name="'+names[i]+'"]');if(f&&String(f.value||'')!=='')return String(f.value)}return'';}
 	function selectedCapabilitySources(){var result={};['tools','providers','modules','resourceProviders','promptProviders'].forEach(function(key){result[key]=selectedValues('capability_sources['+key+'][]')});result.strict=boolField('capability_sources[strict]');return result;}
 	function lines(name){return String(fieldValue(name)||'').split('\n').map(function(value){return value.trim()}).filter(function(value){return value!==''});}
-	function currentAgentConfig(){sync();return{chatmodel:fieldValue('chatmodel'),system_prompt:fieldValue('system_prompt'),orchestrator_profile:fieldValue('orchestrator_profile')||'standard',tool_profiles:selectedValues('tool_profiles[]'),memory_profile:fieldValue('memory_profile'),context_profile:fieldValue('context_profile'),expert_overrides_enabled:boolField('expert_overrides_enabled'),agent_components:buildComponents(),capability_sources:selectedCapabilitySources(),capability_selection:{enabled:boolField('capability_selection[enabled]'),strategy:fieldValue('capability_selection[strategy]')||'hybrid',max_tools:Number(fieldValue('capability_selection[max_tools]')||16),select_all_threshold:Number(fieldValue('capability_selection[select_all_threshold]')||16),include_tools:lines('capability_selection[include_tools]'),exclude_tools:lines('capability_selection[exclude_tools]'),include_tags:lines('capability_selection[include_tags]'),exclude_tags:lines('capability_selection[exclude_tags]'),include_categories:lines('capability_selection[include_categories]'),exclude_categories:lines('capability_selection[exclude_categories]'),always_available:lines('capability_selection[always_available]'),sticky:boolField('capability_selection[sticky]')}};}
+	function currentAgentConfig(){sync();return{chatmodel:fieldValue('chatmodel'),system_prompt:fieldValue('system_prompt'),orchestrator_profile:fieldValue('orchestrator_profile')||defaultOrchestratorProfile,tool_profiles:selectedValues('tool_profiles[]'),memory_profile:fieldValue('memory_profile'),context_profile:fieldValue('context_profile'),expert_overrides_enabled:boolField('expert_overrides_enabled'),agent_components:buildComponents(),capability_sources:selectedCapabilitySources(),capability_selection:{enabled:boolField('capability_selection[enabled]'),strategy:fieldValue('capability_selection[strategy]')||'hybrid',max_tools:Number(fieldValue('capability_selection[max_tools]')||16),select_all_threshold:Number(fieldValue('capability_selection[select_all_threshold]')||16),include_tools:lines('capability_selection[include_tools]'),exclude_tools:lines('capability_selection[exclude_tools]'),include_tags:lines('capability_selection[include_tags]'),exclude_tags:lines('capability_selection[exclude_tags]'),include_categories:lines('capability_selection[include_categories]'),exclude_categories:lines('capability_selection[exclude_categories]'),always_available:lines('capability_selection[always_available]'),sticky:boolField('capability_selection[sticky]')}};}
 	function resolveToolProfiles(ids){return(ids||[]).map(function(id){var profile=clone(catalogRecord('tool_profiles',id))||{id:id,missing:true};var tools=Array.isArray(profile.tools)?profile.tools:[];profile.component_presets=tools.map(function(presetId){return{preset_id:presetId,preset:clone(catalogRecord('component_presets',presetId))}});return profile});}
 	function resolvePresetProfile(group,id,field){if(!id)return null;var profile=clone(catalogRecord(group,id))||{id:id,missing:true};var ids=Array.isArray(profile[field])?profile[field]:(Array.isArray(profile.presets)?profile.presets:[]);profile.component_presets=ids.map(function(presetId){return{preset_id:presetId,preset:clone(catalogRecord('component_presets',String(presetId||'')))}});return profile;}
 	function resolveMemoryProfile(id){return resolvePresetProfile('memory_profiles',id,'memories');}
@@ -398,7 +420,7 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 	var exportButton=root.querySelector('[data-agent-config-export]');var exportStatus=root.querySelector('[data-agent-config-export-status]');if(exportButton)exportButton.addEventListener('click',async function(){try{var payload=buildExport();await copyText(JSON.stringify(payload,null,2));var warningCount=payload.diagnostics&&Array.isArray(payload.diagnostics.warnings)?payload.diagnostics.warnings.length:0;if(exportStatus){exportStatus.dataset.state=warningCount>0?'warning':'ok';exportStatus.textContent=warningCount>0?i18n.exportCopiedWarnings.replace('%d',String(warningCount)):i18n.exportCopied}}catch(error){if(exportStatus){exportStatus.dataset.state='error';exportStatus.textContent=i18n.exportFailedPrefix+' '+String(error&&error.message?error.message:error)}}});
 	function setValue(name,value){var fields=root.querySelectorAll('[name="'+name.replace(/"/g,'\\"')+'"]');fields.forEach(function(f){if(f.type==='checkbox'){f.checked=!!value}else{f.value=value==null?'':String(value)}})}
 	function setMulti(name,values){values=Array.isArray(values)?values.map(String):[];var escaped=name.replace(/"/g,'\\"');var select=root.querySelector('select[multiple][name="'+escaped+'"]');if(select){Array.prototype.forEach.call(select.options,function(o){o.selected=values.indexOf(String(o.value))!==-1})}root.querySelectorAll('input[type="checkbox"][name="'+escaped+'"]').forEach(function(field){field.checked=values.indexOf(String(field.value))!==-1})}
-	root.__base3AgentRuntimeConfigUpdateValues=function(v){if(!v||typeof v!=='object')return;setValue('chatmodel',v.chatmodel||'');setValue('system_prompt',v.system_prompt||'');setValue('orchestrator_profile',v.orchestrator_profile||'standard');setMulti('tool_profiles[]',v.tool_profiles||[]);setValue('memory_profile',v.memory_profile||'');setValue('context_profile',v.context_profile||'');setValue('expert_overrides_enabled',!!v.expert_overrides_enabled);renderComponents(v.agent_components||[]);var src=v.capability_sources||{};['tools','providers','modules','resourceProviders','promptProviders'].forEach(function(k){setMulti('capability_sources['+k+'][]',src[k]||[])});var sel=v.capability_selection||{};setValue('capability_selection[strategy]',sel.strategy||'hybrid');setValue('capability_selection[max_tools]',sel.max_tools==null?16:sel.max_tools);setValue('capability_selection[select_all_threshold]',sel.select_all_threshold==null?16:sel.select_all_threshold);['include_tools','exclude_tools','include_tags','exclude_tags','include_categories','exclude_categories','always_available'].forEach(function(k){setValue('capability_selection['+k+']',Array.isArray(sel[k])?sel[k].join('\n'):'')});updateSummary();sync()};
+	root.__base3AgentRuntimeConfigUpdateValues=function(v){if(!v||typeof v!=='object')return;setValue('chatmodel',v.chatmodel||'');setValue('system_prompt',v.system_prompt||'');setOrchestratorProfile(v.orchestrator_profile);setMulti('tool_profiles[]',v.tool_profiles||[]);setValue('memory_profile',v.memory_profile||'');setValue('context_profile',v.context_profile||'');setValue('expert_overrides_enabled',!!v.expert_overrides_enabled);renderComponents(v.agent_components||[]);var src=v.capability_sources||{};['tools','providers','modules','resourceProviders','promptProviders'].forEach(function(k){setMulti('capability_sources['+k+'][]',src[k]||[])});var sel=v.capability_selection||{};setValue('capability_selection[strategy]',sel.strategy||'hybrid');setValue('capability_selection[max_tools]',sel.max_tools==null?16:sel.max_tools);setValue('capability_selection[select_all_threshold]',sel.select_all_threshold==null?16:sel.select_all_threshold);['include_tools','exclude_tools','include_tags','exclude_tags','include_categories','exclude_categories','always_available'].forEach(function(k){setValue('capability_selection['+k+']',Array.isArray(sel[k])?sel[k].join('\n'):'')});updateSummary();sync()};
 	root.__base3AgentRuntimeConfigPrepareSubmit=function(){sync();return true};
 })();
 </script>

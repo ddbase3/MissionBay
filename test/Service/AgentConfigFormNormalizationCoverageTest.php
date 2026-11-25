@@ -32,7 +32,7 @@ final class AgentConfigFormNormalizationCoverageTest extends TestCase {
 	public function testDefaultSettingsExposeStableAgentFields(): void {
 		$defaults = $this->form()->getDefaultSettings();
 		$this->assertSame('', $defaults['chatmodel']);
-		$this->assertSame('standard', $defaults['orchestrator_profile']);
+		$this->assertSame('native-tool-loop', $defaults['orchestrator_profile']);
 		$this->assertSame([], $defaults['tool_profiles']);
 		$this->assertSame([], $defaults['agent_components']);
 		$this->assertSame((new AgentCapabilitySourceConfig())->toArray(), $defaults['capability_sources']);
@@ -282,7 +282,7 @@ final class AgentConfigFormNormalizationCoverageTest extends TestCase {
 
 	public function testNormalizeSettingsUsesSafeDefaults(): void {
 		$settings = $this->form()->normalizeSettings([]);
-		$this->assertSame('standard', $settings['orchestrator_profile']);
+		$this->assertSame('native-tool-loop', $settings['orchestrator_profile']);
 		$this->assertSame([], $settings['agent_components']);
 		$this->assertFalse($settings['expert_overrides_enabled']);
 	}

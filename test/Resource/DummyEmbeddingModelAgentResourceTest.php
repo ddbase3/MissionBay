@@ -19,10 +19,10 @@ namespace Base3\MissionBay\Test\Resource;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
-use Base3\MissionBay\Resource\DummyEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\Dummy\DummyEmbeddingModelAgentResource;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
-#[CoversClass(\Base3\MissionBay\Resource\DummyEmbeddingModelAgentResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\EmbeddingModel\Dummy\DummyEmbeddingModelAgentResource::class)]
 class DummyEmbeddingModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

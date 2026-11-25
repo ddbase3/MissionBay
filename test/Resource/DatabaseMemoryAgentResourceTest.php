@@ -27,7 +27,7 @@ use Base3\CredentialFoundation\Dto\EncryptionKeyMaterial;
 use Base3\CoreFoundation\Database\Api\IDatabase;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 use Base3\MissionBay\Context\AgentContext;
-use Base3\MissionBay\Resource\DatabaseMemoryAgentResource;
+use Base3\MissionBay\Resource\AgentMemory\Database\DatabaseMemoryAgentResource;
 use PHPUnit\Framework\TestCase;
 
 final class DatabaseMemoryAgentResourceTest extends TestCase {

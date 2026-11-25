@@ -22,10 +22,10 @@ use PHPUnit\Framework\TestCase;
 use Base3\CoreFoundation\Api\IClassMap;
 use Base3\Core\Event\EventManager;
 use Base3\MissionBay\Ai\AiProviderRequestEventDispatcher;
-use Base3\MissionBay\Resource\OpenAiEmbeddingModelAgentResource;
+use Base3\MissionBay\Resource\EmbeddingModel\OpenAi\OpenAiEmbeddingModelAgentResource;
 use Base3\MissionBay\Api\IAgentConfigValueResolver;
 
-#[CoversClass(\Base3\MissionBay\Resource\OpenAiEmbeddingModelAgentResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\EmbeddingModel\OpenAi\OpenAiEmbeddingModelAgentResource::class)]
 class OpenAiEmbeddingModelAgentResourceTest extends TestCase {
 
 	private function makeResolver(array $map = []): IAgentConfigValueResolver {

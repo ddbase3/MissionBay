@@ -17,7 +17,9 @@
 
 namespace Base3\MissionBay\Orchestrator\Profile;
 
+use Base3\AssistantFoundation\Api\IAgentOrchestratorProfile;
 use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
+use Base3\CoreFoundation\Api\IClassMap;
 use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 
@@ -27,9 +29,12 @@ use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 final class AgentOrchestratorProfileRepository {
 
 	public const SETTINGS_GROUP = 'agent-orchestrator-profile';
-	public const DEFAULT_PROFILE_ID = 'standard';
+	public const DEFAULT_PROFILE_ID = 'native-tool-loop';
 
-	public function __construct(private readonly ISettingsStore $settingsStore) {}
+	public function __construct(
+		private readonly ISettingsStore $settingsStore,
+		private readonly IClassMap $classMap
+	) {}
 
 	/** @return array<string,AgentOrchestratorProfile> */
 	public function getProfiles(): array {
@@ -57,10 +62,7 @@ final class AgentOrchestratorProfileRepository {
 	}
 
 	public function getProfile(string $id): AgentOrchestratorProfile {
-		$id = $this->normalizeId($id);
-		if ($id === '') {
-			$id = self::DEFAULT_PROFILE_ID;
-		}
+		$id = self::resolveProfileId($id);
 
 		$profiles = $this->getProfiles();
 		if (!isset($profiles[$id])) {
@@ -73,19 +75,31 @@ final class AgentOrchestratorProfileRepository {
 		return $profiles[$id];
 	}
 
+	/**
+	 * Resolves the effective profile identifier, without loading or persisting a profile.
+	 * Only an omitted or blank choice selects the default.
+	 */
+	public static function resolveProfileId(string $id): string {
+		if (trim($id) === '') {
+			return self::DEFAULT_PROFILE_ID;
+		}
+		$normalized = self::normalizeId($id);
+		return $normalized !== '' ? $normalized : $id;
+	}
+
 	public function exists(string $id): bool {
-		$id = $this->normalizeId($id);
+		$id = self::normalizeId($id);
 		return $id !== '' && isset($this->getProfiles()[$id]);
 	}
 
 	public function isBuiltin(string $id): bool {
-		$id = $this->normalizeId($id);
+		$id = self::normalizeId($id);
 		return isset($this->getBuiltinProfiles()[$id]);
 	}
 
 	/** @param array<string,mixed> $settings */
 	public function save(string $id, array $settings): AgentOrchestratorProfile {
-		$id = $this->normalizeId($id);
+		$id = self::normalizeId($id);
 		if ($id === '') {
 			throw new \InvalidArgumentException('Orchestrator profile id must not be empty.');
 		}
@@ -101,7 +115,7 @@ final class AgentOrchestratorProfileRepository {
 	}
 
 	public function remove(string $id): void {
-		$id = $this->normalizeId($id);
+		$id = self::normalizeId($id);
 		if ($this->isBuiltin($id)) {
 			throw new \RuntimeException('Built-in orchestrator profiles cannot be deleted: ' . $id);
 		}
@@ -133,194 +147,24 @@ final class AgentOrchestratorProfileRepository {
 
 	/** @return array<string,AgentOrchestratorProfile> */
 	private function getBuiltinProfiles(): array {
-		return [
-			'simple' => $this->fromArray('simple', [
-				'label' => 'Simple tool agent',
-				'description' => 'One tool loop, bounded tool preselection, no compaction or semantic verification.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_SIMPLE,
-				'max_tool_loops' => 1,
-				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => false,
-					'capability-selection' => true,
-					'ai-capability-selection' => false,
-					'context-compaction' => false,
-					'semantic-verification' => false
-				],
-				'capability_selection' => [
-					'enabled' => true,
-					'strategy' => 'hybrid',
-					'max_tools' => 12,
-					'select_all_threshold' => 12,
-					'sticky' => false
-				]
-			], true),
-			'native-tool-loop' => $this->fromArray('native-tool-loop', [
-				'label' => 'Native tool loop',
-				'description' => 'Neuron-like provider-native tool loop with direct terminal streaming, structured MissionBay tool execution and no separate final-response call.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_SIMPLE,
-				'max_tool_loops' => 10,
-				'model_decision' => AgentModelDecisionConfig::native()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => false,
-					'capability-selection' => false,
-					'ai-capability-selection' => false,
-					'context-compaction' => false,
-					'semantic-verification' => false
-				],
-				'capability_selection' => [
-					'enabled' => false,
-					'strategy' => 'hybrid',
-					'max_tools' => 512,
-					'select_all_threshold' => 512,
-					'sticky' => false
-				]
-			], true),
-			'standard' => $this->fromArray('standard', [
-				'label' => 'MissionBay standard',
-				'description' => 'General-purpose multi-step orchestration with discovery, selection, compaction and verification.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
-				'max_tool_loops' => 10,
-				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => true,
-					'capability-selection' => true,
-					'ai-capability-selection' => false,
-					'context-compaction' => true,
-					'semantic-verification' => true
-				],
-				'capability_selection' => [
-					'enabled' => true,
-					'strategy' => 'hybrid',
-					'max_tools' => 16,
-					'select_all_threshold' => 16,
-					'sticky' => true
-				]
-			], true),
-			'large-catalog' => $this->fromArray('large-catalog', [
-				'label' => 'Large capability catalog',
-				'description' => 'AI-reranked capability selection for agents with large and heterogeneous tool catalogs, with deterministic hybrid fallback.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
-				'max_tool_loops' => 10,
-				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => true,
-					'capability-selection' => false,
-					'ai-capability-selection' => true,
-					'context-compaction' => true,
-					'semantic-verification' => true
-				],
-				'capability_selection' => [
-					'enabled' => true,
-					'strategy' => 'hybrid',
-					'max_tools' => 16,
-					'select_all_threshold' => 12,
-					'semantic_candidate_tools' => 48,
-					'semantic_max_prompt_characters' => 48000,
-					'sticky' => false
-				]
-			], true),
-			'large-catalog-native' => $this->fromArray('large-catalog-native', [
-				'label' => 'Large catalog native tool loop',
-				'description' => 'Neuron-like native tool loop with AI-selected complete tool sources for large capability catalogs and direct terminal streaming.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
-				'max_tool_loops' => 24,
-				'model_decision' => AgentModelDecisionConfig::native()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => true,
-					'capability-selection' => false,
-					'ai-capability-selection' => true,
-					'context-compaction' => true,
-					'semantic-verification' => false
-				],
-				'capability_selection' => [
-					'enabled' => true,
-					'strategy' => 'hybrid',
-					'max_tools' => 16,
-					'max_sources' => 16,
-					'selection_unit' => AgentCapabilitySelectionConfig::SELECTION_UNIT_SOURCE,
-					'select_all_threshold' => 12,
-					'semantic_candidate_tools' => 64,
-					'semantic_max_prompt_characters' => 48000,
-					'sticky' => true
-				]
-			], true),
-			'agent-selected-native' => $this->fromArray('agent-selected-native', [
-				'label' => 'Agent-selected native tool loop',
-				'description' => 'Native tool loop where the main agent repeatedly selects complete capability sources from the configured source catalog during the turn.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_STANDARD,
-				'max_tool_loops' => 32,
-				'model_decision' => AgentModelDecisionConfig::nativeCapability()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => true,
-					'capability-selection' => false,
-					'ai-capability-selection' => false,
-					'context-compaction' => true,
-					'semantic-verification' => false
-				],
-				'capability_selection' => [
-					'enabled' => false,
-					'strategy' => 'hybrid',
-					'max_tools' => 64,
-					'max_sources' => 8,
-					'select_all_threshold' => 0,
-					'semantic_candidate_tools' => 64,
-					'semantic_max_prompt_characters' => 48000,
-					'sticky' => false
-				]
-			], true),
-			'deliberate' => $this->fromArray('deliberate', [
-				'label' => 'Deliberate evidence agent',
-				'description' => 'Uses visible history first, creates a concise execution plan without an extra model call, limits repeated tool work and keeps semantic verification enabled.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_DELIBERATE,
-				'deliberate_planning' => true,
-				'max_tool_loops' => 4,
-				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => true,
-					'capability-selection' => true,
-					'ai-capability-selection' => false,
-					'context-compaction' => true,
-					'semantic-verification' => true
-				],
-				'capability_selection' => [
-					'enabled' => true,
-					'strategy' => 'hybrid',
-					'max_tools' => 12,
-					'select_all_threshold' => 12,
-					'sticky' => true
-				]
-			], true),
-			'governed' => $this->fromArray('governed', [
-				'label' => 'Governed mutation agent',
-				'description' => 'Full pipeline for agents that may execute approved mutations. Approval, replay protection and commit guards remain mandatory services.',
-				'enabled' => true,
-				'mode' => AgentOrchestratorProfile::MODE_GOVERNED,
-				'max_tool_loops' => 10,
-				'model_decision' => AgentModelDecisionConfig::aiGuarded()->toArray(),
-				'optional_stages' => [
-					'capability-discovery' => true,
-					'capability-selection' => true,
-					'ai-capability-selection' => false,
-					'context-compaction' => true,
-					'semantic-verification' => true
-				],
-				'capability_selection' => [
-					'enabled' => true,
-					'strategy' => 'hybrid',
-					'max_tools' => 16,
-					'select_all_threshold' => 16,
-					'sticky' => true
-				]
-			], true)
-		];
+		$profiles = [];
+		foreach ($this->classMap->getInstancesByInterface(IAgentOrchestratorProfile::class) as $definition) {
+			if (!$definition instanceof IAgentOrchestratorProfile) {
+				throw new \LogicException('Discovered definition does not implement IAgentOrchestratorProfile.');
+			}
+			if ($definition::getRuntimeId() !== 'missionbay') {
+				continue;
+			}
+			$id = $definition->getId();
+			if ($id === '' || preg_match('/^[a-z0-9._-]+$/D', $id) !== 1) {
+				throw new \InvalidArgumentException('Invalid orchestrator profile id: ' . $id);
+			}
+			if (isset($profiles[$id])) {
+				throw new \LogicException('Duplicate orchestrator profile id: ' . $id);
+			}
+			$profiles[$id] = $this->fromArray($id, $definition->getSettings(), true);
+		}
+		return $profiles;
 	}
 
 	/** @param array<string,mixed> $settings */
@@ -418,7 +262,7 @@ final class AgentOrchestratorProfileRepository {
 		};
 	}
 
-	private function normalizeId(string $id): string {
+	private static function normalizeId(string $id): string {
 		$id = strtolower(trim($id));
 		return preg_replace('/[^a-z0-9._-]+/', '', $id) ?? '';
 	}

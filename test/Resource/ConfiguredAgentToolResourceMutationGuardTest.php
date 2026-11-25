@@ -35,11 +35,11 @@ use Base3\MissionBay\Event\MissionBayToolStartedEvent;
 use Base3\MissionBay\Orchestrator\AgentActionFingerprint;
 use Base3\MissionBay\Orchestrator\Service\AgentMutationCommitGuardService;
 use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
-use Base3\MissionBay\Resource\ConfiguredAgentToolResource;
+use Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-#[CoversClass(\Base3\MissionBay\Resource\ConfiguredAgentToolResource::class)]
+#[CoversClass(\Base3\MissionBay\Resource\AgentTool\Configured\ConfiguredAgentToolResource::class)]
 final class ConfiguredAgentToolResourceMutationGuardTest extends TestCase {
 
 	public function testConfiguredWrapperForwardsMutationGuardToDockedTool(): void {

@@ -22,7 +22,7 @@ use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Dto\AgentExecutionEvent;
 use Base3\MissionBay\Api\IAgentTool;
-use Base3\MissionBay\Resource\ToolProxyAgentTool;
+use Base3\MissionBay\Resource\AgentTool\Proxy\ToolProxyAgentTool;
 
 final class ToolProxyAgentToolTestDouble1 implements IAgentEventSink {
 			private array $events;
