@@ -660,6 +660,7 @@ final class AgentActionReviewService {
 	/** @return array<string,mixed> */
 	private function createSnapshot(IAgentContext $context, array $projectedPatch): array {
 		return [
+			'orchestrator_profile' => (string)($context->getVar(AgentToolLoopContextKeys::ORCHESTRATOR_PROFILE) ?? ''),
 			'iteration' => (int)($context->getVar(AgentToolLoopContextKeys::ITERATION) ?? 0),
 			'call_index' => (int)($projectedPatch[AgentToolLoopContextKeys::CALL_INDEX] ?? $context->getVar(AgentToolLoopContextKeys::CALL_INDEX) ?? 0),
 			'messages' => $this->arrayValue($context, AgentToolLoopContextKeys::MESSAGES, $projectedPatch),

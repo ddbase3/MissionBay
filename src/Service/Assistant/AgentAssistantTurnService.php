@@ -42,6 +42,7 @@ use Base3\MissionBay\Orchestrator\AgentStateSynchronizer;
 use Base3\MissionBay\Orchestrator\AgentToolOrchestrator;
 use Base3\MissionBay\Orchestrator\AgentToolOrchestratorResult;
 use Base3\MissionBay\Orchestrator\Service\AgentActionResumeService;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 
 final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 
@@ -78,7 +79,8 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		if ($resume !== null && $options->getMaxToolLoops() === 0) {
 			throw new \RuntimeException('A tool suspension cannot be resumed with tool orchestration disabled.');
 		}
-		$preparedResume = $this->prepareResume($resume);
+		$context->setVar(AgentToolLoopContextKeys::ORCHESTRATOR_PROFILE, $options->getOrchestratorProfileId());
+		$preparedResume = $this->prepareResume($resume, $context);
 
 		if ($prompt === '' && $resume === null) {
 			throw new \RuntimeException('Prompt is required for a new agent turn.');
@@ -470,7 +472,17 @@ final class AgentAssistantTurnService implements IAgentAssistantTurnService {
 		}
 	}
 
-	private function prepareResume(?AgentResume $resume): ?PreparedAgentResume {
+	private function prepareResume(?AgentResume $resume, IAgentContext $context): ?PreparedAgentResume {
+		// Auto-resume claims before compiling the flow to recover its original profile.
+		// Transfer the existing prepared claim into the normal turn, never claim twice.
+		$prepared = $context->getVar(AgentToolLoopContextKeys::RESUME);
+		$context->forgetVar(AgentToolLoopContextKeys::RESUME);
+		if ($prepared instanceof PreparedAgentResume) {
+			if ($resume === null || $prepared->getResume()->toArray() !== $resume->toArray()) {
+				throw new \RuntimeException('Prepared resume does not match the turn input.');
+			}
+			return $prepared;
+		}
 		if ($resume === null) {
 			return null;
 		}

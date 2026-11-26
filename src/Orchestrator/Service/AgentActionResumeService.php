@@ -62,10 +62,21 @@ final class AgentActionResumeService {
 		);
 	}
 
+	/** Releases the same owned claim when preparation or execution terminates before consumption. */
+	public function release(PreparedAgentResume $prepared): void {
+		$this->releaseBestEffort($prepared->getClaim());
+	}
+
 	public function resume(IAgentContext $context): AgentStageResult {
 		$prepared = $context->getVar(AgentToolLoopContextKeys::RESUME);
 		if (!$prepared instanceof PreparedAgentResume) {
 			return $this->failure('invalid_agent_resume', 'Prepared agent resume state is missing.');
+		}
+
+		$savedProfile = (string)($prepared->getSuspension()->getState()['orchestrator_profile'] ?? '');
+		$currentProfile = (string)($context->getVar(AgentToolLoopContextKeys::ORCHESTRATOR_PROFILE) ?? '');
+		if ($savedProfile !== '' && $savedProfile !== $currentProfile) {
+			return $this->releaseFailure($prepared, 'orchestrator_profile_changed', 'The suspended agent turn requires its original orchestrator profile.');
 		}
 
 		$resume = $prepared->getResume();

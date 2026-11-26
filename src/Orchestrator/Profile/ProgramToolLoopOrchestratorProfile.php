@@ -17,11 +17,11 @@
 
 namespace Base3\MissionBay\Orchestrator\Profile;
 
-use Base3\AssistantFoundation\Api\IAgentOrchestratorProfile;
+use Base3\AssistantFoundation\Api\IAutoSelectableAgentOrchestratorProfile;
 use Base3\CoreFoundation\Translation\Api\ITranslation;
 use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 
-final class ProgramToolLoopOrchestratorProfile implements IAgentOrchestratorProfile {
+final class ProgramToolLoopOrchestratorProfile implements IAutoSelectableAgentOrchestratorProfile {
 
 	public function __construct(private readonly ITranslation $translation) {}
 
@@ -35,6 +35,14 @@ final class ProgramToolLoopOrchestratorProfile implements IAgentOrchestratorProf
 
 	public function getId(): string {
 		return 'program-tool-loop';
+	}
+
+	public function supportsAutoSelection(array $agentSettings, bool $requiresToolLoop): bool {
+		return $requiresToolLoop;
+	}
+
+	public function getAutoSelectionPriority(): int {
+		return 100;
 	}
 
 	public function getSettings(): array {

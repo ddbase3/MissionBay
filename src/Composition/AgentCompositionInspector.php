@@ -76,21 +76,13 @@ final class AgentCompositionInspector {
 		$profile = null;
 
 		try {
-			$profile = $this->orchestratorProfiles->getProfile($profileId);
+			if ($profileId !== AgentOrchestratorProfileRepository::AUTO_PROFILE_ID) {
+				$profile = $this->orchestratorProfiles->getProfile($profileId);
+			}
 		}
 		catch (\Throwable $e) {
 			$errors[] = $e->getMessage();
 		}
-
-		$toolsEnabled = $profile === null || $profile->getMaxToolLoops() > 0;
-		$toolProfileIds = $this->normalizeIds($settings['tool_profiles'] ?? []);
-		$toolProfiles = $this->describeToolProfiles($toolProfileIds, $warnings, $errors, $toolsEnabled);
-		$memoryProfileId = $this->normalizeId((string)($settings['memory_profile'] ?? ''));
-		$contextProfileId = $this->normalizeId((string)($settings['context_profile'] ?? ''));
-		$memoryProfile = $this->describeMemoryProfile($memoryProfileId, $warnings, $errors);
-		$contextProfile = $this->describeContextProfile($contextProfileId, $warnings, $errors);
-		$componentSources = $this->buildComponentSources($toolProfiles, $memoryProfile, $contextProfile);
-		$components = $this->describeConfiguredComponents($settings, $memoryProfileId, $contextProfileId, $componentSources, $warnings, $errors, $toolsEnabled);
 
 		$effectiveFlow = [];
 		try {
@@ -105,11 +97,28 @@ final class AgentCompositionInspector {
 		$assistantNode = $this->findAssistantNode($effectiveFlow);
 		$assistantNodeId = (string)($assistantNode['id'] ?? self::ASSISTANT_NODE_ID);
 		$nodeInputs = is_array($assistantNode['inputs'] ?? null) ? $assistantNode['inputs'] : [];
+		if ($profileId === AgentOrchestratorProfileRepository::AUTO_PROFILE_ID && $effectiveFlow !== []) {
+			try {
+				$profile = $this->orchestratorProfiles->getProfile((string)($nodeInputs['orchestratorprofile'] ?? 'auto'));
+			} catch (\Throwable $e) {
+				$errors[] = $e->getMessage();
+			}
+		}
+		$toolsEnabled = $profile === null || $profile->getMaxToolLoops() > 0;
+		$toolProfileIds = $this->normalizeIds($settings['tool_profiles'] ?? []);
+		$toolProfiles = $this->describeToolProfiles($toolProfileIds, $warnings, $errors, $toolsEnabled);
+		$memoryProfileId = $this->normalizeId((string)($settings['memory_profile'] ?? ''));
+		$contextProfileId = $this->normalizeId((string)($settings['context_profile'] ?? ''));
+		$memoryProfile = $this->describeMemoryProfile($memoryProfileId, $warnings, $errors);
+		$contextProfile = $this->describeContextProfile($contextProfileId, $warnings, $errors);
+		$componentSources = $this->buildComponentSources($toolProfiles, $memoryProfile, $contextProfile);
+		$components = $this->describeConfiguredComponents($settings, $memoryProfileId, $contextProfileId, $componentSources, $warnings, $errors, $toolsEnabled);
+
 		$coreStageIds = $this->normalizeIds($nodeInputs['stages'] ?? ($profile?->getStageIds() ?? []), false);
 		$sourceConfig = AgentCapabilitySourceConfig::fromArray(!$toolsEnabled ? [] : (
 			is_array($nodeInputs['capabilitysources'] ?? null)
 				? $nodeInputs['capabilitysources']
-				: (is_array($settings['capability_sources'] ?? null) ? $settings['capability_sources'] : [])
+				: ($profileId !== AgentOrchestratorProfileRepository::AUTO_PROFILE_ID && is_array($settings['capability_sources'] ?? null) ? $settings['capability_sources'] : [])
 		));
 
 		$runtime = [
@@ -154,6 +163,7 @@ final class AgentCompositionInspector {
 			'enabled' => $this->toBool($settings['enabled'] ?? true),
 			'chatmodel' => trim((string)($settings['chatmodel'] ?? '')),
 			'status' => $status,
+			'orchestrator_profile' => $profileId,
 			'orchestrator' => $profile !== null ? $profile->toArray() : [
 				'id' => $profileId,
 				'label' => $profileId,

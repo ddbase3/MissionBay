@@ -43,7 +43,8 @@ final class AgentAssistantTurnOptions {
 		private ?AgentCapabilitySelectionConfig $capabilitySelectionConfig = null,
 		private ?AgentCapabilitySourceConfig $capabilitySourceConfig = null,
 		private bool $deliberatePlanningEnabled = false,
-		private ?AgentModelDecisionConfig $modelDecisionConfig = null
+		private ?AgentModelDecisionConfig $modelDecisionConfig = null,
+		private string $orchestratorProfileId = ''
 	) {
 		$this->prompt = trim($this->prompt);
 		$this->system = trim($this->system);
@@ -129,6 +130,10 @@ final class AgentAssistantTurnOptions {
 
 	public function isDeliberatePlanningEnabled(): bool {
 		return $this->maxToolLoops > 0 && $this->deliberatePlanningEnabled;
+	}
+
+	public function getOrchestratorProfileId(): string {
+		return $this->orchestratorProfileId;
 	}
 
 	public function getModelDecisionConfig(): AgentModelDecisionConfig {

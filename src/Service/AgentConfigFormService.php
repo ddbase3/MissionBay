@@ -33,6 +33,7 @@ use Base3\AssistantFoundation\Api\IAgentContextContributor;
 use Base3\AssistantFoundation\Api\IAgentConversationMemory;
 use Base3\AssistantFoundation\Api\IAgentMemory;
 use Base3\AssistantFoundation\Api\IAiChatModel;
+use Base3\MissionBay\Api\IAgentFlowCompiler;
 use Base3\MissionBay\Api\IAgentPromptProvider;
 use Base3\MissionBay\Api\IAgentResource;
 use Base3\MissionBay\Api\IAgentResourceProvider;
@@ -64,7 +65,8 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		private readonly AgentOrchestratorProfileRepository $orchestratorProfileRepository,
 		private readonly AgentToolProfileResolver $toolProfileResolver,
 		private readonly AgentMemoryProfileResolver $memoryProfileResolver,
-		private readonly AgentContextProfileResolver $contextProfileResolver
+		private readonly AgentContextProfileResolver $contextProfileResolver,
+		private readonly IAgentFlowCompiler $flowCompiler
 	) {}
 
 	public static function getName(): string {
@@ -126,7 +128,9 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 		));
 		$toolsEnabled = true;
 		try {
-			$toolsEnabled = $this->orchestratorProfileRepository->getProfile($orchestratorProfile)->getMaxToolLoops() > 0;
+			if ($orchestratorProfile !== AgentOrchestratorProfileRepository::AUTO_PROFILE_ID) {
+				$toolsEnabled = $this->orchestratorProfileRepository->getProfile($orchestratorProfile)->getMaxToolLoops() > 0;
+			}
 		}
 		catch (\Throwable $e) {
 			$errors[] = sprintf($this->translate('orchestrator_missing', 'Selected orchestrator profile is not available: %s (%s)'), $orchestratorProfile, $e->getMessage());
@@ -169,7 +173,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			}
 		}
 
-		return $this->normalizeSettings([
+		$settings = $this->normalizeSettings([
 			'chatmodel' => $chatModel,
 			'orchestrator_profile' => $orchestratorProfile,
 			'tool_profiles' => $toolProfiles,
@@ -181,6 +185,14 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 			'capability_sources' => $this->normalizeCapabilitySources($this->request->request('capability_sources', [])),
 			'capability_selection' => $this->normalizeCapabilitySelection($this->request->request('capability_selection', []), $errors)
 		]);
+		if ($errors === [] && $orchestratorProfile === AgentOrchestratorProfileRepository::AUTO_PROFILE_ID) {
+			try {
+				$this->flowCompiler->compile($settings);
+			} catch (\Throwable $e) {
+				$errors[] = sprintf($this->getTranslations()['orchestrator_auto_invalid'], $e->getMessage());
+			}
+		}
+		return $settings;
 	}
 
 	public function getPostedViewValues(): array {
@@ -226,7 +238,7 @@ class AgentConfigFormService implements IAgentRuntimeConfigFormService {
 
 		return [
 			'chatmodel' => $chatModel,
-			'orchestrator_profile' => AgentOrchestratorProfileRepository::resolveProfileId((string)($settings['orchestrator_profile'] ?? $defaults['orchestrator_profile'])),
+			'orchestrator_profile' => AgentOrchestratorProfileRepository::resolveProfileId((string)($settings['orchestrator_profile'] ?? '')),
 			'tool_profiles' => $this->normalizeTechnicalKeyList($settings['tool_profiles'] ?? $defaults['tool_profiles']),
 			'memory_profile' => $memoryProfile,
 			'context_profile' => $contextProfile,

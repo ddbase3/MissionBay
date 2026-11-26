@@ -29,6 +29,40 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 
 	use NativeProfileRepositoryTestSupport;
 
+	public function testAutoSelectionDoesNotCreateProfilesOrChangeExplicitChoices(): void {
+		$store = $this->settingsStore();
+		$repository = $this->nativeRepository($store);
+		$before = $repository->getProfiles();
+		$this->assertSame('auto', AgentOrchestratorProfileRepository::DEFAULT_PROFILE_ID);
+		$this->assertSame('direct-call', $repository->resolveAutoSelection([], false)->getId());
+		$this->assertSame('program-tool-loop', $repository->resolveAutoSelection([], true)->getId());
+		$this->assertSame('native-tool-loop', $repository->getProfile('')->getId());
+		$this->assertSame(array_keys($before), array_keys($repository->getProfiles()));
+		$this->assertSame([], $store->getGroup(AgentOrchestratorProfileRepository::SETTINGS_GROUP));
+		$this->assertFalse($repository->exists('auto'));
+		$this->expectException(\InvalidArgumentException::class);
+		$repository->save('auto', []);
+	}
+
+	public function testAutoSelectionUsesPriorityAndStableIdAndStopsAtFirstMatch(): void {
+		$disabled = new AutoSelectableProfileTestDefinition('disabled', 1000, true, false);
+		$zero = new AutoSelectableProfileTestDefinition('zero', 900, true, true, 0);
+		$rejected = new AutoSelectableProfileTestDefinition('rejected', 500, false);
+		$first = new AutoSelectableProfileTestDefinition('a-first', 200);
+		$last = new AutoSelectableProfileTestDefinition('z-last', 200);
+		$repository = $this->nativeRepository(null, array_merge($this->nativeDefinitions(), [$last, $zero, $disabled, $rejected, $first]));
+		$this->assertSame('a-first', $repository->getProfile('a-first')->getId());
+		$this->assertSame(0, $first->checks);
+		$this->assertSame('a-first', $repository->resolveAutoSelection([], true)->getId());
+		$this->assertSame([0, 0, 1, 1, 0], [$disabled->checks, $zero->checks, $rejected->checks, $first->checks, $last->checks]);
+	}
+
+	public function testNoSuitableAutoDefinitionFailsWithoutChoosingAnExplicitOnlyProfile(): void {
+		$definitions = array_filter($this->nativeDefinitions(), static fn($definition): bool => !$definition instanceof \Base3\AssistantFoundation\Api\IAutoSelectableAgentOrchestratorProfile);
+		$this->expectException(\RuntimeException::class);
+		$this->nativeRepository(null, $definitions)->resolveAutoSelection([], true);
+	}
+
 	public function testNativeProfilesMatchThePreviousRuntimeDefinitions(): void {
 		$profiles = $this->nativeRepository()->getProfiles();
 		$actual = array_map(static fn($profile): array => $profile->toArray(), $profiles);
@@ -288,3 +322,5 @@ final class AgentOrchestratorProfileRepositoryTest extends TestCase {
 require_once __DIR__ . '/AgentOrchestratorProfileRepositoryTestDouble1.php';
 require_once __DIR__ . '/OtherRuntimeProfileDefinition.php';
 require_once __DIR__ . '/InvalidProfileDefinition.php';
+
+require_once __DIR__ . '/AutoSelectableProfileTestDefinition.php';

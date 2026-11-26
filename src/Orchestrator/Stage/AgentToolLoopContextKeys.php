@@ -34,6 +34,7 @@ final class AgentToolLoopContextKeys {
 	public const MESSAGES = self::PREFIX . 'messages';
 	public const TOOL_DEFINITIONS = self::PREFIX . 'tool_definitions';
 	public const MUTATION_TOOL_NAMES = self::PREFIX . 'mutation_tool_names';
+	public const ORCHESTRATOR_PROFILE = self::PREFIX . 'orchestrator_profile';
 	public const MODEL_DECISION_CONFIG = self::PREFIX . 'model_decision_config';
 	public const MODEL_DECISION_ASSESSMENTS = self::PREFIX . 'model_decision_assessments';
 	public const CAPABILITY_DISCOVERY = self::PREFIX . 'capability_discovery';

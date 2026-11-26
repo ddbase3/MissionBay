@@ -21,6 +21,11 @@ use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Api\IAgentRuntimeService;
 use Base3\AssistantFoundation\Dto\AgentExecutionRequest;
 use Base3\AssistantFoundation\Dto\AgentExecutionResult;
+use Base3\AssistantFoundation\Dto\AgentResume;
+use Base3\AssistantFoundation\Dto\AgentSuspensionScope;
+use Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository;
+use Base3\MissionBay\Orchestrator\Service\AgentActionResumeService;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys;
 use Base3\MissionBay\Api\IAgentContextFactory;
 use Base3\MissionBay\Api\IAgentFlowCompiler;
 use Base3\MissionBay\Api\IAgentFlowFactory;
@@ -40,7 +45,8 @@ final class AgentExecutionService implements IAgentRuntimeService {
 	public function __construct(
 		private readonly IAgentContextFactory $contextFactory,
 		private readonly IAgentFlowFactory $flowFactory,
-		private readonly IAgentFlowCompiler $flowCompiler
+		private readonly IAgentFlowCompiler $flowCompiler,
+		private readonly AgentActionResumeService $actionResumeService
 	) {}
 
 	public static function getName(): string {
@@ -69,20 +75,57 @@ final class AgentExecutionService implements IAgentRuntimeService {
 	): AgentExecutionResult {
 		$agentConfiguration = $request->getAgentConfiguration();
 		$inputs = $this->normalizeInputs($request->getInputs());
-		$compilation = $this->flowCompiler->compile($agentConfiguration);
-		[$effectiveFlow, $executionWarnings] = $this->prepareFlowForInputs(
-			$compilation->getFlow(),
-			$inputs
-		);
-		[$flow, $context] = $this->createFlow($effectiveFlow, $request->getContext(), $eventSink);
-		$output = $flow->run($inputs);
-		$agentResult = $context instanceof IAgentStateContext ? $context->getResult() : null;
+		$preparedResume = null;
+		$context = null;
+		$contextVars = $request->getContext();
+		try {
+			if (AgentOrchestratorProfileRepository::resolveProfileId((string)($agentConfiguration['orchestrator_profile'] ?? '')) === AgentOrchestratorProfileRepository::AUTO_PROFILE_ID
+				&& !empty($inputs[self::CANONICAL_RESUME_INPUT])) {
+				$resume = AgentResume::fromArray($inputs[self::CANONICAL_RESUME_INPUT]);
+				$preparedResume = $this->actionResumeService->prepare($resume);
+				$suspension = $preparedResume->getSuspension();
+				$scope = AgentSuspensionScope::forConversation(
+					trim((string)($contextVars['conversation_channel_id'] ?? '')),
+					trim((string)($contextVars['conversation_id'] ?? '')),
+					trim((string)($contextVars['agent_suspension_subject'] ?? ''))
+				);
+				if ($scope !== '' && !hash_equals($suspension->getScopeId(), $scope)) {
+					throw new \RuntimeException('Agent resume does not belong to the current conversation scope.');
+				}
+				$profileId = (string)($suspension->getState()['orchestrator_profile'] ?? '');
+				if ($profileId === '' || $profileId === AgentOrchestratorProfileRepository::AUTO_PROFILE_ID) {
+					throw new \RuntimeException('The suspension has no resolved orchestrator profile. Select its original profile explicitly to resume.');
+				}
+				// Only the local compilation choice is pinned. Current resources and policies
+				// remain authoritative and the stored auto configuration is never changed.
+				$agentConfiguration['orchestrator_profile'] = $profileId;
+			}
+			$compilation = $this->flowCompiler->compile($agentConfiguration);
+			[$effectiveFlow, $executionWarnings] = $this->prepareFlowForInputs(
+				$compilation->getFlow(),
+				$inputs
+			);
+			[$flow, $context] = $this->createFlow($effectiveFlow, $contextVars, $eventSink);
+			if ($preparedResume !== null) {
+				$context->setVar(AgentToolLoopContextKeys::RESUME, $preparedResume);
+			}
+			$output = $flow->run($inputs);
+			$agentResult = $context instanceof IAgentStateContext ? $context->getResult() : null;
 
-		return new AgentExecutionResult(
-			$output,
-			array_values(array_unique(array_merge($compilation->getWarnings(), $executionWarnings))),
-			$agentResult
-		);
+			return new AgentExecutionResult(
+				$output,
+				array_values(array_unique(array_merge($compilation->getWarnings(), $executionWarnings))),
+				$agentResult
+			);
+		} finally {
+			if ($preparedResume !== null) {
+				if ($context !== null) {
+					$context->forgetVar(AgentToolLoopContextKeys::RESUME);
+				}
+				// Release is ownership-checked by the existing repository and leaves consumed handles intact.
+				$this->actionResumeService->release($preparedResume);
+			}
+		}
 	}
 
 	/**
@@ -102,7 +145,7 @@ final class AgentExecutionService implements IAgentRuntimeService {
 				continue;
 			}
 			$key = trim((string)$key);
-			if ($key === '') {
+			if ($key === '' || $key === AgentToolLoopContextKeys::RESUME || $key === AgentToolLoopContextKeys::ORCHESTRATOR_PROFILE) {
 				continue;
 			}
 			$context->setVar($key, $value);

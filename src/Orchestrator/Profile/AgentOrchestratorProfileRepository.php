@@ -18,6 +18,7 @@
 namespace Base3\MissionBay\Orchestrator\Profile;
 
 use Base3\AssistantFoundation\Api\IAgentOrchestratorProfile;
+use Base3\AssistantFoundation\Api\IAutoSelectableAgentOrchestratorProfile;
 use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use Base3\CoreFoundation\Api\IClassMap;
 use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
@@ -29,7 +30,9 @@ use Base3\CoreFoundation\Settings\Api\ISettingsStore;
 final class AgentOrchestratorProfileRepository {
 
 	public const SETTINGS_GROUP = 'agent-orchestrator-profile';
-	public const DEFAULT_PROFILE_ID = 'native-tool-loop';
+	public const AUTO_PROFILE_ID = 'auto';
+	public const DEFAULT_PROFILE_ID = self::AUTO_PROFILE_ID;
+	public const LEGACY_DEFAULT_PROFILE_ID = 'native-tool-loop';
 
 	public function __construct(
 		private readonly ISettingsStore $settingsStore,
@@ -43,6 +46,9 @@ final class AgentOrchestratorProfileRepository {
 
 		if (is_array($stored)) {
 			foreach ($stored as $id => $settings) {
+				if ($id === self::AUTO_PROFILE_ID) {
+					throw new \RuntimeException('Stored orchestrator profile uses the reserved id: auto');
+				}
 				if (!is_string($id) || !is_array($settings) || isset($profiles[$id])) {
 					continue;
 				}
@@ -63,6 +69,9 @@ final class AgentOrchestratorProfileRepository {
 
 	public function getProfile(string $id): AgentOrchestratorProfile {
 		$id = self::resolveProfileId($id);
+		if ($id === self::AUTO_PROFILE_ID) {
+			throw new \InvalidArgumentException('Automatic orchestrator selection requires the compiled agent requirements.');
+		}
 
 		$profiles = $this->getProfiles();
 		if (!isset($profiles[$id])) {
@@ -77,14 +86,45 @@ final class AgentOrchestratorProfileRepository {
 
 	/**
 	 * Resolves the effective profile identifier, without loading or persisting a profile.
-	 * Only an omitted or blank choice selects the default.
+	 * Omitted or blank legacy choices retain the previous native profile. New forms explicitly store auto.
 	 */
 	public static function resolveProfileId(string $id): string {
 		if (trim($id) === '') {
-			return self::DEFAULT_PROFILE_ID;
+			return self::LEGACY_DEFAULT_PROFILE_ID;
 		}
 		$normalized = self::normalizeId($id);
 		return $normalized !== '' ? $normalized : $id;
+	}
+
+	/**
+	 * Selects one existing enabled profile from the opt-in definitions.
+	 * No profile is persisted and no selection predicate is called for explicit choices.
+	 *
+	 * @param array<string,mixed> $agentSettings
+	 * @throws \RuntimeException If no suitable profile exists.
+	 */
+	public function resolveAutoSelection(array $agentSettings, bool $requiresToolLoop): AgentOrchestratorProfile {
+		if ($this->settingsStore->has(self::SETTINGS_GROUP, self::AUTO_PROFILE_ID)) {
+			throw new \RuntimeException('Stored orchestrator profile uses the reserved id: auto');
+		}
+		$candidates = [];
+		foreach ($this->getBuiltinDefinitions() as $id => $definition) {
+			if (!$definition instanceof IAutoSelectableAgentOrchestratorProfile) {
+				continue;
+			}
+			$profile = $this->fromArray($id, $definition->getSettings(), true);
+			if (!$profile->isEnabled() || ($requiresToolLoop && $profile->getMaxToolLoops() === 0)) {
+				continue;
+			}
+			$candidates[$id] = [$definition, $profile, $definition->getAutoSelectionPriority()];
+		}
+		uasort($candidates, static fn(array $a, array $b): int => ($b[2] <=> $a[2]) ?: strcmp($a[1]->getId(), $b[1]->getId()));
+		foreach ($candidates as [$definition, $profile]) {
+			if ($definition->supportsAutoSelection($agentSettings, $requiresToolLoop)) {
+				return $profile;
+			}
+		}
+		throw new \RuntimeException('No suitable automatically selectable orchestrator profile is available.');
 	}
 
 	public function exists(string $id): bool {
@@ -100,8 +140,8 @@ final class AgentOrchestratorProfileRepository {
 	/** @param array<string,mixed> $settings */
 	public function save(string $id, array $settings): AgentOrchestratorProfile {
 		$id = self::normalizeId($id);
-		if ($id === '') {
-			throw new \InvalidArgumentException('Orchestrator profile id must not be empty.');
+		if ($id === '' || $id === self::AUTO_PROFILE_ID) {
+			throw new \InvalidArgumentException('Orchestrator profile id must not be empty or reserved: ' . $id);
 		}
 		if ($this->isBuiltin($id)) {
 			throw new \RuntimeException('Built-in orchestrator profiles cannot be overwritten: ' . $id);
@@ -149,6 +189,15 @@ final class AgentOrchestratorProfileRepository {
 	/** @return array<string,AgentOrchestratorProfile> */
 	private function getBuiltinProfiles(): array {
 		$profiles = [];
+		foreach ($this->getBuiltinDefinitions() as $id => $definition) {
+			$profiles[$id] = $this->fromArray($id, $definition->getSettings(), true);
+		}
+		return $profiles;
+	}
+
+	/** @return array<string,IAgentOrchestratorProfile> */
+	private function getBuiltinDefinitions(): array {
+		$definitions = [];
 		foreach ($this->classMap->getInstancesByInterface(IAgentOrchestratorProfile::class) as $definition) {
 			if (!$definition instanceof IAgentOrchestratorProfile) {
 				throw new \LogicException('Discovered definition does not implement IAgentOrchestratorProfile.');
@@ -157,15 +206,15 @@ final class AgentOrchestratorProfileRepository {
 				continue;
 			}
 			$id = $definition->getId();
-			if ($id === '' || preg_match('/^[a-z0-9._-]+$/D', $id) !== 1) {
+			if ($id === '' || $id === self::AUTO_PROFILE_ID || preg_match('/^[a-z0-9._-]+$/D', $id) !== 1) {
 				throw new \InvalidArgumentException('Invalid orchestrator profile id: ' . $id);
 			}
-			if (isset($profiles[$id])) {
+			if (isset($definitions[$id])) {
 				throw new \LogicException('Duplicate orchestrator profile id: ' . $id);
 			}
-			$profiles[$id] = $this->fromArray($id, $definition->getSettings(), true);
+			$definitions[$id] = $definition;
 		}
-		return $profiles;
+		return $definitions;
 	}
 
 	/** @param array<string,mixed> $settings */

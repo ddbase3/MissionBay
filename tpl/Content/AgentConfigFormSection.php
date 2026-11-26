@@ -225,18 +225,19 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 		<div class="base3-agent-config-row">
 			<label class="base3-agent-config-label" for="<?php echo $e($formId); ?>_orchestrator"><?php echo $e($t('orchestrator_profile_label', 'Orchestrator profile')); ?></label>
 			<div>
-				<select id="<?php echo $e($formId); ?>_orchestrator" name="orchestrator_profile" data-orchestrator-profile>
+				<select id="<?php echo $e($formId); ?>_orchestrator" name="orchestrator_profile" data-orchestrator-profile aria-describedby="<?php echo $e($formId); ?>_orchestrator_summary">
 <?php
 	$currentProfileId = \Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository::resolveProfileId((string)($values['orchestrator_profile'] ?? ''));
-	if (!in_array($currentProfileId, array_column($orchestratorProfiles, 'id'), true)) {
+	if ($currentProfileId !== \Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository::AUTO_PROFILE_ID && !in_array($currentProfileId, array_column($orchestratorProfiles, 'id'), true)) {
 ?>
 					<option value="<?php echo $e($currentProfileId); ?>" data-missing-profile="1" selected="selected"><?php echo $e($currentProfileId . ' [' . $translations['orchestrator_unavailable_marker'] . ']'); ?></option>
 <?php } ?>
+					<option value="auto" data-description="<?php echo $e($translations['orchestrator_auto_description']); ?>"<?php echo $selected($currentProfileId,'auto'); ?>><?php echo $e($translations['orchestrator_auto_label']); ?></option>
 <?php foreach($orchestratorProfiles as $profile): $id=(string)($profile['id']??''); if($id==='') continue; ?>
 					<option value="<?php echo $e($id); ?>" data-description="<?php echo $e($profile['description']??''); ?>" data-max-tool-loops="<?php echo $e($profile['max_tool_loops']??''); ?>" data-stages="<?php echo $e(implode(',', (array)($profile['stage_ids']??[]))); ?>"<?php echo $selected($currentProfileId,$id); ?>><?php echo $e(($profile['label']??$id) . (!empty($profile['builtin']) ? ' [' . $t('builtin_marker', 'built-in') . ']' : '') . (empty($profile['enabled']) ? ' [' . $t('disabled_marker', 'disabled') . ']' : '')); ?></option>
 <?php endforeach; ?>
 				</select>
-				<div class="base3-agent-config-profile-card" data-orchestrator-profile-summary></div>
+				<div id="<?php echo $e($formId); ?>_orchestrator_summary" class="base3-agent-config-profile-card" data-orchestrator-profile-summary aria-live="polite"></div>
 				<p class="base3-agent-config-help" data-direct-call-tool-notice role="status" hidden><?php echo $e($translations['direct_call_tools_inactive']); ?></p>
 				<p class="base3-agent-config-help"><?php echo $e($t('stage_order_help', 'Stage order is fixed and validated. Profiles only enable optional stages and set limits.')); ?></p>
 			</div>
@@ -382,7 +383,7 @@ import { FileManager, HttpFileManagerAdapter } from <?php echo json_encode($reso
 	var profileSelect=root.querySelector('[data-orchestrator-profile]'); var summary=root.querySelector('[data-orchestrator-profile-summary]');
 	function setOrchestratorProfile(value) {
 		if (!profileSelect) return;
-		var id = String(value || defaultOrchestratorProfile);
+		var id = String(value || <?php echo json_encode(\Base3\MissionBay\Orchestrator\Profile\AgentOrchestratorProfileRepository::LEGACY_DEFAULT_PROFILE_ID); ?>);
 		Array.from(profileSelect.querySelectorAll('[data-missing-profile]')).forEach(function(option) { option.remove(); });
 		if (!Array.from(profileSelect.options).some(function(option) { return option.value === id; })) {
 			var option = document.createElement('option');

@@ -39,6 +39,36 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 
 	use NativeProfileRepositoryTestSupport;
 
+	public function testAutoUsesEffectiveComponentDocksAndEnabledSources(): void {
+		$presets = $this->componentPresetRepository();
+		$presets->savePreset('demo-tool', ['type' => 'currenttimeagenttool', 'enabled' => true, 'capabilities' => ['tool']]);
+		$presets->savePreset('demo-memory', ['type' => 'sessionmemoryagentresource', 'enabled' => true, 'capabilities' => ['memory']]);
+		$presets->savePreset('demo-context', ['type' => 'statictextcontextagentresource', 'enabled' => true, 'capabilities' => ['context']]);
+		$store = new \Base3\MissionBay\Test\Orchestrator\AgentOrchestratorProfileRepositoryTestDouble1([
+			'tool-profile' => ['demo' => ['enabled' => true, 'internal_enabled' => true, 'tools' => ['demo-tool']]]
+		]);
+		$compiler = new AgentFlowCompiler(new AgentComponentFlowBuilder($presets, new AgentComponentPresetFlowExpander($presets)), $this->nativeRepository($store), new \Base3\MissionBay\Profile\AgentToolProfileResolver($store, $presets));
+		$base = ['chatmodel' => 'chat-main', 'orchestrator_profile' => 'auto'];
+		foreach ([
+			[[], 'direct-call'],
+			[['agent_components' => [['preset' => 'demo-tool', 'attach_as' => ['tool'], 'enabled' => false]]], 'direct-call'],
+			[['agent_components' => [['preset' => 'demo-memory', 'attach_as' => ['memory']], ['preset' => 'demo-context', 'attach_as' => ['context']]]], 'direct-call'],
+			[['tool_profiles' => ['demo']], 'program-tool-loop'],
+			[['agent_components' => [['preset' => 'demo-tool', 'attach_as' => ['tool']]]], 'program-tool-loop'],
+			[['capability_sources' => ['tools' => ['read']]], 'direct-call'],
+			[['expert_overrides_enabled' => true, 'capability_sources' => ['providers' => ['source']]], 'program-tool-loop'],
+			[['expert_overrides_enabled' => true, 'capability_sources' => ['modules' => ['module']]], 'program-tool-loop'],
+			[['expert_overrides_enabled' => true, 'capability_sources' => ['resourceProviders' => ['resource']]], 'program-tool-loop'],
+			[['expert_overrides_enabled' => true, 'capability_sources' => ['promptProviders' => ['prompt']]], 'program-tool-loop']
+		] as [$settings, $expected]) {
+			$node = $compiler->compile(array_replace($base, $settings))->getFlow()['nodes'][0];
+			$this->assertSame($expected, $node['inputs']['orchestratorprofile']);
+			$this->assertSame($expected === 'direct-call' ? 0 : 32, $node['inputs']['maxtoolloops']);
+		}
+		$this->expectException(\RuntimeException::class);
+		$compiler->compile($base + ['tool_profiles' => ['missing']]);
+	}
+
 	public function testCompilerBuildsCanonicalChatModelPresetFlow(): void {
 		$flow = $this->createCompiler()->compile([
 			'chatmodel' => 'chat-main'
@@ -214,7 +244,10 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 			$this->minimalCompiledFlow()
 		));
 
-		return new AgentExecutionService($contextFactory, $flowFactory, $compiler);
+		return new AgentExecutionService($contextFactory, $flowFactory, $compiler, new \Base3\MissionBay\Orchestrator\Service\AgentActionResumeService(
+			new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(),
+			$this->createStub(\Base3\AssistantFoundation\Api\IAgentSuspensionRepository::class)
+		));
 	}
 
 	/** @return array<string,mixed> */
@@ -276,3 +309,5 @@ final class AgentExecutionServiceCapabilityConfigTest extends TestCase {
 }
 
 require_once __DIR__ . '/AgentExecutionServiceCapabilityConfigTestDouble1.php';
+
+require_once dirname(__DIR__) . '/Orchestrator/AgentOrchestratorProfileRepositoryTestDouble1.php';

@@ -32,7 +32,7 @@ final class AgentConfigFormNormalizationCoverageTest extends TestCase {
 	public function testDefaultSettingsExposeStableAgentFields(): void {
 		$defaults = $this->form()->getDefaultSettings();
 		$this->assertSame('', $defaults['chatmodel']);
-		$this->assertSame('native-tool-loop', $defaults['orchestrator_profile']);
+		$this->assertSame('auto', $defaults['orchestrator_profile']);
 		$this->assertSame([], $defaults['tool_profiles']);
 		$this->assertSame([], $defaults['agent_components']);
 		$this->assertSame((new AgentCapabilitySourceConfig())->toArray(), $defaults['capability_sources']);

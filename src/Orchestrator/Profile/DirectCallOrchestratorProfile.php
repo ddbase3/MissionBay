@@ -17,11 +17,11 @@
 
 namespace Base3\MissionBay\Orchestrator\Profile;
 
-use Base3\AssistantFoundation\Api\IAgentOrchestratorProfile;
+use Base3\AssistantFoundation\Api\IAutoSelectableAgentOrchestratorProfile;
 use Base3\CoreFoundation\Translation\Api\ITranslation;
 use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionConfig;
 
-final class DirectCallOrchestratorProfile implements IAgentOrchestratorProfile {
+final class DirectCallOrchestratorProfile implements IAutoSelectableAgentOrchestratorProfile {
 
 	public function __construct(private readonly ITranslation $translation) {}
 
@@ -35,6 +35,14 @@ final class DirectCallOrchestratorProfile implements IAgentOrchestratorProfile {
 
 	public function getId(): string {
 		return 'direct-call';
+	}
+
+	public function supportsAutoSelection(array $agentSettings, bool $requiresToolLoop): bool {
+		return !$requiresToolLoop;
+	}
+
+	public function getAutoSelectionPriority(): int {
+		return 0;
 	}
 
 	public function getSettings(): array {

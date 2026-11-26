@@ -951,7 +951,8 @@ class AgentToolOrchestrator {
 			'turn_id' => $this->readContextString($context, ['turn_id', 'chat_turn_id', 'message_id'], 'unknown_turn'),
 			'chatbot_key' => $this->readContextString($context, ['conversation_channel_id'], 'unknown_chatbot'),
 			'config_group' => $this->readContextString($context, ['config_group', 'chatbot_config_group'], 'unknown_group'),
-			'config_name' => $this->readContextString($context, ['config_name', 'chatbot_config_name'], 'unknown_config')
+			'config_name' => $this->readContextString($context, ['config_name', 'chatbot_config_name'], 'unknown_config'),
+			'orchestrator_profile' => (string)($context->getVar(AgentToolLoopContextKeys::ORCHESTRATOR_PROFILE) ?? '')
 		];
 
 		try {

@@ -258,7 +258,8 @@ abstract class AbstractAiAssistantNode extends AbstractAgentNode {
 			capabilitySelectionConfig: $this->readCapabilitySelectionConfig($inputs),
 			capabilitySourceConfig: $this->readCapabilitySourceConfig($inputs),
 			deliberatePlanningEnabled: $this->readBoolInput($inputs, 'deliberateplanning', false),
-			modelDecisionConfig: $this->readModelDecisionConfig($inputs)
+			modelDecisionConfig: $this->readModelDecisionConfig($inputs),
+			orchestratorProfileId: trim((string)($inputs['orchestratorprofile'] ?? ''))
 		);
 	}
 

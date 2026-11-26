@@ -63,9 +63,11 @@ final class ProgramToolLoopScenario {
 		$orchestrator = new AgentToolOrchestrator(null, null, [new AgentModelDecisionStage(), new AgentActionPolicyStage(new StaticAgentActionPolicyResolver($policies), $fingerprint, $review, new AgentToolContractValidationService(), new AgentCapabilitySelectionGuardService(), policyIds: $ids), new AgentToolExecutionStage($events, $review), new AgentToolObservationStage()], $resume);
 		return [$tool, $orchestrator, $resume, $events];
 	}
-	private static function runTurn($orchestrator, $tool, $model, $prepared = null, ?AgentBudget $budget = null, ?AgentCapabilitySelectionConfig $selection = null) {
+	private static function runTurn($orchestrator, $tool, $model, $prepared = null, ?AgentBudget $budget = null, ?AgentCapabilitySelectionConfig $selection = null, string $profileId = 'program-tool-loop') {
 		$defs = $tool->getToolDefinitions();
-		return $orchestrator->run($model, [['role' => 'user', 'content' => 'Read and update all records.']], $defs, [$tool], new AgentContext(), maxLoops: 32, budget: $budget, resume: $prepared, capabilityCatalog: (new AgentCapabilityCatalogBuilder())->build([$tool], $defs), capabilitySelectionConfig: $selection ?? new AgentCapabilitySelectionConfig(), modelDecisionConfig: AgentModelDecisionConfig::nativeCapability(true));
+		$context = new AgentContext();
+		$context->setVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::ORCHESTRATOR_PROFILE, $profileId);
+		return $orchestrator->run($model, [['role' => 'user', 'content' => 'Read and update all records.']], $defs, [$tool], $context, maxLoops: 32, budget: $budget, resume: $prepared, capabilityCatalog: (new AgentCapabilityCatalogBuilder())->build([$tool], $defs), capabilitySelectionConfig: $selection ?? new AgentCapabilitySelectionConfig(), modelDecisionConfig: AgentModelDecisionConfig::nativeCapability(true));
 	}
 	private static function startModel(string $source, bool $terminal = true): AgentSelectedNativeQueueModel {
 		$results = [self::response('select-1', 'missionbay_select_capability_sources', ['source_ids' => ['program-fixture']]), self::response('program-1', ToolProgramDefinitionService::TOOL_NAME, ['program' => $source])];
@@ -178,12 +180,19 @@ final class ProgramToolLoopScenario {
 			}
 			self::check($rejected, 'Unsupported arithmetic or coercion was accepted.');
 		}
+		[$tool, $orchestrator, $resume] = self::harness(true);
+		$run = self::runTurn($orchestrator, $tool, self::startModel(self::SOURCE, false));
+		self::check($run->isSuspended(), 'Profile mismatch fixture did not suspend.');
+		$prepared = $resume->prepare(new AgentResume($run->getResumeHandle(), [new AgentInteractionResponse($run->getInteractionRequests()[0]->getId(), AgentInteractionResponse::DECISION_APPROVE)]));
+		$run = self::runTurn($orchestrator, $tool, new AgentSelectedNativeQueueModel([]), $prepared, profileId: 'native-tool-loop');
+		self::check($run->getFailureCode() === 'orchestrator_profile_changed' && $tool->mutation->getCallCount() === 0, 'Changed profile did not reject resume before mutation.');
 		foreach ([AgentInteractionResponse::DECISION_APPROVE, AgentInteractionResponse::DECISION_DENY] as $decision) {
 			[$tool, $orchestrator, $resume, $events] = self::harness(true);
 			$run = self::runTurn($orchestrator, $tool, self::startModel(self::SOURCE, false));
 			self::check($run->isSuspended() && $tool->reads === 1 && $tool->mutation->getCallCount() === 0, 'First mutation not suspended. ' . $run->getFailureCode() . ' ' . $run->getFailureMessage());
 			$prepared = $resume->prepare(new AgentResume($run->getResumeHandle(), [new AgentInteractionResponse($run->getInteractionRequests()[0]->getId(), $decision)]));
 			self::check(isset($prepared->getSuspension()->getState()['program_state']['vm']), 'Interpreter state missing in suspension.');
+			self::check($prepared->getSuspension()->getState()['orchestrator_profile'] === 'program-tool-loop', 'Effective profile missing from suspension.');
 			$run = self::runTurn($orchestrator, $tool, new AgentSelectedNativeQueueModel([]), $prepared);
 			self::check($run->isSuspended() && $tool->reads === 1, 'Second approval missing or first read replayed. ' . $run->getFailureCode() . ' ' . $run->getFailureMessage());
 			$prepared = $resume->prepare(new AgentResume($run->getResumeHandle(), [new AgentInteractionResponse($run->getInteractionRequests()[0]->getId(), $decision)]));

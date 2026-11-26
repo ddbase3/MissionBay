@@ -279,7 +279,9 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 			}
 			$problems = [];
 			try {
-				$this->orchestratorProfiles->getProfile($profileId);
+				if ($profileId !== AgentOrchestratorProfileRepository::AUTO_PROFILE_ID) {
+					$this->orchestratorProfiles->getProfile($profileId);
+				}
 			}
 			catch (Throwable $e) {
 				$problems[] = $e->getMessage();
@@ -296,7 +298,13 @@ final class AgentCompositionAdminDisplay implements IDisplay {
 				$problems[] = 'Context profile unavailable: ' . $contextProfileId;
 			}
 			try {
-				$this->flowCompiler->compile($settings);
+				$flow = $this->flowCompiler->compile($settings)->getFlow();
+				foreach ($flow['nodes'] ?? [] as $node) {
+					if (($node['id'] ?? '') === 'assistant') {
+						$profileId = (string)($node['inputs']['orchestratorprofile'] ?? $profileId);
+						break;
+					}
+				}
 			}
 			catch (Throwable $e) {
 				$problems[] = 'Effective flow could not be built: ' . $e->getMessage();

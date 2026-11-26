@@ -30,6 +30,35 @@ use PHPUnit\Framework\TestCase;
 
 final class AgentExecutionServiceInputTest extends TestCase {
 
+	public function testAutoResumePinsOriginalProfileAndReleasesUnconsumedClaim(): void {
+		$repo = new \Base3\AssistantRuntime\Service\StateStoreAgentSuspensionRepository(new \Base3\MissionBay\Test\Orchestrator\ApprovalMemoryStateStore());
+		$request = new \Base3\AssistantFoundation\Dto\AgentInteractionRequest('review', 'approval', new \Base3\AssistantFoundation\Dto\AgentAction('action', 'tool_call', 'demo'), 'fingerprint', 'Review', 'Review action');
+		$handle = $repo->create(new \Base3\AssistantFoundation\Dto\AgentSuspension('suspension', 'awaiting_approval', [$request], ['orchestrator_profile' => 'program-tool-loop'], date(DATE_ATOM)), 900);
+		$resume = new \Base3\AssistantFoundation\Dto\AgentResume($handle);
+		$context = new AgentContext();
+		$contextFactory = $this->createStub(IAgentContextFactory::class);
+		$contextFactory->method('createContext')->willReturn($context);
+		$compiler = $this->createMock(IAgentFlowCompiler::class);
+		$compiler->expects($this->once())->method('compile')->with(['chatmodel' => 'model', 'orchestrator_profile' => 'program-tool-loop'])->willReturn(new AgentFlowCompilation(['nodes' => [['id' => 'assistant']], 'connections' => []], []));
+		$flow = $this->createMock(IAgentFlow::class);
+		$flow->expects($this->once())->method('run')->willReturnCallback(function(array $inputs) use ($context, $resume): array {
+			$prepared = $context->getVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::RESUME);
+			$this->assertInstanceOf(\Base3\MissionBay\Dto\Assistant\PreparedAgentResume::class, $prepared);
+			$this->assertSame($resume->toArray(), $prepared->getResume()->toArray());
+			return [];
+		});
+		$factory = $this->createStub(IAgentFlowFactory::class);
+		$factory->method('createFromArray')->willReturn($flow);
+		$service = new AgentExecutionService($contextFactory, $factory, $compiler, new \Base3\MissionBay\Orchestrator\Service\AgentActionResumeService(new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(), $repo));
+		$execution = new AgentExecutionRequest(['chatmodel' => 'model', 'orchestrator_profile' => 'auto'], ['resume' => $resume->toArray()]);
+		$service->execute($execution);
+		$this->assertSame('auto', $execution->getAgentConfiguration()['orchestrator_profile']);
+		$this->assertNull($context->getVar(\Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys::RESUME));
+		$claim = $repo->claim($handle);
+		$this->assertSame($handle, $claim->getResumeHandle());
+		$repo->release($claim);
+	}
+
 	public function testLegacyUserInputBecomesPromptWithoutDuplication(): void {
 		$service = $this->service(['nodes' => [], 'connections' => []], function(array $inputs): void {
 			$this->assertSame('legacy prompt', $inputs['prompt']);
@@ -112,6 +141,11 @@ final class AgentExecutionServiceInputTest extends TestCase {
 		});
 		$compiler = $this->createStub(IAgentFlowCompiler::class);
 		$compiler->method('compile')->willReturn(new AgentFlowCompilation($definition, $warnings));
-		return new AgentExecutionService($contextFactory, $flowFactory, $compiler);
+		return new AgentExecutionService($contextFactory, $flowFactory, $compiler, new \Base3\MissionBay\Orchestrator\Service\AgentActionResumeService(
+			new \Base3\MissionBay\Orchestrator\AgentActionFingerprint(),
+			$this->createStub(\Base3\AssistantFoundation\Api\IAgentSuspensionRepository::class)
+		));
 	}
 }
+
+require_once dirname(__DIR__) . '/Orchestrator/ApprovalMemoryStateStore.php';

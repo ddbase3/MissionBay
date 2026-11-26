@@ -343,7 +343,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 			->set(AgentExecutionService::class, fn($c) => new AgentExecutionService(
 				$c->get(IAgentContextFactory::class),
 				$c->get(IAgentFlowFactory::class),
-				$c->get(IAgentFlowCompiler::class)
+				$c->get(IAgentFlowCompiler::class),
+				$c->get(AgentActionResumeService::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(AgentConversationService::class, fn($c) => new AgentConversationService(
 				$c->get(AgentMemoryProfileResolver::class),
@@ -395,7 +396,8 @@ class MissionBayPlugin implements IPlugin, ICheck {
 				$c->get(AgentOrchestratorProfileRepository::class),
 				$c->get(AgentToolProfileResolver::class),
 				$c->get(AgentMemoryProfileResolver::class),
-				$c->get(AgentContextProfileResolver::class)
+				$c->get(AgentContextProfileResolver::class),
+				$c->get(IAgentFlowCompiler::class)
 			), IContainer::SHARED | IContainer::NOOVERWRITE)
 			->set(IRetrievalCollectionDefinition::class, fn($c) => new DefaultRetrievalCollectionDefinition(
 				$c->get(IRetrievalCollectionConfigRepository::class)
