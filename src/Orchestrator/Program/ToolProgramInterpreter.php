@@ -185,7 +185,12 @@ final class ToolProgramInterpreter {
 				? $left == $right : $left === $right;
 			return $operator === '===' ? $equal : !$equal;
 		}
-		if ($operator === '+' && is_string($left) && is_string($right)) { return $left . $right; }
+		if ($operator === '+' && (is_string($left) || is_string($right))) {
+			// Concatenate strings and finite numbers without coercing other JSON values.
+			$left = is_string($left) ? $left : json_encode($this->number($left), JSON_THROW_ON_ERROR);
+			$right = is_string($right) ? $right : json_encode($this->number($right), JSON_THROW_ON_ERROR);
+			return $left . $right;
+		}
 		$left = $this->number($left);
 		$right = $this->number($right);
 		return match ($operator) {

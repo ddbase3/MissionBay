@@ -154,6 +154,30 @@ final class ProgramToolLoopScenario {
 		$vm = new ToolProgramInterpreter();
 		$program = $parser->parse('let total = 0; for (let i of [1,2,3,4,5]) { if (i === 2) { continue; } if (i === 4) { break; } total = total + i; } return total;');
 		self::check($vm->advance($program, new ToolProgramState(), 'local', static fn(): bool => false)['result'] === 4, 'VM loop control failed.');
+		// Mixed string/number concatenation in real tool-return processing.
+		[$tool, $orchestrator] = self::harness(false);
+		$run = self::runTurn($orchestrator, $tool, self::startModel('let r = tools.read_records({}); let reason = ""; for (let id of r.output.items) { reason = reason + "item " + id + ";"; } return reason;'));
+		self::check(self::result($run)['result'] === 'item 42;item 43;' && $tool->reads === 1, 'String/number concatenation failed for tool output.');
+		foreach ([
+			['return "count: " + 4;', 'count: 4'],
+			['return 4 + " items";', '4 items'],
+			['return "cost: " + 1.25;', 'cost: 1.25'],
+			['return "4" + 2;', '42'],
+			['return "a" + "b";', 'ab'],
+			['return 4 + 2;', 6],
+			['return 4 * 2;', 8]
+		] as [$source, $expected]) {
+			self::check($vm->advance($parser->parse($source), new ToolProgramState(), 'local', static fn(): bool => false)['result'] === $expected, 'Program addition or concatenation semantics differ.');
+		}
+		foreach (['return "4" * 2;', 'return "x" + true;', 'return "x" + null;', 'return "x" + [];', 'return {} + "x";'] as $source) {
+			$rejected = false;
+			try {
+				$vm->advance($parser->parse($source), new ToolProgramState(), 'local', static fn(): bool => false);
+			} catch (\RuntimeException $e) {
+				$rejected = $e->getMessage() === 'Arithmetic requires finite numbers.';
+			}
+			self::check($rejected, 'Unsupported arithmetic or coercion was accepted.');
+		}
 		foreach ([AgentInteractionResponse::DECISION_APPROVE, AgentInteractionResponse::DECISION_DENY] as $decision) {
 			[$tool, $orchestrator, $resume, $events] = self::harness(true);
 			$run = self::runTurn($orchestrator, $tool, self::startModel(self::SOURCE, false));
