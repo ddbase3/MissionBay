@@ -6,6 +6,8 @@ use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Api\IAgentEventSink;
 use Base3\AssistantFoundation\Api\IAgentStage;
 use Base3\AssistantFoundation\Dto\AgentExecutionStatus;
+use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
+use Base3\AssistantFoundation\Dto\AgentCapabilitySelection;
 use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionConfig;
 use Base3\MissionBay\Orchestrator\Service\AgentCapabilitySourceCatalogService;
 use Base3\AssistantFoundation\Dto\AgentStageResult;
@@ -62,6 +64,10 @@ final class ToolProgramExecutionService {
 		$state = new ToolProgramState();
 		$call = null;
 		$inStage = false;
+		$catalogOperations = 0;
+		$nextSelection = null;
+		$sources = [];
+		$catalogOperation = null;
 		try {
 			if ($snapshot === []) {
 				$calls = (array)$context->getVar(Keys::PENDING_TOOL_CALLS);
@@ -85,6 +91,49 @@ final class ToolProgramExecutionService {
 			$args = $call->getArguments();
 			if (array_keys($args) !== ['program'] || !is_string($args['program'])) { throw new \RuntimeException('Expected exactly one program string.'); }
 			$program = (new ToolProgramParser())->parse($args['program']);
+			if ($program->catalogOperations !== []) {
+				if ($program->toolNames !== [] || isset($snapshot['fingerprints'])) {
+					throw new \RuntimeException('Catalog exploration must be a separate program without domain calls or suspended state.');
+				}
+				$config = $context->getVar(Keys::CAPABILITY_SELECTION_CONFIG);
+				$catalog = $context->getVar(Keys::CAPABILITY_CATALOG);
+				if (!$config instanceof AgentCapabilitySelectionConfig) { $config = new AgentCapabilitySelectionConfig(); }
+				if (!$catalog instanceof AgentCapabilityCatalog) { throw new \RuntimeException('Program catalog is unavailable.'); }
+				$required = (array)$context->getVar(Keys::REQUIRED_TOOL_NAMES);
+				$tools = (array)$context->getVar(Keys::TOOLS);
+				$sourceService = new AgentCapabilitySourceCatalogService();
+				$sources = $sourceService->buildSources($catalog, $tools, $config, $required);
+				$catalogOperation = function(string $operation, array $arguments) use ($context, $call, $catalog, $sources, $config, $required, $tools, $sourceService, &$nextSelection, &$catalogOperations): AgentToolResult {
+					if ($catalogOperations >= ToolProgram::MAX_CATALOG_OPERATIONS) { throw new \RuntimeException('Program catalog operation limit exceeded.'); }
+					$catalogOperations++;
+					// Local correlation only: catalog operations never become concrete tool calls.
+					$catalogCallId = 'program-catalog-' . hash('sha256', $call->getId() . ':' . $catalogOperations);
+					if ($operation === 'search') {
+						$query = $arguments['query'] ?? null;
+						$limit = array_key_exists('limit', $arguments) ? $arguments['limit'] : 8;
+						$offset = array_key_exists('offset', $arguments) ? $arguments['offset'] : 0;
+						if (array_diff(array_keys($arguments), ['query', 'limit', 'offset']) !== [] || !is_string($query) || trim($query) === '' || strlen($query) > 512 || !is_int($limit) || $limit < 1 || $limit > 25 || !is_int($offset) || $offset < 0 || $offset > count($catalog)) {
+							throw new \InvalidArgumentException('Catalog search requires a nonempty query (up to 512 bytes), limit 1-25 and an optional valid offset.');
+						}
+						$matches = $sourceService->searchFunctions($sources, $query, $limit, $offset);
+						if (strlen(json_encode($matches, JSON_THROW_ON_ERROR)) > ToolProgram::MAX_RESULT_BYTES) {
+							throw new \RuntimeException('Catalog search results exceed the result size limit. Use a smaller limit.');
+						}
+						return AgentToolResult::success($catalogCallId, 'catalog.search', $arguments, $matches);
+					}
+					if ($operation !== 'select' || $nextSelection !== null || array_keys($arguments) !== ['names'] || !is_array($arguments['names']) || !array_is_list($arguments['names']) || $arguments['names'] === [] || count($arguments['names']) > 512) {
+						throw new \InvalidArgumentException('Select once with a nonempty list of exact eligible function names.');
+					}
+					$selection = $sourceService->selectFunctions($catalog, $sources, $arguments['names'], $config, $required, (int)$context->getVar(Keys::ITERATION));
+					$definitions = $selection->getToolDefinitions();
+					$contracts = $this->definitions->getContracts($definitions, $tools);
+					if (!$this->definitions->fitsModelBudget($definitions, $contracts, $config)) {
+						throw new \RuntimeException('Selected function contracts exceed the configured model context budget. Select fewer functions.');
+					}
+					$nextSelection = $selection;
+					return AgentToolResult::success($catalogCallId, 'catalog.select', $arguments, ['selected_tool_names' => $selection->getToolNames()]);
+				};
+			}
 			$contracts = $this->definitions->getContracts((array)$context->getVar(Keys::TOOL_DEFINITIONS), (array)$context->getVar(Keys::TOOLS));
 			$fingerprints = [];
 			$selected = (array)$context->getVar(Keys::SELECTED_TOOL_NAMES);
@@ -105,8 +154,11 @@ final class ToolProgramExecutionService {
 				}
 			}
 			foreach ($program->toolNames as $name) {
-				if (!in_array($name, $selected, true) || !isset($contracts[$name])) {
-					throw new \RuntimeException('Program function is not selected or lacks a supported input/output contract: ' . $name);
+				if (!in_array($name, $selected, true)) {
+					throw new \RuntimeException('Program function is not in the active selection: ' . $name . '. Use exact names in the current output schema map; explore the eligible catalog if available. Do not invent aliases. This is not a permission decision.');
+				}
+				if (!isset($contracts[$name])) {
+					throw new \RuntimeException('Selected function lacks a supported program input/output contract: ' . $name . '. Use the existing ordinary function call under the same policy, or select a function with a supported contract.');
 				}
 				$fingerprints[$name] = $contracts[$name]['fingerprint'];
 			}
@@ -117,9 +169,9 @@ final class ToolProgramExecutionService {
 			while (true) {
 				if ($this->cancelled($context)) { throw new \RuntimeException('Program execution was cancelled.'); }
 				if ($state->waitingCallId === '') {
-					$next = $this->interpreter->advance($program, $state, $call->getId(), fn(): bool => $this->cancelled($context));
+					$next = $this->interpreter->advance($program, $state, $call->getId(), fn(): bool => $this->cancelled($context), $catalogOperation);
 					if (array_key_exists('result', $next)) {
-						return $this->finish($context, $patch, $call, $snapshot, $state, $next['result']);
+						return $this->finish($context, $patch, $call, $snapshot, $state, $next['result'], catalogOperations: $catalogOperations, nextSelection: $nextSelection, sources: $sources);
 					}
 					$patch->apply(AgentStageResult::patch([
 						Keys::PENDING_TOOL_CALLS => [$next['call']], Keys::PHASE => Keys::PHASE_TOOLS,
@@ -162,7 +214,7 @@ final class ToolProgramExecutionService {
 					Keys::FAILURE_DETAIL => ['partial_response_allowed' => true], Keys::PHASE => Keys::PHASE_FAILED
 				]));
 			}
-			return $this->finish($context, $patch, $call, $snapshot, $state, null, $inStage ? 'Program execution failed in the existing tool pipeline.' : $exception->getMessage());
+			return $this->finish($context, $patch, $call, $snapshot, $state, null, $inStage ? 'Program execution failed in the existing tool pipeline.' : $exception->getMessage(), catalogOperations: $catalogOperations);
 		}
 	}
 
@@ -185,7 +237,7 @@ final class ToolProgramExecutionService {
 		return $patch->result();
 	}
 
-	private function finish(IAgentContext $context, AgentStageResultAccumulator $patch, AiToolCall $call, array $snapshot, ToolProgramState $state, mixed $value, string $error = ''): AgentStageResult {
+	private function finish(IAgentContext $context, AgentStageResultAccumulator $patch, AiToolCall $call, array $snapshot, ToolProgramState $state, mixed $value, string $error = '', int $catalogOperations = 0, ?AgentCapabilitySelection $nextSelection = null, array $sources = []): AgentStageResult {
 		$children = (array)$context->getVar(Keys::TOOL_RESULTS);
 		$successful = 0;
 		$failed = 0;
@@ -204,6 +256,13 @@ final class ToolProgramExecutionService {
 			'failed_calls' => $failures,
 			'execution' => ['tool_calls' => $state->calls, 'successful' => $successful, 'failed' => $failed, 'unresolved' => max(0, $state->calls - $successful - $failed), 'instructions' => $state->steps]
 		];
+		if ($catalogOperations > 0) {
+			$output['execution']['catalog_operations'] = $catalogOperations;
+		}
+		if ($error === '' && !$cancelled && $nextSelection !== null) {
+			$patch->apply(AgentStageResult::patch((new AgentCapabilitySourceCatalogService())->selectionPatch($context, $nextSelection, $sources, (array)$context->getVar(Keys::MUTATION_TOOL_NAMES))));
+			$output['selected_tool_names'] = $nextSelection->getToolNames();
+		}
 		$index = (int)$snapshot['call_index'];
 		$metadata = ['iteration' => (int)$context->getVar(Keys::ITERATION), 'call_index' => $index, 'program' => true];
 		if ($error === '' && !$cancelled) {

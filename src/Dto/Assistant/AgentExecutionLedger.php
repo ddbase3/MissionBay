@@ -21,7 +21,8 @@ use Base3\AssistantFoundation\Dto\AgentToolResult;
 use Base3\MissionBay\Dto\Orchestrator\AgentModelDecisionAssessment;
 
 /**
- * Authoritative current-turn evidence used by the final response phase.
+ * Authoritative current-turn mutation evidence used by the final response phase.
+ * Execution indexes refer to the ordered result sequence supplied by the caller.
  */
 final class AgentExecutionLedger {
 
@@ -74,7 +75,7 @@ final class AgentExecutionLedger {
 		$failed = [];
 		$cached = [];
 
-		foreach ($toolResults as $toolResult) {
+		foreach (array_values($toolResults) as $index => $toolResult) {
 			if (!$toolResult instanceof AgentToolResult) {
 				continue;
 			}
@@ -84,6 +85,7 @@ final class AgentExecutionLedger {
 			}
 			$record = [
 				'call_id' => $toolResult->getCallId(),
+				'execution_index' => $index + 1,
 				'tool' => $toolName,
 				'arguments' => $toolResult->getArguments(),
 				'status' => $toolResult->getStatus()
@@ -206,10 +208,11 @@ final class AgentExecutionLedger {
 		return implode("\n", [
 			'Authoritative current-turn execution ledger:',
 			$json,
-			'Use this ledger as the only source of truth for claims about state-changing actions.',
+			'Use this ledger as the only source of truth for whether a state-changing action was executed. Its mutation entries are not a complete record of read/query evidence.',
 			'Approval, intent, previous assistant statements, a proposed action, an attempted call, or a cache hit is not proof of execution.',
 			'Never state or imply that a mutation succeeded unless successful_mutation_calls contains the corresponding tool call and its returned evidence supports the specific claim.',
 			'A successful mutation call is authoritative proof for every outcome explicitly represented by its result. State those outcomes as completed when the result reports them as completed; for example, removed=true or status=removed proves that the removal command succeeded. Do not describe that outcome as independently verified unless a separate read/query result establishes the post-condition, and do not infer broader current state or additional successful actions that the mutation result does not establish.',
+			'Use the current-turn model-visible read/query observations, including evidence returned by a program, to establish independent verification. Check the target, outcome and execution order; an earlier or cached result is not a fresh post-condition check. Program completion alone is not proof of verification or of a mutation.',
 			'When multiple changes were requested, account for each requested change individually from the ledger instead of generalizing from one successful call.',
 			'When mutation_intent is true and successful_mutation_calls is empty, state that the requested change was not performed, or ask the required clarification.'
 		]);

@@ -52,6 +52,9 @@ final class AgentExecutionLedgerTest extends TestCase {
 		$this->assertCount(1, $ledger->getSuccessfulMutationCalls());
 		$this->assertCount(1, $ledger->getCachedMutationCalls());
 		$this->assertCount(1, $ledger->getFailedMutationCalls());
+		$this->assertSame(1, $ledger->getSuccessfulMutationCalls()[0]['execution_index']);
+		$this->assertSame(2, $ledger->getCachedMutationCalls()[0]['execution_index']);
+		$this->assertSame(3, $ledger->getFailedMutationCalls()[0]['execution_index']);
 		$this->assertSame('failed', $ledger->getFailedMutationCalls()[0]['error_code']);
 		$this->assertSame('mutation', $ledger->getLatestDecisionAssessment()['intent']);
 		$this->assertStringContainsString('successful_mutation_calls', $ledger->buildFinalResponseInstruction());

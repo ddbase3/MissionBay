@@ -72,13 +72,36 @@ final class AgentToolContractValidationService {
 	 * @return array{input:mixed,output:mixed,fingerprint:string}|null
 	 */
 	public function getProgramContract(string $name, array $tools): ?array {
-		$resolved = $this->resolveDefinition($name, $tools);
-		$tool = $resolved['tool'];
-		if (!$tool instanceof IAgentTool || ($tool instanceof IAgentBatchTool && $tool->isBatchFunction($name))) {
+		return $this->getProgramContracts([$name], $tools)[$name] ?? null;
+	}
+
+	/**
+	 * Resolves multiple program contracts from the current tools in one pass.
+	 * Uses the same schema resolution and validation as the single-name method.
+	 * No index is retained across calls or suspension.
+	 *
+	 * @param array<int,string> $names
+	 * @param array<int,mixed> $tools
+	 * @return array<string,array{input:mixed,output:mixed,fingerprint:string}>
+	 */
+	public function getProgramContracts(array $names, array $tools): array {
+		$result = [];
+		$resolved = $this->resolveDefinitions($names, $tools);
+		foreach ($names as $name) {
+			$entry = $resolved[$name];
+			if (!$entry['tool'] instanceof IAgentTool) { continue; }
+			$contract = $this->programContract($name, $entry['tool'], $entry['definition']);
+			if ($contract !== null) { $result[$name] = $contract; }
+		}
+		return $result;
+	}
+
+	private function programContract(string $name, IAgentTool $tool, array $definition): ?array {
+		if ($tool instanceof IAgentBatchTool && $tool->isBatchFunction($name)) {
 			return null;
 		}
-		$input = $this->resolveSchema($tool, $resolved['definition'], $name, AgentToolContractValidation::DIRECTION_INPUT);
-		$output = $this->resolveSchema($tool, $resolved['definition'], $name, AgentToolContractValidation::DIRECTION_OUTPUT);
+		$input = $this->resolveSchema($tool, $definition, $name, AgentToolContractValidation::DIRECTION_INPUT);
+		$output = $this->resolveSchema($tool, $definition, $name, AgentToolContractValidation::DIRECTION_OUTPUT);
 		if (!$input['declared'] || !$output['declared']
 			|| !$this->validator->isProgramSchema($input['schema']) || !$this->validator->isProgramSchema($output['schema'])) {
 			return null;
@@ -87,7 +110,7 @@ final class AgentToolContractValidationService {
 			'input' => $input['schema'],
 			'output' => $output['schema'],
 			'fingerprint' => (new AgentActionFingerprint())->createToolDefinitionFingerprint([
-				'definition' => $resolved['definition'],
+				'definition' => $definition,
 				'input' => $input['schema'],
 				'output' => $output['schema'],
 				'implementation' => $tool::class
@@ -192,40 +215,36 @@ final class AgentToolContractValidationService {
 	 * @return array{tool:?IAgentTool,definition:array<string,mixed>,error:string}
 	 */
 	private function resolveDefinition(string $name, array $tools): array {
+		return $this->resolveDefinitions([$name], $tools)[$name];
+	}
+
+	/** @return array<string,array{tool:?IAgentTool,definition:array<string,mixed>,error:string}> */
+	private function resolveDefinitions(array $names, array $tools): array {
+		$wanted = array_fill_keys($names, true);
+		$result = [];
 		$lastError = '';
-
 		foreach ($tools as $tool) {
-			if (!$tool instanceof IAgentTool) {
-				continue;
-			}
-
+			if ($wanted === []) { break; }
+			if (!$tool instanceof IAgentTool) { continue; }
 			try {
 				$definitions = $tool->getToolDefinitions();
 			} catch (\Throwable $e) {
 				$lastError = 'Tool definitions could not be read: ' . $e->getMessage();
 				continue;
 			}
-
 			foreach ($definitions as $definition) {
-				if (!is_array($definition)) {
-					continue;
-				}
-
-				if ($this->definitionName($definition) === $name) {
-					return [
-						'tool' => $tool,
-						'definition' => $definition,
-						'error' => ''
-					];
-				}
+				if (!is_array($definition)) { continue; }
+				$name = $this->definitionName($definition);
+				if (!isset($wanted[$name])) { continue; }
+				$result[$name] = ['tool' => $tool, 'definition' => $definition, 'error' => ''];
+				unset($wanted[$name]);
+				if ($wanted === []) { break; }
 			}
 		}
-
-		return [
-			'tool' => null,
-			'definition' => [],
-			'error' => $lastError
-		];
+		foreach ($wanted as $name => $_) {
+			$result[$name] = ['tool' => null, 'definition' => [], 'error' => $lastError];
+		}
+		return $result;
 	}
 
 	/**

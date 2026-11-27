@@ -36,7 +36,12 @@ final class ToolProgramState {
 	}
 
 	public function checkSize(): void {
-		$this->workBytes += strlen($this->toJson());
+		$this->chargeWork(strlen($this->toJson()));
+	}
+
+	/** Charge bounded local processing against the same cumulative VM work budget. */
+	public function chargeWork(int $bytes): void {
+		$this->workBytes += $bytes;
 		if ($this->workBytes > ToolProgram::MAX_WORK_BYTES) {
 			throw new \RuntimeException('Program cumulative state processing limit exceeded.');
 		}

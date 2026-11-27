@@ -95,14 +95,15 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 			if ($config->isProgramEnabled() && isset($this->toolNameMap($catalog)[ToolProgramDefinitionService::TOOL_NAME])) {
 				throw new \RuntimeException('Configured tool catalog contains the reserved program function name.');
 			}
-			$activeSelection = $this->resolveActiveSelection(
-				$context,
-				$catalog,
-				$sources,
-				$selectionConfig,
-				$requiredToolNames,
-				$iteration
-			);
+			$programDefinitions = $config->isProgramEnabled() ? new ToolProgramDefinitionService() : null;
+			$selectionApplied = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED) === true;
+			if ($programDefinitions !== null) {
+				[$activeSelection, $contracts, $catalogAvailable] = $this->resolveProgramSelection(
+					$context, $catalog, $sources, $selectionConfig, $requiredToolNames, $iteration, $tools, $programDefinitions
+				);
+			} else {
+				$activeSelection = $this->resolveActiveSelection($context, $catalog, $sources, $selectionConfig, $requiredToolNames, $iteration);
+			}
 		}
 		catch (\Throwable $e) {
 			return $this->failure('capability_source_catalog_failed', $e->getMessage());
@@ -112,18 +113,12 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 		$activeToolNames = $activeSelection->getToolNames();
 		$activeSourceIds = $this->sourceCatalogService->sourceIdsForToolNames($sources, $activeToolNames);
 		$historicalMutationNames = $this->historicalMutationNames($context, $activeDefinitions);
-		$catalogInstruction = $this->buildCatalogInstruction(
-			$sources,
-			$activeSourceIds,
-			$selectionConfig
-		);
-
-		$modelDefinitions = array_merge($activeDefinitions, [$this->sourceSelectionToolDefinition($selectionConfig)]);
-		if ($config->isProgramEnabled()) {
-			$programDefinitions = new ToolProgramDefinitionService();
-			$contracts = $programDefinitions->getContracts($activeDefinitions, $tools);
-			$modelDefinitions[] = $programDefinitions->getDefinition();
-			$catalogInstruction .= "\n\n" . $programDefinitions->getInstruction($contracts);
+		if ($programDefinitions !== null) {
+			$modelDefinitions = array_merge($activeDefinitions, [$programDefinitions->getDefinition()]);
+			$catalogInstruction = $programDefinitions->getInstruction($contracts, $catalogAvailable);
+		} else {
+			$modelDefinitions = array_merge($activeDefinitions, [$this->sourceSelectionToolDefinition($selectionConfig)]);
+			$catalogInstruction = $this->buildCatalogInstruction($sources, $activeSourceIds, $selectionConfig);
 		}
 
 		$originalDefinitions = $context->getVar(AgentToolLoopContextKeys::TOOL_DEFINITIONS);
@@ -152,15 +147,8 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 		$patch = $result->getPatch();
 		$pendingCalls = $patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS] ?? [];
 		$pendingCalls = is_array($pendingCalls) ? $pendingCalls : [];
-		$sourceCall = $this->sourceSelectionCall($pendingCalls);
-
-		$hasProgram = false;
-		if ($config->isProgramEnabled()) {
-			foreach ($pendingCalls as $pendingCall) {
-				if ($pendingCall instanceof AiToolCall && $pendingCall->getName() === ToolProgramDefinitionService::TOOL_NAME) { $hasProgram = true; break; }
-			}
-		}
-		if ($sourceCall instanceof AiToolCall && !$hasProgram) {
+		$sourceCall = $programDefinitions === null ? $this->sourceSelectionCall($pendingCalls) : null;
+		if ($sourceCall instanceof AiToolCall) {
 			return $this->handleSourceSelectionCall(
 				$context,
 				$result,
@@ -181,6 +169,9 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 			$patch[AgentToolLoopContextKeys::SELECTED_TOOL_NAMES] = $activeToolNames;
 			$patch[AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED] = true;
 			$patch[AgentToolLoopContextKeys::MUTATION_TOOL_NAMES] = $historicalMutationNames;
+			if ($programDefinitions !== null && !$selectionApplied) {
+				$patch = array_merge($patch, $this->sourceCatalogService->selectionPatch($context, $activeSelection, $sources, $historicalMutationNames, 'adaptive-program'));
+			}
 		}
 
 		return AgentStageResult::patch($patch, $result->getMetadata());
@@ -239,13 +230,8 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 		}
 
 		if ($selection !== null) {
-			$selectedDefinitions = $selection->getToolDefinitions();
 			$selectedToolNames = $selection->getToolNames();
 			$activeSourceIds = $this->sourceCatalogService->sourceIdsForToolNames($sources, $selectedToolNames);
-			$historicalMutationNames = $this->mergeNames(
-				$historicalMutationNames,
-				$this->toolDefinitionSemantics->getMutationToolNames($selectedDefinitions)
-			);
 			$messages[] = $this->toolMessage($sourceCall, [
 				'ok' => true,
 				'active_source_ids' => $activeSourceIds,
@@ -253,18 +239,8 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 				'message' => 'Capability source working set replaced. Continue the same task using the newly active tools.'
 			]);
 			$this->appendIgnoredMixedToolMessages($messages, $pendingCalls, $sourceCall);
-			$selections = $context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTIONS);
-			$selections = is_array($selections) ? $selections : [];
-			$selections[] = $selection;
-			$this->emitSelection($context, $selection->toArray(), $activeSourceIds);
-
-			$patch = $delegatePatch;
+			$patch = array_merge($delegatePatch, $this->sourceCatalogService->selectionPatch($context, $selection, $sources, $historicalMutationNames));
 			$patch[AgentToolLoopContextKeys::MESSAGES] = $messages;
-			$patch[AgentToolLoopContextKeys::TOOL_DEFINITIONS] = $selectedDefinitions;
-			$patch[AgentToolLoopContextKeys::SELECTED_TOOL_NAMES] = $selectedToolNames;
-			$patch[AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED] = true;
-			$patch[AgentToolLoopContextKeys::CAPABILITY_SELECTIONS] = $selections;
-			$patch[AgentToolLoopContextKeys::MUTATION_TOOL_NAMES] = $historicalMutationNames;
 			$patch[AgentToolLoopContextKeys::PENDING_TOOL_CALLS] = [];
 			$patch[AgentToolLoopContextKeys::COMPLETED] = false;
 			$patch[AgentToolLoopContextKeys::PHASE] = AgentToolLoopContextKeys::PHASE_MODEL;
@@ -297,6 +273,35 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 			'capability_source_control' => 'rejected',
 			'error' => $error
 		]));
+	}
+
+	/**
+	 * Small working sets go directly to the model. Larger sets keep only mandatory
+	 * tools active until the main model selects exact functions through its program.
+	 * The existing selection keys remain the sole active-set authority.
+	 *
+	 * @return array{0:AgentCapabilitySelection,1:array,2:bool}
+	 */
+	private function resolveProgramSelection(IAgentContext $context, AgentCapabilityCatalog $catalog, array $sources, AgentCapabilitySelectionConfig $config, array $required, int $iteration, array $tools, ToolProgramDefinitionService $programs): array {
+		$eligibleNames = array_keys($this->sourceCatalogService->eligibleByName($sources));
+		if ($context->getVar(AgentToolLoopContextKeys::CAPABILITY_SELECTION_APPLIED) === true) {
+			$selection = $this->sourceCatalogService->selectFunctions($catalog, $sources, (array)$context->getVar(AgentToolLoopContextKeys::SELECTED_TOOL_NAMES), $config, $required, $iteration);
+		} else {
+			$threshold = $config->getSelectAllThreshold() > 0 ? min($config->getSelectAllThreshold(), $config->getMaxTools()) : $config->getMaxTools();
+			if (count($eligibleNames) <= $threshold && count($sources) <= $config->getMaxSources()) {
+				$all = $this->sourceCatalogService->selectFunctions($catalog, $sources, $eligibleNames, $config, $required, $iteration);
+				$contracts = $programs->getContracts($all->getToolDefinitions(), $tools);
+				if ($programs->fitsModelBudget($all->getToolDefinitions(), $contracts, $config)) {
+					return [$all, $contracts, false];
+				}
+			}
+			$selection = $this->sourceCatalogService->selectFunctions($catalog, $sources, [], $config, $required, $iteration);
+		}
+		$contracts = $programs->getContracts($selection->getToolDefinitions(), $tools);
+		if (!$programs->fitsModelBudget($selection->getToolDefinitions(), $contracts, $config)) {
+			throw new \RuntimeException('Active program tool contracts exceed the configured model context budget.');
+		}
+		return [$selection, $contracts, count($selection->getToolNames()) < count($eligibleNames)];
 	}
 
 	/**
@@ -515,21 +520,6 @@ final class AgentSelectedNativeModelDecisionStrategy implements IAgentModelDecis
 		return $existing === '' ? $catalogInstruction : $catalogInstruction . "\n\n" . $existing;
 	}
 
-	/** @param array<string,mixed> $payload @param array<int,string> $sourceIds */
-	private function emitSelection(IAgentContext $context, array $payload, array $sourceIds): void {
-		$callback = $context->getVar(AgentToolLoopContextKeys::EVENT_CALLBACK);
-		if (!is_callable($callback)) {
-			return;
-		}
-		try {
-			$callback('capability.selection', array_merge($payload, [
-				'selection_owner' => 'main-agent',
-				'source_ids' => $sourceIds
-			]));
-		}
-		catch (\Throwable) {
-		}
-	}
 
 	private function failure(string $code, string $message): AgentStageResult {
 		return AgentStageResult::patch([

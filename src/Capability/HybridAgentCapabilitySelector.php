@@ -55,10 +55,61 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 			);
 		}
 
-		$contextText = $this->normalizeText($request->getContextText());
+		$ranked = $this->rankCapabilities(
+			$eligible,
+			$request->getContextText(),
+			$config->isSticky() ? $request->getPreviousSelectedToolNames() : [],
+			$request->getRecentToolNames(),
+			$required
+		);
+
+		$selected = [];
+		$scores = [];
+		$reasons = [];
+
+		foreach ($ranked as $entry) {
+			if (count($selected) >= $config->getMaxTools()) {
+				break;
+			}
+			$capability = $entry['capability'];
+			$selected[] = $capability;
+			$scores[$capability->getName()] = round((float)$entry['score'], 3);
+			$reasons[$capability->getName()] = $entry['reasons'];
+		}
+
+		return new AgentCapabilitySelection(
+			iteration: $request->getIteration(),
+			strategy: AgentCapabilitySelectionConfig::STRATEGY_HYBRID,
+			catalogSize: count($catalog),
+			eligibleSize: count($eligible),
+			capabilities: $selected,
+			scores: $scores,
+			reasons: $reasons
+		);
+	}
+
+	/**
+	 * Searches an already eligible capability set using the same lexical relevance
+	 * ranking as hybrid selection. Unrelated results are not padded with defaults.
+	 * Does not modify the catalog or the active working set.
+	 *
+	 * @param array<int,AgentCapability> $eligible
+	 * @return array<int,AgentCapability>
+	 */
+	public function search(array $eligible, string $query, int $limit, int $offset = 0): array {
+		$matches = array_values(array_filter(
+			$this->rankCapabilities($eligible, $query, [], [], []),
+			static fn(array $entry): bool => $entry['relevance'] > 0
+		));
+		return array_map(static fn(array $entry): AgentCapability => $entry['capability'], array_slice($matches, $offset, $limit));
+	}
+
+	/** @param array<int,AgentCapability> $eligible */
+	private function rankCapabilities(array $eligible, string $query, array $previousNames, array $recentNames, array $required): array {
+		$contextText = $this->normalizeText($query);
 		$contextTokens = $this->tokenize($contextText);
-		$previous = array_fill_keys($request->getPreviousSelectedToolNames(), true);
-		$recent = array_fill_keys($request->getRecentToolNames(), true);
+		$previous = array_fill_keys($previousNames, true);
+		$recent = array_fill_keys($recentNames, true);
 		$requiredMap = array_fill_keys($required, true);
 		$ranked = [];
 
@@ -67,7 +118,7 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 				$capability,
 				$contextText,
 				$contextTokens,
-				isset($previous[$capability->getName()]) && $config->isSticky(),
+				isset($previous[$capability->getName()]),
 				isset($recent[$capability->getName()]),
 				isset($requiredMap[$capability->getName()])
 			);
@@ -101,29 +152,7 @@ final class HybridAgentCapabilitySelector implements IAgentCapabilitySelector {
 			return strcmp($left['capability']->getName(), $right['capability']->getName());
 		});
 
-		$selected = [];
-		$scores = [];
-		$reasons = [];
-
-		foreach ($ranked as $entry) {
-			if (count($selected) >= $config->getMaxTools()) {
-				break;
-			}
-			$capability = $entry['capability'];
-			$selected[] = $capability;
-			$scores[$capability->getName()] = round((float)$entry['score'], 3);
-			$reasons[$capability->getName()] = $entry['reasons'];
-		}
-
-		return new AgentCapabilitySelection(
-			iteration: $request->getIteration(),
-			strategy: AgentCapabilitySelectionConfig::STRATEGY_HYBRID,
-			catalogSize: count($catalog),
-			eligibleSize: count($eligible),
-			capabilities: $selected,
-			scores: $scores,
-			reasons: $reasons
-		);
+		return $ranked;
 	}
 
 	/** @return array<int,AgentCapability> */

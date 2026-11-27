@@ -17,6 +17,7 @@
 
 namespace Base3\MissionBay\Orchestrator\Service;
 
+use Base3\AssistantFoundation\Api\IAgentContext;
 use Base3\AssistantFoundation\Dto\AgentCapability;
 use Base3\AssistantFoundation\Dto\AgentCapabilityCatalog;
 use Base3\AssistantFoundation\Dto\AgentCapabilitySelection;
@@ -25,13 +26,14 @@ use Base3\AssistantFoundation\Dto\AgentCapabilitySelectionRequest;
 use Base3\MissionBay\Api\IAgentCapabilitySourceMetadata;
 use Base3\MissionBay\Api\IAgentTool;
 use Base3\MissionBay\Capability\HybridAgentCapabilitySelector;
+use Base3\MissionBay\Orchestrator\Stage\AgentToolLoopContextKeys as Keys;
 
 /**
  * Builds the compact source universe used by the agent-selected native
  * orchestrator and resolves one exact active source set to callable functions.
  *
- * Hard capability filters remain authoritative. No relevance ranking happens
- * here: the main agent chooses sources from the complete eligible universe.
+ * Hard capability filters remain authoritative. Function search delegates to
+ * the existing hybrid ranker; the main agent chooses the actual working set.
  */
 final class AgentCapabilitySourceCatalogService {
 
@@ -165,12 +167,99 @@ final class AgentCapabilitySourceCatalogService {
 			}
 		}
 
+		return $this->createSelection($catalog, $this->eligibleByName($sources), $selected, $selectedSourceByTool, $config, $requiredToolNames, $iteration, 'agent-source-selection');
+	}
+
+	/** @return array<string,AgentCapability> */
+	public function eligibleByName(array $sources): array {
 		$eligible = [];
 		foreach ($sources as $source) {
 			foreach ($source['capabilities'] as $capability) {
 				$eligible[$capability->getName()] = $capability;
 			}
 		}
+		return $eligible;
+	}
+
+	/**
+	 * Selects exact individual eligible functions, including mandatory tools.
+	 * Unlike source selection, one large source need not be exposed in full.
+	 * The existing active function and source limits still apply.
+	 */
+	public function selectFunctions(AgentCapabilityCatalog $catalog, array $sources, array $names, AgentCapabilitySelectionConfig $config, array $requiredToolNames, int $iteration): AgentCapabilitySelection {
+		$eligible = $this->eligibleByName($sources);
+		$selected = [];
+		$mandatory = array_fill_keys($this->mandatoryToolNames(array_values($eligible), $config, $requiredToolNames), true);
+		$sourceByName = [];
+		foreach ($sources as $id => $source) {
+			foreach ($source['capabilities'] as $capability) {
+				$sourceByName[$capability->getName()] = $id;
+			}
+		}
+		$sourceIds = [];
+		foreach ($names as $name) {
+			if (!is_string($name) || !isset($eligible[$name])) {
+				throw new \RuntimeException('Requested function is not eligible for the current agent.');
+			}
+			$selected[$name] = $eligible[$name];
+			if (!isset($mandatory[$name])) { $sourceIds[$sourceByName[$name]] = true; }
+		}
+		if (count($sourceIds) > $config->getMaxSources()) {
+			throw new \RuntimeException('Function selection exceeds the configured active source limit.');
+		}
+		return $this->createSelection($catalog, $eligible, $selected, $sourceByName, $config, $requiredToolNames, $iteration, 'agent-function-selection');
+	}
+
+	/**
+	 * Searches only the existing filtered source universe; no schema or callable
+	 * implementation is copied into the result. Results are intentionally compact.
+	 */
+	public function searchFunctions(array $sources, string $query, int $limit, int $offset): array {
+		$sourceByName = [];
+		foreach ($sources as $id => $source) {
+			foreach ($source['capabilities'] as $capability) {
+				$sourceByName[$capability->getName()] = $id;
+			}
+		}
+		$eligible = array_values($this->eligibleByName($sources));
+		$result = [];
+		foreach ($this->eligibilitySelector->search($eligible, $query, $limit, $offset) as $capability) {
+			$result[] = [
+				'name' => $capability->getName(),
+				'title' => $this->limitText($capability->getTitle(), 160),
+				'description' => $this->limitText($capability->getDescription(), 400),
+				'category' => $this->limitText($capability->getCategory(), 100),
+				'source_id' => (string)$sourceByName[$capability->getName()]
+			];
+		}
+		return $result;
+	}
+
+	/** Builds the normal selection patch and emits the existing selection event. */
+	public function selectionPatch(IAgentContext $context, AgentCapabilitySelection $selection, array $sources, array $historicalMutationNames, string $selectionOwner = 'main-agent'): array {
+		$definitions = $selection->getToolDefinitions();
+		$names = $selection->getToolNames();
+		$selections = (array)$context->getVar(Keys::CAPABILITY_SELECTIONS);
+		$selections[] = $selection;
+		$callback = $context->getVar(Keys::EVENT_CALLBACK);
+		if (is_callable($callback)) {
+			try {
+				$callback('capability.selection', array_merge($selection->toArray(), [
+					'selection_owner' => $selectionOwner,
+					'source_ids' => $this->sourceIdsForToolNames($sources, $names)
+				]));
+			} catch (\Throwable) {}
+		}
+		return [
+			Keys::TOOL_DEFINITIONS => $definitions,
+			Keys::SELECTED_TOOL_NAMES => $names,
+			Keys::CAPABILITY_SELECTION_APPLIED => true,
+			Keys::CAPABILITY_SELECTIONS => $selections,
+			Keys::MUTATION_TOOL_NAMES => array_values(array_unique(array_merge($historicalMutationNames, (new AgentToolDefinitionSemantics())->getMutationToolNames($definitions))))
+		];
+	}
+
+	private function createSelection(AgentCapabilityCatalog $catalog, array $eligible, array $selected, array $selectedSourceByTool, AgentCapabilitySelectionConfig $config, array $requiredToolNames, int $iteration, string $reason): AgentCapabilitySelection {
 		$mandatory = $this->mandatoryToolNames(array_values($eligible), $config, $requiredToolNames);
 		foreach ($mandatory as $name) {
 			$selected[$name] = $eligible[$name];
@@ -195,8 +284,8 @@ final class AgentCapabilitySourceCatalogService {
 			$name = $capability->getName();
 			$scores[$name] = isset($mandatoryMap[$name]) ? 1000.0 : 100.0;
 			$reasons[$name] = isset($mandatoryMap[$name])
-				? ['mandatory', 'agent-source-selection']
-				: ['agent-source-selection', 'source:' . ($selectedSourceByTool[$name] ?? 'configured')];
+				? ['mandatory', $reason]
+				: [$reason, 'source:' . ($selectedSourceByTool[$name] ?? 'configured')];
 		}
 
 		return new AgentCapabilitySelection(
@@ -425,7 +514,9 @@ final class AgentCapabilitySourceCatalogService {
 		if ($maxCharacters <= 3) {
 			return substr($text, 0, $maxCharacters);
 		}
-		return substr($text, 0, $maxCharacters - 3) . '...';
+		$prefix = substr($text, 0, $maxCharacters - 3);
+		for ($i = 0; $i < 3 && preg_match('//u', $prefix) !== 1; $i++) { $prefix = substr($prefix, 0, -1); }
+		return $prefix . '...';
 	}
 
 	private function encode(mixed $value): string {
